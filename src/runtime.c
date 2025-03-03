@@ -1614,6 +1614,17 @@ void debugger_ui_update(oc_runtime* app)
 
 #endif // OC_WASM_DEBUGGER
 
+void vm_thread_resume(oc_wasm_env* env)
+{
+    oc_mutex_lock(env->suspendMutex);
+    {
+        env->paused = false;
+        env->prevPaused = false;
+        oc_condition_signal(env->suspendCond);
+    }
+    oc_mutex_unlock(env->suspendMutex);
+}
+
 i32 control_runloop(void* user)
 {
     oc_runtime* app = (oc_runtime*)user;
@@ -1634,7 +1645,60 @@ i32 control_runloop(void* user)
 
         while((event = oc_next_event(scratch.arena)) != 0)
         {
-            if(event->window.h == app->window.h)
+#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
+            if(!oc_window_is_nil(event->window)
+               && event->window.h == app->debuggerUI.window.h)
+            {
+                oc_ui_set_context(app->debuggerUI.ui);
+                oc_ui_process_event(event);
+
+                switch(event->type)
+                {
+                    case OC_EVENT_WINDOW_CLOSE:
+                    {
+                        oc_debugger_ui_close(app);
+                    }
+                    break;
+
+                    case OC_EVENT_QUIT:
+                    {
+                        //TODO: we should also unblock vm thread and abort interpreter here
+                        app->quit = true;
+                        vm_thread_resume(&app->env);
+                    }
+                    break;
+
+                    case OC_EVENT_KEYBOARD_KEY:
+                    {
+                        if(event->key.action == OC_KEY_PRESS)
+                        {
+                            if(event->key.keyCode == OC_KEY_C)
+                            {
+                                //NOTE: signal vm thread to continue
+                                app->env.debuggerCommand = OC_DEBUGGER_CONTINUE;
+                                vm_thread_resume(&app->env);
+                            }
+                            else if(event->key.keyCode == OC_KEY_N)
+                            {
+                                //NOTE: signal vm thread to step
+                                app->env.debuggerCommand = OC_DEBUGGER_STEP;
+                                vm_thread_resume(&app->env);
+                            }
+                            else if(event->key.keyCode == OC_KEY_P
+                                    && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
+                            {
+                                //TODO: if we're running, signal vm thread to suspend
+                                wa_interpreter_suspend(app->env.interpreter);
+                            }
+                        }
+                    }
+                    break;
+
+                    default:
+                        break;
+                }
+            }
+            else
             {
                 if(app->debugOverlay.show)
                 {
@@ -1648,6 +1712,7 @@ i32 control_runloop(void* user)
                     case OC_EVENT_QUIT:
                     {
                         app->quit = true;
+                        vm_thread_resume(&app->env);
                     }
                     break;
 
@@ -1660,9 +1725,9 @@ i32 control_runloop(void* user)
                             {
                                 if(event->key.mods & OC_KEYMOD_SHIFT)
                                 {
-#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
+    #ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
                                     oc_debugger_ui_open(app);
-#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
+    #endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
                                 }
                                 else
                                 {
@@ -1681,71 +1746,6 @@ i32 control_runloop(void* user)
                     queue_event(&app->eventBuffer, event);
                 }
             }
-#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
-            else if(event->window.h == app->debuggerUI.window.h)
-            {
-                oc_ui_set_context(app->debuggerUI.ui);
-                oc_ui_process_event(event);
-
-                switch(event->type)
-                {
-                    case OC_EVENT_WINDOW_CLOSE:
-                    {
-                        oc_debugger_ui_close(app);
-                    }
-                    break;
-
-                    case OC_EVENT_QUIT:
-                    {
-                        //TODO: we should also unblock vm thread and abort interpreter here
-                        app->quit = true;
-                    }
-                    break;
-
-                    case OC_EVENT_KEYBOARD_KEY:
-                    {
-                        if(event->key.action == OC_KEY_PRESS)
-                        {
-                            if(event->key.keyCode == OC_KEY_C)
-                            {
-                                //NOTE: signal vm thread to continue
-                                app->env.debuggerCommand = OC_DEBUGGER_CONTINUE;
-
-                                oc_mutex_lock(app->env.suspendMutex);
-                                {
-                                    app->env.paused = false;
-                                    app->env.prevPaused = false;
-                                    oc_condition_signal(app->env.suspendCond);
-                                }
-                                oc_mutex_unlock(app->env.suspendMutex);
-                            }
-                            else if(event->key.keyCode == OC_KEY_N)
-                            {
-                                //NOTE: signal vm thread to step
-                                app->env.debuggerCommand = OC_DEBUGGER_STEP;
-
-                                oc_mutex_lock(app->env.suspendMutex);
-                                {
-                                    app->env.paused = false;
-                                    app->env.prevPaused = false;
-                                    oc_condition_signal(app->env.suspendCond);
-                                }
-                                oc_mutex_unlock(app->env.suspendMutex);
-                            }
-                            else if(event->key.keyCode == OC_KEY_P
-                                    && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
-                            {
-                                //TODO: if we're running, signal vm thread to suspend
-                                wa_interpreter_suspend(app->env.interpreter);
-                            }
-                        }
-                    }
-                    break;
-
-                    default:
-                        break;
-                }
-            }
 #endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
         }
 
@@ -1758,7 +1758,10 @@ i32 control_runloop(void* user)
         }
 #endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
 
-        overlay_ui(app);
+        if(!app->quit)
+        {
+            overlay_ui(app);
+        }
 
         oc_scratch_end(scratch);
     }
