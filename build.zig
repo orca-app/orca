@@ -1099,7 +1099,7 @@ pub fn build(b: *Build) !void {
     build_tool_step.dependOn(&orca_tool_install.step);
 
     ///////////////////////////////////////////////////////////////
-    // zig build orca
+    // zig build - default install step builds and installs a dev build of orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
     build_orca.dependOn(build_orca_platform_step);
@@ -1108,9 +1108,6 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(build_wasm_sdk_step);
     build_orca.dependOn(build_tool_step);
 
-    ///////////////////////////////////////////////////////////////
-    // package-sdk and install-sdk commands
-
     const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "package_sdk",
         .root_source_file = b.path("src/build/package_sdk.zig"),
@@ -1118,13 +1115,24 @@ pub fn build(b: *Build) !void {
         .optimize = .Debug,
     });
 
-    // zig build orca-install
+    const opt_sdk_install_dir = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
 
     var orca_install = b.addRunArtifact(package_sdk_exe);
     orca_install.addArg("--dev-install");
     orca_install.addPrefixedFileArg("--artifacts-path=", b.path("build"));
     orca_install.addPrefixedFileArg("--resources-path=", b.path("resources"));
     orca_install.addPrefixedFileArg("--src-path=", b.path("src"));
+
+    if (opt_sdk_install_dir) |sdk_install_dir| {
+        if (std.fs.path.isAbsolute(sdk_install_dir)) {
+            const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_dir });
+            orca_install.addArg(sdk_path);
+        } else {
+            const fail_absolute_sdk_path = b.addFail("sdk-path must be an absolute path");
+            orca_install.step.dependOn(&fail_absolute_sdk_path.step);
+        }
+    }
+
     orca_install.step.dependOn(build_orca);
 
     const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
@@ -1133,9 +1141,12 @@ pub fn build(b: *Build) !void {
         orca_install.addArg(version);
     }
 
-    const orca_install_step = b.step("orca-install", "Build and install orca in orca system path as a dev build");
-    orca_install_step.dependOn(&orca_install.step);
+    // default install step builds orca and installs it to the main directory
 
+    // const orca_install_step = b.step("orca-install", "Build and install orca in orca system path as a dev build");
+    b.getInstallStep().dependOn(&orca_install.step);
+
+    ///////////////////////////////////////////////////////////////
     // zig build package-sdk
 
     var package_sdk_to_dir = b.addRunArtifact(package_sdk_exe);
@@ -1143,18 +1154,14 @@ pub fn build(b: *Build) !void {
     package_sdk_to_dir.addPrefixedFileArg("--resources-path=", b.path("resources"));
     package_sdk_to_dir.addPrefixedFileArg("--src-path=", b.path("src"));
 
-    const opt_sdk_install_dir = b.option([]const u8, "sdk-dir", "Specify absolute path for package-sdk and install-sdk files.");
     if (opt_sdk_install_dir) |sdk_install_dir| {
         if (std.fs.path.isAbsolute(sdk_install_dir)) {
-            const install_path = try std.mem.join(b.allocator, "", &.{ "--install-path=", sdk_install_dir });
-            package_sdk_to_dir.addArg(install_path);
+            const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_dir });
+            package_sdk_to_dir.addArg(sdk_path);
         } else {
-            const fail_absolute_sdk_dir = b.addFail("sdk-dir must be an absolute path");
-            package_sdk_to_dir.step.dependOn(&fail_absolute_sdk_dir.step);
+            const fail_absolute_sdk_path = b.addFail("sdk-path must be an absolute path");
+            package_sdk_to_dir.step.dependOn(&fail_absolute_sdk_path.step);
         }
-    } else {
-        const fail_missing_sdk_dir = b.addFail("Specifying -Dsdk-dir=<path> is required for package-sdk.");
-        package_sdk_to_dir.step.dependOn(&fail_missing_sdk_dir.step);
     }
 
     // package command
