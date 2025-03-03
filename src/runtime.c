@@ -1006,6 +1006,7 @@ void overlay_ui(oc_runtime* app)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
+    oc_ui_set_context(app->debugOverlay.ui);
     oc_canvas_context_select(app->debugOverlay.context);
 
     if(app->debugOverlay.show)
@@ -1281,56 +1282,128 @@ void debugger_ui_update(oc_runtime* app)
 
         static f32 procPanelSize = 300;
 
-        oc_ui_box("proc-list")
+        oc_ui_box("browser")
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, procPanelSize });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
-            oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
-
+            oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-            for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+            static bool showSymbols = true;
+
+            oc_ui_box("browser-tabs")
             {
-                wa_func* func = &app->env.instance->functions[funcIndex];
-                if(func->codeLen)
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_2);
+
+                oc_ui_box* optFiles = oc_ui_box("option-files")
                 {
-                    oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
+                    oc_ui_set_text(OC_STR8("Files"));
 
-                    oc_ui_box* box = oc_ui_box_str8(name)
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                    oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                    oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                    oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                    oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                    oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                    oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                    if(oc_ui_get_sig().pressed)
                     {
-                        oc_ui_set_text(name);
+                        showSymbols = false;
+                    }
+                }
 
-                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
-                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
-                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                oc_ui_box* optSymbols = oc_ui_box("option-symbols")
+                {
+                    oc_ui_set_text(OC_STR8("Symbols"));
 
-                        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-                        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
-                        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                    oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                    oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                    oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
 
-                        if(selectedFunction == funcIndex)
+                    oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                    oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                    oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                    if(oc_ui_get_sig().pressed)
+                    {
+                        showSymbols = true;
+                    }
+                }
+
+                oc_ui_style_rule(showSymbols ? "option-symbols" : "option-files")
+                {
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                }
+            }
+
+            oc_ui_box("browser-contents")
+            {
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                if(showSymbols)
+                {
+                    for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+                    {
+                        wa_func* func = &app->env.instance->functions[funcIndex];
+                        if(func->codeLen)
                         {
-                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
-                        }
-                        else
-                        {
-                            oc_ui_style_rule(".hover")
+                            oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
+
+                            oc_ui_box* box = oc_ui_box_str8(name)
                             {
-                                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                                oc_ui_set_text(name);
+
+                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                                oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                                oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                                oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                                oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                                if(selectedFunction == funcIndex)
+                                {
+                                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                                }
+                                else
+                                {
+                                    oc_ui_style_rule(".hover")
+                                    {
+                                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                                    }
+                                }
+
+                                oc_ui_sig sig = oc_ui_get_sig();
+                                if(sig.pressed)
+                                {
+                                    selectedFunction = funcIndex;
+                                    app->env.autoScroll = false;
+                                    freshScroll = true;
+                                }
                             }
                         }
-
-                        oc_ui_sig sig = oc_ui_get_sig();
-                        if(sig.pressed)
-                        {
-                            selectedFunction = funcIndex;
-                            app->env.autoScroll = false;
-                            freshScroll = true;
-                        }
                     }
+                }
+                else
+                {
+                    //TODO: show files list
                 }
             }
         }

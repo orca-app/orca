@@ -663,7 +663,7 @@ typedef struct dw_file_entry
     u64 dirIndex;
     u64 timestamp;
     u64 size;
-    u16 md5;
+    u8 md5[16];
 
 } dw_file_entry;
 
@@ -742,6 +742,12 @@ typedef struct dw_info
     dw_line_info* line;
 } dw_info;
 
+typedef struct dw_file_entry_elt
+{
+    oc_list_elt listElt;
+    dw_file_entry entry;
+} dw_file_entry_elt;
+
 int dw_read_file_entries(oc_arena* arena,
                          u64* entryCount,
                          dw_file_entry** entries,
@@ -749,34 +755,88 @@ int dw_read_file_entries(oc_arena* arena,
                          dw_line_program_header* header,
                          char* data,
                          u64 fileSize,
-                         u64 offset)
+                         u64 offset,
+                         bool directories)
 {
     u64 start = offset;
     u8 formatCount = 0;
-    offset += dw_read_u8(&formatCount, data, fileSize, offset);
+    dw_file_entry_format_elt* format = 0;
 
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
-    dw_file_entry_format_elt* format = oc_arena_push_array(scratch.arena, dw_file_entry_format_elt, formatCount);
-
-    for(int i = 0; i < formatCount; i++)
+    if(header->version == 5)
     {
-        offset += dw_read_leb128_u64(&format[i].content, data, fileSize, offset);
-        offset += dw_read_leb128_u64(&format[i].form, data, fileSize, offset);
+        offset += dw_read_u8(&formatCount, data, fileSize, offset);
+    }
+    else
+    {
+        if(directories)
+        {
+            formatCount = 1;
+        }
+        else
+        {
+            formatCount = 4;
+        }
     }
 
-    offset += dw_read_leb128_u64(entryCount, data, fileSize, offset);
+    format = oc_arena_push_array(scratch.arena, dw_file_entry_format_elt, formatCount);
 
-    *entries = oc_arena_push_array(arena, dw_file_entry, *entryCount);
-    memset((*entries), 0, (*entryCount) * sizeof(dw_file_entry));
-
-    for(u64 entryIndex = 0; entryIndex < *entryCount; entryIndex++)
+    if(header->version == 5)
     {
+        for(int i = 0; i < formatCount; i++)
+        {
+            offset += dw_read_leb128_u64(&format[i].content, data, fileSize, offset);
+            offset += dw_read_leb128_u64(&format[i].form, data, fileSize, offset);
+        }
+        offset += dw_read_leb128_u64(entryCount, data, fileSize, offset);
+    }
+    else
+    {
+        if(directories)
+        {
+            format[0].content = DW_LNCT_path;
+            format[0].form = DW_FORM_string;
+        }
+        else
+        {
+            format[0].content = DW_LNCT_path;
+            format[0].form = DW_FORM_string;
+            format[1].content = DW_LNCT_directory_index;
+            format[1].form = DW_FORM_udata;
+
+            format[2].content = DW_LNCT_timestamp;
+            format[2].form = DW_FORM_udata;
+            format[3].content = DW_LNCT_size;
+            format[3].form = DW_FORM_udata;
+        }
+    }
+
+    oc_list entryList = { 0 };
+    u64 entryIndex = 0;
+
+    while(offset < fileSize)
+    {
+        if(header->version == 5 && entryIndex >= *entryCount)
+        {
+            break;
+        }
+        else if(header->version == 4 && data[offset] == 0)
+        {
+            offset++;
+            break;
+        }
+
+        dw_file_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_file_entry_elt);
+        memset(elt, 0, sizeof(dw_file_entry_elt));
+        oc_list_push_back(&entryList, &elt->listElt);
+
+        dw_file_entry* entry = &elt->entry;
+
         for(int fmtIndex = 0; fmtIndex < formatCount; fmtIndex++)
         {
             u64 content = format[fmtIndex].content;
             u64 form = format[fmtIndex].form;
-            dw_file_entry* entry = &((*entries)[entryIndex]);
 
             switch(content)
             {
@@ -980,7 +1040,9 @@ int dw_read_file_entries(oc_arena* arena,
                                dw_get_line_header_entry_format_string(content));
                         exit(-1);
                     }
-                    offset += dw_read_u16(&entry->md5, data, fileSize, offset);
+                    char* md5 = 0;
+                    offset += dw_read_str8(&md5, 16, data, fileSize, offset);
+                    memcpy(entry->md5, md5, 16);
                 }
                 break;
                 case DW_LNCT_lo_user:
@@ -1009,7 +1071,25 @@ int dw_read_file_entries(oc_arena* arena,
                 break;
             }
         }
+
+        OC_DEBUG_ASSERT(entry->path.ptr);
+
+        entryIndex++;
     }
+    OC_DEBUG_ASSERT(header->version == 4 || *entryCount == entryIndex);
+
+    *entryCount = entryIndex;
+
+    *entries = oc_arena_push_array(arena, dw_file_entry, *entryCount);
+    {
+        u64 i = 0;
+        oc_list_for(entryList, elt, dw_file_entry_elt, listElt)
+        {
+            (*entries)[i] = elt->entry;
+            i++;
+        }
+    }
+
     oc_scratch_end(scratch);
     return (offset - start);
 }
@@ -1035,14 +1115,30 @@ int dw_read_line_program_header(oc_arena* arena, dw_line_program_header* header,
 
     offset += dw_read_u16(&header->version, data, fileSize, offset);
 
-    if(header->version != 5)
+    if(header->version != 5 && header->version != 4)
     {
         printf("error: DWARF version %i not supported\n", header->version);
         exit(-1);
     }
 
-    offset += dw_read_u8(&header->addressSize, data, fileSize, offset);
-    offset += dw_read_u8(&header->segmentSelectorSize, data, fileSize, offset);
+    if(header->version == 5)
+    {
+        offset += dw_read_u8(&header->addressSize, data, fileSize, offset);
+        if(header->addressSize != 4 && header->addressSize != 8)
+        {
+            oc_log_error("address size should be 4 or 8\n");
+            exit(-1);
+        }
+
+        offset += dw_read_u8(&header->segmentSelectorSize, data, fileSize, offset);
+    }
+    else
+    {
+        //NOTE: we set 4 by default as it is the address size on wasm.
+        //TODO: THIS SHOULD CHANGE IF WE SWITCH TO WASM64!
+        //TODO: allow configuring the "default target address size" from outside
+        header->addressSize = 4;
+    }
 
     if(dwarfFormat == DWARF_FORMAT_DWARF32)
     {
@@ -1070,10 +1166,10 @@ int dw_read_line_program_header(oc_arena* arena, dw_line_program_header* header,
     }
 
     // directories
-    offset += dw_read_file_entries(arena, &header->dirEntryCount, &header->dirEntries, sections, header, data, fileSize, offset);
+    offset += dw_read_file_entries(arena, &header->dirEntryCount, &header->dirEntries, sections, header, data, fileSize, offset, true);
 
     // files
-    offset += dw_read_file_entries(arena, &header->fileEntryCount, &header->fileEntries, sections, header, data, fileSize, offset);
+    offset += dw_read_file_entries(arena, &header->fileEntryCount, &header->fileEntries, sections, header, data, fileSize, offset, false);
 
     //NOTE: return offset from start to beginning of line program code
     return (headerLengthBase + header->headerLength - start);
@@ -1161,17 +1257,6 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
             exit(-1);
         }
 
-        if(header.version != 5)
-        {
-            oc_log_error("DWARF version %i not supported\n", header.version);
-            exit(-1);
-        }
-        if(header.addressSize != 4 && header.addressSize != 8)
-        {
-            oc_log_error("address size should be 4 or 8\n");
-            exit(-1);
-        }
-
         dw_line_table_elt* table = oc_arena_push_type(scratch.arena, dw_line_table_elt);
         oc_list_push_back(&tablesList, &table->listElt);
 
@@ -1186,6 +1271,11 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
 
         dw_line_machine machine;
         dw_line_machine_reset(&machine, header.defaultIsStmt);
+
+        if(tableCount == 496)
+        {
+            printf(".\n");
+        }
 
         while(offset < unitLineInfoEnd)
         {
@@ -1265,7 +1355,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                         }
                         else
                         {
-                            printf("error: unrecognized line program opcode\n");
+                            oc_log_error("unrecognized line program opcode\n");
                             exit(-1);
                         }
                     }
@@ -1361,9 +1451,13 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                         machine.isa = isa;
                     }
                     break;
-                        printf("error: unrecognized line program opcode\n");
+
+                    default:
+                    {
+                        oc_log_error("unrecognized line program opcode\n");
                         exit(-1);
-                        break;
+                    }
+                    break;
                 }
             }
         }
@@ -1420,12 +1514,17 @@ void dw_print_line_info(dw_line_info* info)
                    "    dirIndex: %llu\n"
                    "    timestamp: %llu\n"
                    "    size: %llu\n"
-                   "    md5: 0x%04x\n",
+                   "    md5: ",
                    i, oc_str8_ip(entry->path),
                    entry->dirIndex,
                    entry->timestamp,
-                   entry->size,
-                   entry->md5);
+                   entry->size);
+
+            for(int i = 0; i < 16; i++)
+            {
+                printf("%02x", entry->md5[i]);
+            }
+            printf("\n");
         }
         printf("\n");
 

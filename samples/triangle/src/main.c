@@ -49,6 +49,7 @@ ORCA_EXPORT void oc_on_init(void)
     surface = oc_gles_surface_create();
     oc_gles_surface_make_current(surface);
 
+    /*
     const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
     oc_log_info("GLES extensions: %s\n", extensions);
 
@@ -59,6 +60,7 @@ ORCA_EXPORT void oc_on_init(void)
         const char* extension = (const char*)glGetStringi(GL_EXTENSIONS, i);
         oc_log_info("GLES extension %i: %s\n", i, extension);
     }
+    */
 
     unsigned int vshader = glCreateShader(GL_VERTEX_SHADER);
     unsigned int fshader = glCreateShader(GL_FRAGMENT_SHADER);

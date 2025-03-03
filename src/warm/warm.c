@@ -3079,6 +3079,76 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     }
 }
 
+#include "dwarf.c"
+
+void wa_parse_dwarf(wa_parser* parser, wa_module* module)
+{
+    /////////////////////////////////////////////////////////////////////////
+    //WIP: Dwarf stuff
+
+    //NOTE: load dwarf sections
+    //TODO: - put all that in its own wa_load_debug_info function
+    //      ? split dw_xxx struct (for parsing dwarf specific stuff) from wa_debug_xxx (for internal representation)
+
+    dw_sections dwarfSections = { 0 };
+
+    oc_list_for(module->toc.customSections, section, wa_section, listElt)
+    {
+        oc_str8 sectionContents = (oc_str8){
+            .ptr = parser->contents + section->offset,
+            .len = section->len,
+        };
+
+        if(!oc_str8_cmp(section->name, OC_STR8(".debug_abbrev")))
+        {
+            dwarfSections.abbrev = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_info")))
+        {
+            dwarfSections.info = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str_offsets")))
+        {
+            dwarfSections.strOffsets = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str")))
+        {
+            dwarfSections.str = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_addr")))
+        {
+            dwarfSections.addr = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line")))
+        {
+            dwarfSections.line = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line_str")))
+        {
+            dwarfSections.lineStr = sectionContents;
+        }
+    }
+
+    module->debugInfo = oc_arena_push_type(module->arena, dw_info);
+    memset(module->debugInfo, 0, sizeof(dw_info));
+
+    /*
+    //NOTE: dump dwarf abbrev table if it exists
+    if(dwarfSections.abbrev.len)
+    {
+        dw_dump_abbrev_table(dwarfSections.abbrev);
+    }
+    */
+
+    //NOTE: load line info if it exists
+    //TODO: put that in dw_info
+    if(dwarfSections.line.len)
+    {
+        dw_line_info lineInfo = dw_load_line_info(module->arena, &dwarfSections);
+        dw_print_line_info(&lineInfo);
+    }
+}
+
 //-------------------------------------------------------------------------
 // bytecode -> instr map
 //-------------------------------------------------------------------------
@@ -4861,6 +4931,8 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_data(&parser, module);
 
     wa_parse_names(&parser, module);
+
+    wa_parse_dwarf(&parser, module);
 
     if(oc_list_empty(module->errors))
     {
