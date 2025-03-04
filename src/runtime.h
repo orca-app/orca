@@ -127,6 +127,7 @@ typedef struct oc_debugger_ui
     oc_canvas_context canvas;
     oc_ui_context* ui;
 
+    wa_source_node* selectedFile;
 } oc_debugger_ui;
 
 typedef struct oc_runtime

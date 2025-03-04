@@ -288,6 +288,7 @@ typedef struct wa_source_node
     oc_str8 name;
     oc_str8 path;
 
+    oc_str8 contents;
 } wa_source_node;
 
 wa_source_node* wa_module_get_source_tree(wa_module* module);

@@ -3082,7 +3082,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 
 #include "dwarf.c"
 
-void wa_source_tree_insert_path(oc_arena* arena, wa_source_node* root, oc_str8 path)
+void wa_source_tree_insert_path(oc_arena* arena, wa_source_node* root, oc_str8 rootPath, oc_str8 path)
 {
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
     oc_str8_list pathElements = oc_path_split(scratch.arena, path);
@@ -3106,7 +3106,15 @@ void wa_source_tree_insert_path(oc_arena* arena, wa_source_node* root, oc_str8 p
             found = oc_arena_push_type(arena, wa_source_node);
             memset(found, 0, sizeof(wa_source_node));
             found->name = oc_str8_push_copy(arena, eltName->string);
-            found->path = oc_path_append(arena, currentNode->path, eltName->string);
+
+            if(currentNode == root)
+            {
+                found->path = oc_str8_push_copy(arena, rootPath);
+            }
+            else
+            {
+                found->path = oc_path_append(arena, currentNode->path, eltName->string);
+            }
             //TODO: accumulate fullPath
 
             oc_list_push_back(&currentNode->children, &found->listElt);
@@ -3212,6 +3220,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                 dw_file_entry* fileEntry = &table->fileEntries[fileIndex];
 
                 oc_str8 absPath = { 0 };
+                oc_str8 rootPath = { 0 };
                 oc_str8 rootName = { 0 };
                 oc_str8 filePath = fileEntry->path;
 
@@ -3234,13 +3243,14 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                         if(dirPath.len && dirPath.ptr[0] == '/')
                         {
                             // absolute dir path
+                            rootPath = dirEntry->path;
                             rootName = oc_path_slice_filename(dirEntry->path);
                             absPath = oc_path_append(module->arena, dirPath, filePath);
                         }
                         else
                         {
                             // relative dir path
-                            oc_str8 rootPath = table->dirEntries[0].path;
+                            rootPath = table->dirEntries[0].path;
                             oc_str8 absDirPath = oc_path_append(scratch.arena, rootPath, dirEntry->path);
 
                             rootName = oc_path_slice_filename(rootPath);
@@ -3257,10 +3267,9 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                             if(dirEntry->path.len && dirEntry->path.ptr[0] == '/')
                             {
                                 // absolute dir path
-                                oc_str8 dirPath = dirEntry->path;
-
-                                rootName = oc_path_slice_filename(dirEntry->path);
-                                absPath = oc_path_append(module->arena, dirPath, filePath);
+                                rootPath = dirEntry->path;
+                                rootName = oc_path_slice_filename(rootPath);
+                                absPath = oc_path_append(module->arena, rootPath, filePath);
                             }
                             else
                             {
@@ -3287,7 +3296,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                     ///////////////////////////////////////////////////////////////////////////
 
                     oc_str8 presentationPath = oc_path_append(scratch.arena, rootName, filePath);
-                    wa_source_tree_insert_path(module->arena, &module->sourceTree, presentationPath);
+                    wa_source_tree_insert_path(module->arena, &module->sourceTree, rootPath, presentationPath);
                 }
             }
         }
