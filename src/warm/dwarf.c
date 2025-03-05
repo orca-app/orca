@@ -1,3 +1,10 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
 
 #include "util/typedefs.h"
 #include "util/memory.h"
@@ -332,15 +339,25 @@ const char* dw_get_form_string(u32 form)
     X(DW_LNE_lo_user, 0x80)           \
     X(DW_LNE_hi_user, 0xff)
 
-enum
+typedef enum dw_lns_opcode
 {
     DW_LNS_LIST(X_ENUM)
-};
+} dw_lns_opcode;
 
-enum
+typedef enum dw_lne_opcode
 {
     DW_LNE_LIST(X_ENUM)
-};
+} dw_lne_opcode;
+
+const char* dw_get_line_standard_opcode_string(u32 opcode)
+{
+    const char* res = 0;
+    switch(opcode)
+    {
+        DW_LNS_LIST(X_NAME_CASE);
+    }
+    return res;
+}
 
 #define DW_LNCT_LIST(X)              \
     X(DW_LNCT_path, 0x01)            \
@@ -351,10 +368,19 @@ enum
     X(DW_LNCT_lo_user, 0x2000)       \
     X(DW_LNCT_hi_user, 0x3fff)
 
-enum
+typedef enum dw_lnct
 {
     DW_LNCT_LIST(X_ENUM)
-};
+} dw_lnct;
+
+typedef enum dw_lnct_flags
+{
+    DW_LNCT_has_path = 1 << DW_LNCT_path,
+    DW_LNCT_has_directory_index = 1 << DW_LNCT_directory_index,
+    DW_LNCT_has_timestamp = 1 << DW_LNCT_timestamp,
+    DW_LNCT_has_size = 1 << DW_LNCT_size,
+    DW_LNCT_has_MD5 = 1 << DW_LNCT_MD5,
+} dw_lnct_flags;
 
 const char* dw_get_line_header_entry_format_string(u32 format)
 {
@@ -734,6 +760,7 @@ typedef struct dw_file_entry
 
 typedef struct dw_line_program_header
 {
+    u64 offset;
     u64 unitLength;
     uint16_t version;
     u8 addressSize;
@@ -747,9 +774,11 @@ typedef struct dw_line_program_header
     u8 opcodeBase;
     u8 standardOpcodeLength[12]; //TODO not always 12, should point to allocated array
 
+    dw_lnct_flags dirFlags;
     u64 dirEntryCount;
     dw_file_entry* dirEntries;
 
+    dw_lnct_flags fileFlags;
     u64 fileEntryCount;
     dw_file_entry* fileEntries;
 
@@ -781,19 +810,14 @@ typedef struct dw_line_entry
     u64 line;
     u64 column;
     u64 discriminator;
+    u64 isa;
+    u64 opIndex;
     dw_line_entry_flags flags;
 } dw_line_entry;
 
 typedef struct dw_line_table
 {
-    u32 version;
-
-    u64 dirEntryCount;
-    dw_file_entry* dirEntries;
-
-    u64 fileEntryCount;
-    dw_file_entry* fileEntries;
-
+    dw_line_program_header header;
     u64 entryCount;
     dw_line_entry* entries;
 } dw_line_table;
@@ -856,6 +880,18 @@ int dw_read_file_entries(oc_arena* arena,
         {
             offset += dw_read_leb128_u64(&format[i].content, data, fileSize, offset);
             offset += dw_read_leb128_u64(&format[i].form, data, fileSize, offset);
+
+            if(format[i].content <= DW_LNCT_MD5)
+            {
+                if(directories)
+                {
+                    header->dirFlags |= (1 << format[i].content);
+                }
+                else
+                {
+                    header->fileFlags |= (1 << format[i].content);
+                }
+            }
         }
         offset += dw_read_leb128_u64(entryCount, data, fileSize, offset);
     }
@@ -863,11 +899,18 @@ int dw_read_file_entries(oc_arena* arena,
     {
         if(directories)
         {
+            header->dirFlags = DW_LNCT_has_path;
+
             format[0].content = DW_LNCT_path;
             format[0].form = DW_FORM_string;
         }
         else
         {
+            header->dirFlags = DW_LNCT_has_path
+                             | DW_LNCT_has_directory_index
+                             | DW_LNCT_has_timestamp
+                             | DW_LNCT_has_size;
+
             format[0].content = DW_LNCT_path;
             format[0].form = DW_FORM_string;
             format[1].content = DW_LNCT_directory_index;
@@ -1164,7 +1207,7 @@ int dw_read_file_entries(oc_arena* arena,
 
 int dw_read_line_program_header(oc_arena* arena, dw_line_program_header* header, dw_sections* sections, char* data, u64 fileSize, u64 offset)
 {
-    u64 start = offset;
+    header->offset = offset;
 
     u32 length32 = 0;
     u8 dwarfFormat = DWARF_FORMAT_DWARF32;
@@ -1240,7 +1283,7 @@ int dw_read_line_program_header(oc_arena* arena, dw_line_program_header* header,
     offset += dw_read_file_entries(arena, &header->fileEntryCount, &header->fileEntries, sections, header, data, fileSize, offset, false);
 
     //NOTE: return offset from start to beginning of line program code
-    return (headerLengthBase + header->headerLength - start);
+    return (headerLengthBase + header->headerLength - header->offset);
 }
 
 void dw_line_machine_reset(dw_line_machine* m, bool defaultIsStmt)
@@ -1276,6 +1319,8 @@ void dw_line_machine_emit_row(oc_arena* arena, dw_line_machine* m, oc_list* rowL
         elt->entry.line = m->line;
         elt->entry.column = m->column;
         elt->entry.file = m->file;
+        elt->entry.isa = m->isa;
+        elt->entry.opIndex = m->opIndex;
 
         if(m->isStmt)
         {
@@ -1333,23 +1378,13 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
         dw_line_table_elt* table = oc_arena_push_type(scratch.arena, dw_line_table_elt);
         oc_list_push_back(&tablesList, &table->listElt);
 
-        table->table.version = header.version;
-        table->table.dirEntryCount = header.dirEntryCount;
-        table->table.dirEntries = header.dirEntries;
-
-        table->table.fileEntryCount = header.fileEntryCount;
-        table->table.fileEntries = header.fileEntries;
+        table->table.header = header;
 
         oc_list rowsList = { 0 };
         u32 rowCount = 0;
 
         dw_line_machine machine;
         dw_line_machine_reset(&machine, header.defaultIsStmt);
-
-        if(tableCount == 496)
-        {
-            printf(".\n");
-        }
 
         while(offset < unitLineInfoEnd)
         {
@@ -1476,8 +1511,8 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     break;
                     case DW_LNS_set_column:
                     {
-                        i64 column = 0;
-                        offset += dw_read_leb128_i64(&column, lineSection.ptr, lineSection.len, offset);
+                        u64 column = 0;
+                        offset += dw_read_leb128_u64(&column, lineSection.ptr, lineSection.len, offset);
                         machine.column = column;
                     }
                     break;
@@ -1563,70 +1598,142 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
     return lineInfo;
 }
 
-void dw_print_line_table_header()
+void dw_print_line_table_header(void)
 {
-    printf("|   address  | line |  col | file | stmt | block | end | prolog | epilog |\n"
-           "|------------------------------------------------------------------------|\n");
+    printf("Address            Line   Column File   ISA Discriminator OpIndex Flags\n"
+           "------------------ ------ ------ ------ --- ------------- ------- -------------\n");
 }
 
 void dw_print_line_info(dw_line_info* info)
 {
+    printf(".debug_line contents:\n");
     for(u64 tableIndex = 0; tableIndex < info->tableCount; tableIndex++)
     {
         dw_line_table* table = &info->tables[tableIndex];
 
-        printf("directories:\n");
-        for(int i = 0; i < table->dirEntryCount; i++)
+        printf("debug_line[0x%08llx]\n", table->header.offset);
+        printf("Line table prologue:\n");
+        printf("    total_length: 0x%08llx\n", table->header.unitLength);
+        printf("          format: %s\n", table->header.addressSize == 4 ? "DWARF32" : "DWARF64");
+        printf("         version: %i\n", table->header.version);
+        if(table->header.version >= 5)
         {
-            printf("[%i] %.*s\n", i, oc_str8_ip(table->dirEntries[i].path));
+            printf("    address_size: %i\n", table->header.addressSize);
+            printf(" seg_select_size: %i\n", table->header.segmentSelectorSize);
+        }
+        printf(" prologue_length: 0x%08llx\n", table->header.headerLength);
+        printf(" min_inst_length: %i\n", table->header.minInstructionLength);
+        printf("max_ops_per_inst: %i\n", table->header.maxOperationsPerInstruction);
+        printf(" default_is_stmt: %i\n", table->header.defaultIsStmt ? 1 : 0);
+        printf("       line_base: %i\n", table->header.lineBase);
+        printf("      line_range: %i\n", table->header.lineRange);
+        printf("     opcode_base: %i\n", table->header.opcodeBase);
+
+        for(int i = 0; i < 12; i++)
+        {
+            printf("standard_opcode_lengths[%s] = %i\n",
+                   dw_get_line_standard_opcode_string(i + 1),
+                   table->header.standardOpcodeLength[i]);
         }
 
-        printf("\nfiles:\n");
-        for(int i = 0; i < table->fileEntryCount; i++)
+        for(int i = 0; i < table->header.dirEntryCount; i++)
         {
-            dw_file_entry* entry = &(table->fileEntries[i]);
-            printf("[%i] %.*s\n"
-                   "    dirIndex: %llu\n"
-                   "    timestamp: %llu\n"
-                   "    size: %llu\n"
-                   "    md5: ",
-                   i, oc_str8_ip(entry->path),
-                   entry->dirIndex,
-                   entry->timestamp,
-                   entry->size);
+            int displayIndex = (table->header.version >= 5) ? i : i + 1;
+            printf("include_directories[%3i] = \"%.*s\"\n", displayIndex, oc_str8_ip(table->header.dirEntries[i].path));
+        }
+        for(int i = 0; i < table->header.fileEntryCount; i++)
+        {
+            dw_file_entry* entry = &(table->header.fileEntries[i]);
 
-            for(int i = 0; i < 16; i++)
+            if(table->header.version < 5)
             {
-                printf("%02x", entry->md5[i]);
+                printf("file_names[%3i]:\n"
+                       "           name: \"%.*s\"\n"
+                       "      dir_index: %llu\n"
+                       "       mod_time: 0x%08llx\n"
+                       "         length: 0x%08llx\n",
+                       i + 1,
+                       oc_str8_ip(entry->path),
+                       entry->dirIndex,
+                       entry->timestamp,
+                       entry->size);
             }
-            printf("\n");
-        }
-        printf("\n");
+            else
+            {
+                printf("file_names[%3i]:\n"
+                       "           name: \"%.*s\"\n"
+                       "      dir_index: %llu\n",
+                       i,
+                       oc_str8_ip(entry->path),
+                       entry->dirIndex);
 
-        dw_print_line_table_header();
+                if(table->header.fileFlags & DW_LNCT_has_timestamp)
+                {
+                    printf("       mod_time: 0x%08llx\n",
+                           entry->timestamp);
+                }
+
+                if(table->header.fileFlags & DW_LNCT_has_size)
+                {
+                    printf("         length: 0x%08llx\n",
+                           entry->size);
+                }
+
+                if(table->header.fileFlags & DW_LNCT_has_MD5)
+                {
+                    printf("   md5_checksum: ");
+                    for(int i = 0; i < 16; i++)
+                    {
+                        printf("%02hhx", entry->md5[i]);
+                    }
+                    printf("\n");
+                }
+            }
+        }
+
+        {
+            /*NOTE(martin):
+                This reproduces the behaviour of llvm-dwarfdump, which only prints the
+                table headings if the program code is non empty.
+                This is NOT be the same as an _empty table_: eg llvm-dwarfdump does produce
+                headings even if the table is entirely tombstoned.
+            */
+            u64 unitLengthSize = (table->header.addressSize == 4) ? 4 : 12;
+            u64 programEnd = unitLengthSize + table->header.unitLength;
+            u64 prologueStart = unitLengthSize + 2 + table->header.addressSize;
+            if(table->header.version >= 5)
+            {
+                prologueStart += 2;
+            }
+            u64 prologueEnd = prologueStart + table->header.headerLength;
+
+            if(prologueEnd < programEnd)
+            {
+                printf("\n");
+                dw_print_line_table_header();
+            }
+        }
 
         for(u64 rowIndex = 0; rowIndex < table->entryCount; rowIndex++)
         {
             dw_line_entry* entry = &table->entries[rowIndex];
-            if(entry->flags & DW_LINE_SEQUENCE_END)
-            {
-                printf("| 0x%08llx |      |      |      |      |       |  x  |        |        |\n",
-                       entry->address);
-            }
-            else
-            {
-                printf("| 0x%08llx | %4llu | %4llu | %4llu |   %s  |   %s   |  %s  |   %s    |   %s    |\n",
-                       entry->address,
-                       entry->line,
-                       entry->column,
-                       entry->file,
-                       (entry->flags & DW_LINE_STMT) ? "x" : " ",
-                       (entry->flags & DW_LINE_BASIC_BLOCK) ? "x" : " ",
-                       (entry->flags & DW_LINE_SEQUENCE_END) ? "x" : " ",
-                       (entry->flags & DW_LINE_PROLOGUE_END) ? "x" : " ",
-                       (entry->flags & DW_LINE_EPILOGUE_BEGIN) ? "x" : " ");
-            }
+
+            printf("0x%016llx %6llu %6llu %6llu %3llu %13llu %7llu %s%s%s%s%s\n",
+                   entry->address,
+                   entry->line,
+                   entry->column,
+                   entry->file,
+                   entry->isa,
+                   entry->discriminator,
+                   entry->opIndex,
+                   (entry->flags & DW_LINE_STMT) ? " is_stmt" : "",
+                   (entry->flags & DW_LINE_BASIC_BLOCK) ? " basic_block" : "",
+                   (entry->flags & DW_LINE_SEQUENCE_END) ? " end_sequence" : "",
+                   (entry->flags & DW_LINE_PROLOGUE_END) ? " prologue_end" : "",
+                   (entry->flags & DW_LINE_EPILOGUE_BEGIN) ? " epilogue_begin" : "");
         }
+
+        printf("\n");
     }
 }
 

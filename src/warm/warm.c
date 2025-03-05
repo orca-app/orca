@@ -3209,7 +3209,8 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     {
         module->debugInfo->line = oc_arena_push_type(module->arena, dw_line_info);
         *module->debugInfo->line = dw_load_line_info(module->arena, &dwarfSections);
-        dw_print_line_info(module->debugInfo->line);
+
+        //dw_print_line_info(module->debugInfo->line);
 
         //TODO: assemble file tree
         dw_line_info* lineInfo = module->debugInfo->line;
@@ -3217,9 +3218,9 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
         for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
         {
             dw_line_table* table = &lineInfo->tables[tableIndex];
-            for(u64 fileIndex = 0; fileIndex < table->fileEntryCount; fileIndex++)
+            for(u64 fileIndex = 0; fileIndex < table->header.fileEntryCount; fileIndex++)
             {
-                dw_file_entry* fileEntry = &table->fileEntries[fileIndex];
+                dw_file_entry* fileEntry = &table->header.fileEntries[fileIndex];
 
                 oc_str8 absPath = { 0 };
                 oc_str8 rootPath = { 0 };
@@ -3237,9 +3238,9 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                     //NOTE: relative file path. This will be shown in a subtree whose root it either the name of the
                     // dir path (in case of an absolute dir path), or the name of the CU path (in case of a relative dir path)
 
-                    if(table->version == 5)
+                    if(table->header.version == 5)
                     {
-                        dw_file_entry* dirEntry = &table->dirEntries[fileEntry->dirIndex];
+                        dw_file_entry* dirEntry = &table->header.dirEntries[fileEntry->dirIndex];
                         oc_str8 dirPath = dirEntry->path;
 
                         if(dirPath.len && dirPath.ptr[0] == '/')
@@ -3252,7 +3253,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                         else
                         {
                             // relative dir path
-                            rootPath = table->dirEntries[0].path;
+                            rootPath = table->header.dirEntries[0].path;
                             oc_str8 absDirPath = oc_path_append(scratch.arena, rootPath, dirEntry->path);
 
                             rootName = oc_path_slice_filename(rootPath);
@@ -3264,7 +3265,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                     {
                         if(fileEntry->dirIndex)
                         {
-                            dw_file_entry* dirEntry = &table->dirEntries[fileEntry->dirIndex - 1];
+                            dw_file_entry* dirEntry = &table->header.dirEntries[fileEntry->dirIndex - 1];
 
                             if(dirEntry->path.len && dirEntry->path.ptr[0] == '/')
                             {
@@ -3302,7 +3303,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                 }
             }
         }
-        wa_print_source_tree(&module->sourceTree, 0);
+        //wa_print_source_tree(&module->sourceTree, 0);
     }
 
     oc_scratch_end(scratch);
