@@ -1765,18 +1765,17 @@ void debugger_ui_update(oc_runtime* app)
                                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
                                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                                /*TODO: add breakpoint
                                 if(oc_ui_get_sig().clicked)
                                 {
-                                    wa_interpreter_add_breakpoint(
+                                    /*
+                                    wa_interpreter_add_breakpoint_line(
                                         app->env.interpreter,
-                                        &(wa_bytecode_loc){
-                                            .instance = app->env.interpreter->instance,
-                                            .func = func,
-                                            .index = codeIndex,
+                                        &(wa_line_loc){
+                                            .path = node->path,
+                                            .line = lineNum,
                                         });
+                                    */
                                 }
-                                */
                             }
 
                             oc_ui_label_str8(OC_STR8("line"), line);

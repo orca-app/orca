@@ -277,8 +277,17 @@ typedef struct wa_bytecode_loc
     u32 index;
 } wa_bytecode_loc;
 
+typedef struct wa_line_loc
+{
+    oc_str8 path;
+    u64 line;
+
+} wa_line_loc;
+
 wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc);
 wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc);
+wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
+
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
 
 typedef struct wa_source_node

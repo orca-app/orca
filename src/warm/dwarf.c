@@ -466,58 +466,111 @@ typedef struct cu_header
 
 } cu_header;
 
-int dw_read_leb128_u32(unsigned int* res, char* data, int fileSize, int offset)
+int dw_read_leb128(u64* res, char* data, u64 fileSize, u64 offset, u32 bitWidth, bool isSigned)
 {
-    int start = offset;
     char byte = 0;
-    int acc = 0;
-    int shift = 0;
-    int size = 0;
+    u64 shift = 0;
+    u64 acc = 0;
+    u32 count = 0;
+    u32 maxCount = (u32)ceil(bitWidth / 7.);
+
+    u64 startOffset = offset;
     do
     {
         if(offset + sizeof(char) > fileSize)
         {
-            printf("error: read out of bounds\n");
-            exit(-1);
+            oc_log_error("Couldn't read leb128: unexpected end of file.\n");
+            goto end;
         }
-        byte = data[offset];
-        offset++;
 
-        acc |= ((int)byte & 0x7f) << shift;
-        shift += 7;
-        size++;
-    }
-    while(byte & 0x80);
-
-    *res = acc;
-    return (offset - start);
-}
-
-int dw_read_leb128_u64(u64* res, char* data, int fileSize, int offset)
-{
-    int start = offset;
-    char byte = 0;
-    u64 acc = 0;
-    int shift = 0;
-    int size = 0;
-    do
-    {
-        if(offset + sizeof(int) > fileSize)
+        if(count >= maxCount)
         {
-            printf("error: read out of bounds");
-            exit(-1);
+            oc_log_error("Couldn't read leb128: too large for bitWidth.\n");
+            acc = 0;
+            goto end;
         }
+
         byte = data[offset];
         offset++;
 
         acc |= ((u64)byte & 0x7f) << shift;
         shift += 7;
-        size++;
+        count++;
     }
     while(byte & 0x80);
 
+    if(isSigned)
+    {
+        if(count == maxCount)
+        {
+            //NOTE: the spec mandates that unused bits must match the sign bit,
+            // so we construct a mask to select the sign bit and the unused bits,
+            // and we check that they're either all 1 or all 0
+            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
+            u8 lastByteMask = (0xff << (bitsInLastByte - 1)) & 0x7f;
+            u8 bits = byte & lastByteMask;
+
+            if(bits != 0 && bits != lastByteMask)
+            {
+                oc_log_error("Couldn't read signed leb128: unused bits don't match sign bit.\n");
+                acc = 0;
+                goto end;
+            }
+        }
+
+        if(shift < 64 && (byte & 0x40))
+        {
+            acc |= (~0ULL << shift);
+        }
+    }
+    else
+    {
+        if(count == maxCount)
+        {
+            //NOTE: for unsigned the spec mandates that unused bits must be zero,
+            // so we construct a mask to select only unused bits,
+            // and we check that they're all 0
+            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
+            u8 lastByteMask = (0xff << (bitsInLastByte)) & 0x7f;
+            u8 bits = byte & lastByteMask;
+
+            if(bits != 0)
+            {
+                oc_log_error("Couldn't read unsigned leb128: unused bits not zero.\n");
+                acc = 0;
+                goto end;
+            }
+        }
+    }
+end:
     *res = acc;
-    return (offset - start);
+    return (offset - startOffset);
+}
+
+int dw_read_leb128_u32(u32* res, char* data, int fileSize, int offset)
+{
+    u64 res64 = 0;
+    int delta = dw_read_leb128(&res64, data, fileSize, offset, 32, false);
+    *res = res64;
+    return delta;
+}
+
+int dw_read_leb128_u64(u64* res, char* data, int fileSize, int offset)
+{
+    return dw_read_leb128(res, data, fileSize, offset, 64, false);
+}
+
+int dw_read_leb128_i32(i32* res, char* data, int fileSize, int offset)
+{
+    u64 res64 = 0;
+    int delta = dw_read_leb128(&res64, data, fileSize, offset, 32, true);
+    *res = (i32)res64;
+    return delta;
+}
+
+int dw_read_leb128_i64(i64* res, char* data, int fileSize, int offset)
+{
+    return dw_read_leb128((u64*)res, data, fileSize, offset, 64, true);
 }
 
 int dw_read_u64(u64* res, char* data, int fileSize, int offset)
@@ -654,6 +707,18 @@ typedef struct dw_line_machine
     bool epilogueBegin;
     u64 isa; // could omit ?
     u64 discriminator;
+
+    /*NOTE(martin):
+        linkers may remove entities from a linked object, and instead of fixing up dwarf info, they
+        can emit "tombstone addresses" (= the max address for the target address size).
+        A DW_LNE_set_address opcode with a tombstone address invalidates all entries up to the next
+        DW_LNE_set_address or DW_LNE_end_sequence opcode.
+        This is actually a Dwarf v6 proposal (see https://dwarfstd.org/issues/200609.1.html), and
+        it isn't mentionned anywhere in the Dwarf version <= 5 specs, but lld uses this anyway.
+
+        Seems like the "spec" is more what you'd call guidelines than actual rules.
+    */
+    bool tombstone;
 
 } dw_line_machine;
 
@@ -1200,38 +1265,43 @@ typedef struct dw_line_table_elt
 
 } dw_line_table_elt;
 
-void dw_line_machine_emit_row(oc_arena* arena, dw_line_machine* m, oc_list* rowList)
+void dw_line_machine_emit_row(oc_arena* arena, dw_line_machine* m, oc_list* rowList, u32* rowCount)
 {
-    dw_line_entry_elt* elt = oc_arena_push_type(arena, dw_line_entry_elt);
-    memset(elt, 0, sizeof(dw_line_entry_elt));
+    if(!m->tombstone)
+    {
+        dw_line_entry_elt* elt = oc_arena_push_type(arena, dw_line_entry_elt);
+        memset(elt, 0, sizeof(dw_line_entry_elt));
 
-    elt->entry.address = m->address;
-    elt->entry.line = m->line;
-    elt->entry.column = m->column;
-    elt->entry.file = m->file;
+        elt->entry.address = m->address;
+        elt->entry.line = m->line;
+        elt->entry.column = m->column;
+        elt->entry.file = m->file;
 
-    if(m->isStmt)
-    {
-        elt->entry.flags |= DW_LINE_STMT;
-    }
-    if(m->basicBlock)
-    {
-        elt->entry.flags |= DW_LINE_BASIC_BLOCK;
-    }
-    if(m->endSequence)
-    {
-        elt->entry.flags |= DW_LINE_SEQUENCE_END;
-    }
-    if(m->prologueEnd)
-    {
-        elt->entry.flags |= DW_LINE_PROLOGUE_END;
-    }
-    if(m->epilogueBegin)
-    {
-        elt->entry.flags |= DW_LINE_EPILOGUE_BEGIN;
-    }
+        if(m->isStmt)
+        {
+            elt->entry.flags |= DW_LINE_STMT;
+        }
+        if(m->basicBlock)
+        {
+            elt->entry.flags |= DW_LINE_BASIC_BLOCK;
+        }
+        if(m->endSequence)
+        {
+            elt->entry.flags |= DW_LINE_SEQUENCE_END;
+        }
+        if(m->prologueEnd)
+        {
+            elt->entry.flags |= DW_LINE_PROLOGUE_END;
+        }
+        if(m->epilogueBegin)
+        {
+            elt->entry.flags |= DW_LINE_EPILOGUE_BEGIN;
+        }
 
-    oc_list_push_back(rowList, &elt->listElt);
+        oc_list_push_back(rowList, &elt->listElt);
+
+        (*rowCount)++;
+    }
 }
 
 dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
@@ -1296,8 +1366,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                 machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
                 machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
 
-                dw_line_machine_emit_row(scratch.arena, &machine, &rowsList);
-                rowCount++;
+                dw_line_machine_emit_row(scratch.arena, &machine, &rowsList, &rowCount);
 
                 machine.basicBlock = false;
                 machine.prologueEnd = false;
@@ -1316,28 +1385,31 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     case DW_LNE_end_sequence:
                     {
                         machine.endSequence = true;
-                        dw_line_machine_emit_row(scratch.arena, &machine, &rowsList);
-                        rowCount++;
+                        dw_line_machine_emit_row(scratch.arena, &machine, &rowsList, &rowCount);
                         dw_line_machine_reset(&machine, header.defaultIsStmt);
                     }
                     break;
                     case DW_LNE_set_address:
                     {
+                        u64 tombstoneAddress = 0;
                         u64 address = 0;
                         if(header.addressSize == 4)
                         {
+                            tombstoneAddress = 0xffffffff;
                             u32 address32 = 0;
                             offset += dw_read_u32(&address32, lineSection.ptr, lineSection.len, offset);
                             address = address32;
                         }
                         else if(header.addressSize == 8)
                         {
+                            tombstoneAddress = 0xffffffffffffffff;
                             offset += dw_read_u64(&address, lineSection.ptr, lineSection.len, offset);
                         }
                         else
                         {
                             OC_ASSERT(0);
                         }
+                        machine.tombstone = (address == tombstoneAddress);
                         machine.address = address;
                         machine.opIndex = 0;
                     }
@@ -1373,8 +1445,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                 {
                     case DW_LNS_copy:
                     {
-                        dw_line_machine_emit_row(scratch.arena, &machine, &rowsList);
-                        rowCount++;
+                        dw_line_machine_emit_row(scratch.arena, &machine, &rowsList, &rowCount);
                         machine.discriminator = 0;
                         machine.basicBlock = false;
                         machine.prologueEnd = false;
@@ -1392,7 +1463,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     case DW_LNS_advance_line:
                     {
                         int64_t lineAdvance = 0;
-                        offset += dw_read_leb128_u64((u64*)&lineAdvance, lineSection.ptr, lineSection.len, offset);
+                        offset += dw_read_leb128_i64(&lineAdvance, lineSection.ptr, lineSection.len, offset);
                         machine.line += lineAdvance;
                     }
                     break;
@@ -1405,8 +1476,8 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     break;
                     case DW_LNS_set_column:
                     {
-                        u64 column = 0;
-                        offset += dw_read_leb128_u64(&column, lineSection.ptr, lineSection.len, offset);
+                        i64 column = 0;
+                        offset += dw_read_leb128_i64(&column, lineSection.ptr, lineSection.len, offset);
                         machine.column = column;
                     }
                     break;

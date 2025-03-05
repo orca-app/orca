@@ -3207,14 +3207,16 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     //TODO: put that in dw_info
     if(dwarfSections.line.len)
     {
-        dw_line_info lineInfo = dw_load_line_info(module->arena, &dwarfSections);
-        dw_print_line_info(&lineInfo);
+        module->debugInfo->line = oc_arena_push_type(module->arena, dw_line_info);
+        *module->debugInfo->line = dw_load_line_info(module->arena, &dwarfSections);
+        dw_print_line_info(module->debugInfo->line);
 
         //TODO: assemble file tree
+        dw_line_info* lineInfo = module->debugInfo->line;
 
-        for(u64 tableIndex = 0; tableIndex < lineInfo.tableCount; tableIndex++)
+        for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
         {
-            dw_line_table* table = &lineInfo.tables[tableIndex];
+            dw_line_table* table = &lineInfo->tables[tableIndex];
             for(u64 fileIndex = 0; fileIndex < table->fileEntryCount; fileIndex++)
             {
                 dw_file_entry* fileEntry = &table->fileEntries[fileIndex];
@@ -3325,7 +3327,7 @@ typedef struct wa_bytecode_mapping
 
 } wa_bytecode_mapping;
 
-void wa_bytecode_to_instr_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr)
+void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr)
 {
     wa_bytecode_mapping* mapping = oc_arena_push_type(module->arena, wa_bytecode_mapping);
     mapping->funcIndex = funcIndex;
@@ -3339,7 +3341,13 @@ void wa_bytecode_to_instr_push(wa_module* module, u32 funcIndex, u32 codeIndex, 
     oc_list_push_back(&module->bytecodeToInstrMap[index], &mapping->listElt);
 }
 
-wa_instr* wa_bytecode_to_instr(wa_module* module, u32 funcIndex, u32 codeIndex)
+typedef struct wa_wasm_loc
+{
+    wa_module* module;
+    u32 offset;
+} wa_wasm_loc;
+
+wa_wasm_loc wa_warm_to_wasm_loc(wa_module* module, u32 funcIndex, u32 codeIndex)
 {
     u64 id = (u64)funcIndex << 32 | (u64)codeIndex;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
@@ -3354,7 +3362,13 @@ wa_instr* wa_bytecode_to_instr(wa_module* module, u32 funcIndex, u32 codeIndex)
             break;
         }
     }
-    return (instr);
+    wa_wasm_loc loc = { 0 };
+    if(instr)
+    {
+        loc.module = module;
+        loc.offset = instr->ast->loc.start - module->toc.code.offset;
+    }
+    return (loc);
 }
 
 //-------------------------------------------------------------------------
@@ -3853,7 +3867,7 @@ void wa_emit_opcode(wa_build_context* context, wa_instr_op op)
     if(context->currentFunction)
     {
         wa_module* module = context->module;
-        wa_bytecode_to_instr_push(module, context->currentFunction - module->functions, index, context->currentInstr);
+        wa_warm_to_wasm_loc_push(module, context->currentFunction - module->functions, index, context->currentInstr);
     }
     context->currentInstr->codeIndex = index;
 }
@@ -8325,6 +8339,54 @@ wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_byt
     }
     return bp;
 }
+
+/*
+wa_line_loc wa_line_loc_from_bytecode_loc(wa_interpreter* interpreter, wa_bytecode_loc* loc)
+{
+    //TODO: first convert to wasm address
+
+    for(u64 tableIndex = 0; tableIndex < app->debugInfo.line.tableCount; tableIndex++)
+    {
+        dw_line_table* table = &app->debugInfo.line.tables[tableIndex];
+
+        OC_DEBUG_ASSERT(table->entryCount);
+        dw_line_entry* firstEntry = table->entries[0];
+        dw_line_entry* lastEntry = table->entries[table->entryCount - 1];
+        if(loc->)
+    }
+}
+*/
+/*
+wa_bytecode_loc wa_bytecode_loc_from_line_loc(wa_interpreter* interpreter, wa_line_loc* loc)
+{
+    //TODO build an inverse map beforehand
+    for(u64 tableIndex = 0; tableIndex < app->debugInfo.line.tableCount; tableIndex++)
+    {
+        dw_line_table* table = &app->debugInfo.line.tables[tableIndex];
+        for()
+    }
+}
+*/
+/*
+wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc)
+{
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint_line(interpreter, loc);
+    if(bp == 0)
+    {
+        bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
+        if(!bp)
+        {
+            bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
+        }
+        bp->loc = wa_bytecode_loc_from_line_loc(intepreter, loc);
+        oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
+
+        bp->savedOpcode = bp->loc.func->code[bp->loc.index];
+        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+    }
+    return bp;
+}
+*/
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp)
 {
