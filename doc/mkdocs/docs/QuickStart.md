@@ -68,6 +68,8 @@ Handlers are optional. If you don't care about an event, you can just omit the a
 - `oc_on_init()` is called once when your application starts and can be use to initialize your application's resources.
 - `oc_on_frame_refresh()` is called when your application needs to render a new frame, typically tied to the refresh rate of the monitor.
 
+For a list of available handlers and their signatures, see the [app cheatsheet](../doc/cheatsheets/cheatsheet_app.h).
+
 
 ## Clock example
 
