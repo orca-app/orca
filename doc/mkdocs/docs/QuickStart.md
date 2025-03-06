@@ -68,8 +68,6 @@ Handlers are optional. If you don't care about an event, you can just omit the a
 - `oc_on_init()` is called once when your application starts and can be use to initialize your application's resources.
 - `oc_on_frame_refresh()` is called when your application needs to render a new frame, typically tied to the refresh rate of the monitor.
 
-For a list of available handlers and their signatures, see the [app cheatsheet](../doc/cheatsheets/cheatsheet_app.h).
-
 
 ## Clock example
 
@@ -145,7 +143,8 @@ oc_set_color_rgba(1, 1, 1, 1);
 oc_circle_fill(centerX, centerY, clockRadius);
 ```
 
-For a list of canvas drawing functions, see the [graphics API cheatsheet](../doc/cheatsheets/cheatsheet_graphics.h).
+For a list of canvas drawing functions, see the [graphics API documentation](https://docs.orca-app.dev/api/Graphics/Canvas%20API/).
+
 
 #### Transforms
 
@@ -233,6 +232,6 @@ For more examples of how to use Orca APIs, you can look at the other [sample app
 - [fluid](https://github.com/orca-app/orca/tree/main/samples/fluid) is a fluid simulation using a more complex GLES setup.
 - [ui](https://github.com/orca-app/orca/tree/main/samples/ui) showcases the UI API and Orca's default UI widgets.
 
-For a list of Orca APIs, you can look at the [API cheatsheets](https://github.com/orca-app/orca/doc/cheatsheets).
+For a list of Orca APIs, you can look at the [API reference](https://docs.orca-app.dev/api/api_reference/).
 
 You can also ask questions in the [Handmade Network Discord](https://discord.gg/hmn), in particular in the [#orca](https://discord.com/channels/239737791225790464/1121811864066732082) channel.

@@ -1,15 +1,7 @@
---------
-**DISCLAIMER: This project is very much a Work In Progress. Expect bugs, missing and/or incomplete features, unstable APIs, and sparse documentation. Some current issues might be a show stopper for you, so make sure you can build and run the sample apps before jumping in.**
 
-**If you do choose to try out Orca anyway, well thanks! We'll do our best to answer your questions, and we'd really appreciate to hear your feedback!**
-
---------
-
-# Orca Quick Start Guide
+# Quick Start
 
 This is a short introduction to developing an application that can be run by the Orca runtime. We'll present the basic structure of an Orca application, and walk through a simple example in C.
-
-Please make sure your system fulfills the requirements outlined in the [Readme](./Readme.md).
 
 ## What is an Orca app?
 
@@ -75,8 +67,6 @@ Handlers are optional. If you don't care about an event, you can just omit the a
 
 - `oc_on_init()` is called once when your application starts and can be use to initialize your application's resources.
 - `oc_on_frame_refresh()` is called when your application needs to render a new frame, typically tied to the refresh rate of the monitor.
-
-For a list of available handlers and their signatures, see the [app cheatsheet](../doc/cheatsheets/cheatsheet_app.h).
 
 
 ## Clock example
@@ -153,7 +143,8 @@ oc_set_color_rgba(1, 1, 1, 1);
 oc_circle_fill(centerX, centerY, clockRadius);
 ```
 
-For a list of canvas drawing functions, see the [graphics API cheatsheet](../doc/cheatsheets/cheatsheet_graphics.h).
+For a list of canvas drawing functions, see the [graphics API documentation](https://docs.orca-app.dev/api/Graphics/Canvas%20API/).
+
 
 #### Transforms
 
@@ -234,13 +225,13 @@ You can unconditionally abort the application with a message box using `OC_ABORT
 
 ## Where to go next?
 
-For more examples of how to use Orca APIs, you can look at the other [sample apps](../samples):
+For more examples of how to use Orca APIs, you can look at the other [sample apps](https://github.com/orca-app/orca/tree/main/samples):
 
-- [breakout](../samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
-- [triangle](../samples/triangle) shows how to draw a spining triangle using the GLES API.
-- [fluid](../samples/fluid) is a fluid simulation using a more complex GLES setup.
-- [ui](../samples/ui) showcases the UI API and Orca's default UI widgets.
+- [breakout](https://github.com/orca-app/orca/tree/main/samples/breakout) is a mini breakout game making use of the vector graphics API. It demonstrates using input and drawing images.
+- [triangle](https://github.com/orca-app/orca/tree/main/samples/triangle) shows how to draw a spining triangle using the GLES API.
+- [fluid](https://github.com/orca-app/orca/tree/main/samples/fluid) is a fluid simulation using a more complex GLES setup.
+- [ui](https://github.com/orca-app/orca/tree/main/samples/ui) showcases the UI API and Orca's default UI widgets.
 
-For a list of Orca APIs, you can look at the [API cheatsheets](../doc/cheatsheets).
+For a list of Orca APIs, you can look at the [API reference](https://docs.orca-app.dev/api/api_reference/).
 
 You can also ask questions in the [Handmade Network Discord](https://discord.gg/hmn), in particular in the [#orca](https://discord.com/channels/239737791225790464/1121811864066732082) channel.
