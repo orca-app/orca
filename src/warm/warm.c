@@ -3210,6 +3210,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
         module->debugInfo->line = oc_arena_push_type(module->arena, dw_line_info);
         *module->debugInfo->line = dw_load_line_info(module->arena, &dwarfSections);
 
+        dw_dump_info(dwarfSections);
         //dw_print_line_info(module->debugInfo->line);
 
         //TODO: assemble file tree
