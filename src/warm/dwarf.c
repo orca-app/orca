@@ -469,17 +469,68 @@ const char* dw_get_cu_type_string(u8 unitType)
 
 enum
 {
-    DWARF_FORMAT_DWARF32,
-    DWARF_FORMAT_DWARF64,
+    DW_DWARF32,
+    DW_DWARF64,
 };
 
-typedef struct cu_header
+typedef struct dw_abbrev_attr
 {
-    u64 length;
-    uint16_t version;
-    u8 unitType;
+    dw_attr_name name;
+    dw_form form;
+    i64 implicitConst;
+} dw_abbrev_attr;
 
-    char dwarfFormat;
+typedef struct dw_abbrev_entry
+{
+    u64 code;
+    u8 hasChildren;
+    dw_tag tag;
+    u32 attrCount;
+    dw_abbrev_attr* attributes;
+} dw_abbrev_entry;
+
+typedef struct dw_abbrev_table
+{
+    u64 entryCount;
+    dw_abbrev_entry* entries;
+} dw_abbrev_table;
+
+typedef struct dw_attr
+{
+    dw_abbrev_attr* abbrev;
+
+    union
+    {
+        oc_str8 string;
+        u8 valU8;
+        u16 valU16;
+        u32 valU32;
+        u64 valU64;
+        i64 valI64;
+    };
+} dw_attr;
+
+typedef struct dw_die dw_die;
+
+typedef struct dw_die
+{
+    oc_list_elt parentElt;
+    dw_die* parent;
+    oc_list children;
+
+    u64 start;
+    u64 abbrevCode;
+    dw_abbrev_entry* abbrev;
+    dw_attr* attributes;
+} dw_die;
+
+typedef struct dw_unit
+{
+    u64 start;
+    u64 initialLength;
+    u16 version;
+    u8 format;
+    u8 type;
 
     union
     {
@@ -490,10 +541,14 @@ typedef struct cu_header
             u64 abbrevOffset;
         };
 
-        //TODO...
+        //TODO: other types of units
     };
 
-} cu_header;
+    dw_abbrev_table* abbrev;
+
+    dw_die* rootDie;
+
+} dw_unit;
 
 int dw_read_leb128(u64* res, char* data, u64 fileSize, u64 offset, u32 bitWidth, bool isSigned)
 {
@@ -678,60 +733,6 @@ int dw_read_null_string(oc_str8* res, char* data, int fileSize, int offset)
     return len + 1;
 }
 
-int dw_read_cu_header(cu_header* header, char* data, int fileSize, int offset)
-{
-    size_t start = offset;
-    memset(header, 0, sizeof(cu_header));
-
-    u32 length32 = 0;
-    offset += dw_read_u32(&length32, data, fileSize, offset);
-    if(length32 > 0xfffffff0)
-    {
-        //TODO: if header length is not 0xffffffff at this point this should be an error
-        header->dwarfFormat = DWARF_FORMAT_DWARF64;
-        offset += dw_read_u64(&header->length, data, fileSize, offset);
-    }
-    else
-    {
-        header->length = length32;
-    }
-
-    offset += dw_read_u16(&header->version, data, fileSize, offset);
-    if(header->version != 5)
-    {
-        goto end;
-    }
-
-    offset += dw_read_u8(&header->unitType, data, fileSize, offset);
-
-    switch(header->unitType)
-    {
-        case DW_UT_compile:
-        case DW_UT_partial:
-        {
-            offset += dw_read_u8(&header->addressSize, data, fileSize, offset);
-            if(header->dwarfFormat == DWARF_FORMAT_DWARF32)
-            {
-                u32 abbrevOffset = 0;
-                offset += dw_read_u32(&abbrevOffset, data, fileSize, offset);
-                header->abbrevOffset = abbrevOffset;
-            }
-            else
-            {
-                offset += dw_read_u64(&header->abbrevOffset, data, fileSize, offset);
-            }
-        }
-        break;
-
-        default:
-            //TODO
-            break;
-    }
-
-end:
-    return (offset - start);
-}
-
 typedef struct dw_sections
 {
     oc_str8 abbrev;
@@ -854,6 +855,9 @@ typedef struct dw_line_info
 
 typedef struct dw_info
 {
+    u64 unitCount;
+    dw_unit* units;
+
     dw_line_info* line;
 
 } dw_info;
@@ -1234,14 +1238,14 @@ int dw_read_line_program_header(oc_arena* arena, dw_line_program_header* header,
     header->offset = offset;
 
     u32 length32 = 0;
-    u8 dwarfFormat = DWARF_FORMAT_DWARF32;
+    u8 dwarfFormat = DW_DWARF32;
 
     offset += dw_read_u32(&length32, data, fileSize, offset);
 
     if(length32 >= 0xfffffff0)
     {
         offset += dw_read_u64(&header->unitLength, data, fileSize, offset);
-        dwarfFormat = DWARF_FORMAT_DWARF64;
+        dwarfFormat = DW_DWARF64;
     }
     else
     {
@@ -1275,7 +1279,7 @@ int dw_read_line_program_header(oc_arena* arena, dw_line_program_header* header,
         header->addressSize = 4;
     }
 
-    if(dwarfFormat == DWARF_FORMAT_DWARF32)
+    if(dwarfFormat == DW_DWARF32)
     {
         u32 len32 = 0;
         offset += dw_read_u32(&len32, data, fileSize, offset);
@@ -1761,28 +1765,6 @@ void dw_print_line_info(dw_line_info* info)
     }
 }
 
-typedef struct dw_abbrev_attr
-{
-    dw_attr_name name;
-    dw_form form;
-    i64 implicitConst;
-} dw_abbrev_attr;
-
-typedef struct dw_abbrev_entry
-{
-    u64 code;
-    u8 children;
-    dw_tag tag;
-    u32 attrCount;
-    dw_abbrev_attr* attributes;
-} dw_abbrev_entry;
-
-typedef struct dw_abbrev_table
-{
-    u64 entryCount;
-    dw_abbrev_entry* entries;
-} dw_abbrev_table;
-
 dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offset)
 {
     //TODO: check if we already loaded this table
@@ -1826,7 +1808,7 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
         entry->code = abbrevCode;
 
         offset += dw_read_leb128_u32(&entry->tag, section.ptr, section.len, offset);
-        offset += dw_read_u8(&entry->children, section.ptr, section.len, offset);
+        offset += dw_read_u8(&entry->hasChildren, section.ptr, section.len, offset);
 
         //NOTE: parse attributes
         oc_list attributes = { 0 };
@@ -1887,22 +1869,7 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
     return table;
 }
 
-typedef struct dw_attr
-{
-    dw_abbrev_attr* abbrev;
-
-    union
-    {
-        oc_str8 string;
-        u8 valU8;
-        u16 valU16;
-        u32 valU32;
-        u64 valU64;
-        i64 valI64;
-    };
-} dw_attr;
-
-u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 addressSize, u32 lengthSize, char* data, u64 fileSize, u64 offset)
+u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 addressSize, u8 format, char* data, u64 fileSize, u64 offset)
 {
     u64 startOffset = offset;
 
@@ -1972,6 +1939,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
             u8 len = 0;
             offset += dw_read_u8(&len, data, fileSize, offset);
             res->string.len = len;
+            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
         }
         break;
         case DW_FORM_block2:
@@ -1979,6 +1947,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
             u16 len = 0;
             offset += dw_read_u16(&len, data, fileSize, offset);
             res->string.len = len;
+            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
         }
         break;
         case DW_FORM_block4:
@@ -1986,6 +1955,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
             u32 len = 0;
             offset += dw_read_u32(&len, data, fileSize, offset);
             res->string.len = len;
+            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
         }
         break;
         case DW_FORM_block:
@@ -1993,6 +1963,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
             u64 len = 0;
             offset += dw_read_leb128_u64(&len, data, fileSize, offset);
             res->string.len = len;
+            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
         }
         break;
 
@@ -2142,7 +2113,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         case DW_FORM_ref_addr:
         {
             u64 ref64 = 0;
-            if(lengthSize == 4)
+            if(format == DW_DWARF32)
             {
                 u32 ref32 = 0;
                 offset += dw_read_u32(&ref32, data, fileSize, offset);
@@ -2191,7 +2162,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         case DW_FORM_strp_sup:
         {
             u64 strOffset = 0;
-            if(lengthSize == 4)
+            if(format == DW_DWARF32)
             {
                 u32 strOffset32 = 0;
                 offset += dw_read_u32(&strOffset32, data, fileSize, offset);
@@ -2325,7 +2296,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         case DW_FORM_sec_offset:
         {
             u64 addrOffset = 0;
-            if(lengthSize == 4)
+            if(format == DW_DWARF32)
             {
                 u32 addrOffset32 = 0;
                 offset += dw_read_u32(&addrOffset32, data, fileSize, offset);
@@ -2345,7 +2316,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         {
             u64 indForm = 0;
             offset += dw_read_leb128_u64(&indForm, data, fileSize, offset);
-            offset += dw_parse_form_value(res, sections, indForm, addressSize, lengthSize, data, fileSize, offset);
+            offset += dw_parse_form_value(res, sections, indForm, addressSize, format, data, fileSize, offset);
         }
         break;
 
@@ -2950,6 +2921,257 @@ u64 dw_parse_attr(oc_arena* arena, dw_attr* res, u32 addressSize, char* data, u6
     return (offset - startOffset);
 }
 */
+
+u64 dw_parse_die(oc_arena* arena, dw_die* die, dw_sections* sections, dw_unit* unit, oc_str8 contents, u64 offset)
+{
+    u64 startOffset = offset;
+
+    //NOTE: find abbreviation
+    offset += dw_read_leb128_u64(&die->abbrevCode, contents.ptr, contents.len, offset);
+    if(die->abbrevCode == 0)
+    {
+        goto end;
+    }
+
+    die->abbrev = 0;
+    for(u64 abbrevIndex = 0; abbrevIndex < unit->abbrev->entryCount; abbrevIndex++)
+    {
+        if(unit->abbrev->entries[abbrevIndex].code == die->abbrevCode)
+        {
+            die->abbrev = &unit->abbrev->entries[abbrevIndex];
+            break;
+        }
+    }
+
+    if(!die->abbrev)
+    {
+        oc_log_error("Couldn't find abbrev code %llu\n", die->abbrevCode);
+        exit(-1);
+    }
+
+    die->attributes = oc_arena_push_array(arena, dw_attr, die->abbrev->attrCount);
+    memset(die->attributes, 0, sizeof(dw_attr) * die->abbrev->attrCount);
+
+    for(u32 attrIndex = 0; attrIndex < die->abbrev->attrCount; attrIndex++)
+    {
+        dw_attr* attr = &die->attributes[attrIndex];
+        attr->abbrev = &die->abbrev->attributes[attrIndex];
+        offset += dw_parse_form_value(attr, sections, attr->abbrev->form, unit->addressSize, unit->format, contents.ptr, contents.len, offset);
+    }
+
+end:
+    return (offset - startOffset);
+}
+
+void dw_print_indent(u64 indent)
+{
+    for(u64 i = 0; i < indent; i++)
+    {
+        printf("  ");
+    }
+}
+
+void dw_print_die(dw_die* die, u32 indent)
+{
+    printf("0x%08llx: ", die->start);
+    dw_print_indent(indent);
+
+    if(die->abbrevCode == 0)
+    {
+        printf("NULL\n\n");
+    }
+    else
+    {
+        printf("%s\n", dw_get_tag_string(die->abbrev->tag));
+
+        for(u64 attrIndex = 0; attrIndex < die->abbrev->attrCount; attrIndex++)
+        {
+            dw_attr* attr = &die->attributes[attrIndex];
+
+            dw_print_indent(indent + 7);
+            printf("%s", dw_get_attr_name_string(attr->abbrev->name));
+            printf("\t[%s]", dw_get_form_string(attr->abbrev->form));
+
+            if(attr->abbrev->form == DW_FORM_string
+               || attr->abbrev->form == DW_FORM_strp
+               || attr->abbrev->form == DW_FORM_line_strp
+               || attr->abbrev->form == DW_FORM_strx1
+               || attr->abbrev->form == DW_FORM_strx2
+               || attr->abbrev->form == DW_FORM_strx3
+               || attr->abbrev->form == DW_FORM_strx4
+               || attr->abbrev->form == DW_FORM_strx)
+            {
+                printf("\t(\"%.*s\")", oc_str8_ip(attr->string));
+            }
+            printf("\n");
+        }
+
+        printf("\n");
+        oc_list_for(die->children, child, dw_die, parentElt)
+        {
+            dw_print_die(child, indent + 1);
+        }
+    }
+}
+
+void dw_print_debug_info(dw_info* info)
+{
+    for(u64 unitIndex = 0; unitIndex < info->unitCount; unitIndex++)
+    {
+        dw_unit* unit = &info->units[unitIndex];
+
+        printf("0x%016llx\n", unit->start);
+        printf("    type: %s\n", dw_get_cu_type_string(unit->type));
+        printf("    version: %i\n", unit->version);
+
+        dw_print_die(unit->rootDie, 0);
+    }
+}
+
+void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
+{
+    oc_str8 contents = sections->info;
+    u64 offset = 0;
+
+    typedef struct dw_unit_elt
+    {
+        oc_list_elt listElt;
+        dw_unit unit;
+    } dw_unit_elt;
+
+    oc_list units = { 0 };
+    info->unitCount = 0;
+
+    while(offset < contents.len)
+    {
+        dw_unit_elt* unitElt = oc_arena_push_type(arena, dw_unit_elt);
+        memset(unitElt, 0, sizeof(dw_unit_elt));
+        dw_unit* unit = &unitElt->unit;
+
+        unit->start = offset;
+
+        u32 initialLength = 0;
+
+        {
+            u32 length32 = 0;
+            offset += dw_read_u32(&length32, contents.ptr, contents.len, offset);
+            if(length32 >= 0xfffffff0)
+            {
+                unit->format = DW_DWARF64;
+                offset += dw_read_u64(&unit->initialLength, contents.ptr, contents.len, offset);
+            }
+            else
+            {
+                unit->format = DW_DWARF32;
+                unit->initialLength = length32;
+            }
+        }
+
+        offset += dw_read_u16(&unit->version, contents.ptr, contents.len, offset);
+
+        unit->type = DW_UT_compile;
+        if(unit->version >= 5)
+        {
+            offset += dw_read_u8(&unit->type, contents.ptr, contents.len, offset);
+        }
+
+        if(unit->type == DW_UT_compile || unit->type == DW_UT_partial)
+        {
+            u8 addressSize;
+            u64 abbrevOffset = 0;
+
+            if(unit->version >= 5)
+            {
+                //NOTE: debug abbrev offset and address size are ordered differently in dwarf v4 and v5, because.. why not?
+                offset += dw_read_u8(&unit->addressSize, contents.ptr, contents.len, offset);
+
+                if(unit->format == DW_DWARF32)
+                {
+                    u32 abbrevOffset32 = 0;
+                    offset += dw_read_u32(&abbrevOffset32, contents.ptr, contents.len, offset);
+                    unit->abbrevOffset = abbrevOffset32;
+                }
+                else
+                {
+                    offset += dw_read_u64(&unit->abbrevOffset, contents.ptr, contents.len, offset);
+                }
+            }
+            else
+            {
+                if(unit->format == DW_DWARF32)
+                {
+                    u32 abbrevOffset32 = 0;
+                    offset += dw_read_u32(&abbrevOffset32, contents.ptr, contents.len, offset);
+                    unit->abbrevOffset = abbrevOffset32;
+                }
+                else
+                {
+                    offset += dw_read_u64(&unit->abbrevOffset, contents.ptr, contents.len, offset);
+                }
+                offset += dw_read_u8(&unit->addressSize, contents.ptr, contents.len, offset);
+            }
+
+            oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+            unit->abbrev = dw_load_abbrev_table(scratch.arena, sections->abbrev, unit->abbrevOffset);
+
+            //NOTE(martin): read DIEs for unit
+            dw_die* parentDIE = 0;
+            do
+            {
+                dw_die* die = oc_arena_push_type(arena, dw_die);
+                die->start = offset;
+                if(parentDIE)
+                {
+                    die->parent = parentDIE;
+                    oc_list_push_back(&parentDIE->children, &die->parentElt);
+                }
+                else
+                {
+                    //NOTE: This is the root DIE
+                    unit->rootDie = die;
+                }
+
+                offset += dw_parse_die(scratch.arena, die, sections, unit, contents, offset);
+
+                if(die->abbrevCode == 0)
+                {
+                    //NOTE: this is a null entry that marks the end of a siblings chain
+                    parentDIE = parentDIE->parent;
+                }
+                else
+                {
+                    if(die->abbrev->hasChildren)
+                    {
+                        parentDIE = die;
+                    }
+                }
+            }
+            while(parentDIE != 0);
+        }
+        else
+        {
+            oc_log_warning("first DIE is not a compile unit DIE\n");
+        }
+
+        //NOTE: Add unit to unit list
+        oc_list_push_back(&units, &unitElt->listElt);
+        info->unitCount++;
+
+        // skip to next unit
+        offset = unit->start + unit->initialLength + (unit->format == DW_DWARF32 ? 4 : 8);
+    }
+    //NOTE: copy units in fixed array
+    info->units = oc_arena_push_array(arena, dw_unit, info->unitCount);
+    u64 unitIndex = 0;
+    oc_list_for(units, unitElt, dw_unit_elt, listElt)
+    {
+        info->units[unitIndex] = unitElt->unit;
+        unitIndex++;
+    }
+}
+
+/*
 void dw_dump_info(dw_sections sections)
 {
     oc_str8 contents = sections.info;
@@ -2998,7 +3220,7 @@ void dw_dump_info(dw_sections sections)
                 //NOTE: debug abbrev offset and address size are ordered differently in dwarf v4 and v5, because.. why not?
                 offset += dw_read_u8(&addressSize, contents.ptr, contents.len, offset);
 
-                if(lengthSize == 4)
+                if(format == DW_DWARF32)
                 {
                     u32 abbrevOffset32 = 0;
                     offset += dw_read_u32(&abbrevOffset32, contents.ptr, contents.len, offset);
@@ -3011,7 +3233,7 @@ void dw_dump_info(dw_sections sections)
             }
             else
             {
-                if(lengthSize == 4)
+                if(format == DW_DWARF32)
                 {
                     u32 abbrevOffset32 = 0;
                     offset += dw_read_u32(&abbrevOffset32, contents.ptr, contents.len, offset);
@@ -3085,6 +3307,7 @@ void dw_dump_info(dw_sections sections)
         offset = unitStart + initialLength + lengthSize;
     }
 }
+*/
 
 void dw_dump_abbrev_table(oc_str8 contents)
 {
