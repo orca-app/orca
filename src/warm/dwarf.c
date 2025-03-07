@@ -606,7 +606,7 @@ int dw_read_u64(u64* res, char* data, int fileSize, int offset)
 {
     if(offset + sizeof(u64) > fileSize)
     {
-        printf("error: read out of bounds");
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     *res = *(u64*)(data + offset);
@@ -617,7 +617,7 @@ int dw_read_u32(u32* res, char* data, int fileSize, int offset)
 {
     if(offset + sizeof(u32) > fileSize)
     {
-        printf("error: read out of bounds");
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     *res = *(u32*)(data + offset);
@@ -628,7 +628,7 @@ int dw_read_u16(uint16_t* res, char* data, int fileSize, int offset)
 {
     if(offset + sizeof(uint16_t) > fileSize)
     {
-        printf("error: read out of bounds");
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     *res = *(uint16_t*)(data + offset);
@@ -639,7 +639,7 @@ int dw_read_u8(u8* res, char* data, int fileSize, int offset)
 {
     if(offset + sizeof(u8) > fileSize)
     {
-        printf("error: read out of bounds");
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     *res = data[offset];
@@ -650,7 +650,7 @@ int dw_read_str8(char** res, int len, char* data, int fileSize, int offset)
 {
     if(offset + len > fileSize)
     {
-        printf("error: read out of bounds");
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     *res = data + offset;
@@ -661,13 +661,14 @@ int dw_read_null_string(oc_str8* res, char* data, int fileSize, int offset)
 {
     if(offset >= fileSize)
     {
-        printf("error: read out of bounds");
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     int len = strnlen(data + offset, fileSize - offset);
-    if(offset + len + 1 >= fileSize)
+    if(offset + len >= fileSize)
     {
-        printf("error: read out of bounds");
+        //NOTE >= since we also need to fit a null byte
+        oc_log_error("read out of bounds\n");
         exit(-1);
     }
     *res = (oc_str8){
@@ -1901,7 +1902,7 @@ typedef struct dw_attr
     };
 } dw_attr;
 
-u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
+u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 addressSize, u32 lengthSize, char* data, u64 fileSize, u64 offset)
 {
     u64 startOffset = offset;
 
@@ -1999,31 +2000,46 @@ u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data,
         // constant class
         //-----------------------
         case DW_FORM_data1:
-        {
-            res->string.len = 1;
-        }
-        break;
         case DW_FORM_data2:
-        {
-            res->string.len = 2;
-        }
-        break;
         case DW_FORM_data4:
-        {
-            res->string.len = 4;
-        }
-        break;
         case DW_FORM_data8:
-        {
-            res->string.len = 4;
-        }
-        break;
         case DW_FORM_data16:
         {
-            res->string.len = 4;
+            switch(form)
+            {
+                case DW_FORM_data1:
+                {
+                    res->string.len = 1;
+                }
+                break;
+                case DW_FORM_data2:
+                {
+                    res->string.len = 2;
+                }
+                break;
+                case DW_FORM_data4:
+                {
+                    res->string.len = 4;
+                }
+                break;
+                case DW_FORM_data8:
+                {
+                    res->string.len = 4;
+                }
+                break;
+                case DW_FORM_data16:
+                {
+                    res->string.len = 4;
+                }
+                break;
+
+                default:
+                    OC_ASSERT(0, "unreachable");
+                    break;
+            }
+            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
         }
         break;
-
         case DW_FORM_sdata:
         {
             offset += dw_read_leb128_i64(&res->valI64, data, fileSize, offset);
@@ -2126,7 +2142,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data,
         case DW_FORM_ref_addr:
         {
             u64 ref64 = 0;
-            if(addressSize == 4)
+            if(lengthSize == 4)
             {
                 u32 ref32 = 0;
                 offset += dw_read_u32(&ref32, data, fileSize, offset);
@@ -2174,51 +2190,131 @@ u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data,
         case DW_FORM_line_strp:
         case DW_FORM_strp_sup:
         {
-            u64 strOffset64 = 0;
-            if(addressSize == 4)
+            u64 strOffset = 0;
+            if(lengthSize == 4)
             {
                 u32 strOffset32 = 0;
                 offset += dw_read_u32(&strOffset32, data, fileSize, offset);
-                strOffset64 = strOffset32;
+                strOffset = strOffset32;
             }
             else
             {
-                offset += dw_read_u64(&strOffset64, data, fileSize, offset);
+                offset += dw_read_u64(&strOffset, data, fileSize, offset);
+            }
+
+            oc_str8* strSection = 0;
+            if(form == DW_FORM_strp)
+            {
+                strSection = &sections->str;
+            }
+            else if(form == DW_FORM_line_strp)
+            {
+                strSection = &sections->lineStr;
+            }
+            else
+            {
+                oc_log_warning("unsupported form DW_FORM_str_sup (string from supplementary object file)\n");
+            }
+
+            if(strSection)
+            {
+                dw_read_null_string(&res->string, strSection->ptr, strSection->len, strOffset);
             }
         }
         break;
 
         case DW_FORM_strx1:
-        {
-            u8 indOffset = 0;
-            offset += dw_read_u8(&indOffset, data, fileSize, offset);
-        }
-        break;
         case DW_FORM_strx2:
-        {
-            u16 indOffset = 0;
-            offset += dw_read_u16(&indOffset, data, fileSize, offset);
-        }
-        break;
         case DW_FORM_strx3:
-        {
-            u16 indOffset16 = 0;
-            offset += dw_read_u16(&indOffset16, data, fileSize, offset);
-            u8 indOffset8 = 0;
-            offset += dw_read_u8(&indOffset8, data, fileSize, offset);
-            //TODO: combine 3 bytes
-        }
-        break;
         case DW_FORM_strx4:
-        {
-            u32 indOffset = 0;
-            offset += dw_read_u32(&indOffset, data, fileSize, offset);
-        }
-        break;
         case DW_FORM_strx:
         {
-            u64 indOffset = 0;
-            offset += dw_read_leb128_u64(&indOffset, data, fileSize, offset);
+            u64 index = 0;
+            switch(form)
+            {
+                case DW_FORM_strx1:
+                {
+                    u8 index8 = 0;
+                    offset += dw_read_u8(&index8, data, fileSize, offset);
+                    index = index8;
+                }
+                break;
+                case DW_FORM_strx2:
+                {
+                    u16 index16 = 0;
+                    offset += dw_read_u16(&index16, data, fileSize, offset);
+                    index = index16;
+                }
+                break;
+                case DW_FORM_strx3:
+                {
+                    u16 index16 = 0;
+                    offset += dw_read_u16(&index16, data, fileSize, offset);
+                    u8 index8 = 0;
+                    offset += dw_read_u8(&index8, data, fileSize, offset);
+                    memcpy(&index, &index16, sizeof(u16));
+                    memcpy(((char*)&index) + sizeof(u16), &index8, sizeof(u8));
+                }
+                break;
+                case DW_FORM_strx4:
+                {
+                    u32 index32 = 0;
+                    offset += dw_read_u32(&index32, data, fileSize, offset);
+                    index = index32;
+                }
+                break;
+                case DW_FORM_strx:
+                {
+                    offset += dw_read_leb128_u64(&index, data, fileSize, offset);
+                }
+                break;
+
+                default:
+                    OC_ASSERT(0, "unreachable");
+            }
+
+            u64 strOffset = 0;
+
+            //NOTE: compute start of offsets table
+            //TODO: take into account string offset base...
+            oc_str8 strOffsetEntries = { 0 };
+            u32 strOffsetLengthSize = 4;
+            {
+                u64 strOffsetOffset = 0;
+                u64 strOffsetLength = 0;
+                {
+                    u32 strOffsetLength32 = 0;
+                    strOffsetOffset += dw_read_u32(&strOffsetLength32, sections->strOffsets.ptr, sections->strOffsets.len, strOffsetOffset);
+                    if(strOffsetLength32 >= 0xfffffff0)
+                    {
+                        strOffsetLengthSize = 8;
+                        strOffsetOffset += dw_read_u64(&strOffsetLength, sections->strOffsets.ptr, sections->strOffsets.len, strOffsetOffset);
+                    }
+                    else
+                    {
+                        strOffsetLength = strOffsetLength32;
+                    }
+                }
+                u16 strOffsetVersion = 0;
+                strOffsetOffset += dw_read_u16(&strOffsetVersion, sections->strOffsets.ptr, sections->strOffsets.len, strOffsetOffset);
+                u16 padding = 0;
+                strOffsetOffset += dw_read_u16(&padding, sections->strOffsets.ptr, sections->strOffsets.len, strOffsetOffset);
+
+                strOffsetEntries = oc_str8_slice(sections->strOffsets, strOffsetOffset, sections->strOffsets.len);
+            }
+
+            if(strOffsetLengthSize == 4)
+            {
+                u32 strOffset32 = 0;
+                dw_read_u32(&strOffset32, strOffsetEntries.ptr, strOffsetEntries.len, index * 4);
+                strOffset = strOffset32;
+            }
+            else
+            {
+                dw_read_u64(&strOffset, strOffsetEntries.ptr, strOffsetEntries.len, index * 8);
+            }
+
+            dw_read_null_string(&res->string, sections->str.ptr, sections->str.len, strOffset);
         }
         break;
 
@@ -2229,7 +2325,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data,
         case DW_FORM_sec_offset:
         {
             u64 addrOffset = 0;
-            if(addressSize == 4)
+            if(lengthSize == 4)
             {
                 u32 addrOffset32 = 0;
                 offset += dw_read_u32(&addrOffset32, data, fileSize, offset);
@@ -2249,7 +2345,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data,
         {
             u64 indForm = 0;
             offset += dw_read_leb128_u64(&indForm, data, fileSize, offset);
-            offset += dw_parse_form_value(res, indForm, addressSize, data, fileSize, offset);
+            offset += dw_parse_form_value(res, sections, indForm, addressSize, lengthSize, data, fileSize, offset);
         }
         break;
 
@@ -2260,9 +2356,10 @@ u64 dw_parse_form_value(dw_attr* res, dw_form form, u32 addressSize, char* data,
             break;
     }
 
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
+/*
 u64 dw_parse_address(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
 {
     u64 startOffset = offset;
@@ -2289,7 +2386,7 @@ u64 dw_parse_address(dw_attr* res, dw_form form, u32 addressSize, char* data, u6
             exit(-1);
             break;
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_address_ptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2317,7 +2414,7 @@ u64 dw_parse_address_ptr(dw_attr* res, dw_form form, u32 addressSize, char* data
         oc_log_error("unsupported form %s for addressptr\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_block(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2362,7 +2459,7 @@ u64 dw_parse_block(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 
     }
     offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
 
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_constant(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2416,7 +2513,7 @@ u64 dw_parse_constant(dw_attr* res, dw_form form, u32 addressSize, char* data, u
         offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
     }
 
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_exprloc(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2438,7 +2535,7 @@ u64 dw_parse_exprloc(dw_attr* res, dw_form form, u32 addressSize, char* data, u6
         oc_log_error("unsupported form %s for exprloc\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_flag(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2458,7 +2555,7 @@ u64 dw_parse_flag(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 f
         oc_log_error("unsupported form %s for flag\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_lineptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2486,7 +2583,7 @@ u64 dw_parse_lineptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u6
         oc_log_error("unsupported form %s for lineptr\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_loclist(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2521,7 +2618,7 @@ u64 dw_parse_loclist(dw_attr* res, dw_form form, u32 addressSize, char* data, u6
         oc_log_error("unsupported form %s for loclist\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_loclistptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2549,7 +2646,7 @@ u64 dw_parse_loclistptr(dw_attr* res, dw_form form, u32 addressSize, char* data,
         oc_log_error("unsupported form %s for loclistptr\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_macptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2577,7 +2674,7 @@ u64 dw_parse_macptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64
         oc_log_error("unsupported form %s for macptr\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_rnglist(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2611,7 +2708,7 @@ u64 dw_parse_rnglist(dw_attr* res, dw_form form, u32 addressSize, char* data, u6
         oc_log_error("unsupported form %s for rnglist\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_rnglistptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2639,7 +2736,7 @@ u64 dw_parse_rnglistptr(dw_attr* res, dw_form form, u32 addressSize, char* data,
         oc_log_error("unsupported form %s for rnglistptr\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_reference(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2726,7 +2823,7 @@ u64 dw_parse_reference(dw_attr* res, dw_form form, u32 addressSize, char* data, 
     //TODO:
     oc_log_warning("partially supported reference attribute (skipped)\n");
 
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_string(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2812,7 +2909,7 @@ u64 dw_parse_string(dw_attr* res, dw_form form, u32 addressSize, char* data, u64
         break;
     }
 
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_stroffsetsptr(dw_attr* res, dw_form form, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2840,7 +2937,7 @@ u64 dw_parse_stroffsetsptr(dw_attr* res, dw_form form, u32 addressSize, char* da
         oc_log_error("unsupported form %s for stroffsetsptr\n", dw_get_form_string(form));
         exit(-1);
     }
-    return (startOffset - offset);
+    return (offset - startOffset);
 }
 
 u64 dw_parse_attr(oc_arena* arena, dw_attr* res, u32 addressSize, char* data, u64 fileSize, u64 offset)
@@ -2849,511 +2946,10 @@ u64 dw_parse_attr(oc_arena* arena, dw_attr* res, u32 addressSize, char* data, u6
 
     dw_form form = res->abbrev->form;
 
-    switch(res->abbrev->name)
-    {
-        case DW_AT_sibling:
-        {
-            offset += dw_parse_reference(res, form, addressSize, data, fileSize, offset);
-        }
-        break;
-        case DW_AT_location:
-        {
-            if(form == DW_FORM_exprloc)
-            {
-                offset += dw_parse_exprloc(res, form, addressSize, data, fileSize, offset);
-            }
-            else
-            {
-                offset += dw_parse_loclist(res, form, addressSize, data, fileSize, offset);
-            }
-        }
-        break;
-        case DW_AT_name:
-        {
-            offset += dw_parse_string(res, form, addressSize, data, fileSize, offset);
-        }
-        break;
-        case DW_AT_ordering:
-        {
-            offset += dw_parse_constant(res, form, addressSize, data, fileSize, offset);
-        }
-        break;
-        case DW_AT_byte_size:
-        {
-            if(form == DW_FORM_exprloc)
-            {
-                offset += dw_parse_exprloc(res, form, addressSize, data, fileSize, offset);
-            }
-        }
-        break;
-        case DW_AT_bit_size:
-        {
-        }
-        break;
-        case DW_AT_stmt_list:
-        {
-        }
-        break;
-        case DW_AT_low_pc:
-        {
-        }
-        break;
-        case DW_AT_high_pc:
-        {
-        }
-        break;
-        case DW_AT_language:
-        {
-        }
-        break;
-        case DW_AT_discr:
-        {
-        }
-        break;
-        case DW_AT_discr_value:
-        {
-        }
-        break;
-        case DW_AT_visibility:
-        {
-        }
-        break;
-        case DW_AT_import:
-        {
-        }
-        break;
-        case DW_AT_string_length:
-        {
-        }
-        break;
-        case DW_AT_common_reference:
-        {
-        }
-        break;
-        case DW_AT_comp_dir:
-        {
-        }
-        break;
-        case DW_AT_const_value:
-        {
-        }
-        break;
-        case DW_AT_containing_type:
-        {
-        }
-        break;
-        case DW_AT_default_value:
-        {
-        }
-        break;
-        case DW_AT_inline:
-        {
-        }
-        break;
-        case DW_AT_is_optional:
-        {
-        }
-        break;
-        case DW_AT_lower_bound:
-        {
-        }
-        break;
-        case DW_AT_producer:
-        {
-        }
-        break;
-        case DW_AT_prototyped:
-        {
-        }
-        break;
-        case DW_AT_return_addr:
-        {
-        }
-        break;
-        case DW_AT_start_scope:
-        {
-        }
-        break;
-        case DW_AT_bit_stride:
-        {
-        }
-        break;
-        case DW_AT_upper_bound:
-        {
-        }
-        break;
-        case DW_AT_abstract_origin:
-        {
-        }
-        break;
-        case DW_AT_accessibility:
-        {
-        }
-        break;
-        case DW_AT_address_class:
-        {
-        }
-        break;
-        case DW_AT_artificial:
-        {
-        }
-        break;
-        case DW_AT_base_types:
-        {
-        }
-        break;
-        case DW_AT_calling_convention:
-        {
-        }
-        break;
-        case DW_AT_count:
-        {
-        }
-        break;
-        case DW_AT_data_member_location:
-        {
-        }
-        break;
-        case DW_AT_decl_column:
-        {
-        }
-        break;
-        case DW_AT_decl_file:
-        {
-        }
-        break;
-        case DW_AT_decl_line:
-        {
-        }
-        break;
-        case DW_AT_declaration:
-        {
-        }
-        break;
-        case DW_AT_discr_list:
-        {
-        }
-        break;
-        case DW_AT_encoding:
-        {
-        }
-        break;
-        case DW_AT_external:
-        {
-        }
-        break;
-        case DW_AT_frame_base:
-        {
-        }
-        break;
-        case DW_AT_friend:
-        {
-        }
-        break;
-        case DW_AT_identifier_case:
-        {
-        }
-        break;
-        case DW_AT_namelist_item:
-        {
-        }
-        break;
-        case DW_AT_priority:
-        {
-        }
-        break;
-        case DW_AT_segment:
-        {
-        }
-        break;
-        case DW_AT_specification:
-        {
-        }
-        break;
-        case DW_AT_static_link:
-        {
-        }
-        break;
-        case DW_AT_type:
-        {
-        }
-        break;
-        case DW_AT_use_location:
-        {
-        }
-        break;
-        case DW_AT_variable_parameter:
-        {
-        }
-        break;
-        case DW_AT_virtuality:
-        {
-        }
-        break;
-        case DW_AT_vtable_elem_location:
-        {
-        }
-        break;
-        case DW_AT_allocated:
-        {
-        }
-        break;
-        case DW_AT_associated:
-        {
-        }
-        break;
-        case DW_AT_data_location:
-        {
-        }
-        break;
-        case DW_AT_byte_stride:
-        {
-        }
-        break;
-        case DW_AT_entry_pc:
-        {
-        }
-        break;
-        case DW_AT_use_UTF8:
-        {
-        }
-        break;
-        case DW_AT_extension:
-        {
-        }
-        break;
-        case DW_AT_ranges:
-        {
-        }
-        break;
-        case DW_AT_trampoline:
-        {
-        }
-        break;
-        case DW_AT_call_column:
-        {
-        }
-        break;
-        case DW_AT_call_file:
-        {
-        }
-        break;
-        case DW_AT_call_line:
-        {
-        }
-        break;
-        case DW_AT_description:
-        {
-        }
-        break;
-        case DW_AT_binary_scale:
-        {
-        }
-        break;
-        case DW_AT_decimal_scale:
-        {
-        }
-        break;
-        case DW_AT_small:
-        {
-        }
-        break;
-        case DW_AT_decimal_sign:
-        {
-        }
-        break;
-        case DW_AT_digit_count:
-        {
-        }
-        break;
-        case DW_AT_picture_string:
-        {
-        }
-        break;
-        case DW_AT_mutable:
-        {
-        }
-        break;
-        case DW_AT_threads_scaled:
-        {
-        }
-        break;
-        case DW_AT_explicit:
-        {
-        }
-        break;
-        case DW_AT_object_pointer:
-        {
-        }
-        break;
-        case DW_AT_endianity:
-        {
-        }
-        break;
-        case DW_AT_elemental:
-        {
-        }
-        break;
-        case DW_AT_pure:
-        {
-        }
-        break;
-        case DW_AT_recursive:
-        {
-        }
-        break;
-        case DW_AT_signature:
-        {
-        }
-        break;
-        case DW_AT_main_subprogram:
-        {
-        }
-        break;
-        case DW_AT_data_bit_offset:
-        {
-        }
-        break;
-        case DW_AT_const_expr:
-        {
-        }
-        break;
-        case DW_AT_enum_class:
-        {
-        }
-        break;
-        case DW_AT_linkage_name:
-        {
-        }
-        break;
-        case DW_AT_string_length_bit_size:
-        {
-        }
-        break;
-        case DW_AT_string_length_byte_size:
-        {
-        }
-        break;
-        case DW_AT_rank:
-        {
-        }
-        break;
-        case DW_AT_str_offsets_base:
-        {
-        }
-        break;
-        case DW_AT_addr_base:
-        {
-        }
-        break;
-        case DW_AT_rnglists_base:
-        {
-        }
-        break;
-        case DW_AT_dwo_name:
-        {
-        }
-        break;
-        case DW_AT_reference:
-        {
-        }
-        break;
-        case DW_AT_rvalue_reference:
-        {
-        }
-        break;
-        case DW_AT_macros:
-        {
-        }
-        break;
-        case DW_AT_call_all_calls:
-        {
-        }
-        break;
-        case DW_AT_call_all_source_calls:
-        {
-        }
-        break;
-        case DW_AT_call_all_tail_calls:
-        {
-        }
-        break;
-        case DW_AT_call_return_pc:
-        {
-        }
-        break;
-        case DW_AT_call_value:
-        {
-        }
-        break;
-        case DW_AT_call_origin:
-        {
-        }
-        break;
-        case DW_AT_call_parameter:
-        {
-        }
-        break;
-        case DW_AT_call_pc:
-        {
-        }
-        break;
-        case DW_AT_call_tail_call:
-        {
-        }
-        break;
-        case DW_AT_call_target:
-        {
-        }
-        break;
-        case DW_AT_call_target_clobbered:
-        {
-        }
-        break;
-        case DW_AT_call_data_location:
-        {
-        }
-        break;
-        case DW_AT_call_data_value:
-        {
-        }
-        break;
-        case DW_AT_noreturn:
-        {
-        }
-        break;
-        case DW_AT_alignment:
-        {
-        }
-        break;
-        case DW_AT_export_symbols:
-        {
-        }
-        break;
-        case DW_AT_deleted:
-        {
-        }
-        break;
-        case DW_AT_defaulted:
-        {
-        }
-        break;
-        case DW_AT_loclists_base:
-        {
-        }
-        break;
-
-        default:
-        {
-            oc_log_error("unsupported attribute name\n");
-            exit(-1);
-        }
-        break;
-    }
 
     return (offset - startOffset);
 }
-
+*/
 void dw_dump_info(dw_sections sections)
 {
     oc_str8 contents = sections.info;
@@ -3458,12 +3054,24 @@ void dw_dump_info(dw_sections sections)
             {
                 dw_abbrev_attr* abbrevAttr = &abbrev->attributes[attrIndex];
 
-                printf("    attr: %s\n", dw_get_attr_name_string(abbrevAttr->name));
-                printf("    form: %s\n", dw_get_form_string(abbrevAttr->form));
-
+                printf("    0x%016llx: %s\n", offset, dw_get_attr_name_string(abbrevAttr->name));
+                printf("        form: %s\n", dw_get_form_string(abbrevAttr->form));
                 dw_attr attr = { 0 };
                 attr.abbrev = abbrevAttr;
-                offset += dw_parse_attr(scratch.arena, &attr, addressSize, contents.ptr, contents.len, offset);
+                //offset += dw_parse_attr(scratch.arena, &attr, addressSize, contents.ptr, contents.len, offset);
+                offset += dw_parse_form_value(&attr, &sections, abbrevAttr->form, addressSize, lengthSize, contents.ptr, contents.len, offset);
+
+                if(abbrevAttr->form == DW_FORM_string
+                   || abbrevAttr->form == DW_FORM_strp
+                   || abbrevAttr->form == DW_FORM_line_strp
+                   || abbrevAttr->form == DW_FORM_strx1
+                   || abbrevAttr->form == DW_FORM_strx2
+                   || abbrevAttr->form == DW_FORM_strx3
+                   || abbrevAttr->form == DW_FORM_strx4
+                   || abbrevAttr->form == DW_FORM_strx)
+                {
+                    printf("        value: %.*s\n", oc_str8_ip(attr.string));
+                }
             }
 
             oc_scratch_end(scratch);
