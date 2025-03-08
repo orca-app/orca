@@ -329,12 +329,6 @@ fn isLibUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool 
     return true;
 }
 
-fn checkAngle(opts: *const Options) !void {
-    if (isLibUpToDate(opts, .LogError) == false) {
-        return error.AngleOutOfDate;
-    }
-}
-
 fn buildAngle(opts: *const Options) !void {
     if (isLibUpToDate(opts, .NoError)) {
         // std.log.info("angle is up to date - no rebuild needed.\n", .{});
