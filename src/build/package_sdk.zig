@@ -237,7 +237,6 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
 
-    std.debug.print(">>>>>>>>> clearing dir: {s}\n", .{opts.sdk_path});
     std.fs.deleteTreeAbsolute(opts.sdk_path) catch {};
 
     const src_paths: []const []const u8 = &.{
