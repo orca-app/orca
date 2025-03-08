@@ -883,7 +883,7 @@ pub fn build(b: *Build) !void {
     } else {
         curl_lib.root_module.addCMacro("CURL_EXTERN_SYMBOL", "__attribute__ ((__visibility__ (\"default\"))");
 
-        if (target.result.isDarwin() == false) {
+        if (target.result.os.tag.isDarwin() == false) {
             curl_lib.root_module.addCMacro("ENABLE_IPV6", "1");
             curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME_R", "1");
             curl_lib.root_module.addCMacro("HAVE_MSG_NOSIGNAL", "1");
