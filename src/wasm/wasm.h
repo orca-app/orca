@@ -294,6 +294,7 @@ typedef struct wa_source_node
 {
     oc_list_elt listElt;
     oc_list children;
+    u64 id;
     oc_str8 name;
     oc_str8 path;
 

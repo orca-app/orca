@@ -3171,6 +3171,21 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
     }
 }
 
+dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name)
+{
+    dw_attr* res = 0;
+    for(u64 attrIndex = 0; attrIndex < die->abbrev->attrCount; attrIndex++)
+    {
+        dw_attr* attr = &die->attributes[attrIndex];
+        if(attr->abbrev->name == name)
+        {
+            res = attr;
+            break;
+        }
+    }
+    return res;
+}
+
 /*
 void dw_dump_info(dw_sections sections)
 {

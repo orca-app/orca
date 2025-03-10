@@ -20,7 +20,7 @@ oc_str8 oc_path_slice_directory(oc_str8 fullPath)
             break;
         }
     }
-    oc_str8 directory = oc_str8_slice(fullPath, 0, lastSlashIndex + 1);
+    oc_str8 directory = oc_str8_slice(fullPath, 0, lastSlashIndex ? lastSlashIndex : 1);
     return (directory);
 }
 

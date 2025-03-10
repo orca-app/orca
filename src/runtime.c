@@ -1243,7 +1243,10 @@ wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
 void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
 {
     //TODO: use full path to disambiguate similarly named root dirs
-    oc_ui_box_str8(node->path)
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 id = oc_str8_pushf(scratch.arena, "path-%llu", node->id);
+
+    oc_ui_box_str8(id)
     {
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
@@ -1272,6 +1275,8 @@ void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
         }
     }
+
+    oc_scratch_end(scratch);
 
     oc_list_for(node->children, child, wa_source_node, listElt)
     {
