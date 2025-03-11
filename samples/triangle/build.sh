@@ -7,7 +7,7 @@ ORCA_DIR=$(orca sdk-path)
 # common flags to build wasm modules
 wasmFlags=(--target=wasm32 \
   -mbulk-memory \
-  -O2 -g \
+  -O0 -g \
   -Wl,--no-entry \
   -Wl,--export-dynamic \
   --sysroot "$ORCA_DIR"/orca-libc \

@@ -1520,7 +1520,7 @@ void debugger_ui_update(oc_runtime* app)
 
                             wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint(
                                 app->env.interpreter,
-                                &(wa_bytecode_loc){
+                                &(wa_warm_loc){
                                     .instance = app->env.interpreter->instance,
                                     .func = func,
                                     .index = codeIndex,
@@ -1617,7 +1617,7 @@ void debugger_ui_update(oc_runtime* app)
                                             {
                                                 wa_interpreter_add_breakpoint(
                                                     app->env.interpreter,
-                                                    &(wa_bytecode_loc){
+                                                    &(wa_warm_loc){
                                                         .instance = app->env.interpreter->instance,
                                                         .func = func,
                                                         .index = codeIndex,
@@ -1736,7 +1736,7 @@ void debugger_ui_update(oc_runtime* app)
                 if(node->contents.len)
                 {
                     u64 offset = 0;
-                    u64 lineNum = 0;
+                    u64 lineNum = 1;
                     while(offset < node->contents.len)
                     {
                         u64 lineStart = offset;
@@ -1755,6 +1755,30 @@ void debugger_ui_update(oc_runtime* app)
 
                         oc_ui_box_str8(lineNumStr)
                         {
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                            bool makeExecCursor = false;
+                            if(app->env.instance)
+                            {
+                                ////////////////////////////////////////////////:
+                                //TODO: haul that up
+                                ////////////////////////////////////////////////
+                                wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                                u32 index = app->env.interpreter->pc - execFunc->code;
+
+                                wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module, (wa_warm_loc){ app->env.instance, execFunc, index });
+
+                                if(!oc_str8_cmp(node->path, loc.path) && loc.line == lineNum)
+                                {
+                                    makeExecCursor = true;
+                                }
+                            }
+
+                            if(makeExecCursor)
+                            {
+                                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                            }
+
                             oc_ui_box("num")
                             {
                                 //TODO: we should count the number of lines beforehand to compute the proper max size

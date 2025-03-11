@@ -270,12 +270,12 @@ inline bool wa_status_is_fail(wa_status status)
 
 typedef struct wa_breakpoint wa_breakpoint;
 
-typedef struct wa_bytecode_loc
+typedef struct wa_warm_loc
 {
     wa_instance* instance;
     wa_func* func;
     u32 index;
-} wa_bytecode_loc;
+} wa_warm_loc;
 
 typedef struct wa_line_loc
 {
@@ -284,8 +284,8 @@ typedef struct wa_line_loc
 
 } wa_line_loc;
 
-wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc);
-wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_bytecode_loc* loc);
+wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);
+wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);
 wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
