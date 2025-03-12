@@ -928,6 +928,9 @@ typedef struct wa_module
     u32 warmToWasmMapLen;
     oc_list* warmToWasmMap;
 
+    u32 wasmToWarmMapLen;
+    oc_list* wasmToWarmMap;
+
     dw_info* debugInfo;
     u32 sourceNodeCount;
     wa_source_node sourceTree;
@@ -3448,6 +3451,20 @@ void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, w
     oc_list_push_back(&module->warmToWasmMap[index], &mapping->listElt);
 }
 
+void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr)
+{
+    wa_bytecode_mapping* mapping = oc_arena_push_type(module->arena, wa_bytecode_mapping);
+    mapping->funcIndex = funcIndex;
+    mapping->codeIndex = codeIndex;
+    mapping->instr = instr;
+
+    u64 id = mapping->instr->ast->loc.start - module->toc.code.offset;
+    u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
+    u64 index = hash % module->wasmToWarmMapLen;
+
+    oc_list_push_back(&module->wasmToWarmMap[index], &mapping->listElt);
+}
+
 //-------------------------------------------------------------------------
 // Compile
 //-------------------------------------------------------------------------
@@ -5060,6 +5077,19 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
             wa_compile_error(&context, 0, "too many register slots (%i, max is %i).", context.nextRegIndex, WA_MAX_SLOT_COUNT);
         }
         func->maxRegCount = context.nextRegIndex;
+
+        //NOTE: emit wasm to warm mappings
+        {
+            u64 codeIndex = func->codeLen - 1;
+            oc_list_for_reverse(func->instructions, instr, wa_instr, listElt)
+            {
+                if(instr->codeIndex)
+                {
+                    codeIndex = instr->codeIndex;
+                }
+                wa_wasm_to_warm_loc_push(module, funcIndex, codeIndex, instr);
+            }
+        }
     }
 
     for(u32 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
@@ -5192,6 +5222,10 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
         module->warmToWasmMapLen = 4096;
         module->warmToWasmMap = oc_arena_push_array(arena, oc_list, 4096);
         memset(module->warmToWasmMap, 0, 4096 * sizeof(oc_list));
+
+        module->wasmToWarmMapLen = 4096;
+        module->wasmToWarmMap = oc_arena_push_array(arena, oc_list, 4096);
+        memset(module->wasmToWarmMap, 0, 4096 * sizeof(oc_list));
 
         wa_compile_code(arena, module);
     }
@@ -8374,10 +8408,30 @@ void wa_print_stack_trace(wa_interpreter* interpreter)
 typedef struct wa_breakpoint
 {
     oc_list_elt listElt;
-    wa_warm_loc loc;
+    bool isLine;
+    wa_line_loc lineLoc;
+    wa_warm_loc warmLoc;
     wa_code savedOpcode;
 
 } wa_breakpoint;
+
+wa_breakpoint* wa_interpreter_find_breakpoint_any(wa_interpreter* interpreter, wa_warm_loc* loc)
+{
+    wa_breakpoint* result = 0;
+
+    oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
+    {
+        if(bp->warmLoc.instance == loc->instance
+           && bp->warmLoc.func == loc->func
+           && bp->warmLoc.index == loc->index)
+        {
+            result = bp;
+            break;
+        }
+    }
+
+    return result;
+}
 
 wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc)
 {
@@ -8385,9 +8439,10 @@ wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_wa
 
     oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
     {
-        if(bp->loc.instance == loc->instance
-           && bp->loc.func == loc->func
-           && bp->loc.index == loc->index)
+        if(bp->isLine == false
+           && bp->warmLoc.instance == loc->instance
+           && bp->warmLoc.func == loc->func
+           && bp->warmLoc.index == loc->index)
         {
             result = bp;
             break;
@@ -8407,66 +8462,67 @@ wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_war
         {
             bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
         }
-        bp->loc = *loc;
+        bp->isLine = false;
+        bp->warmLoc = *loc;
         oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
 
-        bp->savedOpcode = bp->loc.func->code[bp->loc.index];
-        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+        bp->savedOpcode = bp->warmLoc.func->code[bp->warmLoc.index];
+        bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
     }
     return bp;
 }
 
-/*
-wa_line_loc wa_line_loc_from_bytecode_loc(wa_interpreter* interpreter, wa_warm_loc* loc)
+wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc)
 {
-    //TODO: first convert to wasm address
+    wa_breakpoint* result = 0;
 
-    for(u64 tableIndex = 0; tableIndex < app->debugInfo.line.tableCount; tableIndex++)
+    oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
     {
-        dw_line_table* table = &app->debugInfo.line.tables[tableIndex];
+        if(bp->isLine == true
+           && !oc_str8_cmp(bp->lineLoc.path, loc->path)
+           && bp->lineLoc.line == loc->line)
+        {
+            result = bp;
+            break;
+        }
+    }
 
-        OC_DEBUG_ASSERT(table->entryCount);
-        dw_line_entry* firstEntry = table->entries[0];
-        dw_line_entry* lastEntry = table->entries[table->entryCount - 1];
-        if(loc->)
-    }
+    return result;
 }
-*/
-/*
-wa_warm_loc wa_warm_loc_from_line_loc(wa_interpreter* interpreter, wa_line_loc* loc)
-{
-    //TODO build an inverse map beforehand
-    for(u64 tableIndex = 0; tableIndex < app->debugInfo.line.tableCount; tableIndex++)
-    {
-        dw_line_table* table = &app->debugInfo.line.tables[tableIndex];
-        for()
-    }
-}
-*/
-/*
+
+wa_warm_loc wa_warm_loc_from_line_loc(wa_instance* instance, wa_module* module, wa_line_loc loc);
+wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
+
 wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc)
 {
     wa_breakpoint* bp = wa_interpreter_find_breakpoint_line(interpreter, loc);
     if(bp == 0)
     {
-        bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
-        if(!bp)
+        wa_warm_loc warmLoc = wa_warm_loc_from_line_loc(interpreter->instance,
+                                                        interpreter->instance->module,
+                                                        *loc);
+        if(warmLoc.func)
         {
-            bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
-        }
-        bp->loc = wa_warm_loc_from_line_loc(intepreter, loc);
-        oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
+            bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
+            if(!bp)
+            {
+                bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
+            }
+            bp->isLine = true;
+            bp->warmLoc = warmLoc;
+            bp->lineLoc = *loc;
+            oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
 
-        bp->savedOpcode = bp->loc.func->code[bp->loc.index];
-        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+            bp->savedOpcode = bp->warmLoc.func->code[bp->warmLoc.index];
+            bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+        }
     }
     return bp;
 }
-*/
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp)
 {
-    bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
+    bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
 
     oc_list_remove(&interpreter->breakpoints, &bp->listElt);
     oc_list_push_back(&interpreter->breakpointFreeList, &bp->listElt);
@@ -8483,7 +8539,7 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
 
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
 
-    wa_breakpoint* bp = wa_interpreter_find_breakpoint(
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
         interpreter,
         &(wa_warm_loc){
             .instance = interpreter->instance,
@@ -8493,12 +8549,12 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
 
     if(bp)
     {
-        bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
+        bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
 
         wa_status status = wa_interpreter_run(interpreter, true);
         //TODO: check if program terminated
 
-        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+        bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
     }
 
     return wa_interpreter_run(interpreter, false);
@@ -8508,7 +8564,7 @@ wa_status wa_interpreter_step(wa_interpreter* interpreter)
 {
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
 
-    wa_breakpoint* bp = wa_interpreter_find_breakpoint(
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
         interpreter,
         &(wa_warm_loc){
             .instance = interpreter->instance,
@@ -8518,14 +8574,68 @@ wa_status wa_interpreter_step(wa_interpreter* interpreter)
 
     if(bp)
     {
-        bp->loc.func->code[bp->loc.index] = bp->savedOpcode;
+        bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
     }
 
     wa_status status = wa_interpreter_run(interpreter, true);
 
     if(bp)
     {
-        bp->loc.func->code[bp->loc.index].opcode = WA_INSTR_breakpoint;
+        bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+    }
+
+    return status;
+}
+
+wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
+{
+    //NOTE: step the dumbest possible way
+    wa_status status = WA_OK;
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+
+    wa_line_loc startLoc = wa_line_loc_from_warm_loc(
+        interpreter->instance->module,
+        (wa_warm_loc){
+            .instance = interpreter->instance,
+            .func = func,
+            .index = interpreter->pc - func->code,
+        });
+
+    wa_line_loc lineLoc = startLoc;
+    while(!oc_str8_cmp(lineLoc.path, startLoc.path) && lineLoc.line == startLoc.line)
+    {
+        wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
+            interpreter,
+            &(wa_warm_loc){
+                .instance = interpreter->instance,
+                .func = func,
+                .index = interpreter->pc - func->code,
+            });
+
+        if(bp)
+        {
+            bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
+        }
+
+        status = wa_interpreter_run(interpreter, true);
+
+        if(bp)
+        {
+            bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+        }
+
+        if(status != WA_TRAP_STEP && status != WA_TRAP_BREAKPOINT)
+        {
+            break;
+        }
+
+        startLoc = wa_line_loc_from_warm_loc(
+            interpreter->instance->module,
+            (wa_warm_loc){
+                .instance = interpreter->instance,
+                .func = func,
+                .index = interpreter->pc - func->code,
+            });
     }
 
     return status;
@@ -8570,6 +8680,29 @@ wa_wasm_loc wa_warm_to_wasm_loc(wa_module* module, u32 funcIndex, u32 codeIndex)
     return (loc);
 }
 
+wa_warm_loc wa_wasm_to_warm_loc(wa_instance* instance, wa_module* module, u64 offset)
+{
+    wa_warm_loc loc = { 0 };
+
+    u64 id = offset;
+    u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
+    u64 index = hash % module->wasmToWarmMapLen;
+
+    wa_instr* instr = 0;
+    oc_list_for(module->wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
+    {
+        if((mapping->instr->ast->loc.start - module->toc.code.offset) == offset)
+        {
+            loc.instance = instance;
+            loc.func = &instance->functions[mapping->funcIndex];
+            loc.index = mapping->codeIndex;
+            break;
+        }
+    }
+
+    return (loc);
+}
+
 wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc)
 {
     wa_line_loc res = { 0 };
@@ -8591,4 +8724,34 @@ wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc)
     }
 
     return (res);
+}
+
+//TODO: remove need to pass instance
+wa_warm_loc wa_warm_loc_from_line_loc(wa_instance* instance, wa_module* module, wa_line_loc loc)
+{
+    wa_warm_loc result = { 0 };
+    //TODO: this is super dumb for now, just pick the lowest line that's >= to the line we're looking for
+    wa_wasm_loc wasmLoc = { 0 };
+
+    u64 currentLine = UINT64_MAX;
+
+    for(u64 entryIndex = 0; entryIndex < module->wasmToLineCount; entryIndex++)
+    {
+        wa_wasm_to_line_entry* entry = &module->wasmToLine[entryIndex];
+
+        if(!oc_str8_cmp(loc.path, entry->loc.path)
+           && entry->loc.line >= loc.line
+           && entry->loc.line < currentLine)
+        {
+            currentLine = entry->loc.line;
+            wasmLoc.module = module;
+            wasmLoc.offset = entry->wasmOffset;
+        }
+    }
+
+    if(wasmLoc.module)
+    {
+        result = wa_wasm_to_warm_loc(instance, module, wasmLoc.offset);
+    }
+    return result;
 }

@@ -57,6 +57,7 @@ typedef enum oc_debugger_command
 {
     OC_DEBUGGER_CONTINUE,
     OC_DEBUGGER_STEP,
+    OC_DEBUGGER_STEP_LINE,
 } oc_debugger_command;
 
 typedef struct oc_wasm_env
@@ -76,8 +77,6 @@ typedef struct oc_wasm_env
     _Atomic(bool) paused;
     bool prevPaused;
 
-    bool autoScroll;
-    f32 lastScroll;
     oc_debugger_command debuggerCommand;
 
 } oc_wasm_env;
@@ -128,6 +127,10 @@ typedef struct oc_debugger_ui
     oc_ui_context* ui;
 
     wa_source_node* selectedFile;
+    bool showSymbols;
+    bool freshScroll;
+    bool autoScroll;
+    f32 lastScroll;
 } oc_debugger_ui;
 
 typedef struct oc_runtime

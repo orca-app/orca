@@ -254,6 +254,7 @@ wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
 
 wa_status wa_interpreter_continue(wa_interpreter* interpreter);
 wa_status wa_interpreter_step(wa_interpreter* interpreter);
+wa_status wa_interpreter_step_line(wa_interpreter* interpreter);
 
 wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter);
 
@@ -286,6 +287,8 @@ typedef struct wa_line_loc
 
 wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);
 wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);
+
+wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
 wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);

@@ -614,6 +614,12 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
                 status = wa_interpreter_step(interpreter);
             }
             break;
+
+            case OC_DEBUGGER_STEP_LINE:
+            {
+                status = wa_interpreter_step_line(interpreter);
+            }
+            break;
         }
     }
 
@@ -1269,6 +1275,8 @@ void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
         if(sig.pressed && oc_list_empty(node->children))
         {
             app->debuggerUI.selectedFile = node;
+            app->debuggerUI.autoScroll = false;
+            app->debuggerUI.freshScroll = true;
         }
         if(node == app->debuggerUI.selectedFile)
         {
@@ -1282,6 +1290,24 @@ void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
     {
         source_tree_ui(app, child, indent + 1);
     }
+}
+
+wa_source_node* find_source_node(wa_source_node* node, oc_str8 path)
+{
+    if(!oc_str8_cmp(node->path, path))
+    {
+        return node;
+    }
+
+    oc_list_for(node->children, child, wa_source_node, listElt)
+    {
+        wa_source_node* found = find_source_node(child, path);
+        if(found)
+        {
+            return found;
+        }
+    }
+    return 0;
 }
 
 void debugger_ui_update(oc_runtime* app)
@@ -1300,7 +1326,7 @@ void debugger_ui_update(oc_runtime* app)
 
         static i64 selectedFunction = -1;
         f32 scrollSpeed = 0.3;
-        bool freshScroll = false;
+        app->debuggerUI.freshScroll = false;
 
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
         //      if paused == false, vm thread can become paused during the frame, but we
@@ -1311,22 +1337,39 @@ void debugger_ui_update(oc_runtime* app)
             if(paused == true)
             {
                 //NOTE: vm thread has become paused since last frame. We set autoscroll and autoselect the function
-                app->env.autoScroll = true;
+                app->debuggerUI.autoScroll = true;
 
-                u32 newIndex = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func - app->env.instance->functions;
-                if(selectedFunction != newIndex)
+                u32 oldSelectedFunction = selectedFunction;
+                wa_source_node* oldSelectedFile = app->debuggerUI.selectedFile;
+
+                //NOTE: select new function and file
+                wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                u32 selectedFunction = execFunc - app->env.instance->functions;
+
+                wa_warm_loc warmLoc = {
+                    app->env.instance,
+                    execFunc,
+                    app->env.interpreter->pc - execFunc->code,
+                };
+                wa_line_loc lineLoc = wa_line_loc_from_warm_loc(app->env.module, warmLoc);
+                if(lineLoc.path.len)
+                {
+                    //TODO: faster lookup
+                    wa_source_node* sourceTree = wa_module_get_source_tree(app->env.module);
+                    app->debuggerUI.selectedFile = find_source_node(sourceTree, lineLoc.path);
+                }
+
+                if((app->debuggerUI.showSymbols == true && selectedFunction != oldSelectedFunction)
+                   || (app->debuggerUI.showSymbols == false && app->debuggerUI.selectedFile != oldSelectedFile))
                 {
                     scrollSpeed = 1;
-                    freshScroll = true;
+                    app->debuggerUI.freshScroll = true;
                 }
-                selectedFunction = newIndex;
             }
             app->env.prevPaused = paused;
         }
 
         static f32 procPanelSize = 300;
-
-        static bool showSymbols = true;
 
         oc_ui_box("browser")
         {
@@ -1359,7 +1402,7 @@ void debugger_ui_update(oc_runtime* app)
 
                     if(oc_ui_get_sig().pressed)
                     {
-                        showSymbols = false;
+                        app->debuggerUI.showSymbols = false;
                     }
                 }
 
@@ -1380,11 +1423,11 @@ void debugger_ui_update(oc_runtime* app)
 
                     if(oc_ui_get_sig().pressed)
                     {
-                        showSymbols = true;
+                        app->debuggerUI.showSymbols = true;
                     }
                 }
 
-                oc_ui_style_rule(showSymbols ? "option-symbols" : "option-files")
+                oc_ui_style_rule(app->debuggerUI.showSymbols ? "option-symbols" : "option-files")
                 {
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
                 }
@@ -1400,7 +1443,7 @@ void debugger_ui_update(oc_runtime* app)
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                if(showSymbols)
+                if(app->debuggerUI.showSymbols)
                 {
                     for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
                     {
@@ -1438,8 +1481,8 @@ void debugger_ui_update(oc_runtime* app)
                                 if(sig.pressed)
                                 {
                                     selectedFunction = funcIndex;
-                                    app->env.autoScroll = false;
-                                    freshScroll = true;
+                                    app->debuggerUI.autoScroll = false;
+                                    app->debuggerUI.freshScroll = true;
                                 }
                             }
                         }
@@ -1465,13 +1508,13 @@ void debugger_ui_update(oc_runtime* app)
             const i32 BOX_MARGIN_H = 2;
             const i32 BOX_MARGIN_W = 2;
 
-            if(freshScroll)
+            if(app->debuggerUI.freshScroll)
             {
                 oc_log_info("[%f] freshScroll, set scroll to 0\n", oc_ui_frame_time());
                 codePanel->scroll.y = 0;
             }
 
-            if(showSymbols)
+            if(app->debuggerUI.showSymbols)
             {
                 if(selectedFunction >= 0)
                 {
@@ -1527,9 +1570,20 @@ void debugger_ui_update(oc_runtime* app)
                                 });
 
                             //TODO: should probably not intertwine modified bytecode and UI like that?
-                            if(breakpoint)
                             {
-                                opcode = wa_breakpoint_saved_opcode(breakpoint);
+                                wa_breakpoint* anyBreakpoint = wa_interpreter_find_breakpoint_any(
+                                    app->env.interpreter,
+                                    &(wa_warm_loc){
+                                        .instance = app->env.interpreter->instance,
+                                        .func = func,
+                                        .index = codeIndex,
+                                    });
+
+                                if(anyBreakpoint)
+                                {
+                                    //TODO: find _any_ breakpoint (could be a line one) that might modify opcodes
+                                    opcode = wa_breakpoint_saved_opcode(anyBreakpoint);
+                                }
                             }
 
                             const wa_instr_info* info = &wa_instr_infos[opcode];
@@ -1574,7 +1628,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                         f32 targetScroll = codePanel->scroll.y;
 
-                                        if(app->env.autoScroll)
+                                        if(app->debuggerUI.autoScroll)
                                         {
                                             f32 scrollMargin = 60;
 
@@ -1737,6 +1791,11 @@ void debugger_ui_update(oc_runtime* app)
                 {
                     u64 offset = 0;
                     u64 lineNum = 1;
+
+                    //TODO: compute line height from font.
+                    f32 lineH = 0;
+                    f32 lineY = 0;
+
                     while(offset < node->contents.len)
                     {
                         u64 lineStart = offset;
@@ -1752,9 +1811,10 @@ void debugger_ui_update(oc_runtime* app)
                         offset++;
 
                         oc_str8 lineNumStr = oc_str8_pushf(scratch.arena, "%i", lineNum);
-
                         oc_ui_box_str8(lineNumStr)
                         {
+                            lineH = oc_ui_box_top()->rect.h;
+
                             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
                             bool makeExecCursor = false;
@@ -1779,7 +1839,7 @@ void debugger_ui_update(oc_runtime* app)
                                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
                             }
 
-                            oc_ui_box("num")
+                            oc_ui_box* numLabel = oc_ui_box("num")
                             {
                                 //TODO: we should count the number of lines beforehand to compute the proper max size
                                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
@@ -1789,40 +1849,85 @@ void debugger_ui_update(oc_runtime* app)
                                 oc_ui_label_str8(OC_STR8("label"), lineNumStr);
                             }
 
-                            oc_ui_box("spacer")
+                            if(makeExecCursor)
                             {
-                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
-                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                //      so its rect might not be set every frame, resulting in brief jumps.
+                                //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
 
-                                if(oc_ui_get_sig().clicked)
+                                f32 targetScroll = codePanel->scroll.y;
+
+                                if(app->debuggerUI.autoScroll)
                                 {
-                                    /*
-                                    wa_interpreter_add_breakpoint_line(
-                                        app->env.interpreter,
-                                        &(wa_line_loc){
-                                            .path = node->path,
-                                            .line = lineNum,
-                                        });
-                                    */
+                                    f32 scrollMargin = 60;
+
+                                    if(lineY - targetScroll < scrollMargin)
+                                    {
+                                        targetScroll = lineY - scrollMargin;
+                                    }
+                                    else if(lineY + lineH - targetScroll > codePanel->rect.h - scrollMargin)
+                                    {
+                                        targetScroll = lineY + lineH - codePanel->rect.h + scrollMargin;
+                                    }
+                                }
+                                codePanel->scroll.y += scrollSpeed * (targetScroll - codePanel->scroll.y);
+                            }
+
+                            wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(app->env.interpreter,
+                                                                                            &(wa_line_loc){
+                                                                                                .path = node->path,
+                                                                                                .line = lineNum,
+                                                                                            });
+                            // spacer or breakpoint
+                            if(breakpoint)
+                            {
+                                oc_ui_box("bp")
+                                {
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
+                                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                                    oc_ui_set_draw_proc(draw_breakpoint_cursor_proc, 0);
+
+                                    if(oc_ui_get_sig().clicked)
+                                    {
+                                        wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                oc_ui_box("spacer")
+                                {
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
+                                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                                    if(oc_ui_get_sig().clicked)
+                                    {
+                                        wa_interpreter_add_breakpoint_line(app->env.interpreter,
+                                                                           &(wa_line_loc){
+                                                                               .path = node->path,
+                                                                               .line = lineNum,
+                                                                           });
+                                    }
                                 }
                             }
 
                             oc_ui_label_str8(OC_STR8("line"), line);
                         }
-
+                        lineY += lineH;
                         lineNum++;
                     }
                 }
             }
-            app->env.lastScroll = codePanel->scroll.y;
+            app->debuggerUI.lastScroll = codePanel->scroll.y;
             //NOTE: scroll might change (as a result of user action) at the end of the block
         }
 
-        if(!freshScroll && fabs(app->env.lastScroll - codePanel->scroll.y) > 1)
+        if(!app->debuggerUI.freshScroll && fabs(app->debuggerUI.lastScroll - codePanel->scroll.y) > 1)
         {
             //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
             OC_ASSERT(oc_ui_box_get_sig(codePanel).wheel.y != 0);
-            app->env.autoScroll = false;
+            app->debuggerUI.autoScroll = false;
         }
     }
 
@@ -1903,7 +2008,14 @@ i32 control_runloop(void* user)
                             else if(event->key.keyCode == OC_KEY_N)
                             {
                                 //NOTE: signal vm thread to step
-                                app->env.debuggerCommand = OC_DEBUGGER_STEP;
+                                if(app->debuggerUI.showSymbols)
+                                {
+                                    app->env.debuggerCommand = OC_DEBUGGER_STEP;
+                                }
+                                else
+                                {
+                                    app->env.debuggerCommand = OC_DEBUGGER_STEP_LINE;
+                                }
                                 vm_thread_resume(&app->env);
                             }
                             else if(event->key.keyCode == OC_KEY_P
