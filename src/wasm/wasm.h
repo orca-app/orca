@@ -293,15 +293,19 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
 
+typedef struct wa_source_node wa_source_node;
+
 typedef struct wa_source_node
 {
     oc_list_elt listElt;
     oc_list children;
+    wa_source_node* parent;
     u64 id;
     oc_str8 name;
     oc_str8 path;
-
     oc_str8 contents;
+    //TODO: move that to the UI layer
+    bool expanded;
 } wa_source_node;
 
 wa_source_node* wa_module_get_source_tree(wa_module* module);

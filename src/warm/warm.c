@@ -3151,6 +3151,7 @@ wa_source_node* wa_source_tree_insert_path(wa_module* module, oc_str8 rootPath, 
         {
             //add the element
             found = wa_source_node_alloc(module);
+            found->parent = currentNode;
             found->path = oc_path_append(module->arena, currentNode->path, eltName->string);
             found->name = oc_str8_push_copy(module->arena, eltName->string);
             oc_list_push_back(&currentNode->children, &found->listElt);

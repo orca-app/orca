@@ -620,6 +620,13 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
                 status = wa_interpreter_step_line(interpreter);
             }
             break;
+
+            case OC_DEBUGGER_QUIT:
+            {
+                //TODO: should instead return WA_QUIT or something, that shouldn't trigger an error in the caller
+                return WA_OK;
+            }
+            break;
         }
     }
 
@@ -829,7 +836,7 @@ i32 vm_runloop(void* user)
         oc_arena_scope scratch = oc_scratch_begin();
         oc_event* event = 0;
 
-        while((event = queue_next_event(scratch.arena, &app->eventBuffer)) != 0)
+        while(!app->quit && (event = queue_next_event(scratch.arena, &app->eventBuffer)) != 0)
         {
             if(exports[OC_EXPORT_RAW_EVENT])
             {
@@ -1246,7 +1253,7 @@ wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
 
 /////////////////////////////////////////////////////////////////////////////
 
-void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
+void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int indent)
 {
     //TODO: use full path to disambiguate similarly named root dirs
     oc_arena_scope scratch = oc_scratch_begin();
@@ -1257,6 +1264,7 @@ void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
         oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
         oc_ui_box("indent")
@@ -1265,6 +1273,21 @@ void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
         }
 
+        if(!oc_list_empty(node->children))
+        {
+            if(node->expanded)
+            {
+                oc_ui_label("expand-icon", "- ");
+            }
+            else
+            {
+                oc_ui_label("expand-icon", "+ ");
+            }
+        }
+        else
+        {
+            oc_ui_label("expand-icon", "  ");
+        }
         oc_ui_label_str8(OC_STR8("label"), node->name);
 
         oc_ui_sig sig = oc_ui_get_sig();
@@ -1272,23 +1295,54 @@ void source_tree_ui(oc_runtime* app, wa_source_node* node, int indent)
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
         }
-        if(sig.pressed && oc_list_empty(node->children))
+        if(sig.pressed)
         {
-            app->debuggerUI.selectedFile = node;
-            app->debuggerUI.autoScroll = false;
-            app->debuggerUI.freshScroll = true;
+            if(oc_list_empty(node->children))
+            {
+                app->debuggerUI.selectedFile = node;
+                app->debuggerUI.autoScroll = false;
+                app->debuggerUI.freshScroll = true;
+            }
+            else
+            {
+                node->expanded = !node->expanded;
+            }
         }
         if(node == app->debuggerUI.selectedFile)
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+
+            //NOTE: auto-scroll
+            f32 lineY = oc_ui_box_top()->rect.y + panel->scroll.y;
+            f32 lineH = oc_ui_box_top()->rect.h;
+
+            f32 targetScroll = panel->scroll.y;
+
+            if(app->debuggerUI.autoScroll)
+            {
+                f32 scrollMargin = 300;
+
+                if(lineY - targetScroll < scrollMargin)
+                {
+                    targetScroll = lineY - scrollMargin;
+                }
+                else if(lineY + lineH - targetScroll > panel->rect.h - scrollMargin)
+                {
+                    targetScroll = lineY + lineH - panel->rect.h + scrollMargin;
+                }
+            }
+            panel->scroll.y += 0.3 * (targetScroll - panel->scroll.y);
         }
     }
 
     oc_scratch_end(scratch);
 
-    oc_list_for(node->children, child, wa_source_node, listElt)
+    if(node->expanded)
     {
-        source_tree_ui(app, child, indent + 1);
+        oc_list_for(node->children, child, wa_source_node, listElt)
+        {
+            source_tree_ui(app, panel, child, indent + 1);
+        }
     }
 }
 
@@ -1344,7 +1398,7 @@ void debugger_ui_update(oc_runtime* app)
 
                 //NOTE: select new function and file
                 wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
-                u32 selectedFunction = execFunc - app->env.instance->functions;
+                selectedFunction = execFunc - app->env.instance->functions;
 
                 wa_warm_loc warmLoc = {
                     app->env.instance,
@@ -1357,6 +1411,14 @@ void debugger_ui_update(oc_runtime* app)
                     //TODO: faster lookup
                     wa_source_node* sourceTree = wa_module_get_source_tree(app->env.module);
                     app->debuggerUI.selectedFile = find_source_node(sourceTree, lineLoc.path);
+
+                    //NOTE: expand all parents of selected file
+                    wa_source_node* parent = app->debuggerUI.selectedFile->parent;
+                    while(parent)
+                    {
+                        parent->expanded = true;
+                        parent = parent->parent;
+                    }
                 }
 
                 if((app->debuggerUI.showSymbols == true && selectedFunction != oldSelectedFunction)
@@ -1493,7 +1555,7 @@ void debugger_ui_update(oc_runtime* app)
                     wa_source_node* sourceTree = wa_module_get_source_tree(app->env.module);
                     oc_list_for(sourceTree->children, child, wa_source_node, listElt)
                     {
-                        source_tree_ui(app, child, 0);
+                        source_tree_ui(app, oc_ui_box_top(), child, 0);
                     }
                 }
             }
@@ -1630,7 +1692,12 @@ void debugger_ui_update(oc_runtime* app)
 
                                         if(app->debuggerUI.autoScroll)
                                         {
-                                            f32 scrollMargin = 60;
+                                            f32 scrollMargin = 80;
+
+                                            if(scrollSpeed == 1)
+                                            {
+                                                scrollMargin = 300;
+                                            }
 
                                             if(lineY - targetScroll < scrollMargin)
                                             {
@@ -1859,7 +1926,12 @@ void debugger_ui_update(oc_runtime* app)
 
                                 if(app->debuggerUI.autoScroll)
                                 {
-                                    f32 scrollMargin = 60;
+                                    f32 scrollMargin = 80;
+
+                                    if(scrollSpeed == 1)
+                                    {
+                                        scrollMargin = 300;
+                                    }
 
                                     if(lineY - targetScroll < scrollMargin)
                                     {
@@ -1991,6 +2063,7 @@ i32 control_runloop(void* user)
                     {
                         //TODO: we should also unblock vm thread and abort interpreter here
                         app->quit = true;
+                        app->env.debuggerCommand = OC_DEBUGGER_QUIT;
                         vm_thread_resume(&app->env);
                     }
                     break;
@@ -2046,6 +2119,7 @@ i32 control_runloop(void* user)
                     case OC_EVENT_QUIT:
                     {
                         app->quit = true;
+                        app->env.debuggerCommand = OC_DEBUGGER_QUIT;
                         vm_thread_resume(&app->env);
                     }
                     break;

@@ -58,6 +58,7 @@ typedef enum oc_debugger_command
     OC_DEBUGGER_CONTINUE,
     OC_DEBUGGER_STEP,
     OC_DEBUGGER_STEP_LINE,
+    OC_DEBUGGER_QUIT,
 } oc_debugger_command;
 
 typedef struct oc_wasm_env
