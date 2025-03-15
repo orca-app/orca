@@ -194,11 +194,11 @@ const Options = struct {
         }
 
         if (version == null) {
-            version = try findGitVersion(arena);
+            const git_version = try findGitVersion(arena);
+            version = try std.mem.join(arena, "", &.{ "dev-", git_version });
         }
 
         if (is_dev_install) {
-            version = try std.mem.join(arena, "", &.{ "dev-", version.? });
             if (sdk_path == null) {
                 const orca_dir: []const u8 = findSystemOrcaDir(arena, ShouldLog.False) catch |e| {
                     std.log.err(

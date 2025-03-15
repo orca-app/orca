@@ -227,8 +227,6 @@ const CommitStamp = struct {
 
         const cwd = std.fs.cwd();
 
-        try cwd.makePath(opts.paths.output_dir);
-
         var json_buffer = std.ArrayList(u8).init(opts.arena);
         var writer = std.json.writeStream(json_buffer.writer(), .{ .whitespace = .indent_4 });
         defer writer.deinit();
@@ -361,7 +359,7 @@ fn buildAngle(opts: *const Options) !void {
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
 
     if (try pathExists(std.fs.cwd(), src_path) == false) {
-        try execShell(
+        try exec(
             opts.arena,
             &.{
                 "git",
@@ -376,9 +374,9 @@ fn buildAngle(opts: *const Options) !void {
         );
     }
 
-    try execShell(opts.arena, &.{ "git", "fetch", "--no-tags" }, src_path, &env);
-    try execShell(opts.arena, &.{ "git", "reset", "--hard", opts.commit_sha }, src_path, &env);
-    try execShell(opts.arena, &.{ opts.paths.python, "scripts/bootstrap.py" }, src_path, &env);
+    try exec(opts.arena, &.{ "git", "fetch", "--no-tags" }, src_path, &env);
+    try exec(opts.arena, &.{ "git", "reset", "--hard", opts.commit_sha }, src_path, &env);
+    try exec(opts.arena, &.{ opts.paths.python, "scripts/bootstrap.py" }, src_path, &env);
 
     const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_path, "scripts/bootstrap.py" });
     try exec(opts.arena, &.{bootstrap_path}, src_path, &env);
@@ -544,7 +542,7 @@ fn buildDawn(opts: *const Options) !void {
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
 
     if (try pathExists(std.fs.cwd(), src_path) == false) {
-        try execShell(opts.arena, &.{
+        try exec(opts.arena, &.{
             "git",
             "clone",
             "--no-tags",
@@ -553,16 +551,16 @@ fn buildDawn(opts: *const Options) !void {
             src_path,
         }, opts.paths.intermediate_dir, &env);
     }
-    try execShell(opts.arena, &.{ "git", "restore", "." }, src_path, &env);
-    try execShell(opts.arena, &.{ "git", "pull", "--force", "--no-tags" }, src_path, &env);
-    try execShell(opts.arena, &.{ "git", "checkout", "--force", opts.commit_sha }, src_path, &env);
+    try exec(opts.arena, &.{ "git", "restore", "." }, src_path, &env);
+    try exec(opts.arena, &.{ "git", "pull", "--force", "--no-tags" }, src_path, &env);
+    try exec(opts.arena, &.{ "git", "checkout", "--force", opts.commit_sha }, src_path, &env);
 
     const src_dir = try cwd.openDir(src_path, .{});
     _ = try src_dir.updateFile("scripts/standalone.gclient", src_dir, ".gclient", .{});
 
     const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
-    const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient.bat" else "gclient";
-    const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, gclient_entrypoint });
+    // const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient" else "gclient";
+    const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, "gclient" });
     try execShell(opts.arena, &.{ gclient_path, "sync" }, src_path, &env);
 
     {
@@ -587,7 +585,7 @@ fn buildDawn(opts: *const Options) !void {
     }
 
     const diff_file_path = try std.fs.path.join(opts.arena, &.{ src_path, "../../deps/dawn-d3d12-transparent.diff" });
-    try exec(opts.arena, &.{ "git", "apply", "-v", diff_file_path }, src_path, &env); // TODO maybe use --unsafe-paths ?
+    try exec(opts.arena, &.{ "git", "apply", "-v", diff_file_path }, src_path, &env);
 
     if (builtin.os.tag != .windows) {
         try exec(opts.arena, &.{ "chmod", "+x", opts.paths.cmake }, src_path, &env);
@@ -649,8 +647,34 @@ fn buildDawn(opts: *const Options) !void {
     // zig fmt: on
     try exec(opts.arena, cmake_build_args, opts.paths.intermediate_dir, &env);
 
-    const commit_stamp_path = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, DAWN_COMMIT_FILENAME });
-    try CommitStamp.write(opts, commit_stamp_path);
+    // copy aftifacts to output dir
+    {
+        try cwd.makePath(opts.paths.output_dir);
+
+        const build_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "dawn.build" });
+        const build_dir = try cwd.openDir(build_path, .{});
+        const dest_dir = try cwd.openDir(opts.paths.output_dir, .{});
+
+        try dest_dir.makePath("include");
+        try dest_dir.makePath("bin");
+
+        _ = try build_dir.updateFile("gen/include/dawn/webgpu.h", dest_dir, "include/webgpu.h", .{});
+
+        if (builtin.os.tag == .windows) {
+            const dll_path_src = try std.fs.path.join(opts.arena, &.{ optimize_str, "webgpu.dll" });
+            const dll_path_dest = try std.fs.path.join(opts.arena, &.{ "bin", "webgpu.dll" });
+            _ = try build_dir.updateFile(dll_path_src, dest_dir, dll_path_dest, .{});
+
+            const lib_path_src = try std.fs.path.join(opts.arena, &.{ "src", "dawn", "native", optimize_str, "webgpu.lib" });
+            const lib_path_dest = try std.fs.path.join(opts.arena, &.{ "bin", "webgpu.lib" });
+            _ = try build_dir.updateFile(lib_path_src, dest_dir, lib_path_dest, .{});
+        } else {
+            _ = try build_dir.updateFile("src/dawn/native/libwebgpu.dylib", dest_dir, "bin/libwebgpu.dylib", .{});
+        }
+
+        const commit_stamp_path = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, DAWN_COMMIT_FILENAME });
+        try CommitStamp.write(opts, commit_stamp_path);
+    }
 }
 
 pub fn main() !void {

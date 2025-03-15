@@ -209,6 +209,9 @@ pub fn build(b: *Build) !void {
 
     const shas: LibShas = try LibShas.find(cwd, b.allocator);
 
+    try makeDir("build");
+    const deps_intermediate_path = try cwd.realpathAlloc(b.allocator, "build");
+
     /////////////////////////////////////////////////////////
     // build_dependencies helper program
 
@@ -218,9 +221,6 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = .Debug,
     });
-
-    try makeDir("build");
-    const deps_intermediate_path = try cwd.realpathAlloc(b.allocator, "build");
 
     /////////////////////////////////////////////////////////
     // angle build + check
@@ -263,6 +263,28 @@ pub fn build(b: *Build) !void {
     run_dawn_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
     RunHelpers.addPythonArg(run_dawn_uptodate, target, b);
     RunHelpers.addCmakeArg(run_dawn_uptodate, target, b);
+
+    /////////////////////////////////////////////////////////
+    // CI helper to print the desired angle/dawn shas to stdout
+
+    const echo_exe: *Build.Step.Compile = b.addExecutable(.{
+        .name = "echo",
+        .root_source_file = b.path("src/build/echo.zig"),
+        .target = target,
+        .optimize = .Debug,
+    });
+
+    var print_version_angle: *Build.Step.Run = b.addRunArtifact(echo_exe);
+    print_version_angle.addArg(shas.angle);
+
+    const print_version_angle_step = b.step("print-sha-angle", "Prints the desired Angle git commit sha to stdout");
+    print_version_angle_step.dependOn(&print_version_angle.step);
+
+    var print_version_dawn: *Build.Step.Run = b.addRunArtifact(echo_exe);
+    print_version_dawn.addArg(shas.dawn);
+
+    const print_version_dawn_step = b.step("print-sha-dawn", "Prints the desired Dawn git commit sha to stdout");
+    print_version_dawn_step.dependOn(&print_version_dawn.step);
 
     /////////////////////////////////////////////////////////
     // binding generator
@@ -1033,7 +1055,7 @@ pub fn build(b: *Build) !void {
 
     // orca cli tool
 
-    const git_version: []const u8 = blk: {
+    const git_version_tool: []const u8 = blk: {
         if (git_version_opt) |git_version| {
             break :blk try b.allocator.dupe(u8, git_version);
         } else {
@@ -1049,7 +1071,7 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
-    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version}));
+    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
@@ -1115,7 +1137,7 @@ pub fn build(b: *Build) !void {
         .optimize = .Debug,
     });
 
-    const opt_sdk_install_dir = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
+    const sdk_install_dir_opt = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
 
     var orca_install = b.addRunArtifact(package_sdk_exe);
     orca_install.addArg("--dev-install");
@@ -1123,14 +1145,19 @@ pub fn build(b: *Build) !void {
     orca_install.addPrefixedFileArg("--resources-path=", b.path("resources"));
     orca_install.addPrefixedFileArg("--src-path=", b.path("src"));
 
-    if (opt_sdk_install_dir) |sdk_install_dir| {
-        if (std.fs.path.isAbsolute(sdk_install_dir)) {
-            const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_dir });
-            orca_install.addArg(sdk_path);
-        } else {
-            const fail_absolute_sdk_path = b.addFail("sdk-path must be an absolute path");
-            orca_install.step.dependOn(&fail_absolute_sdk_path.step);
+    if (sdk_install_dir_opt) |sdk_install_dir| {
+        var sdk_install_path_absolute = sdk_install_dir;
+        if (std.fs.path.isAbsolute(sdk_install_path_absolute) == false) {
+            sdk_install_path_absolute = b.pathFromRoot(sdk_install_dir);
         }
+        std.debug.assert(std.fs.path.isAbsolute(sdk_install_path_absolute));
+
+        const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_path_absolute });
+        orca_install.addArg(sdk_path);
+    }
+
+    if (git_version_opt) |git_version| {
+        orca_install.addArg(b.fmt("--version={s}", .{git_version}));
     }
 
     orca_install.step.dependOn(build_orca);
@@ -1141,9 +1168,6 @@ pub fn build(b: *Build) !void {
         orca_install.addArg(version);
     }
 
-    // default install step builds orca and installs it to the main directory
-
-    // const orca_install_step = b.step("orca-install", "Build and install orca in orca system path as a dev build");
     b.getInstallStep().dependOn(&orca_install.step);
 
     ///////////////////////////////////////////////////////////////
@@ -1154,14 +1178,22 @@ pub fn build(b: *Build) !void {
     package_sdk_to_dir.addPrefixedFileArg("--resources-path=", b.path("resources"));
     package_sdk_to_dir.addPrefixedFileArg("--src-path=", b.path("src"));
 
-    if (opt_sdk_install_dir) |sdk_install_dir| {
-        if (std.fs.path.isAbsolute(sdk_install_dir)) {
-            const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_dir });
-            package_sdk_to_dir.addArg(sdk_path);
-        } else {
-            const fail_absolute_sdk_path = b.addFail("sdk-path must be an absolute path");
-            package_sdk_to_dir.step.dependOn(&fail_absolute_sdk_path.step);
+    if (sdk_install_dir_opt) |sdk_install_dir| {
+        var sdk_install_path_absolute = sdk_install_dir;
+        if (std.fs.path.isAbsolute(sdk_install_path_absolute) == false) {
+            sdk_install_path_absolute = b.pathFromRoot(sdk_install_dir);
         }
+        std.debug.assert(std.fs.path.isAbsolute(sdk_install_path_absolute));
+
+        const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_path_absolute });
+        package_sdk_to_dir.addArg(sdk_path);
+    } else {
+        const fail = b.addFail("package-sdk requires -Dsdk-path");
+        package_sdk_to_dir.step.dependOn(&fail.step);
+    }
+
+    if (git_version_opt) |git_version| {
+        package_sdk_to_dir.addArg(b.fmt("--version={s}", .{git_version}));
     }
 
     // package command
