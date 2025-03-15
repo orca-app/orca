@@ -190,7 +190,7 @@ int winBundle(
     //-----------------------------------------------------------
     //NOTE: copy orca libraries
     //-----------------------------------------------------------
-    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/orca.dll"));
+    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/orca_platform.dll"));
     oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dll"));
     oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dll"));
     oc_str8 wgpuLib = oc_path_append(a, sdkDir, OC_STR8("bin/webgpu.dll"));
@@ -290,7 +290,7 @@ int macBundle(
     //NOTE: copy orca runtime executable and libraries
     //-----------------------------------------------------------
     oc_str8 orcaExe = oc_path_append(a, sdkDir, OC_STR8("bin/orca_runtime"));
-    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/liborca.dylib"));
+    oc_str8 orcaLib = oc_path_append(a, sdkDir, OC_STR8("bin/liborca_platform.dylib"));
     oc_str8 glesLib = oc_path_append(a, sdkDir, OC_STR8("bin/libGLESv2.dylib"));
     oc_str8 eglLib = oc_path_append(a, sdkDir, OC_STR8("bin/libEGL.dylib"));
     oc_str8 wgpu_lib = oc_path_append(a, sdkDir, OC_STR8("bin/libwebgpu.dylib"));
