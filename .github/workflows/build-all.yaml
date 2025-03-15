@@ -1,6 +1,7 @@
 name: build-all
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       version:
