@@ -27,11 +27,6 @@ jobs:
   build-angle-win:
     uses: ./.github/workflows/build-angle-win.yaml
 
-  setup-zig:
-    uses: mlugg/setup-zig@v1
-    with:
-      version: 0.14
-
   determine-version:
     run: |
       if [ "${{ inputs.version }}" != '' ] ; then
@@ -47,6 +42,10 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14
 
       - uses: actions/checkout@v4
 
@@ -88,6 +87,10 @@ jobs:
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14
+
       - uses: actions/checkout@v4
 
       - uses: actions/download-artifact@v4
@@ -125,6 +128,10 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14
 
       - uses: actions/checkout@v4
 
