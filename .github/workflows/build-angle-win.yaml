@@ -14,12 +14,17 @@ jobs:
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14
+
       - name: Angle version
         id: angle-version
         shell: cmd
         run: |
           @chcp 65001>nul
-          set /p ANGLE_COMMIT=<deps/angle-commit.txt
+          zig build print-sha-angle > angle-commit.txt
+          set /p ANGLE_COMMIT=<angle-commit.txt
           echo ANGLE_COMMIT=%ANGLE_COMMIT% >> %GITHUB_OUTPUT%
 
       - name: Cache
@@ -33,7 +38,7 @@ jobs:
         if: steps.cache-angle.outputs.cache-hit != 'true'
         shell: cmd
         run: |
-          orcadev build-angle --release
+          zig build angle -Doptimize=ReleaseFast
 
       - uses: actions/upload-artifact@v4
         with:
