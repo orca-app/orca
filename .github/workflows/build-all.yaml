@@ -27,15 +27,16 @@ jobs:
   build-angle-win:
     uses: ./.github/workflows/build-angle-win.yaml
 
-  # determine-version:
-  #   steps:
-  #     - name: Determine the build version
-  #       run: |
-  #         if [ "${{ inputs.version }}" != '' ] ; then
-  #           echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
-  #         else
-  #           echo "version='${{ inputs.version }}'" >> "$GITHUB_OUTPUT"
-  #         fi
+  determine-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine the build version
+        run: |
+          if [ "${{ inputs.version }}" != '' ] ; then
+            echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
+          else
+            echo "version='${{ inputs.version }}'" >> "$GITHUB_OUTPUT"
+          fi
 
   build-win:
     needs: [build-dawn-win, build-angle-win]
