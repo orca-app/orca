@@ -1221,11 +1221,9 @@ int dw_read_file_entries(oc_arena* arena,
 
     *entries = oc_arena_push_array(arena, dw_file_entry, *entryCount);
     {
-        u64 i = 0;
-        oc_list_for(entryList, elt, dw_file_entry_elt, listElt)
+        oc_list_for_indexed(entryList, it, dw_file_entry_elt, listElt)
         {
-            (*entries)[i] = elt->entry;
-            i++;
+            (*entries)[it.index] = it.elt->entry;
         }
     }
 
@@ -1602,11 +1600,10 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
 
         table->table.entryCount = rowCount;
         table->table.entries = oc_arena_push_array(arena, dw_line_entry, rowCount);
-        u64 rowIndex = 0;
-        oc_list_for(rowsList, rowElt, dw_line_entry_elt, listElt)
+
+        oc_list_for_indexed(rowsList, rowIt, dw_line_entry_elt, listElt)
         {
-            table->table.entries[rowIndex] = rowElt->entry;
-            rowIndex++;
+            table->table.entries[rowIt.index] = rowIt.elt->entry;
         }
 
         tableCount++;
@@ -1614,11 +1611,10 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
 
     lineInfo.tableCount = tableCount;
     lineInfo.tables = oc_arena_push_array(arena, dw_line_table, tableCount);
-    u64 tableIndex = 0;
-    oc_list_for(tablesList, tableElt, dw_line_table_elt, listElt)
+
+    oc_list_for_indexed(tablesList, tableIt, dw_line_table_elt, listElt)
     {
-        lineInfo.tables[tableIndex] = tableElt->table;
-        tableIndex++;
+        lineInfo.tables[tableIt.index] = tableIt.elt->table;
     }
 
     oc_scratch_end(scratch);
@@ -1844,11 +1840,10 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
 
         //NOTE: copy attributes to fixed array
         entry->attributes = oc_arena_push_array(arena, dw_abbrev_attr, entry->attrCount);
-        u64 attrIndex = 0;
-        oc_list_for(attributes, elt, dw_abbrev_attr_elt, listElt)
+
+        oc_list_for_indexed(attributes, attrIt, dw_abbrev_attr_elt, listElt)
         {
-            entry->attributes[attrIndex] = elt->attr;
-            attrIndex++;
+            entry->attributes[attrIt.index] = attrIt.elt->attr;
         }
 
         oc_list_push_back(&entries, &entryElt->listElt);
@@ -1858,10 +1853,10 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
     //NOTE: copy entries to fixed array
     table->entries = oc_arena_push_array(arena, dw_abbrev_entry, table->entryCount);
     u64 entryIndex = 0;
-    oc_list_for(entries, elt, dw_abbrev_entry_elt, listElt)
+
+    oc_list_for_indexed(entries, entryIt, dw_abbrev_entry_elt, listElt)
     {
-        table->entries[entryIndex] = elt->entry;
-        entryIndex++;
+        table->entries[entryIt.index] = entryIt.elt->entry;
     }
 
     oc_scratch_end(scratch);
@@ -3163,11 +3158,9 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
     }
     //NOTE: copy units in fixed array
     info->units = oc_arena_push_array(arena, dw_unit, info->unitCount);
-    u64 unitIndex = 0;
-    oc_list_for(units, unitElt, dw_unit_elt, listElt)
+    oc_list_for_indexed(units, unitIt, dw_unit_elt, listElt)
     {
-        info->units[unitIndex] = unitElt->unit;
-        unitIndex++;
+        info->units[unitIt.index] = unitIt.elt->unit;
     }
 }
 
