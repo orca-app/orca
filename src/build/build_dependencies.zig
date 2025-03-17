@@ -378,13 +378,9 @@ fn buildAngle(opts: *const Options) !void {
     try exec(opts.arena, &.{ "git", "reset", "--hard", opts.commit_sha }, src_path, &env);
     try exec(opts.arena, &.{ opts.paths.python, "scripts/bootstrap.py" }, src_path, &env);
 
-    const bootstrap_path = try std.fs.path.join(opts.arena, &.{ src_path, "scripts/bootstrap.py" });
-    try exec(opts.arena, &.{bootstrap_path}, src_path, &env);
-
     const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
 
-    const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient.bat" else "gclient";
-    const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, gclient_entrypoint });
+    const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, "gclient" });
     try execShell(opts.arena, &.{ gclient_path, "sync" }, src_path, &env);
 
     const optimize_str = if (opts.optimize == .Debug) "Debug" else "Release";
@@ -418,12 +414,10 @@ fn buildAngle(opts: *const Options) !void {
     const optimize_output_path = try std.fs.path.join(opts.arena, &.{ src_path, "out", optimize_str });
     try cwd.makePath(optimize_output_path);
 
-    const gn_name = if (builtin.os.tag == .windows) "gn.bat" else "gn";
-    const gn_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, gn_name });
+    const gn_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, "gn" });
     try execShell(opts.arena, &.{ gn_path, "gen", optimize_output_path, gn_args }, src_path, &env);
 
-    const autoninja_name = if (builtin.os.tag == .windows) "autoninja.bat" else "autoninja";
-    const autoninja_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, autoninja_name });
+    const autoninja_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, "autoninja" });
     try execShell(opts.arena, &.{ autoninja_path, "-C", optimize_output_path, "libEGL", "libGLESv2" }, src_path, &env);
 
     // copy artifacts to output dir
