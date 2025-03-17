@@ -39,7 +39,7 @@ jobs:
           fi
 
   build-win:
-    needs: [build-dawn-win, build-angle-win]
+    needs: [build-dawn-win, build-angle-win, determine-version]
     runs-on: windows-2022
     steps:
       - uses: actions/setup-python@v4
@@ -83,7 +83,7 @@ jobs:
           path: orca-windows.tar.gz
 
   build-macos-x64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [build-dawn-mac, build-angle-mac, determine-version]
     runs-on: macos-13
     steps:
       - uses: actions/setup-python@v4
@@ -125,7 +125,7 @@ jobs:
           path: orca-mac-x64.tar.gz
 
   build-macos-arm64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [build-dawn-mac, build-angle-mac, determine-version]
     runs-on: macos-14
     steps:
       - uses: actions/setup-python@v4
