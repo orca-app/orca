@@ -8662,59 +8662,57 @@ typedef struct wa_wasm_loc
     u32 offset;
 } wa_wasm_loc;
 
-wa_wasm_loc wa_warm_to_wasm_loc(wa_module* module, u32 funcIndex, u32 codeIndex)
+wa_wasm_loc wa_wasm_loc_from_warm_loc(wa_warm_loc loc)
 {
-    u64 id = (u64)funcIndex << 32 | (u64)codeIndex;
+    u64 id = (u64)loc.funcIndex << 32 | (u64)loc.codeIndex;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
-    u64 index = hash % module->warmToWasmMapLen;
+    u64 index = hash % loc.module->warmToWasmMapLen;
 
     wa_instr* instr = 0;
-    oc_list_for(module->warmToWasmMap[index], mapping, wa_bytecode_mapping, listElt)
+    oc_list_for(loc.module->warmToWasmMap[index], mapping, wa_bytecode_mapping, listElt)
     {
-        if(mapping->funcIndex == funcIndex && mapping->codeIndex == codeIndex)
+        if(mapping->funcIndex == loc.funcIndex && mapping->codeIndex == loc.codeIndex)
         {
             instr = mapping->instr;
             break;
         }
     }
-    wa_wasm_loc loc = { 0 };
+    wa_wasm_loc result = { 0 };
     if(instr)
     {
-        loc.module = module;
-        loc.offset = instr->ast->loc.start - module->toc.code.offset;
+        result.module = loc.module;
+        result.offset = instr->ast->loc.start - loc.module->toc.code.offset;
     }
-    return (loc);
+    return (result);
 }
 
-wa_warm_loc wa_wasm_to_warm_loc(wa_module* module, u64 offset)
+wa_warm_loc wa_warm_loc_from_wasm_loc(wa_wasm_loc loc)
 {
-    wa_warm_loc loc = { 0 };
+    wa_warm_loc result = { 0 };
 
-    u64 id = offset;
+    u64 id = loc.offset;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
-    u64 index = hash % module->wasmToWarmMapLen;
+    u64 index = hash % loc.module->wasmToWarmMapLen;
 
     wa_instr* instr = 0;
-    oc_list_for(module->wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
+    oc_list_for(loc.module->wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
     {
-        if((mapping->instr->ast->loc.start - module->toc.code.offset) == offset)
+        if((mapping->instr->ast->loc.start - loc.module->toc.code.offset) == loc.offset)
         {
-            loc.module = module;
-            loc.funcIndex = mapping->funcIndex;
-            loc.codeIndex = mapping->codeIndex;
+            result.module = loc.module;
+            result.funcIndex = mapping->funcIndex;
+            result.codeIndex = mapping->codeIndex;
             break;
         }
     }
 
-    return (loc);
+    return (result);
 }
 
 wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc)
 {
     wa_line_loc res = { 0 };
-    wa_wasm_loc wasmLoc = wa_warm_to_wasm_loc(module,
-                                              loc.funcIndex,
-                                              loc.codeIndex);
+    wa_wasm_loc wasmLoc = wa_wasm_loc_from_warm_loc(loc);
 
     for(u64 entryIndex = 0; entryIndex < module->wasmToLineCount; entryIndex++)
     {
@@ -8756,7 +8754,7 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
 
     if(wasmLoc.module)
     {
-        result = wa_wasm_to_warm_loc(module, wasmLoc.offset);
+        result = wa_warm_loc_from_wasm_loc(wasmLoc);
     }
     return result;
 }
