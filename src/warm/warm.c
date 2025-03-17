@@ -8422,9 +8422,9 @@ wa_breakpoint* wa_interpreter_find_breakpoint_any(wa_interpreter* interpreter, w
 
     oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
     {
-        if(bp->warmLoc.instance == loc->instance
-           && bp->warmLoc.func == loc->func
-           && bp->warmLoc.index == loc->index)
+        if(bp->warmLoc.module == loc->module
+           && bp->warmLoc.funcIndex == loc->funcIndex
+           && bp->warmLoc.codeIndex == loc->codeIndex)
         {
             result = bp;
             break;
@@ -8441,9 +8441,9 @@ wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_wa
     oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
     {
         if(bp->isLine == false
-           && bp->warmLoc.instance == loc->instance
-           && bp->warmLoc.func == loc->func
-           && bp->warmLoc.index == loc->index)
+           && bp->warmLoc.module == loc->module
+           && bp->warmLoc.funcIndex == loc->funcIndex
+           && bp->warmLoc.codeIndex == loc->codeIndex)
         {
             result = bp;
             break;
@@ -8467,8 +8467,9 @@ wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_war
         bp->warmLoc = *loc;
         oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
 
-        bp->savedOpcode = bp->warmLoc.func->code[bp->warmLoc.index];
-        bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+        wa_func* func = &interpreter->instance->functions[bp->warmLoc.funcIndex];
+        bp->savedOpcode = func->code[bp->warmLoc.codeIndex];
+        func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
     }
     return bp;
 }
@@ -8491,7 +8492,7 @@ wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, 
     return result;
 }
 
-wa_warm_loc wa_warm_loc_from_line_loc(wa_instance* instance, wa_module* module, wa_line_loc loc);
+wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
 wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
 
 wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc)
@@ -8499,10 +8500,9 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
     wa_breakpoint* bp = wa_interpreter_find_breakpoint_line(interpreter, loc);
     if(bp == 0)
     {
-        wa_warm_loc warmLoc = wa_warm_loc_from_line_loc(interpreter->instance,
-                                                        interpreter->instance->module,
+        wa_warm_loc warmLoc = wa_warm_loc_from_line_loc(interpreter->instance->module,
                                                         *loc);
-        if(warmLoc.func)
+        if(warmLoc.module)
         {
             bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
             if(!bp)
@@ -8514,8 +8514,9 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
             bp->lineLoc = *loc;
             oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
 
-            bp->savedOpcode = bp->warmLoc.func->code[bp->warmLoc.index];
-            bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+            wa_func* func = &interpreter->instance->functions[bp->warmLoc.funcIndex];
+            bp->savedOpcode = func->code[bp->warmLoc.codeIndex];
+            func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
         }
     }
     return bp;
@@ -8523,7 +8524,8 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp)
 {
-    bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
+    wa_func* func = &interpreter->instance->functions[bp->warmLoc.funcIndex];
+    func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
 
     oc_list_remove(&interpreter->breakpoints, &bp->listElt);
     oc_list_push_back(&interpreter->breakpointFreeList, &bp->listElt);
@@ -8539,23 +8541,24 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
     //TODO: if we're on a breakpoint, deactivate it, step, reactivate, continue
 
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
 
     wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
         interpreter,
         &(wa_warm_loc){
-            .instance = interpreter->instance,
-            .func = func,
-            .index = interpreter->pc - func->code,
+            .module = interpreter->instance->module,
+            .funcIndex = funcIndex,
+            .codeIndex = interpreter->pc - func->code,
         });
 
     if(bp)
     {
-        bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
+        func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
 
         wa_status status = wa_interpreter_run(interpreter, true);
         //TODO: check if program terminated
 
-        bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+        func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
     }
 
     return wa_interpreter_run(interpreter, false);
@@ -8564,25 +8567,26 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
 wa_status wa_interpreter_step(wa_interpreter* interpreter)
 {
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
 
     wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
         interpreter,
         &(wa_warm_loc){
-            .instance = interpreter->instance,
-            .func = func,
-            .index = interpreter->pc - func->code,
+            .module = interpreter->instance->module,
+            .funcIndex = funcIndex,
+            .codeIndex = interpreter->pc - func->code,
         });
 
     if(bp)
     {
-        bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
+        func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
     }
 
     wa_status status = wa_interpreter_run(interpreter, true);
 
     if(bp)
     {
-        bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+        func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
     }
 
     return status;
@@ -8593,13 +8597,14 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
     //NOTE: step the dumbest possible way
     wa_status status = WA_OK;
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
 
     wa_line_loc startLoc = wa_line_loc_from_warm_loc(
         interpreter->instance->module,
         (wa_warm_loc){
-            .instance = interpreter->instance,
-            .func = func,
-            .index = interpreter->pc - func->code,
+            .module = interpreter->instance->module,
+            .funcIndex = funcIndex,
+            .codeIndex = interpreter->pc - func->code,
         });
 
     wa_line_loc lineLoc = startLoc;
@@ -8608,21 +8613,21 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
         wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
             interpreter,
             &(wa_warm_loc){
-                .instance = interpreter->instance,
-                .func = func,
-                .index = interpreter->pc - func->code,
+                .module = interpreter->instance->module,
+                .funcIndex = funcIndex,
+                .codeIndex = interpreter->pc - func->code,
             });
 
         if(bp)
         {
-            bp->warmLoc.func->code[bp->warmLoc.index] = bp->savedOpcode;
+            func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
         }
 
         status = wa_interpreter_run(interpreter, true);
 
         if(bp)
         {
-            bp->warmLoc.func->code[bp->warmLoc.index].opcode = WA_INSTR_breakpoint;
+            func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
         }
 
         if(status != WA_TRAP_STEP && status != WA_TRAP_BREAKPOINT)
@@ -8633,9 +8638,9 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
         startLoc = wa_line_loc_from_warm_loc(
             interpreter->instance->module,
             (wa_warm_loc){
-                .instance = interpreter->instance,
-                .func = func,
-                .index = interpreter->pc - func->code,
+                .module = interpreter->instance->module,
+                .funcIndex = funcIndex,
+                .codeIndex = interpreter->pc - func->code,
             });
     }
 
@@ -8681,7 +8686,7 @@ wa_wasm_loc wa_warm_to_wasm_loc(wa_module* module, u32 funcIndex, u32 codeIndex)
     return (loc);
 }
 
-wa_warm_loc wa_wasm_to_warm_loc(wa_instance* instance, wa_module* module, u64 offset)
+wa_warm_loc wa_wasm_to_warm_loc(wa_module* module, u64 offset)
 {
     wa_warm_loc loc = { 0 };
 
@@ -8694,9 +8699,9 @@ wa_warm_loc wa_wasm_to_warm_loc(wa_instance* instance, wa_module* module, u64 of
     {
         if((mapping->instr->ast->loc.start - module->toc.code.offset) == offset)
         {
-            loc.instance = instance;
-            loc.func = &instance->functions[mapping->funcIndex];
-            loc.index = mapping->codeIndex;
+            loc.module = module;
+            loc.funcIndex = mapping->funcIndex;
+            loc.codeIndex = mapping->codeIndex;
             break;
         }
     }
@@ -8708,8 +8713,8 @@ wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc)
 {
     wa_line_loc res = { 0 };
     wa_wasm_loc wasmLoc = wa_warm_to_wasm_loc(module,
-                                              loc.func - loc.instance->functions,
-                                              loc.index);
+                                              loc.funcIndex,
+                                              loc.codeIndex);
 
     for(u64 entryIndex = 0; entryIndex < module->wasmToLineCount; entryIndex++)
     {
@@ -8727,8 +8732,7 @@ wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc)
     return (res);
 }
 
-//TODO: remove need to pass instance
-wa_warm_loc wa_warm_loc_from_line_loc(wa_instance* instance, wa_module* module, wa_line_loc loc)
+wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
 {
     wa_warm_loc result = { 0 };
     //TODO: this is super dumb for now, just pick the lowest line that's >= to the line we're looking for
@@ -8752,7 +8756,7 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_instance* instance, wa_module* module, 
 
     if(wasmLoc.module)
     {
-        result = wa_wasm_to_warm_loc(instance, module, wasmLoc.offset);
+        result = wa_wasm_to_warm_loc(module, wasmLoc.offset);
     }
     return result;
 }

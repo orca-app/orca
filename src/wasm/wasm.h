@@ -273,9 +273,9 @@ typedef struct wa_breakpoint wa_breakpoint;
 
 typedef struct wa_warm_loc
 {
-    wa_instance* instance;
-    wa_func* func;
-    u32 index;
+    wa_module* module;
+    u64 funcIndex;
+    u64 codeIndex;
 } wa_warm_loc;
 
 typedef struct wa_line_loc

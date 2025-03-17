@@ -1401,8 +1401,8 @@ void debugger_ui_update(oc_runtime* app)
                 selectedFunction = execFunc - app->env.instance->functions;
 
                 wa_warm_loc warmLoc = {
-                    app->env.instance,
-                    execFunc,
+                    app->env.instance->module,
+                    selectedFunction,
                     app->env.interpreter->pc - execFunc->code,
                 };
                 wa_line_loc lineLoc = wa_line_loc_from_warm_loc(app->env.module, warmLoc);
@@ -1626,9 +1626,9 @@ void debugger_ui_update(oc_runtime* app)
                             wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint(
                                 app->env.interpreter,
                                 &(wa_warm_loc){
-                                    .instance = app->env.interpreter->instance,
-                                    .func = func,
-                                    .index = codeIndex,
+                                    .module = app->env.interpreter->instance->module,
+                                    .funcIndex = selectedFunction,
+                                    .codeIndex = codeIndex,
                                 });
 
                             //TODO: should probably not intertwine modified bytecode and UI like that?
@@ -1636,9 +1636,9 @@ void debugger_ui_update(oc_runtime* app)
                                 wa_breakpoint* anyBreakpoint = wa_interpreter_find_breakpoint_any(
                                     app->env.interpreter,
                                     &(wa_warm_loc){
-                                        .instance = app->env.interpreter->instance,
-                                        .func = func,
-                                        .index = codeIndex,
+                                        .module = app->env.interpreter->instance->module,
+                                        .funcIndex = selectedFunction,
+                                        .codeIndex = codeIndex,
                                     });
 
                                 if(anyBreakpoint)
@@ -1739,9 +1739,9 @@ void debugger_ui_update(oc_runtime* app)
                                                 wa_interpreter_add_breakpoint(
                                                     app->env.interpreter,
                                                     &(wa_warm_loc){
-                                                        .instance = app->env.interpreter->instance,
-                                                        .func = func,
-                                                        .index = codeIndex,
+                                                        .module = app->env.interpreter->instance->module,
+                                                        .funcIndex = selectedFunction,
+                                                        .codeIndex = codeIndex,
                                                     });
                                             }
                                         }
@@ -1891,9 +1891,15 @@ void debugger_ui_update(oc_runtime* app)
                                 //TODO: haul that up
                                 ////////////////////////////////////////////////
                                 wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
-                                u32 index = app->env.interpreter->pc - execFunc->code;
+                                u64 funcIndex = execFunc - app->env.interpreter->instance->functions;
+                                u32 codeIndex = app->env.interpreter->pc - execFunc->code;
 
-                                wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module, (wa_warm_loc){ app->env.instance, execFunc, index });
+                                wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module,
+                                                                            (wa_warm_loc){
+                                                                                .module = app->env.interpreter->instance->module,
+                                                                                .funcIndex = funcIndex,
+                                                                                .codeIndex = codeIndex,
+                                                                            });
 
                                 if(!oc_str8_cmp(node->path, loc.path) && loc.line == lineNum)
                                 {
