@@ -1,6 +1,7 @@
 name: build-all
 
 on:
+  workflow_dispatch:
   workflow_call:
     inputs:
       version:
@@ -26,13 +27,28 @@ jobs:
   build-angle-win:
     uses: ./.github/workflows/build-angle-win.yaml
 
+  determine-version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine the build version
+        run: |
+          if [ "${{ inputs.version }}" != '' ] ; then
+            echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
+          else
+            echo "version='${{ inputs.version }}'" >> "$GITHUB_OUTPUT"
+          fi
+
   build-win:
-    needs: [build-dawn-win, build-angle-win]
+    needs: [build-dawn-win, build-angle-win, determine-version]
     runs-on: windows-2022
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - uses: actions/checkout@v4
 
@@ -53,19 +69,13 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          orcadev.bat build --release --version ${{github.ref_name}} || exit 1
+            zig build -Doptimize=ReleaseFast -Dversion=${{ steps.determine-version.outputs.version }}
 
       - name: Package
         shell: cmd
         run: |
-          if [${{ inputs.version }}]==[] (
-            orcadev.bat install orca || exit 1
-            tar --format=ustar -cvzf orca-windows.tar.gz orca
-          ) else (
-            orcadev.bat install --version ${{ inputs.version }} orca || exit 1
-            tar --format=ustar -cvzf orca-windows.tar.gz orca
-          )
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ steps.determine-version.outputs.version }}
+          tar --format=ustar -cvzf orca-windows.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
@@ -73,12 +83,16 @@ jobs:
           path: orca-windows.tar.gz
 
   build-macos-x64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [build-dawn-mac, build-angle-mac, determine-version]
     runs-on: macos-13
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - uses: actions/checkout@v4
 
@@ -98,15 +112,11 @@ jobs:
 
       - name: Build
         run: |
-          ./orcadev build --release --version ${{github.ref_name}}
+          zig build -Doptimize=ReleaseFast -Dversion=${{ steps.determine-version.outputs.version }}
 
       - name: Package
         run: |
-          if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca
-          else
-            ./orcadev install orca
-          fi
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ steps.determine-version.outputs.version }}
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
@@ -115,12 +125,16 @@ jobs:
           path: orca-mac-x64.tar.gz
 
   build-macos-arm64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [build-dawn-mac, build-angle-mac, determine-version]
     runs-on: macos-14
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - uses: actions/checkout@v4
 
@@ -140,15 +154,11 @@ jobs:
 
       - name: Build
         run: |
-          ./orcadev build --release --version ${{github.ref_name}}
+          zig build -Doptimize=ReleaseFast -Dversion=${{ steps.determine-version.outputs.version }}
 
       - name: Package
         run: |
-          if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca
-          else
-            ./orcadev install orca
-          fi
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ steps.determine-version.outputs.version }}
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
 
       - uses: actions/upload-artifact@v4

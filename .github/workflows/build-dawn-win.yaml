@@ -19,12 +19,17 @@ jobs:
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - name: Dawn version
         id: dawn-version
         shell: cmd
         run: |
           @chcp 65001>nul
-          set /p DAWN_COMMIT=<deps/dawn-commit.txt
+          zig build print-sha-angle > dawn-commit.txt
+          set /p DAWN_COMMIT=<dawn-commit.txt
           echo DAWN_COMMIT=%DAWN_COMMIT% >> %GITHUB_OUTPUT%
 
       - name: Cache
@@ -38,7 +43,7 @@ jobs:
         if: steps.cache-dawn.outputs.cache-hit != 'true'
         shell: cmd
         run: |
-          orcadev build-dawn --release --parallel 4
+          zig build dawn -Doptimize=ReleaseFast
 
       - uses: actions/upload-artifact@v4
         with:
