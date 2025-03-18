@@ -1135,7 +1135,7 @@ i32 create_debug_window_callback(void* user)
     oc_rect rect = oc_window_get_frame_rect(app->window);
     rect.x += 100;
     rect.y += 100;
-    rect.w = 1000;
+    rect.w = 1100;
     rect.h = 800;
 
     app->debuggerUI.window = oc_window_create(rect, OC_STR8("Orca Debugger"), 0);
@@ -1467,8 +1467,12 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_ui_frame(frameSize)
     {
+        const f32 panelSpacing = 2;
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+        oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
         oc_ui_style_set_i32(OC_UI_CONSTRAIN_X, 1);
+
+        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
 
         static i64 selectedFunction = -1;
         f32 scrollSpeed = 0.3;
@@ -1657,24 +1661,34 @@ void debugger_ui_update(oc_runtime* app)
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+            oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+            oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
 
-            const i32 BOX_MARGIN_H = 2;
-            const i32 BOX_MARGIN_W = 2;
-
-            if(app->debuggerUI.freshScroll)
+            oc_ui_box* codeView = oc_ui_box("code-view")
             {
-                oc_log_info("[%f] freshScroll, set scroll to 0\n", oc_ui_frame_time());
-                codePanel->scroll.y = 0;
-            }
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
 
-            if(app->debuggerUI.showSymbols)
-            {
-                if(selectedFunction >= 0)
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+
+                const i32 BOX_MARGIN_H = 2;
+                const i32 BOX_MARGIN_W = 2;
+
+                if(app->debuggerUI.freshScroll)
                 {
-                    wa_func* func = &app->env.instance->functions[selectedFunction];
-                    oc_str8 funcName = wa_module_get_function_name(app->env.module, selectedFunction);
-                    /*
+                    oc_log_info("[%f] freshScroll, set scroll to 0\n", oc_ui_frame_time());
+                    codeView->scroll.y = 0;
+                }
+
+                if(app->debuggerUI.showSymbols)
+                {
+                    if(selectedFunction >= 0)
+                    {
+                        wa_func* func = &app->env.instance->functions[selectedFunction];
+                        oc_str8 funcName = wa_module_get_function_name(app->env.module, selectedFunction);
+                        /*
                     if(funcName.len)
                     {
                         oc_str8_list_push(scratch.arena, &list, funcName);
@@ -1690,42 +1704,32 @@ void debugger_ui_update(oc_runtime* app)
 
                     oc_str8 funcText = oc_str8_list_join(scratch.arena, list);
                 */
-                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-
-                    oc_ui_box* funcLabel = oc_ui_label_str8(OC_STR8("func-label"), funcName).box;
-
-                    //TODO: compute line height from font.
-                    f32 lineH = funcLabel->rect.h;
-                    f32 lineY = funcLabel->rect.h + 10;
-                    f32 lineMargin = 2;
-
-                    oc_ui_box_str8(funcName)
-                    {
-                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                         oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
                         oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                        for(u64 codeIndex = 0; codeIndex < func->codeLen; codeIndex++)
+                        oc_ui_box* funcLabel = oc_ui_label_str8(OC_STR8("func-label"), funcName).box;
+
+                        //TODO: compute line height from font.
+                        f32 lineH = funcLabel->rect.h;
+                        f32 lineY = funcLabel->rect.h + 10;
+                        f32 lineMargin = 2;
+
+                        oc_ui_box_str8(funcName)
                         {
-                            u64 startIndex = codeIndex;
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                            wa_code* c = &func->code[codeIndex];
-                            wa_instr_op opcode = c->opcode;
-
-                            wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint(
-                                app->env.interpreter,
-                                &(wa_warm_loc){
-                                    .module = app->env.interpreter->instance->module,
-                                    .funcIndex = selectedFunction,
-                                    .codeIndex = codeIndex,
-                                });
-
-                            //TODO: should probably not intertwine modified bytecode and UI like that?
+                            for(u64 codeIndex = 0; codeIndex < func->codeLen; codeIndex++)
                             {
-                                wa_breakpoint* anyBreakpoint = wa_interpreter_find_breakpoint_any(
+                                u64 startIndex = codeIndex;
+
+                                wa_code* c = &func->code[codeIndex];
+                                wa_instr_op opcode = c->opcode;
+
+                                wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint(
                                     app->env.interpreter,
                                     &(wa_warm_loc){
                                         .module = app->env.interpreter->instance->module,
@@ -1733,374 +1737,415 @@ void debugger_ui_update(oc_runtime* app)
                                         .codeIndex = codeIndex,
                                     });
 
-                                if(anyBreakpoint)
+                                //TODO: should probably not intertwine modified bytecode and UI like that?
                                 {
-                                    //TODO: find _any_ breakpoint (could be a line one) that might modify opcodes
-                                    opcode = wa_breakpoint_saved_opcode(anyBreakpoint);
+                                    wa_breakpoint* anyBreakpoint = wa_interpreter_find_breakpoint_any(
+                                        app->env.interpreter,
+                                        &(wa_warm_loc){
+                                            .module = app->env.interpreter->instance->module,
+                                            .funcIndex = selectedFunction,
+                                            .codeIndex = codeIndex,
+                                        });
+
+                                    if(anyBreakpoint)
+                                    {
+                                        //TODO: find _any_ breakpoint (could be a line one) that might modify opcodes
+                                        opcode = wa_breakpoint_saved_opcode(anyBreakpoint);
+                                    }
                                 }
-                            }
 
-                            const wa_instr_info* info = &wa_instr_infos[opcode];
+                                const wa_instr_info* info = &wa_instr_infos[opcode];
 
-                            oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
+                                oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
 
-                            oc_ui_box_str8(key)
-                            {
-                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                                oc_ui_style_set_f32(OC_UI_MARGIN_Y, lineMargin);
-                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-
-                                oc_ui_box("line")
+                                oc_ui_box_str8(key)
                                 {
                                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, lineMargin);
+                                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-                                    bool makeExecCursor = false;
-                                    if(app->env.instance)
+                                    oc_ui_box("line")
                                     {
-                                        u32 index = app->env.interpreter->pc - func->code;
-                                        wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                                        if(func == execFunc && index == codeIndex)
+                                        bool makeExecCursor = false;
+                                        if(app->env.instance)
                                         {
-                                            makeExecCursor = true;
-                                        }
-                                    }
+                                            u32 index = app->env.interpreter->pc - func->code;
+                                            wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
 
-                                    if(makeExecCursor)
-                                    {
-                                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
-                                    }
-
-                                    // address
-                                    oc_ui_box* label = oc_ui_label_str8(OC_STR8("address"), key).box;
-
-                                    if(makeExecCursor)
-                                    {
-                                        //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
-                                        //      so its rect might not be set every frame, resulting in brief jumps.
-                                        //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
-
-                                        f32 targetScroll = codePanel->scroll.y;
-
-                                        if(app->debuggerUI.autoScroll)
-                                        {
-                                            f32 scrollMargin = 80;
-
-                                            if(scrollSpeed == 1)
+                                            if(func == execFunc && index == codeIndex)
                                             {
-                                                scrollMargin = 300;
-                                            }
-
-                                            if(lineY - targetScroll < scrollMargin)
-                                            {
-                                                targetScroll = lineY - scrollMargin;
-                                            }
-                                            else if(lineY + lineH - targetScroll > codePanel->rect.h - scrollMargin)
-                                            {
-                                                targetScroll = lineY + lineH - codePanel->rect.h + scrollMargin;
+                                                makeExecCursor = true;
                                             }
                                         }
-                                        codePanel->scroll.y += scrollSpeed * (targetScroll - codePanel->scroll.y);
-                                    }
 
-                                    // spacer or breakpoint
-                                    if(breakpoint)
-                                    {
-                                        oc_ui_box("bp")
+                                        if(makeExecCursor)
                                         {
-                                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
-                                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                                        }
 
-                                            oc_ui_set_draw_proc(draw_breakpoint_cursor_proc, 0);
+                                        // address
+                                        oc_ui_box* label = oc_ui_label_str8(OC_STR8("address"), key).box;
 
-                                            if(oc_ui_get_sig().clicked)
+                                        if(makeExecCursor)
+                                        {
+                                            //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                            //      so its rect might not be set every frame, resulting in brief jumps.
+                                            //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
+
+                                            f32 targetScroll = codeView->scroll.y;
+
+                                            if(app->debuggerUI.autoScroll)
                                             {
-                                                wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
+                                                f32 scrollMargin = 80;
+
+                                                if(scrollSpeed == 1)
+                                                {
+                                                    scrollMargin = codeView->rect.h / 2;
+                                                }
+
+                                                if(lineY - targetScroll < scrollMargin)
+                                                {
+                                                    targetScroll = lineY - scrollMargin;
+                                                }
+                                                else if(lineY + lineH - targetScroll > codeView->rect.h - scrollMargin)
+                                                {
+                                                    targetScroll = lineY + lineH - codeView->rect.h + scrollMargin;
+                                                }
+                                            }
+                                            codeView->scroll.y += scrollSpeed * (targetScroll - codeView->scroll.y);
+                                        }
+
+                                        // spacer or breakpoint
+                                        if(breakpoint)
+                                        {
+                                            oc_ui_box("bp")
+                                            {
+                                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
+                                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                                                oc_ui_set_draw_proc(draw_breakpoint_cursor_proc, 0);
+
+                                                if(oc_ui_get_sig().clicked)
+                                                {
+                                                    wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
+                                                }
                                             }
                                         }
-                                    }
-                                    else
-                                    {
-                                        oc_ui_box("spacer")
+                                        else
                                         {
-                                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
-                                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-
-                                            if(oc_ui_get_sig().clicked)
+                                            oc_ui_box("spacer")
                                             {
-                                                wa_interpreter_add_breakpoint(
-                                                    app->env.interpreter,
-                                                    &(wa_warm_loc){
-                                                        .module = app->env.interpreter->instance->module,
-                                                        .funcIndex = selectedFunction,
-                                                        .codeIndex = codeIndex,
-                                                    });
+                                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
+                                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                                                if(oc_ui_get_sig().clicked)
+                                                {
+                                                    wa_interpreter_add_breakpoint(
+                                                        app->env.interpreter,
+                                                        &(wa_warm_loc){
+                                                            .module = app->env.interpreter->instance->module,
+                                                            .funcIndex = selectedFunction,
+                                                            .codeIndex = codeIndex,
+                                                        });
+                                                }
                                             }
                                         }
-                                    }
 
-                                    oc_ui_box("instruction")
-                                    {
-                                        oc_ui_style_set_f32(OC_UI_SPACING, 10);
-
-                                        // opcode
-                                        oc_ui_label("opcode", wa_instr_strings[opcode]);
-
-                                        // operands
-                                        for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
+                                        oc_ui_box("instruction")
                                         {
-                                            wa_code* opd = &func->code[codeIndex + opdIndex + 1];
-                                            oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
+                                            oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
-                                            oc_str8 s = { 0 };
+                                            // opcode
+                                            oc_ui_label("opcode", wa_instr_strings[opcode]);
 
-                                            switch(info->opd[opdIndex])
+                                            // operands
+                                            for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
                                             {
-                                                case WA_OPD_CONST_I32:
-                                                    s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
-                                                    break;
-                                                case WA_OPD_CONST_I64:
-                                                    s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
-                                                    break;
-                                                case WA_OPD_CONST_F32:
-                                                    s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
-                                                    break;
-                                                case WA_OPD_CONST_F64:
-                                                    s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
-                                                    break;
+                                                wa_code* opd = &func->code[codeIndex + opdIndex + 1];
+                                                oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
 
-                                                case WA_OPD_LOCAL_INDEX:
-                                                    s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
-                                                    break;
-                                                case WA_OPD_GLOBAL_INDEX:
-                                                    s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
-                                                    break;
+                                                oc_str8 s = { 0 };
 
-                                                case WA_OPD_FUNC_INDEX:
-                                                    s = wa_module_get_function_name(app->env.module, opd->valU32);
-                                                    if(s.len == 0)
-                                                    {
-                                                        s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
-                                                    }
-                                                    break;
+                                                switch(info->opd[opdIndex])
+                                                {
+                                                    case WA_OPD_CONST_I32:
+                                                        s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
+                                                        break;
+                                                    case WA_OPD_CONST_I64:
+                                                        s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
+                                                        break;
+                                                    case WA_OPD_CONST_F32:
+                                                        s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
+                                                        break;
+                                                    case WA_OPD_CONST_F64:
+                                                        s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
+                                                        break;
 
-                                                case WA_OPD_JUMP_TARGET:
-                                                    s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
-                                                    break;
+                                                    case WA_OPD_LOCAL_INDEX:
+                                                        s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
+                                                        break;
+                                                    case WA_OPD_GLOBAL_INDEX:
+                                                        s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
+                                                        break;
 
-                                                case WA_OPD_MEM_ARG:
-                                                    s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
-                                                    break;
+                                                    case WA_OPD_FUNC_INDEX:
+                                                        s = wa_module_get_function_name(app->env.module, opd->valU32);
+                                                        if(s.len == 0)
+                                                        {
+                                                            s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                                        }
+                                                        break;
 
-                                                default:
-                                                    s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
-                                                    break;
+                                                    case WA_OPD_JUMP_TARGET:
+                                                        s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
+                                                        break;
+
+                                                    case WA_OPD_MEM_ARG:
+                                                        s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
+                                                        break;
+
+                                                    default:
+                                                        s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
+                                                        break;
+                                                }
+
+                                                oc_ui_label_str8(opdKey, s);
                                             }
-
-                                            oc_ui_label_str8(opdKey, s);
-                                        }
-                                    }
-                                }
-                                lineY += lineH;
-                                codeIndex += info->opdCount;
-
-                                if(opcode == WA_INSTR_jump_table)
-                                {
-                                    oc_ui_box("jump-table")
-                                    {
-                                        u64 brCount = func->code[startIndex + 1].valI32;
-                                        for(u64 i = 0; i < brCount; i++)
-                                        {
-                                            codeIndex++;
-                                            oc_str8 s = oc_str8_pushf(scratch.arena, "0x%02llx ", func->code[codeIndex].valI64);
-                                            oc_ui_label_str8(s, s);
                                         }
                                     }
                                     lineY += lineH;
+                                    codeIndex += info->opdCount;
+
+                                    if(opcode == WA_INSTR_jump_table)
+                                    {
+                                        oc_ui_box("jump-table")
+                                        {
+                                            u64 brCount = func->code[startIndex + 1].valI32;
+                                            for(u64 i = 0; i < brCount; i++)
+                                            {
+                                                codeIndex++;
+                                                oc_str8 s = oc_str8_pushf(scratch.arena, "0x%02llx ", func->code[codeIndex].valI64);
+                                                oc_ui_label_str8(s, s);
+                                            }
+                                        }
+                                        lineY += lineH;
+                                    }
                                 }
+                                lineY += 2 * lineMargin;
                             }
-                            lineY += 2 * lineMargin;
-                        }
 
-                        oc_ui_box("vspacer")
-                        {
-                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 20 });
+                            oc_ui_box("vspacer")
+                            {
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 20 });
+                            }
                         }
                     }
                 }
-            }
-            else if(app->debuggerUI.selectedFile)
-            {
-                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-
-                wa_source_node* node = app->debuggerUI.selectedFile;
-
-                if(!node->contents.len)
+                else if(app->debuggerUI.selectedFile)
                 {
-                    oc_str8 path = sourceInfo->files[node->index].fullPath;
-                    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-                    if(!oc_file_is_nil(file))
+                    wa_source_node* node = app->debuggerUI.selectedFile;
+
+                    if(!node->contents.len)
                     {
-                        node->contents.len = oc_file_size(file);
-                        node->contents.ptr = oc_malloc_array(char, node->contents.len);
-                        oc_file_read(file, node->contents.len, node->contents.ptr);
-                    }
-                    oc_file_close(file);
-                }
+                        oc_str8 path = sourceInfo->files[node->index].fullPath;
+                        oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
 
-                if(node->contents.len)
-                {
-                    u64 offset = 0;
-                    u64 lineNum = 1;
-
-                    //TODO: compute line height from font.
-                    f32 lineH = 0;
-                    f32 lineY = 0;
-
-                    while(offset < node->contents.len)
-                    {
-                        u64 lineStart = offset;
-                        while(offset < node->contents.len && node->contents.ptr[offset] != '\n')
+                        if(!oc_file_is_nil(file))
                         {
+                            node->contents.len = oc_file_size(file);
+                            node->contents.ptr = oc_malloc_array(char, node->contents.len);
+                            oc_file_read(file, node->contents.len, node->contents.ptr);
+                        }
+                        oc_file_close(file);
+                    }
+
+                    if(node->contents.len)
+                    {
+                        u64 offset = 0;
+                        u64 lineNum = 1;
+
+                        //TODO: compute line height from font.
+                        f32 lineH = 0;
+                        f32 lineY = 0;
+
+                        while(offset < node->contents.len)
+                        {
+                            u64 lineStart = offset;
+                            while(offset < node->contents.len && node->contents.ptr[offset] != '\n')
+                            {
+                                offset++;
+                            }
+                            oc_str8 line = oc_str8_slice(node->contents, lineStart, offset);
+                            if(!line.len)
+                            {
+                                line = OC_STR8(" "); //TODO or spacer?
+                            }
                             offset++;
-                        }
-                        oc_str8 line = oc_str8_slice(node->contents, lineStart, offset);
-                        if(!line.len)
-                        {
-                            line = OC_STR8(" "); //TODO or spacer?
-                        }
-                        offset++;
 
-                        oc_str8 lineNumStr = oc_str8_pushf(scratch.arena, "%i", lineNum);
-                        oc_ui_box_str8(lineNumStr)
-                        {
-                            lineH = oc_ui_box_top()->rect.h;
-
-                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-
-                            bool makeExecCursor = false;
-                            if(app->env.instance)
+                            oc_str8 lineNumStr = oc_str8_pushf(scratch.arena, "%i", lineNum);
+                            oc_ui_box_str8(lineNumStr)
                             {
-                                ////////////////////////////////////////////////:
-                                //TODO: haul that up
-                                ////////////////////////////////////////////////
-                                wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
-                                u64 funcIndex = execFunc - app->env.interpreter->instance->functions;
-                                u32 codeIndex = app->env.interpreter->pc - execFunc->code;
+                                lineH = oc_ui_box_top()->rect.h;
 
-                                wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module,
-                                                                            (wa_warm_loc){
-                                                                                .module = app->env.interpreter->instance->module,
-                                                                                .funcIndex = funcIndex,
-                                                                                .codeIndex = codeIndex,
-                                                                            });
+                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                                if(node->index == loc.fileIndex && loc.line == lineNum)
+                                bool makeExecCursor = false;
+                                if(app->env.instance)
                                 {
-                                    makeExecCursor = true;
-                                }
-                            }
+                                    ////////////////////////////////////////////////:
+                                    //TODO: haul that up
+                                    ////////////////////////////////////////////////
+                                    wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                                    u64 funcIndex = execFunc - app->env.interpreter->instance->functions;
+                                    u32 codeIndex = app->env.interpreter->pc - execFunc->code;
 
-                            if(makeExecCursor)
-                            {
-                                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
-                            }
+                                    wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module,
+                                                                                (wa_warm_loc){
+                                                                                    .module = app->env.interpreter->instance->module,
+                                                                                    .funcIndex = funcIndex,
+                                                                                    .codeIndex = codeIndex,
+                                                                                });
 
-                            oc_ui_box* numLabel = oc_ui_box("num")
-                            {
-                                //TODO: we should count the number of lines beforehand to compute the proper max size
-                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
-                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                                oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-
-                                oc_ui_label_str8(OC_STR8("label"), lineNumStr);
-                            }
-
-                            if(makeExecCursor)
-                            {
-                                //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
-                                //      so its rect might not be set every frame, resulting in brief jumps.
-                                //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
-
-                                f32 targetScroll = codePanel->scroll.y;
-
-                                if(app->debuggerUI.autoScroll)
-                                {
-                                    f32 scrollMargin = 80;
-
-                                    if(scrollSpeed == 1)
+                                    if(node->index == loc.fileIndex && loc.line == lineNum)
                                     {
-                                        scrollMargin = 300;
-                                    }
-
-                                    if(lineY - targetScroll < scrollMargin)
-                                    {
-                                        targetScroll = lineY - scrollMargin;
-                                    }
-                                    else if(lineY + lineH - targetScroll > codePanel->rect.h - scrollMargin)
-                                    {
-                                        targetScroll = lineY + lineH - codePanel->rect.h + scrollMargin;
+                                        makeExecCursor = true;
                                     }
                                 }
-                                codePanel->scroll.y += scrollSpeed * (targetScroll - codePanel->scroll.y);
-                            }
 
-                            wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(app->env.interpreter,
-                                                                                            &(wa_line_loc){
-                                                                                                .fileIndex = node->index,
-                                                                                                .line = lineNum,
-                                                                                            });
-                            // spacer or breakpoint
-                            if(breakpoint)
-                            {
-                                oc_ui_box("bp")
+                                if(makeExecCursor)
                                 {
-                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
-                                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-
-                                    oc_ui_set_draw_proc(draw_breakpoint_cursor_proc, 0);
-
-                                    if(oc_ui_get_sig().clicked)
-                                    {
-                                        wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
-                                    }
+                                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
                                 }
-                            }
-                            else
-                            {
-                                oc_ui_box("spacer")
+
+                                oc_ui_box* numLabel = oc_ui_box("num")
                                 {
+                                    //TODO: we should count the number of lines beforehand to compute the proper max size
                                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
                                     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
 
-                                    if(oc_ui_get_sig().clicked)
+                                    oc_ui_label_str8(OC_STR8("label"), lineNumStr);
+                                }
+
+                                if(makeExecCursor)
+                                {
+                                    //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
+                                    //      so its rect might not be set every frame, resulting in brief jumps.
+                                    //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
+
+                                    f32 targetScroll = codeView->scroll.y;
+
+                                    if(app->debuggerUI.autoScroll)
                                     {
-                                        wa_interpreter_add_breakpoint_line(app->env.interpreter,
-                                                                           &(wa_line_loc){
-                                                                               .fileIndex = node->index,
-                                                                               .line = lineNum,
-                                                                           });
+                                        f32 scrollMargin = 80;
+
+                                        if(scrollSpeed == 1)
+                                        {
+                                            scrollMargin = codeView->rect.h / 2;
+                                        }
+
+                                        if(lineY - targetScroll < scrollMargin)
+                                        {
+                                            targetScroll = lineY - scrollMargin;
+                                        }
+                                        else if(lineY + lineH - targetScroll > codeView->rect.h - scrollMargin)
+                                        {
+                                            targetScroll = lineY + lineH - codeView->rect.h + scrollMargin;
+                                        }
+                                    }
+                                    codeView->scroll.y += scrollSpeed * (targetScroll - codeView->scroll.y);
+                                }
+
+                                wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(app->env.interpreter,
+                                                                                                &(wa_line_loc){
+                                                                                                    .fileIndex = node->index,
+                                                                                                    .line = lineNum,
+                                                                                                });
+                                // spacer or breakpoint
+                                if(breakpoint)
+                                {
+                                    oc_ui_box("bp")
+                                    {
+                                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
+                                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+
+                                        oc_ui_set_draw_proc(draw_breakpoint_cursor_proc, 0);
+
+                                        if(oc_ui_get_sig().clicked)
+                                        {
+                                            wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
+                                        }
                                     }
                                 }
-                            }
+                                else
+                                {
+                                    oc_ui_box("spacer")
+                                    {
+                                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
+                                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                            oc_ui_label_str8(OC_STR8("line"), line);
+                                        if(oc_ui_get_sig().clicked)
+                                        {
+                                            wa_interpreter_add_breakpoint_line(app->env.interpreter,
+                                                                               &(wa_line_loc){
+                                                                                   .fileIndex = node->index,
+                                                                                   .line = lineNum,
+                                                                               });
+                                        }
+                                    }
+                                }
+
+                                oc_ui_label_str8(OC_STR8("line"), line);
+                            }
+                            lineY += lineH;
+                            lineNum++;
                         }
-                        lineY += lineH;
-                        lineNum++;
+                    }
+                }
+                app->debuggerUI.lastScroll = codeView->scroll.y;
+                //NOTE: scroll might change (as a result of user action) at the end of the block
+            }
+
+            if(!app->debuggerUI.freshScroll && fabs(app->debuggerUI.lastScroll - codeView->scroll.y) > 1)
+            {
+                //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+                OC_ASSERT(oc_ui_box_get_sig(codeView).wheel.y != 0);
+                app->debuggerUI.autoScroll = false;
+            }
+
+            oc_ui_box* inspector = oc_ui_box("inspector-view")
+            {
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 350 });
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+
+                if(app->debuggerUI.showSymbols && app->env.paused)
+                {
+                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                    oc_ui_style_set_f32(OC_UI_SPACING, 5);
+
+                    wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+
+                    for(u64 regIndex = 0; regIndex < execFunc->maxRegIndex; regIndex++)
+                    {
+                        oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
+                        oc_str8 regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu = 0x%016llx",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valI64);
+
+                        oc_ui_label_str8(regId, regText);
                     }
                 }
             }
-            app->debuggerUI.lastScroll = codePanel->scroll.y;
-            //NOTE: scroll might change (as a result of user action) at the end of the block
-        }
-
-        if(!app->debuggerUI.freshScroll && fabs(app->debuggerUI.lastScroll - codePanel->scroll.y) > 1)
-        {
-            //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
-            OC_ASSERT(oc_ui_box_get_sig(codePanel).wheel.y != 0);
-            app->debuggerUI.autoScroll = false;
         }
     }
 
