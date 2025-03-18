@@ -118,12 +118,6 @@ typedef struct oc_debug_overlay
 
 } oc_debug_overlay;
 
-typedef struct oc_debugger_source_node_ui
-{
-    bool expanded;
-    oc_str8 contents;
-} oc_debugger_source_node_ui;
-
 typedef struct oc_debugger_ui
 {
     bool init;
@@ -139,8 +133,7 @@ typedef struct oc_debugger_ui
     bool autoScroll;
     f32 lastScroll;
 
-    u64 sourceNodeCount;
-    oc_debugger_source_node_ui* sourceNodes;
+    wa_source_node sourceTree;
 
 } oc_debugger_ui;
 

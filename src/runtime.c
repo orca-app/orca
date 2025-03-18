@@ -1145,6 +1145,94 @@ i32 create_debug_window_callback(void* user)
     return (0);
 }
 
+void oc_debugger_print_source_tree(wa_source_node* node, int indent)
+{
+    for(int i = 0; i < indent; i++)
+    {
+        printf("  ");
+    }
+    printf("%.*s\n", oc_str8_ip(node->name));
+    oc_list_for(node->children, child, wa_source_node, listElt)
+    {
+        oc_debugger_print_source_tree(child, indent + 1);
+    }
+}
+
+void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, u64 fileCount, wa_source_file* files)
+{
+    //NOTE: build the source tree from the source files array
+    u64 nodeCount = 0;
+    for(u64 fileIndex = 1; fileIndex < fileCount; fileIndex++)
+    {
+        wa_source_file* file = &files[fileIndex];
+
+        oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+        //NOTE: add the file's root to the source tree
+        wa_source_node* root = 0;
+
+        oc_list_for(sourceTree->children, child, wa_source_node, listElt)
+        {
+            if(!oc_str8_cmp(child->name, file->rootPath))
+            {
+                root = child;
+                break;
+            }
+        }
+
+        if(!root)
+        {
+            root = oc_arena_push_type(arena, wa_source_node);
+            memset(root, 0, sizeof(wa_source_node));
+
+            root->name = file->rootPath;
+            root->id = nodeCount;
+            nodeCount++;
+            oc_list_push_back(&sourceTree->children, &root->listElt);
+        }
+
+        wa_source_node* currentNode = root;
+
+        //NOTE: traverse the root's subtree and add nodes as needed
+        oc_str8 relativePath = oc_str8_slice(file->fullPath, file->rootPath.len, file->fullPath.len);
+        oc_str8_list pathElements = oc_path_split(scratch.arena, relativePath);
+
+        oc_str8_list_for(pathElements, eltName)
+        {
+            wa_source_node* found = 0;
+            oc_list_for(currentNode->children, child, wa_source_node, listElt)
+            {
+                if(!oc_str8_cmp(child->name, eltName->string))
+                {
+                    found = child;
+                    break;
+                }
+            }
+            if(!found)
+            {
+                //add the element
+                found = oc_arena_push_type(arena, wa_source_node);
+                memset(found, 0, sizeof(wa_source_node));
+
+                found->parent = currentNode;
+                found->index = fileIndex;
+                found->name = eltName->string;
+                found->id = nodeCount;
+                nodeCount++;
+                oc_list_push_back(&currentNode->children, &found->listElt);
+            }
+            else
+            {
+                //just continue
+            }
+            currentNode = found;
+        }
+        oc_scratch_end(scratch);
+    }
+
+    oc_debugger_print_source_tree(sourceTree, 0);
+}
+
 void oc_debugger_ui_open(oc_runtime* app)
 {
     oc_debugger_ui* debuggerUI = &app->debuggerUI;
@@ -1170,10 +1258,8 @@ void oc_debugger_ui_open(oc_runtime* app)
         debuggerUI->canvas = oc_canvas_context_create();
         debuggerUI->ui = oc_ui_context_create(app->debugOverlay.fontReg);
 
-        wa_source_tree* sourceTree = wa_module_get_source_tree(app->env.module);
-        debuggerUI->sourceNodeCount = sourceTree->nodeCount;
-        debuggerUI->sourceNodes = oc_arena_push_array(&app->env.arena, oc_debugger_source_node_ui, debuggerUI->sourceNodeCount);
-        memset(debuggerUI->sourceNodes, 0, debuggerUI->sourceNodeCount * sizeof(oc_debugger_source_node_ui));
+        wa_source_info* sourceInfo = wa_module_get_source_info(app->env.module);
+        oc_debugger_build_source_tree(&app->env.arena, &app->debuggerUI.sourceTree, sourceInfo->fileCount, sourceInfo->files);
 
         debuggerUI->init = true;
     }
@@ -1261,8 +1347,6 @@ wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
 
 void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int indent)
 {
-    oc_debugger_source_node_ui* nodeUI = &app->debuggerUI.sourceNodes[node->id];
-
     //TODO: use full path to disambiguate similarly named root dirs
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 id = oc_str8_pushf(scratch.arena, "path-%llu", node->id);
@@ -1283,7 +1367,7 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
 
         if(!oc_list_empty(node->children))
         {
-            if(nodeUI->expanded)
+            if(node->expanded)
             {
                 oc_ui_label("expand-icon", "- ");
             }
@@ -1313,7 +1397,7 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
             }
             else
             {
-                nodeUI->expanded = !nodeUI->expanded;
+                node->expanded = !node->expanded;
             }
         }
         if(node == app->debuggerUI.selectedFile)
@@ -1345,7 +1429,7 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
 
     oc_scratch_end(scratch);
 
-    if(nodeUI->expanded)
+    if(node->expanded)
     {
         oc_list_for(node->children, child, wa_source_node, listElt)
         {
@@ -1390,7 +1474,7 @@ void debugger_ui_update(oc_runtime* app)
         f32 scrollSpeed = 0.3;
         app->debuggerUI.freshScroll = false;
 
-        wa_source_tree* sourceTree = wa_module_get_source_tree(app->env.module);
+        wa_source_info* sourceInfo = wa_module_get_source_info(app->env.module);
 
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
         //      if paused == false, vm thread can become paused during the frame, but we
@@ -1419,14 +1503,13 @@ void debugger_ui_update(oc_runtime* app)
                 if(lineLoc.fileIndex)
                 {
                     //TODO: faster lookup
-                    app->debuggerUI.selectedFile = find_source_node(&sourceTree->root, lineLoc.fileIndex);
+                    app->debuggerUI.selectedFile = find_source_node(&app->debuggerUI.sourceTree, lineLoc.fileIndex);
 
                     //NOTE: expand all parents of selected file
                     wa_source_node* parent = app->debuggerUI.selectedFile->parent;
                     while(parent)
                     {
-                        oc_debugger_source_node_ui* nodeUI = &app->debuggerUI.sourceNodes[parent->id];
-                        nodeUI->expanded = true;
+                        parent->expanded = true;
                         parent = parent->parent;
                     }
                 }
@@ -1562,7 +1645,7 @@ void debugger_ui_update(oc_runtime* app)
                 }
                 else
                 {
-                    oc_list_for(sourceTree->root.children, child, wa_source_node, listElt)
+                    oc_list_for(app->debuggerUI.sourceTree.children, child, wa_source_node, listElt)
                     {
                         source_tree_ui(app, oc_ui_box_top(), child, 0);
                     }
@@ -1852,23 +1935,21 @@ void debugger_ui_update(oc_runtime* app)
 
                 wa_source_node* node = app->debuggerUI.selectedFile;
 
-                oc_debugger_source_node_ui* nodeUI = &app->debuggerUI.sourceNodes[node->id];
-
-                if(!nodeUI->contents.len)
+                if(!node->contents.len)
                 {
-                    oc_str8 path = sourceTree->files[node->index].fullPath;
+                    oc_str8 path = sourceInfo->files[node->index].fullPath;
                     oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
 
                     if(!oc_file_is_nil(file))
                     {
-                        nodeUI->contents.len = oc_file_size(file);
-                        nodeUI->contents.ptr = oc_malloc_array(char, nodeUI->contents.len);
-                        oc_file_read(file, nodeUI->contents.len, nodeUI->contents.ptr);
+                        node->contents.len = oc_file_size(file);
+                        node->contents.ptr = oc_malloc_array(char, node->contents.len);
+                        oc_file_read(file, node->contents.len, node->contents.ptr);
                     }
                     oc_file_close(file);
                 }
 
-                if(nodeUI->contents.len)
+                if(node->contents.len)
                 {
                     u64 offset = 0;
                     u64 lineNum = 1;
@@ -1877,14 +1958,14 @@ void debugger_ui_update(oc_runtime* app)
                     f32 lineH = 0;
                     f32 lineY = 0;
 
-                    while(offset < nodeUI->contents.len)
+                    while(offset < node->contents.len)
                     {
                         u64 lineStart = offset;
-                        while(offset < nodeUI->contents.len && nodeUI->contents.ptr[offset] != '\n')
+                        while(offset < node->contents.len && node->contents.ptr[offset] != '\n')
                         {
                             offset++;
                         }
-                        oc_str8 line = oc_str8_slice(nodeUI->contents, lineStart, offset);
+                        oc_str8 line = oc_str8_slice(node->contents, lineStart, offset);
                         if(!line.len)
                         {
                             line = OC_STR8(" "); //TODO or spacer?

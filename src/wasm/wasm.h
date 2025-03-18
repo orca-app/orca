@@ -311,16 +311,16 @@ typedef struct wa_source_node
     u64 id;
     u64 index;
     oc_str8 name; // slice into a wa_source_file path
+
+    bool expanded;
+    oc_str8 contents;
 } wa_source_node;
 
 typedef struct wa_source_info
 {
-    u64 nodeCount;
-    wa_source_node root;
-
     u64 fileCount;
     wa_source_file* files;
 
-} wa_source_tree;
+} wa_source_info;
 
-wa_source_tree* wa_module_get_source_tree(wa_module* module);
+wa_source_info* wa_module_get_source_info(wa_module* module);
