@@ -1796,11 +1796,11 @@ oc_ui_box* oc_ui_box_end(void)
 
     oc_ui_sig sig = oc_ui_box_get_sig(box);
 
-    f32 contentsW = oc_clamp_low(box->childrenSum[0] + 2 * box->style.layout.margin.x, box->rect.w);
+    f32 contentsW = oc_clamp_low(box->childrenSum[0] + box->spacing[0] + 2 * box->style.layout.margin.x, box->rect.w);
     contentsW = oc_clamp_low(contentsW, 1);
     bool needsScrollX = contentsW > box->rect.w;
 
-    f32 contentsH = oc_clamp_low(box->childrenSum[1] + 2 * box->style.layout.margin.y, box->rect.h);
+    f32 contentsH = oc_clamp_low(box->childrenSum[1] + box->spacing[1] + 2 * box->style.layout.margin.y, box->rect.h);
     contentsH = oc_clamp_low(contentsH, 1);
     bool needsScrollY = contentsH > box->rect.h;
 
@@ -2731,8 +2731,8 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
     }
 
     //NOTE: clamp scroll to max contents and offset current position by it
-    box->scroll.x = oc_clamp(box->scroll.x, 0, box->childrenSum[0] + 2 * margin.x - box->rect.w);
-    box->scroll.y = oc_clamp(box->scroll.y, 0, box->childrenSum[1] + 2 * margin.y - box->rect.h);
+    box->scroll.x = oc_clamp(box->scroll.x, 0, box->childrenSum[0] + box->spacing[0] + 2 * margin.x - box->rect.w);
+    box->scroll.y = oc_clamp(box->scroll.y, 0, box->childrenSum[1] + box->spacing[1] + 2 * margin.y - box->rect.h);
     currentPos.x -= box->scroll.x;
     currentPos.y -= box->scroll.y;
 
