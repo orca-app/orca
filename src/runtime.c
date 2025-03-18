@@ -1288,7 +1288,7 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
         {
             oc_ui_label("expand-icon", "  ");
         }
-        oc_ui_label_str8(OC_STR8("label"), node->name);
+        oc_ui_label_str8(OC_STR8("label"), oc_path_slice_filename(node->name));
 
         oc_ui_sig sig = oc_ui_get_sig();
         if(sig.hover)
@@ -1346,16 +1346,16 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
     }
 }
 
-wa_source_node* find_source_node(wa_source_node* node, oc_str8 path)
+wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
 {
-    if(!oc_str8_cmp(node->path, path))
+    if(node->index == fileIndex)
     {
         return node;
     }
 
     oc_list_for(node->children, child, wa_source_node, listElt)
     {
-        wa_source_node* found = find_source_node(child, path);
+        wa_source_node* found = find_source_node(child, fileIndex);
         if(found)
         {
             return found;
@@ -1406,11 +1406,11 @@ void debugger_ui_update(oc_runtime* app)
                     app->env.interpreter->pc - execFunc->code,
                 };
                 wa_line_loc lineLoc = wa_line_loc_from_warm_loc(app->env.module, warmLoc);
-                if(lineLoc.path.len)
+                if(lineLoc.fileIndex)
                 {
                     //TODO: faster lookup
                     wa_source_node* sourceTree = wa_module_get_source_tree(app->env.module);
-                    app->debuggerUI.selectedFile = find_source_node(sourceTree, lineLoc.path);
+                    app->debuggerUI.selectedFile = find_source_node(sourceTree, lineLoc.fileIndex);
 
                     //NOTE: expand all parents of selected file
                     wa_source_node* parent = app->debuggerUI.selectedFile->parent;
@@ -1844,7 +1844,9 @@ void debugger_ui_update(oc_runtime* app)
                 wa_source_node* node = app->debuggerUI.selectedFile;
                 if(!node->contents.len)
                 {
-                    oc_file file = oc_file_open(node->path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+                    oc_str8 path = app->env.module->sourceFiles[node->index].fullPath;
+                    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+
                     if(!oc_file_is_nil(file))
                     {
                         node->contents.len = oc_file_size(file);
@@ -1901,7 +1903,7 @@ void debugger_ui_update(oc_runtime* app)
                                                                                 .codeIndex = codeIndex,
                                                                             });
 
-                                if(!oc_str8_cmp(node->path, loc.path) && loc.line == lineNum)
+                                if(node->index == loc.fileIndex && loc.line == lineNum)
                                 {
                                     makeExecCursor = true;
                                 }
@@ -1953,7 +1955,7 @@ void debugger_ui_update(oc_runtime* app)
 
                             wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(app->env.interpreter,
                                                                                             &(wa_line_loc){
-                                                                                                .path = node->path,
+                                                                                                .fileIndex = node->index,
                                                                                                 .line = lineNum,
                                                                                             });
                             // spacer or breakpoint
@@ -1983,7 +1985,7 @@ void debugger_ui_update(oc_runtime* app)
                                     {
                                         wa_interpreter_add_breakpoint_line(app->env.interpreter,
                                                                            &(wa_line_loc){
-                                                                               .path = node->path,
+                                                                               .fileIndex = node->index,
                                                                                .line = lineNum,
                                                                            });
                                     }

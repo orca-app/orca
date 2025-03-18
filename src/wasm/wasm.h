@@ -280,7 +280,7 @@ typedef struct wa_warm_loc
 
 typedef struct wa_line_loc
 {
-    oc_str8 path;
+    u64 fileIndex;
     u64 line;
 
 } wa_line_loc;
@@ -300,12 +300,20 @@ typedef struct wa_source_node
     oc_list_elt listElt;
     oc_list children;
     wa_source_node* parent;
+
     u64 id;
-    oc_str8 name;
-    oc_str8 path;
-    oc_str8 contents;
+    u64 index;
+    oc_str8 name; // slice into a wa_source_file path
     //TODO: move that to the UI layer
+    oc_str8 contents;
     bool expanded;
 } wa_source_node;
+
+typedef struct wa_source_file
+{
+    oc_str8 rootPath; // slice into fullPath
+    oc_str8 fullPath;
+    // timestamp, hash, etc
+} wa_source_file;
 
 wa_source_node* wa_module_get_source_tree(wa_module* module);
