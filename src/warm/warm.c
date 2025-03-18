@@ -935,11 +935,8 @@ typedef struct wa_module
     oc_list* wasmToWarmMap;
 
     dw_info* debugInfo;
-    u32 sourceNodeCount;
-    wa_source_node sourceTree;
 
-    u64 sourceFileCount;
-    wa_source_file* sourceFiles;
+    wa_source_tree sourceTree;
 
     u64 wasmToLineCount;
     wa_wasm_to_line_entry* wasmToLine;
@@ -3238,10 +3235,11 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
         u64 wasmToLineIndex = 0;
 
         //NOTE: build a global file table and build wasm line map
+        wa_source_tree* sourceTree = &module->sourceTree;
         oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
 
         oc_list files = { 0 };
-        module->sourceFileCount = 1; // index 0 is reserved for a "nil" wa_source_file entry
+        sourceTree->fileCount = 1; // index 0 is reserved for a "nil" wa_source_file entry
 
         for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
         {
@@ -3359,7 +3357,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                 wa_source_file_elt* file = wa_find_or_add_source_file(scratch.arena,
                                                                       module->arena,
                                                                       &files,
-                                                                      &module->sourceFileCount,
+                                                                      &sourceTree->fileCount,
                                                                       rootPath,
                                                                       fullPath);
 
@@ -3393,7 +3391,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                 wa_source_file_elt* file = wa_find_or_add_source_file(scratch.arena,
                                                                       module->arena,
                                                                       &files,
-                                                                      &module->sourceFileCount,
+                                                                      &sourceTree->fileCount,
                                                                       currentFileDir,
                                                                       currentFileAbs);
 
@@ -3416,27 +3414,27 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
 
         //NOTE: now copy all wa_source_file entries to the module's global file array, and finally clear the scratch
         //      the first element of the array is a zeroed wa_source_file (index 0 is used as an invalid fileIndex)
-        module->sourceFiles = oc_arena_push_array(module->arena, wa_source_file, module->sourceFileCount);
-        memset(&module->sourceFiles[0], 0, sizeof(wa_source_file));
+        sourceTree->files = oc_arena_push_array(module->arena, wa_source_file, sourceTree->fileCount);
+        memset(&sourceTree->files[0], 0, sizeof(wa_source_file));
         oc_list_for_indexed(files, it, wa_source_file_elt, listElt)
         {
-            module->sourceFiles[it.index + 1] = it.elt->file;
+            sourceTree->files[it.index + 1] = it.elt->file;
         }
 
         oc_scratch_end(scratch);
 
         //NOTE: build the source tree from the source files array
-        u64 nodeId = 0;
-        for(u64 fileIndex = 1; fileIndex < module->sourceFileCount; fileIndex++)
+        sourceTree->nodeCount = 0;
+        for(u64 fileIndex = 1; fileIndex < sourceTree->fileCount; fileIndex++)
         {
-            wa_source_file* file = &module->sourceFiles[fileIndex];
+            wa_source_file* file = &sourceTree->files[fileIndex];
 
             oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
 
             //NOTE: add the file's root to the source tree
             wa_source_node* root = 0;
 
-            oc_list_for(module->sourceTree.children, child, wa_source_node, listElt)
+            oc_list_for(sourceTree->root.children, child, wa_source_node, listElt)
             {
                 if(!oc_str8_cmp(child->name, file->rootPath))
                 {
@@ -3451,9 +3449,9 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                 memset(root, 0, sizeof(wa_source_node));
 
                 root->name = file->rootPath;
-                root->id = nodeId;
-                nodeId++;
-                oc_list_push_back(&module->sourceTree.children, &root->listElt);
+                root->id = sourceTree->nodeCount;
+                sourceTree->nodeCount++;
+                oc_list_push_back(&sourceTree->root.children, &root->listElt);
             }
 
             wa_source_node* currentNode = root;
@@ -3482,8 +3480,8 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
                     found->parent = currentNode;
                     found->index = fileIndex;
                     found->name = eltName->string;
-                    found->id = nodeId;
-                    nodeId++;
+                    found->id = sourceTree->nodeCount;
+                    sourceTree->nodeCount++;
                     oc_list_push_back(&currentNode->children, &found->listElt);
                 }
                 else
@@ -3495,13 +3493,13 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
             oc_scratch_end(scratch);
         }
 
-        wa_print_source_tree(&module->sourceTree, 0);
+        wa_print_source_tree(&sourceTree->root, 0);
     }
 
     oc_scratch_end(scratch);
 }
 
-wa_source_node* wa_module_get_source_tree(wa_module* module)
+wa_source_tree* wa_module_get_source_tree(wa_module* module)
 {
     return &module->sourceTree;
 }

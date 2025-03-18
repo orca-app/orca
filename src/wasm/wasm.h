@@ -293,6 +293,13 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
 
+typedef struct wa_source_file
+{
+    oc_str8 rootPath; // slice into fullPath
+    oc_str8 fullPath;
+    // timestamp, hash, etc
+} wa_source_file;
+
 typedef struct wa_source_node wa_source_node;
 
 typedef struct wa_source_node
@@ -304,16 +311,16 @@ typedef struct wa_source_node
     u64 id;
     u64 index;
     oc_str8 name; // slice into a wa_source_file path
-    //TODO: move that to the UI layer
-    oc_str8 contents;
-    bool expanded;
 } wa_source_node;
 
-typedef struct wa_source_file
+typedef struct wa_source_info
 {
-    oc_str8 rootPath; // slice into fullPath
-    oc_str8 fullPath;
-    // timestamp, hash, etc
-} wa_source_file;
+    u64 nodeCount;
+    wa_source_node root;
 
-wa_source_node* wa_module_get_source_tree(wa_module* module);
+    u64 fileCount;
+    wa_source_file* files;
+
+} wa_source_tree;
+
+wa_source_tree* wa_module_get_source_tree(wa_module* module);
