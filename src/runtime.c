@@ -2134,7 +2134,7 @@ void debugger_ui_update(oc_runtime* app)
 
                     wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
 
-                    for(u64 regIndex = 0; regIndex < execFunc->maxRegIndex; regIndex++)
+                    for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
                     {
                         oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
                         oc_str8 regText = oc_str8_pushf(scratch.arena,
