@@ -3498,7 +3498,6 @@ typedef enum wa_operand_kind
 typedef struct wa_operand_slot
 {
     wa_operand_kind kind;
-    wa_value_type type;
     u32 index;
 
     wa_instr* originInstr;
@@ -3512,6 +3511,14 @@ typedef struct wa_register_slot
     wa_value_type type;
 
 } wa_register_slot;
+
+typedef struct wa_operand
+{
+    wa_operand_kind kind;
+    wa_value_type type;
+    u32 index;
+
+} wa_operand;
 
 typedef struct wa_build_context
 {
@@ -3579,9 +3586,9 @@ void wa_compile_error_block_end(wa_build_context* context, wa_ast* ast, const ch
     oc_list_push_back(&context->module->errors, &error->moduleElt);
 }
 
-bool wa_operand_is_nil(wa_operand_slot* slot)
+bool wa_operand_is_nil(wa_operand* opd)
 {
-    return (slot->kind == WA_OPERAND_NIL);
+    return (opd->kind == WA_OPERAND_NIL);
 }
 
 bool wa_block_is_nil(wa_block* block)
@@ -3703,6 +3710,7 @@ void wa_release_register(wa_build_context* context, u32 index)
 {
     OC_DEBUG_ASSERT(index < WA_MAX_REG);
     wa_register_slot* reg = &context->regs[index];
+
     OC_DEBUG_ASSERT(reg->refCount);
     reg->refCount--;
     if(reg->refCount == 0)
@@ -3773,7 +3781,6 @@ void wa_operand_stack_push_return_slots(wa_build_context* context, u32 maxUsedSl
         wa_operand_stack_push(context,
                               (wa_operand_slot){
                                   .kind = WA_OPERAND_REG,
-                                  .type = returns[retIndex],
                                   .index = slotIndex,
                               });
     }
@@ -3783,7 +3790,6 @@ u32 wa_operand_stack_push_reg(wa_build_context* context, wa_value_type type, wa_
 {
     wa_operand_slot opd = {
         .kind = WA_OPERAND_REG,
-        .type = type,
         .index = wa_allocate_register(context, type),
         .originInstr = instr,
         .originOpd = context->codeLen,
@@ -3797,7 +3803,6 @@ u32 wa_operand_stack_push_local(wa_build_context* context, u32 index)
 {
     wa_operand_slot opd = {
         .kind = WA_OPERAND_LOCAL,
-        .type = context->currentFunction->locals[index],
         .index = index,
         //        .originInstr = instr,
         //        .originOpd = context->codeLen,
@@ -3810,8 +3815,6 @@ u32 wa_operand_stack_push_unknown(wa_build_context* context)
 {
     wa_operand_slot opd = {
         .kind = WA_OPERAND_UNKNOWN,
-        .type = WA_TYPE_UNKNOWN,
-        .index = 0,
         //        .originInstr = instr,
         //        .originOpd = context->codeLen,
     };
@@ -3827,9 +3830,10 @@ void wa_operand_stack_push_copy(wa_build_context* context, u32 index)
     wa_operand_stack_push(context, opdCopy);
 }
 
-wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
+wa_operand wa_operand_stack_pop(wa_build_context* context)
 {
-    wa_operand_slot opd = { 0 };
+    wa_operand opd = { 0 };
+
     u64 scopeBase = 0;
     wa_block* block = wa_control_stack_top(context);
     OC_ASSERT(block);
@@ -3838,7 +3842,15 @@ wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
     if(context->opdStackLen > scopeBase)
     {
         context->opdStackLen--;
-        opd = context->opdStack[context->opdStackLen];
+        wa_operand_slot* slot = &context->opdStack[context->opdStackLen];
+        opd.kind = slot->kind;
+        opd.index = slot->index;
+
+        //TODO: remove check
+        if(slot->kind == WA_OPERAND_REG || slot->kind == WA_OPERAND_LOCAL)
+        {
+            opd.type = context->regs[slot->index].type;
+        }
 
         if(opd.kind == WA_OPERAND_REG)
         {
@@ -3847,7 +3859,7 @@ wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
     }
     else if(block->polymorphic)
     {
-        opd = (wa_operand_slot){
+        opd = (wa_operand){
             .kind = WA_OPERAND_UNKNOWN,
             .type = WA_TYPE_UNKNOWN,
         };
@@ -3855,20 +3867,28 @@ wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
     return (opd);
 }
 
-wa_operand_slot wa_operand_stack_lookup(wa_build_context* context, u32 index)
+wa_operand wa_operand_stack_lookup(wa_build_context* context, u32 index)
 {
-    wa_operand_slot opd = { 0 };
+    wa_operand opd = { 0 };
     wa_block* block = wa_control_stack_top(context);
     OC_ASSERT(block);
     u64 scopeBase = block->scopeBase;
 
     if(index < context->opdStackLen - scopeBase)
     {
-        opd = context->opdStack[context->opdStackLen - index - 1];
+        wa_operand_slot* slot = &context->opdStack[context->opdStackLen - index - 1];
+        opd.kind = slot->kind;
+        opd.index = slot->index;
+
+        //TODO: remove check
+        if(slot->kind == WA_OPERAND_REG || slot->kind == WA_OPERAND_LOCAL)
+        {
+            opd.type = context->regs[slot->index].type;
+        }
     }
     else if(block->polymorphic)
     {
-        opd = (wa_operand_slot){
+        opd = (wa_operand){
             .kind = WA_OPERAND_UNKNOWN,
             .type = WA_TYPE_UNKNOWN,
         };
@@ -3918,7 +3938,6 @@ wa_operand_slot wa_operand_stack_top(wa_build_context* context)
     {
         opd = (wa_operand_slot){
             .kind = WA_OPERAND_UNKNOWN,
-            .type = WA_TYPE_UNKNOWN,
         };
     }
 
@@ -3950,54 +3969,43 @@ bool wa_check_operand_type(wa_value_type t1, wa_value_type t2)
             || (t2 == WA_TYPE_NUM_OR_VEC && (wa_is_value_type_numeric(t1) || t1 == WA_TYPE_V128)));
 }
 
-wa_value_type wa_operand_type(wa_build_context* context, wa_operand_slot* opd)
+wa_operand* wa_operand_stack_get_operands(oc_arena* arena,
+                                          wa_build_context* context,
+                                          wa_instr* instr,
+                                          u32 count,
+                                          wa_value_type* types,
+                                          bool popOpds)
 {
-    return opd->kind == WA_OPERAND_UNKNOWN ? WA_TYPE_UNKNOWN : opd->type;
-}
-
-wa_operand_slot* wa_operand_stack_get_slots(oc_arena* arena,
-                                            wa_build_context* context,
-                                            wa_instr* instr,
-                                            u32 count,
-                                            wa_value_type* types,
-                                            bool popOpds)
-{
-    wa_operand_slot* inOpds = oc_arena_push_array(arena, wa_operand_slot, count);
+    wa_operand* opds = oc_arena_push_array(arena, wa_operand, count);
     for(u32 i = 0; i < count; i++)
     {
         u32 opdIndex = count - 1 - i;
 
         if(popOpds)
         {
-            inOpds[opdIndex] = wa_operand_stack_pop(context);
+            opds[opdIndex] = wa_operand_stack_pop(context);
         }
         else
         {
-            inOpds[opdIndex] = wa_operand_stack_lookup(context, i);
+            opds[opdIndex] = wa_operand_stack_lookup(context, i);
         }
 
-        if(wa_operand_is_nil(&inOpds[opdIndex]))
+        if(wa_operand_is_nil(&opds[opdIndex]))
         {
             wa_compile_error(context, instr->ast, "unbalanced stack\n");
             break;
         }
         else
         {
-            if(inOpds[opdIndex].kind == WA_OPERAND_REG)
+            if(!wa_check_operand_type(opds[opdIndex].type, types[opdIndex]))
             {
-                wa_register_slot* reg = &context->regs[inOpds[opdIndex].index];
-                OC_DEBUG_ASSERT(reg->refCount && reg->type == inOpds[opdIndex].type);
-            }
-
-            if(!wa_check_operand_type(inOpds[opdIndex].type, types[opdIndex]))
-            {
-                wa_compile_error(context, instr->ast, "unbalanced stack\n");
+                wa_compile_error(context, instr->ast, "operand types mismatch\n");
                 //TODO: here we can give a better error message since we have all the operands popped so far
                 break;
             }
         }
     }
-    return (inOpds);
+    return (opds);
 }
 
 void wa_block_set_polymorphic(wa_build_context* context)
@@ -4077,8 +4085,10 @@ void wa_emit_i64(wa_build_context* context, i64 val)
     code->valI64 = val;
 }
 
-void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
+void wa_move_local_if_used(wa_build_context* context, u32 slotIndex)
 {
+    OC_DEBUG_ASSERT(slotIndex < context->currentFunction.localCount);
+
     wa_block* block = wa_control_stack_top(context);
     u32 newReg = UINT32_MAX;
     u64 count = 0;
@@ -4091,18 +4101,16 @@ void wa_move_slot_if_used(wa_build_context* context, u32 slotIndex)
         {
             if(newReg == UINT32_MAX)
             {
-                newReg = wa_allocate_register(context, opd->type);
+                newReg = wa_allocate_register(context, context->regs[slotIndex].type);
             }
             else
             {
-                ////////////////////////////////////////////////////////////////////////
-                //TODO: what happens to the old register that is moved?
-                ////////////////////////////////////////////////////////////////////////
-
                 wa_retain_register(context, newReg);
             }
             opd->kind = WA_OPERAND_REG;
             opd->index = newReg;
+
+            //NOTE: we don't need to release previous slot because it is a local
         }
     }
     if(newReg != UINT32_MAX)
@@ -4120,7 +4128,7 @@ void wa_move_locals_to_registers(wa_build_context* context)
         wa_operand_slot* opd = &context->opdStack[stackIndex];
         if(opd->kind == WA_OPERAND_LOCAL)
         {
-            wa_move_slot_if_used(context, opd->index);
+            wa_move_local_if_used(context, opd->index);
         }
     }
 }
@@ -4158,12 +4166,12 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
     wa_func_type* type = instr->blockType;
 
     //NOTE: check block type input (but we don't pop or use them here)
-    wa_operand_stack_get_slots(scratch.arena,
-                               context,
-                               instr,
-                               type->paramCount,
-                               type->params,
-                               false);
+    wa_operand_stack_get_operands(scratch.arena,
+                                  context,
+                                  instr,
+                                  type->paramCount,
+                                  type->params,
+                                  false);
 
     //NOTE allocate block results and push them on the stack
     for(u64 outIndex = 0; outIndex < type->returnCount; outIndex++)
@@ -4184,12 +4192,12 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
     oc_arena_scope scratch = oc_scratch_begin();
     wa_func_type* type = block->begin->blockType;
 
-    wa_operand_slot* opds = wa_operand_stack_get_slots(scratch.arena,
-                                                       context,
-                                                       instr,
-                                                       type->paramCount,
-                                                       type->params,
-                                                       false);
+    wa_operand* opds = wa_operand_stack_get_operands(scratch.arena,
+                                                     context,
+                                                     instr,
+                                                     type->paramCount,
+                                                     type->params,
+                                                     false);
 
     if(!block->polymorphic && !block->prevPolymorphic)
     {
@@ -4209,12 +4217,12 @@ void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* 
     oc_arena_scope scratch = oc_scratch_begin();
     wa_func_type* type = block->begin->blockType;
 
-    wa_operand_slot* opds = wa_operand_stack_get_slots(scratch.arena,
-                                                       context,
-                                                       instr,
-                                                       type->returnCount,
-                                                       type->returns,
-                                                       false);
+    wa_operand* opds = wa_operand_stack_get_operands(scratch.arena,
+                                                     context,
+                                                     instr,
+                                                     type->returnCount,
+                                                     type->returns,
+                                                     false);
 
     if(!block->polymorphic && !block->prevPolymorphic)
     {
@@ -4309,16 +4317,16 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
     //      _NOT_ change the stack...
     /////////////////////////////////////////////////////////////////
     oc_arena_scope scratch = oc_scratch_begin();
-    wa_operand_slot* returns = wa_operand_stack_get_slots(scratch.arena,
-                                                          context,
-                                                          instr,
-                                                          type->returnCount,
-                                                          type->returns,
-                                                          false);
+    wa_operand* returns = wa_operand_stack_get_operands(scratch.arena,
+                                                        context,
+                                                        instr,
+                                                        type->returnCount,
+                                                        type->returns,
+                                                        false);
 
     for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
-        wa_operand_slot opd = returns[retIndex];
+        wa_operand opd = returns[retIndex];
 
         //NOTE store value to return slot
         if(opd.kind != WA_OPERAND_UNKNOWN && opd.index != retIndex)
@@ -4327,15 +4335,11 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
             //TODO: coalesce with move if used _BUT_ preserve the stack for futher returns in other branches
             ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-            ////////////////////////////////////////////////////////////////////////
-            //TODO: what happens to the old register that is moved?
-            ////////////////////////////////////////////////////////////////////////
-
             u32 newReg = UINT32_MAX;
             u32 count = 0;
             for(u32 i = 0; i < type->returnCount; i++)
             {
-                wa_operand_slot* r = &returns[i];
+                wa_operand* r = &returns[i];
                 if(r->index == retIndex)
                 {
                     if(newReg == UINT32_MAX)
@@ -4346,6 +4350,12 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
                     {
                         wa_retain_register(context, newReg);
                     }
+
+                    if(r->kind == WA_OPERAND_REG)
+                    {
+                        wa_release_register(context, retIndex);
+                    }
+
                     r->kind = WA_OPERAND_REG;
                     r->index = newReg;
                 }
@@ -4638,12 +4648,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         {
             wa_move_locals_to_registers(context);
 
-            wa_operand_slot* opd = wa_operand_stack_get_slots(scratch.arena,
-                                                              context,
-                                                              instr,
-                                                              1,
-                                                              (wa_value_type[]){ WA_TYPE_I32 },
-                                                              true);
+            wa_operand* opd = wa_operand_stack_get_operands(scratch.arena,
+                                                            context,
+                                                            instr,
+                                                            1,
+                                                            (wa_value_type[]){ WA_TYPE_I32 },
+                                                            true);
             wa_block_begin(context, instr);
 
             wa_emit_opcode(context, WA_INSTR_jump_if_zero);
@@ -4687,12 +4697,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_br_if)
         {
-            wa_operand_slot* opd = wa_operand_stack_get_slots(scratch.arena,
-                                                              context,
-                                                              instr,
-                                                              1,
-                                                              (wa_value_type[]){ WA_TYPE_I32 },
-                                                              true);
+            wa_operand* opd = wa_operand_stack_get_operands(scratch.arena,
+                                                            context,
+                                                            instr,
+                                                            1,
+                                                            (wa_value_type[]){ WA_TYPE_I32 },
+                                                            true);
 
             wa_emit_opcode(context, WA_INSTR_jump_if_zero);
             u64 jumpOffset = context->codeLen;
@@ -4706,12 +4716,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
         }
         else if(instr->op == WA_INSTR_br_table)
         {
-            wa_operand_slot* opd = wa_operand_stack_get_slots(scratch.arena,
-                                                              context,
-                                                              instr,
-                                                              1,
-                                                              (wa_value_type[]){ WA_TYPE_I32 },
-                                                              true);
+            wa_operand* opd = wa_operand_stack_get_operands(scratch.arena,
+                                                            context,
+                                                            instr,
+                                                            1,
+                                                            (wa_value_type[]){ WA_TYPE_I32 },
+                                                            true);
 
             wa_emit_opcode(context, WA_INSTR_jump_table);
             u64 baseOffset = context->codeLen;
@@ -4779,7 +4789,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
 
             //NOTE: get callee type, and indirect index for call indirect
-            wa_operand_slot* indirectOpd = 0;
+            wa_operand* indirectOpd = 0;
             wa_func* callee = 0;
             wa_func_type* type = 0;
 
@@ -4790,12 +4800,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
             else
             {
-                indirectOpd = wa_operand_stack_get_slots(scratch.arena,
-                                                         context,
-                                                         instr,
-                                                         1,
-                                                         (wa_value_type[]){ WA_TYPE_I32 },
-                                                         true);
+                indirectOpd = wa_operand_stack_get_operands(scratch.arena,
+                                                            context,
+                                                            instr,
+                                                            1,
+                                                            (wa_value_type[]){ WA_TYPE_I32 },
+                                                            true);
 
                 type = &module->types[instr->imm[0].index];
             }
@@ -4804,12 +4814,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             //NOTE: put call args at the end of the stack
             //TODO: first check if args are already in order at the end of the frame?
 
-            wa_operand_slot* argOpds = wa_operand_stack_get_slots(scratch.arena,
-                                                                  context,
-                                                                  instr,
-                                                                  type->paramCount,
-                                                                  type->params,
-                                                                  true);
+            wa_operand* argOpds = wa_operand_stack_get_operands(scratch.arena,
+                                                                context,
+                                                                instr,
+                                                                type->paramCount,
+                                                                type->params,
+                                                                true);
 
             for(u32 argIndex = 0; argIndex < paramCount; argIndex++)
             {
@@ -4895,7 +4905,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     //NOTE: check if the local was used in the stack and if so save it to a slot
                     //      this must be done before popping the stack to avoid saving the local
                     //      to the same reg as the operand (same for local_tee below).
-                    wa_move_slot_if_used(context, localIndex);
+                    wa_move_local_if_used(context, localIndex);
                 }
                 break;
                 case WA_INSTR_local_tee:
@@ -4906,7 +4916,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
                     out[0] = func->locals[localIndex];
 
-                    wa_move_slot_if_used(context, localIndex);
+                    wa_move_local_if_used(context, localIndex);
                 }
                 break;
                 case WA_INSTR_global_get:
@@ -4983,12 +4993,12 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
 
             //NOTE: get inputs
-            wa_operand_slot* inOpds = wa_operand_stack_get_slots(scratch.arena,
-                                                                 context,
-                                                                 instr,
-                                                                 inCount,
-                                                                 in,
-                                                                 true);
+            wa_operand* inOpds = wa_operand_stack_get_operands(scratch.arena,
+                                                               context,
+                                                               instr,
+                                                               inCount,
+                                                               in,
+                                                               true);
 
             //NOTE: additional input checks
             if((instr->op >= WA_INSTR_i32_load && instr->op <= WA_INSTR_memory_grow)
@@ -5123,10 +5133,13 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         wa_func* func = &module->functions[funcIndex];
 
         wa_build_context_clear(&context);
+
         context.regCount = func->localCount;
-        //////////////////////////////////////////////////////////////////////
-        // initialize slots of locals
-        //////////////////////////////////////////////////////////////////////
+        for(u32 localIndex = 0; localIndex < func->localCount; localIndex++)
+        {
+            context.regs[localIndex].refCount = 0;
+            context.regs[localIndex].type = func->locals[localIndex];
+        }
 
         context.currentFunction = func;
 
