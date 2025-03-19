@@ -3487,18 +3487,9 @@ enum
     WA_MAX_REG = 4096,
 };
 
-typedef enum wa_operand_kind
-{
-    WA_OPERAND_NIL = 0,
-    WA_OPERAND_SLOT,
-    WA_OPERAND_UNKNOWN,
-} wa_operand_kind;
-
 typedef struct wa_operand_slot
 {
-    wa_operand_kind kind;
     u32 index;
-
     wa_instr* originInstr;
     u64 originOpd;
 } wa_operand_slot;
@@ -3513,7 +3504,6 @@ typedef struct wa_register_slot
 
 typedef struct wa_operand
 {
-    wa_operand_kind kind;
     wa_value_type type;
     u32 index;
 
@@ -3587,7 +3577,7 @@ void wa_compile_error_block_end(wa_build_context* context, wa_ast* ast, const ch
 
 bool wa_operand_is_nil(wa_operand* opd)
 {
-    return (opd->kind == WA_OPERAND_NIL);
+    return (opd->type == WA_TYPE_INVALID);
 }
 
 bool wa_block_is_nil(wa_block* block)
@@ -3666,6 +3656,11 @@ enum
     WA_MAX_SLOT_COUNT = 4096,
 };
 
+bool wa_operand_slot_is_unknown(wa_operand_slot* opd)
+{
+    return opd->index == UINT32_MAX;
+}
+
 u32 wa_allocate_register(wa_build_context* context, wa_value_type type)
 {
     u32 index = 0;
@@ -3741,7 +3736,7 @@ void wa_operand_stack_push(wa_build_context* context, wa_operand_slot opd)
     context->opdStack[context->opdStackLen] = opd;
     context->opdStackLen++;
 
-    if(opd.kind == WA_OPERAND_SLOT)
+    if(!wa_operand_slot_is_unknown(&opd))
     {
         wa_retain_register(context, opd.index);
     }
@@ -3789,7 +3784,6 @@ void wa_operand_stack_push_return_slots(wa_build_context* context, u32 maxUsedSl
         //NOTE: push the slot
         wa_operand_stack_push(context,
                               (wa_operand_slot){
-                                  .kind = WA_OPERAND_SLOT,
                                   .index = slotIndex,
                               });
     }
@@ -3798,7 +3792,6 @@ void wa_operand_stack_push_return_slots(wa_build_context* context, u32 maxUsedSl
 u32 wa_operand_stack_push_reg(wa_build_context* context, wa_value_type type, wa_instr* instr)
 {
     wa_operand_slot opd = {
-        .kind = WA_OPERAND_SLOT,
         .index = wa_allocate_register(context, type),
         .originInstr = instr,
         .originOpd = context->codeLen,
@@ -3811,7 +3804,6 @@ u32 wa_operand_stack_push_reg(wa_build_context* context, wa_value_type type, wa_
 u32 wa_operand_stack_push_local(wa_build_context* context, u32 index)
 {
     wa_operand_slot opd = {
-        .kind = WA_OPERAND_SLOT,
         .index = index,
         //        .originInstr = instr,
         //        .originOpd = context->codeLen,
@@ -3823,9 +3815,7 @@ u32 wa_operand_stack_push_local(wa_build_context* context, u32 index)
 u32 wa_operand_stack_push_unknown(wa_build_context* context)
 {
     wa_operand_slot opd = {
-        .kind = WA_OPERAND_UNKNOWN,
-        //        .originInstr = instr,
-        //        .originOpd = context->codeLen,
+        .index = UINT32_MAX,
     };
     wa_operand_stack_push(context, opd);
     return opd.index;
@@ -3850,23 +3840,21 @@ wa_operand wa_operand_stack_pop(wa_build_context* context)
     {
         context->opdStackLen--;
         wa_operand_slot* slot = &context->opdStack[context->opdStackLen];
-        opd.kind = slot->kind;
-        opd.index = slot->index;
 
-        if(slot->kind == WA_OPERAND_SLOT)
+        if(wa_operand_slot_is_unknown(slot))
         {
-            opd.type = context->regs[slot->index].type;
-            wa_release_register(context, opd.index);
+            opd.type = WA_TYPE_UNKNOWN;
         }
         else
         {
-            opd.type = WA_TYPE_UNKNOWN;
+            opd.index = slot->index;
+            opd.type = context->regs[slot->index].type;
+            wa_release_register(context, opd.index);
         }
     }
     else if(block->polymorphic)
     {
         opd = (wa_operand){
-            .kind = WA_OPERAND_UNKNOWN,
             .type = WA_TYPE_UNKNOWN,
         };
     }
@@ -3883,23 +3871,20 @@ wa_operand wa_operand_stack_lookup(wa_build_context* context, u32 index)
     if(index < context->opdStackLen - scopeBase)
     {
         wa_operand_slot* slot = &context->opdStack[context->opdStackLen - index - 1];
-        opd.kind = slot->kind;
-        opd.index = slot->index;
 
-        //TODO: remove check
-        if(slot->kind == WA_OPERAND_SLOT)
+        if(wa_operand_slot_is_unknown(slot))
         {
-            opd.type = context->regs[slot->index].type;
+            opd.type = WA_TYPE_UNKNOWN;
         }
         else
         {
-            opd.type = WA_TYPE_UNKNOWN;
+            opd.index = slot->index;
+            opd.type = context->regs[slot->index].type;
         }
     }
     else if(block->polymorphic)
     {
         opd = (wa_operand){
-            .kind = WA_OPERAND_UNKNOWN,
             .type = WA_TYPE_UNKNOWN,
         };
     }
@@ -3927,28 +3912,6 @@ void wa_operand_stack_pop_slots(wa_build_context* context, u64 count)
     }
 
     context->opdStackLen -= opdCount;
-}
-
-wa_operand_slot wa_operand_stack_top(wa_build_context* context)
-{
-    wa_operand_slot opd = { 0 };
-    u64 scopeBase = 0;
-    wa_block* block = wa_control_stack_top(context);
-    OC_ASSERT(block);
-    scopeBase = block->scopeBase;
-
-    if(context->opdStackLen > scopeBase)
-    {
-        opd = context->opdStack[context->opdStackLen - 1];
-    }
-    else if(block->polymorphic)
-    {
-        opd = (wa_operand_slot){
-            .kind = WA_OPERAND_UNKNOWN,
-        };
-    }
-
-    return (opd);
 }
 
 void wa_operand_stack_pop_scope(wa_build_context* context, wa_block* block)
@@ -4095,7 +4058,7 @@ void wa_emit_i64(wa_build_context* context, i64 val)
 bool wa_operand_slot_is_local(wa_build_context* context, wa_operand_slot* opd)
 {
     u32 localCount = context->currentFunction ? context->currentFunction->localCount : 0;
-    return (opd->kind == WA_OPERAND_SLOT && opd->index < localCount);
+    return (opd->index < localCount);
 }
 
 void wa_move_local_if_used(wa_build_context* context, u32 slotIndex)
@@ -4120,7 +4083,6 @@ void wa_move_local_if_used(wa_build_context* context, u32 slotIndex)
             {
                 wa_retain_register(context, newReg);
             }
-            opd->kind = WA_OPERAND_SLOT;
             opd->index = newReg;
 
             //NOTE: we don't need to release previous slot because it is a local
@@ -4342,7 +4304,7 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         wa_operand opd = returns[retIndex];
 
         //NOTE store value to return slot
-        if(opd.kind == WA_OPERAND_SLOT && opd.index != retIndex)
+        if(opd.index != retIndex)
         {
             ////////////////////////////////////////////////////////////////////////////////////////////////////
             //TODO: coalesce with move if used _BUT_ preserve the stack for futher returns in other branches
@@ -4366,7 +4328,6 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
 
                     wa_release_register(context, retIndex);
 
-                    r->kind = WA_OPERAND_SLOT;
                     r->index = newReg;
                 }
             }

@@ -67,6 +67,8 @@ typedef enum wa_status
 
 typedef enum wa_value_type
 {
+    WA_TYPE_INVALID = 0,
+
     WA_TYPE_I32 = 0x7f,
     WA_TYPE_I64 = 0x7e,
     WA_TYPE_F32 = 0x7d,
