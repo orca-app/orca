@@ -623,7 +623,7 @@ typedef struct wa_func
     u32 maxRegCount;
 } wa_func;
 
-wa_func_type wa_function_get_type(oc_arena* arena, wa_instance* instance, wa_func* func)
+wa_func_type wa_func_get_type(oc_arena* arena, wa_instance* instance, wa_func* func)
 {
     wa_func_type* type = func->type;
 
@@ -3704,6 +3704,33 @@ void wa_operand_stack_push(wa_build_context* context, wa_operand_slot s)
     context->opdStackLen++;
 }
 
+void wa_operand_stack_push_slot_at_index(wa_build_context* context, u32 slotIndex, wa_value_type type)
+{
+    //NOTE: if the slot wa want to push was in the free list, we remove it
+    bool shift = false;
+    for(u64 freeRegIndex = 0; freeRegIndex < context->freeRegLen; freeRegIndex++)
+    {
+        if(!shift && context->freeRegs[freeRegIndex] == slotIndex)
+        {
+            context->freeRegLen--;
+            shift = true;
+        }
+
+        if(shift)
+        {
+            context->freeRegs[freeRegIndex] = context->freeRegs[freeRegIndex + 1];
+        }
+    }
+
+    //NOTE: push the slot
+    wa_operand_stack_push(context,
+                          (wa_operand_slot){
+                              .kind = WA_OPERAND_SLOT_REG,
+                              .type = type,
+                              .index = slotIndex,
+                          });
+}
+
 u32 wa_operand_stack_push_reg(wa_build_context* context, wa_value_type type, wa_instr* instr)
 {
     wa_operand_slot s = {
@@ -3716,6 +3743,39 @@ u32 wa_operand_stack_push_reg(wa_build_context* context, wa_value_type type, wa_
     wa_operand_stack_push(context, s);
 
     return s.index;
+}
+
+u32 wa_operand_stack_push_local(wa_build_context* context, u32 index)
+{
+    wa_operand_slot s = {
+        .kind = WA_OPERAND_SLOT_LOCAL,
+        .type = context->currentFunction->locals[index],
+        .index = index,
+        //        .originInstr = instr,
+        //        .originOpd = context->codeLen,
+    };
+    wa_operand_stack_push(context, s);
+    return s.index;
+}
+
+u32 wa_operand_stack_push_unknown(wa_build_context* context)
+{
+    wa_operand_slot s = {
+        .kind = WA_OPERAND_SLOT_LOCAL,
+        .type = WA_TYPE_UNKNOWN,
+        .index = 0,
+        //        .originInstr = instr,
+        //        .originOpd = context->codeLen,
+    };
+    wa_operand_stack_push(context, s);
+    return s.index;
+}
+
+void wa_operand_stack_push_copy(wa_build_context* context, u32 index)
+{
+    wa_operand_slot slotCopy = context->opdStack[index];
+    slotCopy.count++;
+    wa_operand_stack_push(context, slotCopy);
 }
 
 wa_operand_slot wa_operand_stack_pop(wa_build_context* context)
@@ -4029,18 +4089,12 @@ void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
             //      push fake ones with the correct type for that new block.
             //      This means this block is either unreachable, or will already have
             //      triggered a validation error.
-            wa_operand_stack_push(context,
-                                  (wa_operand_slot){
-                                      .kind = WA_OPERAND_SLOT_REG,
-                                      .type = type->params[inIndex],
-                                  });
+            wa_operand_stack_push_unknown(context);
         }
         else
         {
             //NOTE copy block inputs on top of the stack
-            wa_operand_slot slotCopy = context->opdStack[paramStart + inIndex];
-            slotCopy.count++;
-            wa_operand_stack_push(context, slotCopy);
+            wa_operand_stack_push_copy(context, paramStart + inIndex);
         }
     }
 }
@@ -4725,30 +4779,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
             {
                 u64 returnSlotIndex = maxUsedSlot + 1 + retIndex;
-
-                //NOTE: if a return slot was in the free list, we remove it so that it can't be wrongly allocated
-                //      after the return
-                bool shift = false;
-                for(u64 freeRegIndex = 0; freeRegIndex < context->freeRegLen; freeRegIndex++)
-                {
-                    if(!shift && context->freeRegs[freeRegIndex] == returnSlotIndex)
-                    {
-                        context->freeRegLen--;
-                        shift = true;
-                    }
-
-                    if(shift)
-                    {
-                        context->freeRegs[freeRegIndex] = context->freeRegs[freeRegIndex + 1];
-                    }
-                }
-
-                wa_operand_stack_push(context,
-                                      (wa_operand_slot){
-                                          .kind = WA_OPERAND_SLOT_REG,
-                                          .type = type->returns[retIndex],
-                                          .index = returnSlotIndex,
-                                      });
+                wa_operand_stack_push_slot_at_index(context, returnSlotIndex, type->returns[retIndex]);
             }
         }
         else if(instr->op == WA_INSTR_return)
@@ -4954,15 +4985,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             {
                 u32 localIndex = instr->imm[0].index;
 
-                wa_operand_stack_push(
-                    context,
-                    (wa_operand_slot){
-                        .kind = WA_OPERAND_SLOT_LOCAL,
-                        .type = func->locals[localIndex],
-                        .index = localIndex,
-                        .originInstr = instr,
-                        .originOpd = context->codeLen,
-                    });
+                wa_operand_stack_push_local(context, localIndex);
 
                 instr->codeIndex = context->codeLen;
             }
@@ -4980,15 +5003,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
                 if(instr->op == WA_INSTR_local_tee)
                 {
-                    wa_operand_stack_push(
-                        context,
-                        (wa_operand_slot){
-                            .kind = WA_OPERAND_SLOT_LOCAL,
-                            .type = func->locals[localIndex],
-                            .index = localIndex,
-                            .originInstr = instr,
-                            .originOpd = context->codeLen,
-                        });
+                    wa_operand_stack_push_local(context, localIndex);
                 }
             }
             else if(instr->op == WA_INSTR_global_get)

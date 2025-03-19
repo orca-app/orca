@@ -1,6 +1,7 @@
 
 #include "warm_test.c"
-#include "warm.c"
+//#include "warm.c"
+#include "warm/warm_adapter.c"
 
 int main(int argc, char** argv)
 {
@@ -34,7 +35,7 @@ int main(int argc, char** argv)
 
     wa_module* module = wa_module_create(&arena, contents);
 
-    wa_ast_print(module->root, contents);
+    wa_ast_print(module, module->root, contents);
     wa_print_code(module);
 
     if(wa_module_has_errors(module))
@@ -46,7 +47,7 @@ int main(int argc, char** argv)
     wa_instance* instance = wa_instance_create(&arena, module, &(wa_instance_options){});
     if(instance->status != WA_OK)
     {
-        oc_log_error("%s", wa_status_strings[instance->status]);
+        oc_log_error("%.*s", oc_str8_ip(wa_status_string(instance->status)));
         exit(-1);
     }
     else
@@ -97,10 +98,12 @@ int main(int argc, char** argv)
             argCount++;
         }
 
+        wa_interpreter* interpreter = wa_interpreter_create(&arena);
+
         u32 retCount = 1;
         wa_value returns[32];
 
-        wa_instance_invoke(instance, func, argCount, args, retCount, returns);
+        wa_interpreter_invoke(interpreter, instance, func, argCount, args, retCount, returns);
 
         printf("results: ");
         for(u32 retIndex = 0; retIndex < retCount; retIndex++)
@@ -108,6 +111,8 @@ int main(int argc, char** argv)
             printf("%lli ", returns[retIndex].valI64);
         }
         printf("\n");
+
+        wa_interpreter_destroy(interpreter);
     }
     return (0);
 }

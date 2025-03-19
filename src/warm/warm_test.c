@@ -1,4 +1,8 @@
+
 #include "warm.h"
+#include "wasm/wasm.h"
+#include "wasm/wasm.c"
+
 //-------------------------------------------------------------------------
 // test
 //-------------------------------------------------------------------------
@@ -294,8 +298,10 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
     }
 
     u32 argCount = args->childCount;
-    wa_func_type* type = wa_function_get_type(func);
-    OC_ASSERT(argCount == type->paramCount);
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    wa_func_type type = wa_func_get_type(scratch.arena, instance, func);
+    OC_ASSERT(argCount == type.paramCount);
 
     wa_value* argVals = oc_arena_push_array(env->arena, wa_value, argCount);
 
@@ -307,13 +313,19 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
         argIndex++;
     }
 
+    wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
+
     wa_test_result res = { 0 };
 
-    res.count = type->returnCount;
+    res.count = type.returnCount;
     res.values = oc_arena_push_array(env->arena, wa_value, res.count);
 
-    res.trap = wa_instance_invoke(instance, func, argCount, argVals, res.count, res.values);
+    res.trap = wa_interpreter_invoke(interpreter, instance, func, argCount, argVals, res.count, res.values);
     res.status = (res.trap == WA_OK) ? WA_TEST_PASS : WA_TEST_FAIL;
+
+    wa_interpreter_destroy(interpreter);
+
+    oc_scratch_end(scratch);
     return res;
 }
 
@@ -446,31 +458,31 @@ wa_instance* wa_test_get_instance(wa_test_env* env, json_node* action)
     return (instance);
 }
 
-void test_print(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_i32(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print_i32(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_i64(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print_i64(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_f32(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print_f32(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_f64(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print_f64(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_i32_f32(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print_i32_f32(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
-void test_print_f64_f64(wa_instance* instance, wa_value* args, wa_value* rets, void* user)
+void test_print_f64_f64(wa_interpreter* interpreter, wa_value* args, wa_value* rets, void* user)
 {
 }
 
@@ -494,127 +506,152 @@ wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, 
     packages[0] = (wa_import_package){
         .name = OC_STR8("spectest"),
         .bindingCount = 13,
-        .bindings = (wa_import_binding[]){
-            {
-                .kind = WA_BINDING_HOST_MEMORY,
-                .name = OC_STR8("memory"),
-                .hostMemory = &env->testspecMemory,
-            },
-            {
-                .kind = WA_BINDING_HOST_TABLE,
-                .name = OC_STR8("table"),
-                .hostTable = &env->testspecTable,
-            },
-            {
-                .kind = WA_BINDING_HOST_GLOBAL,
-                .name = OC_STR8("global_i32"),
-                .hostGlobal = &env->testspecGlobal_i32,
-            },
-            {
-                .kind = WA_BINDING_HOST_GLOBAL,
-                .name = OC_STR8("global_i64"),
-                .hostGlobal = &env->testspecGlobal_i64,
-            },
-            {
-                .kind = WA_BINDING_HOST_GLOBAL,
-                .name = OC_STR8("global_f32"),
-                .hostGlobal = &env->testspecGlobal_f32,
-            },
-            {
-                .kind = WA_BINDING_HOST_GLOBAL,
-                .name = OC_STR8("global_f64"),
-                .hostGlobal = &env->testspecGlobal_f64,
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print"),
-                .hostFunction = {
-                    .type = { 0 },
-                    .proc = test_print,
-                },
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print_i32"),
-                .hostFunction = {
-                    .type = {
-                        .paramCount = 1,
-                        .params = (wa_value_type[]){
-                            WA_TYPE_I32,
-                        },
-                    },
-                    .proc = test_print_i32,
-                },
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print_i64"),
-                .hostFunction = {
-                    .type = {
-                        .paramCount = 1,
-                        .params = (wa_value_type[]){
-                            WA_TYPE_I64,
-                        },
-                    },
-                    .proc = test_print_i64,
-                },
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print_f32"),
-                .hostFunction = {
-                    .type = {
-                        .paramCount = 1,
-                        .params = (wa_value_type[]){
-                            WA_TYPE_F32,
-                        },
-                    },
-                    .proc = test_print_f32,
-                },
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print_f64"),
-                .hostFunction = {
-                    .type = {
-                        .paramCount = 1,
-                        .params = (wa_value_type[]){
-                            WA_TYPE_F64,
-                        },
-                    },
-                    .proc = test_print_f64,
-                },
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print_i32_f32"),
-                .hostFunction = {
-                    .type = {
-                        .paramCount = 2,
-                        .params = (wa_value_type[]){
-                            WA_TYPE_I32,
-                            WA_TYPE_F32,
-                        },
-                    },
-                    .proc = test_print_i32_f32,
-                },
-            },
-            {
-                .kind = WA_BINDING_HOST_FUNCTION,
-                .name = OC_STR8("print_f64_f64"),
-                .hostFunction = {
-                    .type = {
-                        .paramCount = 2,
-                        .params = (wa_value_type[]){
-                            WA_TYPE_F64,
-                            WA_TYPE_F64,
-                        },
-                    },
-                    .proc = test_print_f64_f64,
-                },
-            },
-        },
     };
+
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_MEMORY,
+                                       .name = OC_STR8("memory"),
+                                       .hostMemory = &env->testspecMemory,
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_TABLE,
+                                       .name = OC_STR8("table"),
+                                       .hostTable = &env->testspecTable,
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_GLOBAL,
+                                       .name = OC_STR8("global_i32"),
+                                       .hostGlobal = &env->testspecGlobal_i32,
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_GLOBAL,
+                                       .name = OC_STR8("global_i64"),
+                                       .hostGlobal = &env->testspecGlobal_i64,
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_GLOBAL,
+                                       .name = OC_STR8("global_f32"),
+                                       .hostGlobal = &env->testspecGlobal_f32,
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_GLOBAL,
+                                       .name = OC_STR8("global_f64"),
+                                       .hostGlobal = &env->testspecGlobal_f64,
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print"),
+                                       .hostFunction = {
+                                           .type = { 0 },
+                                           .proc = test_print,
+                                       },
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print_i32"),
+                                       .hostFunction = {
+                                           .type = {
+                                               .paramCount = 1,
+                                               .params = (wa_value_type[]){
+                                                   WA_TYPE_I32,
+                                               },
+                                           },
+                                           .proc = test_print_i32,
+                                       },
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print_i64"),
+                                       .hostFunction = {
+                                           .type = {
+                                               .paramCount = 1,
+                                               .params = (wa_value_type[]){
+                                                   WA_TYPE_I64,
+                                               },
+                                           },
+                                           .proc = test_print_i64,
+                                       },
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print_f32"),
+                                       .hostFunction = {
+                                           .type = {
+                                               .paramCount = 1,
+                                               .params = (wa_value_type[]){
+                                                   WA_TYPE_F32,
+                                               },
+                                           },
+                                           .proc = test_print_f32,
+                                       },
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print_f64"),
+                                       .hostFunction = {
+                                           .type = {
+                                               .paramCount = 1,
+                                               .params = (wa_value_type[]){
+                                                   WA_TYPE_F64,
+                                               },
+                                           },
+                                           .proc = test_print_f64,
+                                       },
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print_i32_f32"),
+                                       .hostFunction = {
+                                           .type = {
+                                               .paramCount = 2,
+                                               .params = (wa_value_type[]){
+                                                   WA_TYPE_I32,
+                                                   WA_TYPE_F32,
+                                               },
+                                           },
+                                           .proc = test_print_i32_f32,
+                                       },
+                                   });
+    wa_import_package_push_binding(env->arena,
+                                   &packages[0],
+                                   &(wa_import_binding){
+                                       .kind = WA_BINDING_HOST_FUNCTION,
+                                       .name = OC_STR8("print_f64_f64"),
+                                       .hostFunction = {
+                                           .type = {
+                                               .paramCount = 2,
+                                               .params = (wa_value_type[]){
+                                                   WA_TYPE_F64,
+                                                   WA_TYPE_F64,
+                                               },
+                                           },
+                                           .proc = test_print_f64_f64,
+                                       },
+                                   });
 
     wa_instance_options options = {
         .packageCount = packageCount,
@@ -1149,6 +1186,7 @@ int test_main(int argc, char** argv)
         while((entry = readdir(dir)) != NULL)
         {
             oc_arena_clear(env.arena);
+
             env.instances = (oc_list){ 0 };
             env.passed = 0;
             env.skipped = 0;
