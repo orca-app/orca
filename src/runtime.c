@@ -720,7 +720,7 @@ i32 vm_runloop(void* user)
             wa_func* handle = wa_instance_find_function(app->env.instance, desc->name);
             if(handle)
             {
-                wa_func_type info = wa_function_get_type(scratch.arena, app->env.instance, handle);
+                wa_func_type info = wa_func_get_type(scratch.arena, app->env.instance, handle);
 
                 bool checked = false;
 
@@ -1907,7 +1907,8 @@ void debugger_ui_update(oc_runtime* app)
                                                         break;
 
                                                     default:
-                                                        s = oc_str8_pushf(scratch.arena, "0x%08llx", opd->valU64);
+                                                        //TODO: defaulting to local index for now, review that after completing wasm tables
+                                                        s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
                                                         break;
                                                 }
 
@@ -2133,15 +2134,86 @@ void debugger_ui_update(oc_runtime* app)
                     oc_ui_style_set_f32(OC_UI_SPACING, 5);
 
                     wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                    u32 funcIndex = execFunc - app->env.interpreter->instance->functions;
+                    u32 codeIndex = app->env.interpreter->pc - execFunc->code;
 
                     for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
                     {
                         oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
-                        oc_str8 regText = oc_str8_pushf(scratch.arena,
+                        oc_str8 regText = { 0 };
+
+                        wa_register_map* map = &app->env.module->registerMaps[funcIndex][regIndex];
+
+                        wa_value_type type = WA_TYPE_UNKNOWN;
+                        for(u32 rangeIndex = 0; rangeIndex < map->count; rangeIndex++)
+                        {
+                            wa_register_range* range = &map->ranges[rangeIndex];
+                            if(codeIndex >= range->start && codeIndex <= range->end)
+                            {
+                                type = range->type;
+                                break;
+                            }
+                        }
+
+                        switch(type)
+                        {
+                            case WA_TYPE_I32:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu (i32) = %i",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valI32);
+                            }
+                            break;
+                            case WA_TYPE_I64:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu (i64) = %lli",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valI64);
+                            }
+                            break;
+                            case WA_TYPE_F32:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu (f32) = %f",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valF32);
+                            }
+                            break;
+                            case WA_TYPE_F64:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu (f64) = %f",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valF64);
+                            }
+                            break;
+                            case WA_TYPE_FUNC_REF:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu (funcref) = 0x%016llx",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valI64);
+                            }
+                            break;
+                            case WA_TYPE_EXTERN_REF:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
+                                                        "r%llu (externref) = 0x%016llx",
+                                                        regIndex,
+                                                        app->env.interpreter->locals[regIndex].valI64);
+                            }
+                            break;
+                            default:
+                            {
+                                regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu = 0x%016llx",
                                                         regIndex,
                                                         app->env.interpreter->locals[regIndex].valI64);
-
+                            }
+                            break;
+                        }
                         oc_ui_label_str8(regId, regText);
                     }
                 }

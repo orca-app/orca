@@ -863,6 +863,19 @@ typedef struct wa_wasm_to_line_entry
     wa_line_loc loc;
 } wa_wasm_to_line_entry;
 
+typedef struct wa_register_range
+{
+    u64 start;
+    u64 end;
+    wa_value_type type;
+} wa_register_range;
+
+typedef struct wa_register_map
+{
+    u32 count;
+    wa_register_range* ranges;
+} wa_register_map;
+
 typedef struct wa_module
 {
     oc_arena* arena;
@@ -940,6 +953,8 @@ typedef struct wa_module
 
     u64 wasmToLineCount;
     wa_wasm_to_line_entry* wasmToLine;
+
+    wa_register_map** registerMaps;
 
 } wa_module;
 
@@ -3500,6 +3515,7 @@ typedef struct wa_register_slot
     i32 nextFree;
     wa_value_type type;
 
+    u64 startInstr;
 } wa_register_slot;
 
 typedef struct wa_operand
@@ -3536,7 +3552,28 @@ typedef struct wa_build_context
     u64 codeLen;
     wa_code* code;
 
+    u32 registerMapCounts[WA_MAX_REG];
+    oc_list registerMap[WA_MAX_REG];
+
 } wa_build_context;
+
+typedef struct wa_register_range_elt
+{
+    oc_list_elt listElt;
+    wa_register_range range;
+} wa_register_range_elt;
+
+void wa_register_mapping_push(wa_build_context* context, u32 regIndex, u64 start, u64 end, wa_value_type type)
+{
+    wa_register_range_elt* elt = oc_arena_push_type(&context->checkArena, wa_register_range_elt);
+    elt->range = (wa_register_range){
+        .start = start,
+        .end = end,
+        .type = type,
+    };
+    oc_list_push_back(&context->registerMap[regIndex], &elt->listElt);
+    context->registerMapCounts[regIndex]++;
+}
 
 void wa_compile_error(wa_build_context* context, wa_ast* ast, const char* fmt, ...)
 {
@@ -3688,6 +3725,7 @@ u32 wa_allocate_register(wa_build_context* context, wa_value_type type)
     {
         reg->type = type;
         reg->refCount = 0;
+        reg->startInstr = context->codeLen;
         index = reg - context->regs;
     }
     return (index);
@@ -3709,13 +3747,13 @@ void wa_release_register(wa_build_context* context, u32 index)
     reg->refCount--;
 
     u32 localCount = context->currentFunction ? context->currentFunction->localCount : 0;
-    if(index >= localCount)
+    if(index >= localCount && reg->refCount == 0)
     {
-        if(reg->refCount == 0)
-        {
-            reg->nextFree = context->firstFreeReg;
-            context->firstFreeReg = index;
-        }
+        //NOTE range is inclusive, so it starts right after the first instruction, hence the +1
+        wa_register_mapping_push(context, index, reg->startInstr + 1, context->codeLen, reg->type);
+
+        reg->nextFree = context->firstFreeReg;
+        context->firstFreeReg = index;
     }
 }
 
@@ -4044,36 +4082,44 @@ bool wa_operand_slot_is_local(wa_build_context* context, wa_operand_slot* opd)
     return (opd->index < localCount);
 }
 
-void wa_move_register_if_used_in_operands(wa_build_context* context,
-                                          u32 slotIndex,
-                                          u32 opdCount,
-                                          wa_operand* operands,
-                                          bool rewriteStack)
+void wa_move_register_if_used_in_stack_range(wa_build_context* context,
+                                             u32 slotIndex,
+                                             u32 opdCount)
 {
+    OC_DEBUG_ASSERT(slotIndex < WA_MAX_REG);
+    OC_DEBUG_ASSERT(opdCount < WA_TYPE_STACK_MAX_LEN);
+
+    wa_block* block = wa_control_stack_top(context);
+    u32 scopeBase = block->scopeBase;
+
     u32 newReg = UINT32_MAX;
     for(u32 opdIndex = 0; opdIndex < opdCount; opdIndex++)
     {
-        wa_operand* opd = &operands[opdIndex];
+        //WARN: we compute these instead of directly computing stackIndex,
+        //      because stackIndex could underflow if opdCount is bigger than
+        //      the stack
+        u32 indexFromStackTop = opdCount - 1 - opdIndex;
+        u32 scopeLen = context->opdStackLen - scopeBase;
 
-        if(opd->index == slotIndex)
+        if(indexFromStackTop < scopeLen)
         {
-            if(newReg == UINT32_MAX)
+            u32 stackIndex = context->opdStackLen - opdCount + opdIndex;
+            wa_operand_slot* opd = &context->opdStack[stackIndex];
+
+            if(opd->index == slotIndex)
             {
-                newReg = wa_allocate_register(context, opd->type);
-            }
-            else
-            {
+                if(newReg == UINT32_MAX)
+                {
+                    OC_DEBUG_ASSERT(opd->index >= 0 && opd->index < context->regCount);
+                    newReg = wa_allocate_register(context, context->regs[opd->index].type);
+                }
+
                 wa_retain_register(context, newReg);
-            }
 
-            //TODO: move that below with count
-            wa_release_register(context, slotIndex);
+                //TODO: move that below with count
+                wa_release_register(context, slotIndex);
 
-            opd->index = newReg;
-
-            if(rewriteStack)
-            {
-                context->opdStack[context->opdStackLen - opdCount + opdIndex].index = newReg;
+                opd->index = newReg;
             }
         }
     }
@@ -4087,61 +4133,10 @@ void wa_move_register_if_used_in_operands(wa_build_context* context,
 
 void wa_move_local_if_used(wa_build_context* context, u32 slotIndex)
 {
-    OC_DEBUG_ASSERT(slotIndex < context->currentFunction.localCount);
-
+    OC_DEBUG_ASSERT(slotIndex < context->currentFunction->localCount);
     wa_block* block = wa_control_stack_top(context);
-    u32 opdCount = context->opdStackLen - block->scopeBase;
-
-    oc_arena_scope scratch = oc_scratch_begin();
-    wa_operand* operands = oc_arena_push_array(scratch.arena, wa_operand, opdCount);
-
-    for(u32 i = 0; i < opdCount; i++)
-    {
-        u32 opdIndex = opdCount - 1 - i;
-        operands[opdIndex] = wa_operand_stack_lookup(context, i);
-    }
-
-    wa_move_register_if_used_in_operands(context, slotIndex, opdCount, operands, true);
-
-    oc_scratch_end(scratch);
+    wa_move_register_if_used_in_stack_range(context, slotIndex, context->opdStackLen - block->scopeBase);
 }
-
-/*
-void wa_move_local_if_used(wa_build_context* context, u32 slotIndex)
-{
-    OC_DEBUG_ASSERT(slotIndex < context->currentFunction.localCount);
-
-    wa_block* block = wa_control_stack_top(context);
-    u32 newReg = UINT32_MAX;
-    u64 count = 0;
-
-    //NOTE: we check only slots in current scope. This means we never clobber reserved input/return slots
-    for(u32 stackIndex = block->scopeBase; stackIndex < context->opdStackLen; stackIndex++)
-    {
-        wa_operand_slot* opd = &context->opdStack[stackIndex];
-        if(opd->index == slotIndex)
-        {
-            if(newReg == UINT32_MAX)
-            {
-                newReg = wa_allocate_register(context, context->regs[slotIndex].type);
-            }
-            else
-            {
-                wa_retain_register(context, newReg);
-            }
-            opd->index = newReg;
-
-            //NOTE: we don't need to release previous slot because it is a local
-        }
-    }
-    if(newReg != UINT32_MAX)
-    {
-        wa_emit_opcode(context, WA_INSTR_move);
-        wa_emit_index(context, slotIndex);
-        wa_emit_index(context, newReg);
-    }
-}
-*/
 
 void wa_move_locals_to_registers(wa_build_context* context)
 {
@@ -4334,63 +4329,28 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
 
 int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
 {
-    /////////////////////////////////////////////////////////////////
-    //TODO: return may be used in branches of branch table, so it must
-    //      _NOT_ change the stack...
-    /////////////////////////////////////////////////////////////////
     oc_arena_scope scratch = oc_scratch_begin();
-    wa_operand* returns = wa_operand_stack_get_operands(scratch.arena,
-                                                        context,
-                                                        instr,
-                                                        type->returnCount,
-                                                        type->returns,
-                                                        false);
 
+    //NOTE: typecheck the return operands, but don't use the result because we will potentally
+    //      rewrite their register slots below
+    wa_operand_stack_get_operands(scratch.arena,
+                                  context,
+                                  instr,
+                                  type->returnCount,
+                                  type->returns,
+                                  false);
+
+    //NOTE: move return operands to the beginning of the stack frame
     for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
     {
-        wa_operand opd = returns[retIndex];
-
-        //NOTE store value to return slot
+        wa_operand opd = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
         if(opd.index != retIndex)
         {
             //NOTE:
-            //  if operand isn't already stored at retIndex, we will move it there
-            //  so we need to move register retIndex to a new reg if it's used in other return operands
+            //  if return operand isn't already stored at retIndex, we will move it there, so we need
+            //  to save register retIndex to a new reg first if it's used in other return operands
+            wa_move_register_if_used_in_stack_range(context, retIndex, type->returnCount - retIndex);
 
-            wa_move_register_if_used_in_operands(context, retIndex, type->returnCount, returns, false);
-            /*
-            ////////////////////////////////////////////////////////////////////////////////////////////////////
-            //TODO: coalesce with move if used _BUT_ preserve the stack for futher returns in other branches
-            ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-            u32 newReg = UINT32_MAX;
-            u32 count = 0;
-            for(u32 i = 0; i < type->returnCount; i++)
-            {
-                wa_operand* r = &returns[i];
-                if(r->index == retIndex)
-                {
-                    if(newReg == UINT32_MAX)
-                    {
-                        newReg = wa_allocate_register(context, r->type);
-                    }
-                    else
-                    {
-                        wa_retain_register(context, newReg);
-                    }
-
-                    wa_release_register(context, retIndex);
-
-                    r->index = newReg;
-                }
-            }
-            if(newReg != UINT32_MAX)
-            {
-                wa_emit_opcode(context, WA_INSTR_move);
-                wa_emit_index(context, retIndex);
-                wa_emit_index(context, newReg);
-            }
-*/
             wa_emit_opcode(context, WA_INSTR_move);
             wa_emit_index(context, opd.index);
             wa_emit_index(context, retIndex);
@@ -4456,7 +4416,9 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
 
 void wa_build_context_clear(wa_build_context* context)
 {
+    //TODO: see why we can't just memset all (ie can't we just reconstruct the arenas)
     oc_arena_clear(&context->checkArena);
+
     context->codeLen = 0;
 
     context->opdStackLen = 0;
@@ -4469,6 +4431,9 @@ void wa_build_context_clear(wa_build_context* context)
     context->firstFreeReg = -1;
 
     context->currentFunction = 0;
+
+    memset(context->registerMap, 0, sizeof(oc_list) * WA_MAX_REG);
+    memset(context->registerMapCounts, 0, sizeof(u32) * WA_MAX_REG);
 }
 
 bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* instr, const wa_instr_info* info)
@@ -5142,6 +5107,9 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
+    module->registerMaps = oc_arena_push_array(module->arena, wa_register_map*, module->functionCount);
+    memset(module->registerMaps, 0, sizeof(wa_register_map) * module->functionCount);
+
     wa_build_context context = {
         .arena = arena,
         .module = module,
@@ -5189,6 +5157,26 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
                     codeIndex = instr->codeIndex;
                 }
                 wa_wasm_to_warm_loc_push(module, funcIndex, codeIndex, instr);
+            }
+        }
+
+        //NOTE: add register mappings for locals
+        for(u32 localIndex = 0; localIndex < func->localCount; localIndex++)
+        {
+            wa_register_mapping_push(&context, localIndex, 0, context.codeLen, func->locals[localIndex]);
+        }
+
+        //NOTE: collect register mappings
+        module->registerMaps[funcIndex] = oc_arena_push_array(module->arena, wa_register_map, func->maxRegCount);
+        for(u32 regIndex = 0; regIndex < func->maxRegCount; regIndex++)
+        {
+            wa_register_map* map = &module->registerMaps[funcIndex][regIndex];
+            map->count = context.registerMapCounts[regIndex];
+            map->ranges = oc_arena_push_array(module->arena, wa_register_range, map->count);
+
+            oc_list_for_indexed(context.registerMap[regIndex], it, wa_register_range_elt, listElt)
+            {
+                map->ranges[it.index] = it.elt->range;
             }
         }
     }
