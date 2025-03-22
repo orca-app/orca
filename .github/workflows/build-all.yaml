@@ -30,7 +30,8 @@ jobs:
   determine-version:
     runs-on: ubuntu-latest
     steps:
-      - name: Determine the build version
+
+      - name: determine-version
         run: |
           if [ "${{ inputs.version }}" != '' ] ; then
             echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
@@ -69,12 +70,12 @@ jobs:
       - name: Build
         shell: cmd
         run: |
-            zig build -Doptimize=ReleaseFast -Dversion=${{ steps.determine-version.outputs.version }}
+            zig build -Doptimize=ReleaseFast -Dversion=${{ jobs.determine-version.steps.determine-version.outputs.version }}
 
       - name: Package
         shell: cmd
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ steps.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ jobs.determine-version.steps.determine-version.outputs.version }}
           tar --format=ustar -cvzf orca-windows.tar.gz orca
 		tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
 
@@ -118,11 +119,11 @@ jobs:
 
       - name: Build
         run: |
-          zig build -Doptimize=ReleaseFast -Dversion=${{ steps.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dversion=${{ jobs.determine-version.steps.determine-version.outputs.version }}
 
       - name: Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ steps.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ jobs.determine-version.steps.determine-version.outputs.version }}
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
           tar --format=ustar -czf dev-dependencies-mac-x64.tar.gz dev-dependencies
 
@@ -166,11 +167,11 @@ jobs:
 
       - name: Build
         run: |
-          zig build -Doptimize=ReleaseFast -Dversion=${{ steps.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dversion=${{ jobs.determine-version.steps.determine-version.outputs.version }}
 
       - name: Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ steps.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ jobs.determine-version.steps.determine-version.outputs.version }}
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
           tar --format=ustar -czf dev-dependencies-mac-arm64.tar.gz dev-dependencies
 
