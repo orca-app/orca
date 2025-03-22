@@ -36,9 +36,9 @@ jobs:
       - name: determine-version
         run: |
           if [ "${{ inputs.version }}" != '' ] ; then
-            echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
-          else
             echo "version='${{ inputs.version }}'" >> "$GITHUB_OUTPUT"
+          else
+            echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
           fi
 
   build-win:
