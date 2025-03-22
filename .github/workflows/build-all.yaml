@@ -69,12 +69,7 @@ jobs:
         run: |
           xcopy artifact\angle-windows-x64 build\angle.out\ /s /y
 
-      - name: Build
-        shell: cmd
-        run: |
-            zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }}
-
-      - name: Package
+      - name: Build and Package
         shell: cmd
         run: |
           zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }}
@@ -119,11 +114,7 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-x64 build/angle.out
 
-      - name: Build
-        run: |
-          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }}
-
-      - name: Package
+      - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }}
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
@@ -167,11 +158,7 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-arm64 build/angle.out
 
-      - name: Build
-        run: |
-          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }}
-
-      - name: Package
+      - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }}
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
