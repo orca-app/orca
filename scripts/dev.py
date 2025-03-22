@@ -639,7 +639,7 @@ def build_runtime_mac(release, wasm_backend):
         defines += ["-DOC_WASM_BACKEND_WASM3=1", "-DOC_WASM_BACKEND_BYTEBOX=0"]
         libs += ["-lwasm3"]
 
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address"]
     flags = [
         *debug_flags,
         "--std=c11",
@@ -824,8 +824,11 @@ def build_platform_layer_lib_mac(release):
 
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
-    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address"]
     ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
+    if not release:
+        ldflags.extend(["-fsanitize=address"])
+
     includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 
     # compile platform layer. We use one compilation unit for all C code, and one
@@ -846,9 +849,10 @@ def build_platform_layer_lib_mac(release):
     ], check=True)
 
     # build dynamic library
+        # Note: we must use clang instead of ld for ubsan to link the correct runtime libraries
     subprocess.run([
-        "ld",
-        *ldflags, "-dylib",
+        "clang",
+        *ldflags, "-dynamiclib",
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
