@@ -24,7 +24,7 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
     for(int i = 0; i < (len / 32); i++)
     {
         uint64_t b[4];
-        memcpy(b, key + 4 * i, sizeof(b));
+        memcpy(b, (const char*)key + 4 * i, sizeof(b));
 
         for(int j = 0; j < 4; j++)
             b[j] = b[j] * p2 + s[j];
@@ -46,7 +46,7 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
     s64 += len;
 
     // up to 31 bytes remain, process 0-3 8 byte blocks
-    uint8_t* tail = (uint8_t*)(key + (len / 32) * 32);
+    uint8_t* tail = (uint8_t*)((const char*)key + (len / 32) * 32);
     for(int i = 0; i < (len & 31) / 8; i++, tail += 8)
     {
         uint64_t b;
