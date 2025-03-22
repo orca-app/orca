@@ -69,16 +69,11 @@ jobs:
         run: |
           xcopy artifact\angle-windows-x64 build\angle.out\ /s /y
 
-      - name: Build
+      - name: Build and Package
         shell: cmd
         run: |
-            zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }}
-
-      - name: Package
-        shell: cmd
-        run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }}
-          tar --format=ustar -cvzf orca-windows.tar.gz orca
+            zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca
+            tar --format=ustar -cvzf orca-windows.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
@@ -113,13 +108,9 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-x64 build/angle.out
 
-      - name: Build
+      - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }}
-
-      - name: Package
-        run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
@@ -155,13 +146,9 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-arm64 build/angle.out
 
-      - name: Build
+      - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }}
-
-      - name: Package
-        run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
