@@ -22,7 +22,7 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
 
     // bulk work: process all 32 byte blocks
     uint64_t* k32 = (uint64_t*)key;
-    for(int i = 0; i < (len / 32); i += 4)
+    for(int i = 0; i < (len / 32) * 4; i += 4)
     {
         uint64_t b[4] = { k32[i + 0], k32[i + 1], k32[i + 2], k32[i + 3] };
         for(int j = 0; j < 4; j++)
@@ -33,7 +33,7 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
 
     // mix 32-byte state down to 8-byte state, initalize to value for short keys
     uint64_t s64 = (s[2] + p5);
-    if(len > 32)
+    if(len >= 32)
     {
         s64 = ((s[0] << 1) | (s[0] >> 63)) + ((s[1] << 7) | (s[1] >> 57)) + ((s[2] << 12) | (s[2] >> 52)) + ((s[3] << 18) | (s[3] >> 46));
         for(int i = 0; i < 4; i++)
