@@ -639,7 +639,7 @@ def build_runtime_mac(release, wasm_backend):
         defines += ["-DOC_WASM_BACKEND_WASM3=1", "-DOC_WASM_BACKEND_BYTEBOX=0"]
         libs += ["-lwasm3"]
 
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address", "-fsanitize=undefined"]
     flags = [
         *debug_flags,
         "--std=c11",
@@ -824,10 +824,10 @@ def build_platform_layer_lib_mac(release):
 
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
-    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address", "-fsanitize=undefined"]
     ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
     if not release:
-        ldflags.extend(["-fsanitize=address"])
+        ldflags.extend(["-fsanitize=address", "-fsanitize=undefined"])
 
     includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 
