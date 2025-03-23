@@ -32,8 +32,8 @@ jobs:
     outputs:
        version: ${{ steps.determine-version.outputs.version }}
     steps:
-
-      - name: determine-version
+      - name: Determine version
+        id: determine-version
         run: |
           if [ "${{ inputs.version }}" != '' ] ; then
             echo Selecting version: ${{ inputs.version }}
