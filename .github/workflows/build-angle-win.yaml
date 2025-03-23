@@ -6,7 +6,8 @@ on:
     inputs:
       ignore-cache:
         required: false
-        default: "false"
+        type: bool
+        default: false
 
 jobs:
   build-win:
