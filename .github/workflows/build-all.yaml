@@ -8,7 +8,6 @@ on:
         type: string
         required: false
       ignore-cache:
-        type: bool
         required: false
         default: false
 
