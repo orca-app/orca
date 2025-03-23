@@ -2,7 +2,6 @@ name: build-all
 
 on:
   workflow_dispatch:
-  workflow_call:
     inputs:
       version:
         type: string
@@ -11,6 +10,7 @@ on:
         required: false
         type: string
         default: false
+  workflow_call:
 
   push:
     branches:
