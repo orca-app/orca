@@ -7,8 +7,6 @@
 **************************************************************************/
 #include <stdio.h>
 #include <string.h>
-
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
 #define OC_GRAPHICS_INCLUDE_GL_API 1

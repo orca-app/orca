@@ -1286,7 +1286,7 @@ pub fn build(b: *Build) !void {
         "triangleGLES",
         "triangleMetal",
         // "triangleWGPU", // bitrotted
-        "ui",
+        // "ui", // bitrotted
     };
 
     const sketches_install_opts = Build.Step.InstallArtifact.Options{
