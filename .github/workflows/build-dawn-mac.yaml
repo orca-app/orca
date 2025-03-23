@@ -6,7 +6,7 @@ on:
     inputs:
       ignore-cache:
         required: false
-        type: bool
+        type: string
         default: false
 
 jobs:
