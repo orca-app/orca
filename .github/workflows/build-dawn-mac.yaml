@@ -2,12 +2,12 @@ name: build-dawn-mac
 
 on:
   workflow_dispatch:
-  workflow_call:
     inputs:
       ignore-cache:
         required: false
         type: string
         default: false
+  workflow_call:
 
 jobs:
   build-mac:
