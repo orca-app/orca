@@ -13,7 +13,7 @@ on:
         required: false
         type: string
         default: false
-        
+
 jobs:
   build-mac:
     strategy:
@@ -27,6 +27,10 @@ jobs:
         with:
           python-version: '3.10'
           
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - name: Dawn version
         id: dawn-version
         run: |
@@ -41,11 +45,6 @@ jobs:
         with:
           path: build/dawn.out
           key: dawn-${{ runner.os }}-${{ runner.arch }}-${{ steps.dawn-version.outputs.DAWN_COMMIT }}
-
-      - uses: mlugg/setup-zig@v1
-        if: steps.cache-angle.outputs.cache-hit != 'true' || inputs.ignore-cache == 'true' 
-        with:
-          version: 0.14.0
 
       - name: Build Dawn
         if: steps.cache-dawn.outputs.cache-hit != 'true' || inputs.ignore-cache == 'true' 
