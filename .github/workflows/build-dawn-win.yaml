@@ -6,8 +6,9 @@ on:
     inputs:
       ignore-cache:
         required: false
+        type: bool
         default: false
-        
+
 jobs:
   build-win:
     runs-on: windows-2022

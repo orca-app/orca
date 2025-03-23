@@ -9,6 +9,7 @@ on:
         required: false
       ignore-cache:
         required: false
+        type: bool
         default: false
 
   push:
