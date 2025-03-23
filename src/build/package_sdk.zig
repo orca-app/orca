@@ -193,9 +193,10 @@ const Options = struct {
             return error.MissingRequiredArgument;
         }
 
-        if (version == null) {
+        if (version == null or std.mem.eql(u8, version.?, "")) {
             const git_version = try findGitVersion(arena);
             version = try std.mem.join(arena, "", &.{ "dev-", git_version });
+            std.log.info("No version supplied, using version derived from git sha: {s}", .{version.?});
         }
 
         if (is_dev_install) {
