@@ -1196,6 +1196,8 @@ pub fn build(b: *Build) !void {
         package_sdk_to_dir.addArg(b.fmt("--version={s}", .{git_version}));
     }
 
+    package_sdk_to_dir.step.dependOn(build_orca);
+
     // package command
     const package_sdk_step = b.step("package-sdk", "Packages the Orca SDK for a release.");
     package_sdk_step.dependOn(&package_sdk_to_dir.step);
