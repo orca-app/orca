@@ -8,6 +8,11 @@ on:
         type: string
         default: false
   workflow_call:
+    inputs:
+      ignore-cache:
+        required: false
+        type: string
+        default: false
 
 jobs:
   build-win:

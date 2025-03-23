@@ -11,6 +11,14 @@ on:
         type: string
         default: false
   workflow_call:
+    inputs:
+      version:
+        type: string
+        required: false
+      ignore-cache:
+        required: false
+        type: string
+        default: false
 
   push:
     branches:
