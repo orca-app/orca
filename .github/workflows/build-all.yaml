@@ -72,7 +72,7 @@ jobs:
       - name: Build and Package
         shell: cmd
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }} --summary all
           tar --format=ustar -cvzf orca-windows.tar.gz orca
 		tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
 
@@ -116,7 +116,7 @@ jobs:
 
       - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }} --summary all
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
           tar --format=ustar -czf dev-dependencies-mac-x64.tar.gz dev-dependencies
 
@@ -160,7 +160,7 @@ jobs:
 
       - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }}
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dsdk-deps-path=dev-dependencies -Dversion=${{ needs.determine-version.outputs.version }} --summary all
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
           tar --format=ustar -czf dev-dependencies-mac-arm64.tar.gz dev-dependencies
 
