@@ -7,6 +7,11 @@ on:
       version:
         type: string
         required: false
+      ignore-cache:
+        type: bool
+        required: false
+        default: false
+
   push:
     branches:
       - main
@@ -23,6 +28,8 @@ jobs:
 
   build-angle-mac:
     uses: ./.github/workflows/build-angle-mac.yaml
+    with:
+      ignore-cache: 
 
   build-angle-win:
     uses: ./.github/workflows/build-angle-win.yaml
