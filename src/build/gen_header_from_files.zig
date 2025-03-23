@@ -117,8 +117,7 @@ pub fn main() !void {
         try writer.print("//NOTE: string imported from {s}\n", .{input_path_relative});
         try writer.print("const char* {s}{s} = \n", .{ opts.namespace, input_path_no_ext });
 
-        const file_contents_trimmed = std.mem.trimRight(u8, file_contents, "\n");
-        var split_iter = std.mem.splitScalar(u8, file_contents_trimmed, '\n');
+        var split_iter = std.mem.tokenizeAny(u8, file_contents, "\r\n");
         while (split_iter.next()) |line| {
             const line_fmt =
                 \\"{s}\n"
