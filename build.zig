@@ -157,6 +157,7 @@ const GenerateWasmBindingsParams = struct {
     host_bindings_path: []const u8,
     guest_bindings_path: ?[]const u8 = null,
     guest_include_path: ?[]const u8 = null,
+    deps: []const *Build.Step = &.{},
 };
 
 fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.UpdateSourceFiles {
@@ -173,6 +174,10 @@ fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.St
     }
     if (params.guest_include_path) |path| {
         run.addArg(std.mem.join(b.allocator, "", &.{ "--guest-include-path=", path }) catch @panic("OOM"));
+    }
+
+    for (params.deps) |dep| {
+        run.step.dependOn(dep);
     }
 
     copy_outputs_to_src.step.dependOn(&run.step);
@@ -409,8 +414,8 @@ pub fn build(b: *Build) !void {
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
         .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
+        .deps = &.{&stage_gles_api_spec_artifacts.step},
     });
-    orca_runtime_bindgen_gles.step.dependOn(&stage_gles_api_spec_artifacts.step);
 
     // wgpu shaders header
 
