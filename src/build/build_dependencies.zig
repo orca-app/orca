@@ -251,9 +251,11 @@ const DAWN_COMMIT_FILENAME = "dawn.json";
 
 fn ensureDepotTools(opts: *const Options) !std.process.EnvMap {
     var env: std.process.EnvMap = try std.process.getEnvMap(opts.arena);
-    // if (builtin.os.tag == .windows) {
-    try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
-    // }
+    if (builtin.os.tag == .windows) {
+        try env.put("DEPOT_TOOLS_WIN_TOOLCHAIN", "0");
+    } else if (builtin.os.tag.isDarwin()) {
+        try env.put("HOMEBREW_NO_AUTO_UPDATE", "1");
+    }
 
     const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
     if (try pathExists(std.fs.cwd(), depot_tools_path) == false) {
