@@ -1458,6 +1458,8 @@ wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
 
 void debugger_ui_update(oc_runtime* app)
 {
+    wa_interpreter* interpreter = app->env.interpreter;
+
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_ui_set_context(app->debuggerUI.ui);
@@ -1495,13 +1497,13 @@ void debugger_ui_update(oc_runtime* app)
                 wa_source_node* oldSelectedFile = app->debuggerUI.selectedFile;
 
                 //NOTE: select new function and file
-                wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
                 selectedFunction = execFunc - app->env.instance->functions;
 
                 wa_warm_loc warmLoc = {
                     app->env.instance->module,
                     selectedFunction,
-                    app->env.interpreter->pc - execFunc->code,
+                    interpreter->pc - execFunc->code,
                 };
                 wa_line_loc lineLoc = wa_line_loc_from_warm_loc(app->env.module, warmLoc);
                 if(lineLoc.fileIndex)
@@ -1528,130 +1530,185 @@ void debugger_ui_update(oc_runtime* app)
             app->env.prevPaused = paused;
         }
 
-        static f32 procPanelSize = 300;
+        //TODO: make these adjustable
+        static f32 procPanelSize = 400;
+        static f32 bottomPanelHeight = 350;
 
-        oc_ui_box("browser")
+        oc_ui_box("left-panel")
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, procPanelSize });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
             oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-            oc_ui_box("browser-tabs")
-            {
-                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
+            oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
 
-                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_2);
-
-                oc_ui_box* optFiles = oc_ui_box("option-files")
-                {
-                    oc_ui_set_text(OC_STR8("Files"));
-
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
-                    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
-                    oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-                    oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
-                    oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
-
-                    oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-                    oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
-                    oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
-
-                    if(oc_ui_get_sig().pressed)
-                    {
-                        app->debuggerUI.showSymbols = false;
-                    }
-                }
-
-                oc_ui_box* optSymbols = oc_ui_box("option-symbols")
-                {
-                    oc_ui_set_text(OC_STR8("Symbols"));
-
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
-                    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
-                    oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
-                    oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
-                    oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
-
-                    oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-                    oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
-                    oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
-
-                    if(oc_ui_get_sig().pressed)
-                    {
-                        app->debuggerUI.showSymbols = true;
-                    }
-                }
-
-                oc_ui_style_rule(app->debuggerUI.showSymbols ? "option-symbols" : "option-files")
-                {
-                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
-                }
-            }
-
-            oc_ui_box("browser-contents")
+            oc_ui_box("browser")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
-
+                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                if(app->debuggerUI.showSymbols)
+                oc_ui_box("browser-tabs")
                 {
-                    for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_2);
+
+                    oc_ui_box* optFiles = oc_ui_box("option-files")
                     {
-                        wa_func* func = &app->env.instance->functions[funcIndex];
-                        if(func->codeLen)
+                        oc_ui_set_text(OC_STR8("Files"));
+
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                        if(oc_ui_get_sig().pressed)
                         {
-                            oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
+                            app->debuggerUI.showSymbols = false;
+                        }
+                    }
 
-                            oc_ui_box* box = oc_ui_box_str8(name)
+                    oc_ui_box* optSymbols = oc_ui_box("option-symbols")
+                    {
+                        oc_ui_set_text(OC_STR8("Symbols"));
+
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                        if(oc_ui_get_sig().pressed)
+                        {
+                            app->debuggerUI.showSymbols = true;
+                        }
+                    }
+
+                    oc_ui_style_rule(app->debuggerUI.showSymbols ? "option-symbols" : "option-files")
+                    {
+                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                    }
+                }
+
+                oc_ui_box("browser-contents")
+                {
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+                    oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
+                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                    if(app->debuggerUI.showSymbols)
+                    {
+                        for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+                        {
+                            wa_func* func = &app->env.instance->functions[funcIndex];
+                            if(func->codeLen)
                             {
-                                oc_ui_set_text(name);
+                                oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
 
-                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
-                                oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
-                                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-
-                                oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
-                                oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
-                                oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
-
-                                if(selectedFunction == funcIndex)
+                                oc_ui_box* box = oc_ui_box_str8(name)
                                 {
-                                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
-                                }
-                                else
-                                {
-                                    oc_ui_style_rule(".hover")
+                                    oc_ui_set_text(name);
+
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                                    oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                                    oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                                    oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                                    if(selectedFunction == funcIndex)
                                     {
-                                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
                                     }
-                                }
+                                    else
+                                    {
+                                        oc_ui_style_rule(".hover")
+                                        {
+                                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                                        }
+                                    }
 
-                                oc_ui_sig sig = oc_ui_get_sig();
-                                if(sig.pressed)
-                                {
-                                    selectedFunction = funcIndex;
-                                    app->debuggerUI.autoScroll = false;
-                                    app->debuggerUI.freshScroll = true;
+                                    oc_ui_sig sig = oc_ui_get_sig();
+                                    if(sig.pressed)
+                                    {
+                                        selectedFunction = funcIndex;
+                                        app->debuggerUI.autoScroll = false;
+                                        app->debuggerUI.freshScroll = true;
+                                    }
                                 }
                             }
                         }
                     }
-                }
-                else
-                {
-                    oc_list_for(app->debuggerUI.sourceTree.children, child, wa_source_node, listElt)
+                    else
                     {
-                        source_tree_ui(app, oc_ui_box_top(), child, 0);
+                        oc_list_for(app->debuggerUI.sourceTree.children, child, wa_source_node, listElt)
+                        {
+                            source_tree_ui(app, oc_ui_box_top(), child, 0);
+                        }
+                    }
+                }
+            }
+
+            oc_ui_box("stack-trace")
+            {
+                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
+                oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                oc_ui_style_set_f32(OC_UI_SPACING, 5);
+
+                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+
+                if(app->env.paused)
+                {
+
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+
+                    for(u32 level = 0; level <= interpreter->controlStackTop; level++)
+                    {
+                        wa_func* func = interpreter->controlStack[level].func;
+                        u64 addr = 0;
+                        if(level == interpreter->controlStackTop)
+                        {
+                            addr = interpreter->pc - func->code;
+                        }
+                        else
+                        {
+                            addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
+                        }
+                        u32 functionIndex = func - interpreter->instance->functions;
+                        oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
+
+                        oc_str8 label = oc_str8_pushf(scratch.arena, "label-%i", level);
+                        oc_str8 text = oc_str8_pushf(scratch.arena, "[%i] %.*s + 0x%08llx", level, oc_str8_ip(name), addr);
+
+                        oc_ui_label_str8(label, text);
                     }
                 }
             }
@@ -1670,6 +1727,7 @@ void debugger_ui_update(oc_runtime* app)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
                 oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
 
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
@@ -1730,9 +1788,9 @@ void debugger_ui_update(oc_runtime* app)
                                 wa_instr_op opcode = c->opcode;
 
                                 wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint(
-                                    app->env.interpreter,
+                                    interpreter,
                                     &(wa_warm_loc){
-                                        .module = app->env.interpreter->instance->module,
+                                        .module = interpreter->instance->module,
                                         .funcIndex = selectedFunction,
                                         .codeIndex = codeIndex,
                                     });
@@ -1740,9 +1798,9 @@ void debugger_ui_update(oc_runtime* app)
                                 //TODO: should probably not intertwine modified bytecode and UI like that?
                                 {
                                     wa_breakpoint* anyBreakpoint = wa_interpreter_find_breakpoint_any(
-                                        app->env.interpreter,
+                                        interpreter,
                                         &(wa_warm_loc){
-                                            .module = app->env.interpreter->instance->module,
+                                            .module = interpreter->instance->module,
                                             .funcIndex = selectedFunction,
                                             .codeIndex = codeIndex,
                                         });
@@ -1771,8 +1829,8 @@ void debugger_ui_update(oc_runtime* app)
                                         bool makeExecCursor = false;
                                         if(app->env.instance)
                                         {
-                                            u32 index = app->env.interpreter->pc - func->code;
-                                            wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
+                                            u32 index = interpreter->pc - func->code;
+                                            wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
 
                                             if(func == execFunc && index == codeIndex)
                                             {
@@ -1829,7 +1887,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                                 if(oc_ui_get_sig().clicked)
                                                 {
-                                                    wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
+                                                    wa_interpreter_remove_breakpoint(interpreter, breakpoint);
                                                 }
                                             }
                                         }
@@ -1843,9 +1901,9 @@ void debugger_ui_update(oc_runtime* app)
                                                 if(oc_ui_get_sig().clicked)
                                                 {
                                                     wa_interpreter_add_breakpoint(
-                                                        app->env.interpreter,
+                                                        interpreter,
                                                         &(wa_warm_loc){
-                                                            .module = app->env.interpreter->instance->module,
+                                                            .module = interpreter->instance->module,
                                                             .funcIndex = selectedFunction,
                                                             .codeIndex = codeIndex,
                                                         });
@@ -2000,13 +2058,13 @@ void debugger_ui_update(oc_runtime* app)
                                     ////////////////////////////////////////////////:
                                     //TODO: haul that up
                                     ////////////////////////////////////////////////
-                                    wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
-                                    u64 funcIndex = execFunc - app->env.interpreter->instance->functions;
-                                    u32 codeIndex = app->env.interpreter->pc - execFunc->code;
+                                    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+                                    u64 funcIndex = execFunc - interpreter->instance->functions;
+                                    u32 codeIndex = interpreter->pc - execFunc->code;
 
                                     wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module,
                                                                                 (wa_warm_loc){
-                                                                                    .module = app->env.interpreter->instance->module,
+                                                                                    .module = interpreter->instance->module,
                                                                                     .funcIndex = funcIndex,
                                                                                     .codeIndex = codeIndex,
                                                                                 });
@@ -2061,7 +2119,7 @@ void debugger_ui_update(oc_runtime* app)
                                     codeView->scroll.y += scrollSpeed * (targetScroll - codeView->scroll.y);
                                 }
 
-                                wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(app->env.interpreter,
+                                wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(interpreter,
                                                                                                 &(wa_line_loc){
                                                                                                     .fileIndex = node->index,
                                                                                                     .line = lineNum,
@@ -2078,7 +2136,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                         if(oc_ui_get_sig().clicked)
                                         {
-                                            wa_interpreter_remove_breakpoint(app->env.interpreter, breakpoint);
+                                            wa_interpreter_remove_breakpoint(interpreter, breakpoint);
                                         }
                                     }
                                 }
@@ -2091,7 +2149,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                         if(oc_ui_get_sig().clicked)
                                         {
-                                            wa_interpreter_add_breakpoint_line(app->env.interpreter,
+                                            wa_interpreter_add_breakpoint_line(interpreter,
                                                                                &(wa_line_loc){
                                                                                    .fileIndex = node->index,
                                                                                    .line = lineNum,
@@ -2121,7 +2179,7 @@ void debugger_ui_update(oc_runtime* app)
             oc_ui_box* inspector = oc_ui_box("inspector-view")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 350 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                 oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
 
@@ -2133,9 +2191,9 @@ void debugger_ui_update(oc_runtime* app)
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
                     oc_ui_style_set_f32(OC_UI_SPACING, 5);
 
-                    wa_func* execFunc = app->env.interpreter->controlStack[app->env.interpreter->controlStackTop].func;
-                    u32 funcIndex = execFunc - app->env.interpreter->instance->functions;
-                    u32 codeIndex = app->env.interpreter->pc - execFunc->code;
+                    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+                    u32 funcIndex = execFunc - interpreter->instance->functions;
+                    u32 codeIndex = interpreter->pc - execFunc->code;
 
                     for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
                     {
@@ -2162,7 +2220,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu (i32) = %i",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valI32);
+                                                        interpreter->locals[regIndex].valI32);
                             }
                             break;
                             case WA_TYPE_I64:
@@ -2170,7 +2228,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu (i64) = %lli",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valI64);
+                                                        interpreter->locals[regIndex].valI64);
                             }
                             break;
                             case WA_TYPE_F32:
@@ -2178,7 +2236,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu (f32) = %f",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valF32);
+                                                        interpreter->locals[regIndex].valF32);
                             }
                             break;
                             case WA_TYPE_F64:
@@ -2186,7 +2244,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu (f64) = %f",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valF64);
+                                                        interpreter->locals[regIndex].valF64);
                             }
                             break;
                             case WA_TYPE_FUNC_REF:
@@ -2194,7 +2252,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu (funcref) = 0x%016llx",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valI64);
+                                                        interpreter->locals[regIndex].valI64);
                             }
                             break;
                             case WA_TYPE_EXTERN_REF:
@@ -2202,7 +2260,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu (externref) = 0x%016llx",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valI64);
+                                                        interpreter->locals[regIndex].valI64);
                             }
                             break;
                             default:
@@ -2210,7 +2268,7 @@ void debugger_ui_update(oc_runtime* app)
                                 regText = oc_str8_pushf(scratch.arena,
                                                         "r%llu = 0x%016llx",
                                                         regIndex,
-                                                        app->env.interpreter->locals[regIndex].valI64);
+                                                        interpreter->locals[regIndex].valI64);
                             }
                             break;
                         }
