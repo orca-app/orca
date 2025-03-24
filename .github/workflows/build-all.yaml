@@ -94,7 +94,7 @@ jobs:
       - name: Build sketches
         shell: cmd
         run: |
-          zig build test
+          zig build sketches
 
       - name: Build and Package
         shell: cmd
@@ -143,7 +143,7 @@ jobs:
       - name: Build sketches
         shell: cmd
         run: |
-          zig build test
+          zig build sketches
 
       - name: Build and Package
         run: |
@@ -191,7 +191,7 @@ jobs:
       - name: Build sketches
         shell: cmd
         run: |
-          zig build test
+          zig build sketches
 
       - name: Build and Package
         run: |
