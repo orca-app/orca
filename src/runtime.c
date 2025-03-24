@@ -1486,6 +1486,9 @@ void debugger_ui_update(oc_runtime* app)
         //      if paused == false, vm thread can become paused during the frame, but we
         //      don't really care (we render cached state for this frame and will update next frame)
         bool paused = atomic_load(&app->env.paused);
+
+        u32 oldSelectedFunction = selectedFunction;
+
         if(paused != app->env.prevPaused)
         {
             if(paused == true)
@@ -1493,7 +1496,6 @@ void debugger_ui_update(oc_runtime* app)
                 //NOTE: vm thread has become paused since last frame. We set autoscroll and autoselect the function
                 app->debuggerUI.autoScroll = true;
 
-                u32 oldSelectedFunction = selectedFunction;
                 wa_source_node* oldSelectedFile = app->debuggerUI.selectedFile;
 
                 //NOTE: select new function and file
@@ -2198,6 +2200,15 @@ void debugger_ui_update(oc_runtime* app)
                     for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
                     {
                         oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
+
+                        if(selectedFunction != oldSelectedFunction || interpreter->cachedRegs[regIndex].valI64 != interpreter->locals[regIndex].valI64)
+                        {
+                            oc_ui_style_rule_str8(regId)
+                            {
+                                oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
+                            }
+                        }
+
                         oc_str8 regText = { 0 };
 
                         wa_register_map* map = &app->env.module->registerMaps[funcIndex][regIndex];
@@ -2272,6 +2283,7 @@ void debugger_ui_update(oc_runtime* app)
                             }
                             break;
                         }
+
                         oc_ui_label_str8(regId, regText);
                     }
                 }
@@ -2298,6 +2310,12 @@ void vm_thread_resume(oc_wasm_env* env)
         oc_condition_signal(env->suspendCond);
     }
     oc_mutex_unlock(env->suspendMutex);
+}
+
+void debugger_resume_with_command(oc_runtime* app, oc_debugger_command command)
+{
+    app->env.debuggerCommand = command;
+    vm_thread_resume(&app->env);
 }
 
 i32 control_runloop(void* user)
@@ -2339,8 +2357,7 @@ i32 control_runloop(void* user)
                     {
                         //TODO: we should also unblock vm thread and abort interpreter here
                         app->quit = true;
-                        app->env.debuggerCommand = OC_DEBUGGER_QUIT;
-                        vm_thread_resume(&app->env);
+                        debugger_resume_with_command(app, OC_DEBUGGER_QUIT);
                     }
                     break;
 
@@ -2351,21 +2368,19 @@ i32 control_runloop(void* user)
                             if(event->key.keyCode == OC_KEY_C)
                             {
                                 //NOTE: signal vm thread to continue
-                                app->env.debuggerCommand = OC_DEBUGGER_CONTINUE;
-                                vm_thread_resume(&app->env);
+                                debugger_resume_with_command(app, OC_DEBUGGER_CONTINUE);
                             }
                             else if(event->key.keyCode == OC_KEY_N)
                             {
                                 //NOTE: signal vm thread to step
                                 if(app->debuggerUI.showSymbols)
                                 {
-                                    app->env.debuggerCommand = OC_DEBUGGER_STEP;
+                                    debugger_resume_with_command(app, OC_DEBUGGER_STEP);
                                 }
                                 else
                                 {
-                                    app->env.debuggerCommand = OC_DEBUGGER_STEP_LINE;
+                                    debugger_resume_with_command(app, OC_DEBUGGER_STEP_LINE);
                                 }
-                                vm_thread_resume(&app->env);
                             }
                             else if(event->key.keyCode == OC_KEY_P
                                     && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
@@ -2395,8 +2410,7 @@ i32 control_runloop(void* user)
                     case OC_EVENT_QUIT:
                     {
                         app->quit = true;
-                        app->env.debuggerCommand = OC_DEBUGGER_QUIT;
-                        vm_thread_resume(&app->env);
+                        debugger_resume_with_command(app, OC_DEBUGGER_QUIT);
                     }
                     break;
 

@@ -6182,6 +6182,8 @@ typedef struct wa_interpreter
     oc_list breakpoints;
     oc_list breakpointFreeList;
 
+    wa_code cachedRegs[WA_MAX_REG];
+
 } wa_interpreter;
 
 wa_status wa_interpreter_init(wa_interpreter* interpreter,
@@ -8624,9 +8626,22 @@ wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp)
     return bp->savedOpcode.opcode;
 }
 
+void wa_interpreter_cache_registers(wa_interpreter* interpreter)
+{
+    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+    u32 funcIndex = execFunc - interpreter->instance->functions;
+    u32 codeIndex = interpreter->pc - execFunc->code;
+
+    for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
+    {
+        interpreter->cachedRegs[regIndex].valI64 = interpreter->locals[regIndex].valI64;
+    }
+}
+
 wa_status wa_interpreter_continue(wa_interpreter* interpreter)
 {
     //TODO: if we're on a breakpoint, deactivate it, step, reactivate, continue
+    wa_interpreter_cache_registers(interpreter);
 
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
     u64 funcIndex = func - interpreter->instance->functions;
@@ -8654,6 +8669,8 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
 
 wa_status wa_interpreter_step(wa_interpreter* interpreter)
 {
+    wa_interpreter_cache_registers(interpreter);
+
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
     u64 funcIndex = func - interpreter->instance->functions;
 
@@ -8682,6 +8699,8 @@ wa_status wa_interpreter_step(wa_interpreter* interpreter)
 
 wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
 {
+    wa_interpreter_cache_registers(interpreter);
+
     //NOTE: step the dumbest possible way
     wa_status status = WA_OK;
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
