@@ -86,6 +86,16 @@ jobs:
         run: |
           xcopy artifact\angle-windows-x64 build\angle.out\ /s /y
 
+      - name: Build and run tests
+        shell: cmd
+        run: |
+          zig build test
+
+      - name: Build sketches
+        shell: cmd
+        run: |
+          zig build test
+
       - name: Build and Package
         shell: cmd
         run: |
@@ -125,6 +135,16 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-x64 build/angle.out
 
+      - name: Build and run tests
+        shell: cmd
+        run: |
+          zig build test
+
+      - name: Build sketches
+        shell: cmd
+        run: |
+          zig build test
+
       - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca --summary all
@@ -162,6 +182,16 @@ jobs:
         run: |
           mkdir -p build
           cp -r artifact/angle-mac-arm64 build/angle.out
+
+      - name: Build and run tests
+        shell: cmd
+        run: |
+          zig build test
+
+      - name: Build sketches
+        shell: cmd
+        run: |
+          zig build test
 
       - name: Build and Package
         run: |
