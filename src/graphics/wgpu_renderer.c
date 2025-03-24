@@ -1527,18 +1527,26 @@ void oc_wgpu_canvas_encode_path(oc_wgpu_canvas_encoding_context* context, oc_pri
     {
         path->cmd = primitive->cmd;
 
+        //NOTE:
+        //      We clamp boxes to int range so that they can be used to compute
+        //      integer tile coordinate without cast overflow. Since extents
+        //      specify top-left, bottom-right (not width/height), we can clamp
+        //      each component separately.
+
+        const f32 bound = (f32)(1 << 14);
+
         path->box = (oc_vec4){
-            context->pathScreenExtents.x * context->scale.x,
-            context->pathScreenExtents.y * context->scale.y,
-            context->pathScreenExtents.z * context->scale.x,
-            context->pathScreenExtents.w * context->scale.y,
+            oc_clamp(context->pathScreenExtents.x * context->scale.x, -bound, bound),
+            oc_clamp(context->pathScreenExtents.y * context->scale.y, -bound, bound),
+            oc_clamp(context->pathScreenExtents.z * context->scale.x, -bound, bound),
+            oc_clamp(context->pathScreenExtents.w * context->scale.y, -bound, bound),
         };
 
         path->clip = (oc_vec4){
-            primitive->attributes.clip.x * context->scale.x,
-            primitive->attributes.clip.y * context->scale.y,
-            (primitive->attributes.clip.x + primitive->attributes.clip.w) * context->scale.x,
-            (primitive->attributes.clip.y + primitive->attributes.clip.h) * context->scale.y,
+            oc_clamp(primitive->attributes.clip.x * context->scale.x, -bound, bound),
+            oc_clamp(primitive->attributes.clip.y * context->scale.y, -bound, bound),
+            oc_clamp((primitive->attributes.clip.x + primitive->attributes.clip.w) * context->scale.x, -bound, bound),
+            oc_clamp((primitive->attributes.clip.y + primitive->attributes.clip.h) * context->scale.y, -bound, bound),
         };
 
         for(int i = 0; i < 4; i++)
