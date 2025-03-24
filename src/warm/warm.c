@@ -3221,7 +3221,41 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
         *module->debugInfo->line = dw_load_line_info(module->arena, &dwarfSections);
 
         dw_parse_info(module->arena, &dwarfSections, module->debugInfo);
-        dw_print_debug_info(module->debugInfo);
+
+        for(u64 unitIndex = 0; unitIndex < module->debugInfo->unitCount; unitIndex++)
+        {
+            dw_unit* unit = &module->debugInfo->units[unitIndex];
+            dw_die* die = dw_die_find_next_with_tag(unit->rootDie, unit->rootDie, DW_TAG_subprogram);
+            while(die)
+            {
+                dw_attr* attr = dw_die_get_attr(die, DW_AT_name);
+                /*
+                if(attr)
+                {
+                    printf("%.*s\n", oc_str8_ip(attr->string));
+                }
+                */
+                if(attr && !oc_str8_cmp(attr->string, OC_STR8("oc_on_frame_refresh")))
+                {
+                    printf("%.*s\n", oc_str8_ip(attr->string));
+
+                    dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
+                    while(var)
+                    {
+                        dw_attr* name = dw_die_get_attr(var, DW_AT_name);
+                        if(name)
+                        {
+                            printf("\t%.*s\n", oc_str8_ip(name->string));
+                        }
+                        var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
+                    }
+                }
+
+                die = dw_die_find_next_with_tag(unit->rootDie, die, DW_TAG_subprogram);
+            }
+        }
+
+        //        dw_print_debug_info(module->debugInfo);
 
         //dw_dump_info(dwarfSections);
         //dw_print_line_info(module->debugInfo->line);

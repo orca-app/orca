@@ -2958,6 +2958,37 @@ end:
     return (offset - startOffset);
 }
 
+dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
+{
+    dw_die* die = start;
+
+    while(die)
+    {
+        if(die != start && die->abbrev && die->abbrev->tag == tag)
+        {
+            return die;
+        }
+
+        if(!oc_list_empty(die->children))
+        {
+            die = oc_list_first_entry(die->children, dw_die, parentElt);
+        }
+        else if(die->parentElt.next)
+        {
+            die = oc_list_entry(die->parentElt.next, dw_die, parentElt);
+        }
+        else if(die->parent && die->parent != root && die->parent->parentElt.next)
+        {
+            die = oc_list_entry(die->parent->parentElt.next, dw_die, parentElt);
+        }
+        else
+        {
+            break;
+        }
+    }
+    return 0;
+}
+
 void dw_print_indent(u64 indent)
 {
     for(u64 i = 0; i < indent; i++)
