@@ -876,10 +876,23 @@ typedef struct wa_register_map
     wa_register_range* ranges;
 } wa_register_map;
 
+typedef struct wa_debug_loc_part
+{
+    u64 bitOffset;
+    u64 bitSize;
+    // expression
+} wa_debug_loc_part;
+
+typedef struct wa_debug_loc
+{
+    u64 count;
+    wa_debug_loc_part* parts;
+} wa_debug_loc;
+
 typedef struct wa_debug_variable
 {
     oc_str8 name;
-    //...
+    wa_debug_loc* loc;
 } wa_debug_variable;
 
 typedef struct wa_debug_function
@@ -3229,6 +3242,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     }
     */
     dw_parse_info(module->arena, &dwarfSections, module->debugInfo);
+    dw_print_debug_info(module->debugInfo);
 
     //NOTE: load line info if it exists
     if(dwarfSections.line.len)
@@ -5352,6 +5366,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
                     funcInfo->count = 0;
 
                     {
+                        //TODO: get with multiple tags, eg here we also need formal_parameter
                         dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
                         while(var)
                         {
@@ -5372,6 +5387,13 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
                             {
                                 funcInfo->vars[varIndex].name = oc_str8_push_copy(module->arena, name->string);
                             }
+
+                            dw_attr* loc = dw_die_get_attr(var, DW_AT_location);
+                            if(loc && loc->abbrev->form == DW_FORM_exprloc)
+                            {
+                                //                                funcInfo->vars[varIndex].loc = wa_compile_dwarf_location(module, unit, loc->string);
+                            }
+
                             var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
                             varIndex++;
                         }

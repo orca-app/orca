@@ -2310,8 +2310,9 @@ void debugger_ui_update(oc_runtime* app)
 
                         for(u64 varIndex = 0; varIndex < funcInfo->count; varIndex++)
                         {
-                            oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);
+                            //TODO: var can be unnamed... maybe filter that beforehand
 
+                            oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);
                             oc_ui_label_str8(varId, funcInfo->vars[varIndex].name);
                         }
                     }

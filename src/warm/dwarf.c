@@ -16,6 +16,11 @@
         res = #name;            \
         break;
 
+#define X_NAME_CASE_STR8(name, ...) \
+    case name:                      \
+        res = OC_STR8(#name);       \
+        break;
+
 #define DW_TAG_LIST(X)                       \
     X(DW_TAG_array_type, 0x01)               \
     X(DW_TAG_class_type, 0x02)               \
@@ -397,6 +402,206 @@ const char* dw_get_line_header_entry_format_string(u32 format)
     }
     return res;
 }
+
+#define DW_OP_LIST(_)                  \
+    _(DW_OP_addr, 0x03)                \
+    _(DW_OP_deref, 0x06)               \
+    _(DW_OP_const1u, 0x08)             \
+    _(DW_OP_const1s, 0x09)             \
+    _(DW_OP_const2u, 0x0a)             \
+    _(DW_OP_const2s, 0x0b)             \
+    _(DW_OP_const4u, 0x0c)             \
+    _(DW_OP_const4s, 0x0d)             \
+    _(DW_OP_const8u, 0x0e)             \
+    _(DW_OP_const8s, 0x0f)             \
+    _(DW_OP_constu, 0x10)              \
+    _(DW_OP_consts, 0x11)              \
+    _(DW_OP_dup, 0x12)                 \
+    _(DW_OP_drop, 0x13)                \
+    _(DW_OP_over, 0x14)                \
+    _(DW_OP_pick, 0x15)                \
+    _(DW_OP_swap, 0x16)                \
+    _(DW_OP_rot, 0x17)                 \
+    _(DW_OP_xderef, 0x18)              \
+    _(DW_OP_abs, 0x19)                 \
+    _(DW_OP_and, 0x1a)                 \
+    _(DW_OP_div, 0x1b)                 \
+    _(DW_OP_minus, 0x1c)               \
+    _(DW_OP_mod, 0x1d)                 \
+    _(DW_OP_mul, 0x1e)                 \
+    _(DW_OP_neg, 0x1f)                 \
+    _(DW_OP_not, 0x20)                 \
+    _(DW_OP_or, 0x21)                  \
+    _(DW_OP_plus, 0x22)                \
+    _(DW_OP_plus_uconst, 0x23)         \
+    _(DW_OP_shl, 0x24)                 \
+    _(DW_OP_shr, 0x25)                 \
+    _(DW_OP_shra, 0x26)                \
+    _(DW_OP_xor, 0x27)                 \
+    _(DW_OP_bra, 0x28)                 \
+    _(DW_OP_eq, 0x29)                  \
+    _(DW_OP_ge, 0x2a)                  \
+    _(DW_OP_gt, 0x2b)                  \
+    _(DW_OP_le, 0x2c)                  \
+    _(DW_OP_lt, 0x2d)                  \
+    _(DW_OP_ne, 0x2e)                  \
+    _(DW_OP_skip, 0x2f)                \
+    _(DW_OP_lit0, 0x30)                \
+    _(DW_OP_lit1, 0x31)                \
+    _(DW_OP_lit2, 0x32)                \
+    _(DW_OP_lit3, 0x33)                \
+    _(DW_OP_lit4, 0x34)                \
+    _(DW_OP_lit5, 0x35)                \
+    _(DW_OP_lit6, 0x36)                \
+    _(DW_OP_lit7, 0x37)                \
+    _(DW_OP_lit8, 0x38)                \
+    _(DW_OP_lit9, 0x39)                \
+    _(DW_OP_lit10, 0x3a)               \
+    _(DW_OP_lit11, 0x3b)               \
+    _(DW_OP_lit12, 0x3c)               \
+    _(DW_OP_lit13, 0x3d)               \
+    _(DW_OP_lit14, 0x3e)               \
+    _(DW_OP_lit15, 0x3f)               \
+    _(DW_OP_lit16, 0x40)               \
+    _(DW_OP_lit17, 0x41)               \
+    _(DW_OP_lit18, 0x42)               \
+    _(DW_OP_lit19, 0x43)               \
+    _(DW_OP_lit20, 0x44)               \
+    _(DW_OP_lit21, 0x45)               \
+    _(DW_OP_lit22, 0x46)               \
+    _(DW_OP_lit23, 0x47)               \
+    _(DW_OP_lit24, 0x48)               \
+    _(DW_OP_lit25, 0x49)               \
+    _(DW_OP_lit26, 0x4a)               \
+    _(DW_OP_lit27, 0x4b)               \
+    _(DW_OP_lit28, 0x4c)               \
+    _(DW_OP_lit29, 0x4d)               \
+    _(DW_OP_lit30, 0x4e)               \
+    _(DW_OP_lit31, 0x4f)               \
+    _(DW_OP_reg0, 0x50)                \
+    _(DW_OP_reg1, 0x51)                \
+    _(DW_OP_reg2, 0x52)                \
+    _(DW_OP_reg3, 0x53)                \
+    _(DW_OP_reg4, 0x54)                \
+    _(DW_OP_reg5, 0x55)                \
+    _(DW_OP_reg6, 0x56)                \
+    _(DW_OP_reg7, 0x57)                \
+    _(DW_OP_reg8, 0x58)                \
+    _(DW_OP_reg9, 0x59)                \
+    _(DW_OP_reg10, 0x5a)               \
+    _(DW_OP_reg11, 0x5b)               \
+    _(DW_OP_reg12, 0x5c)               \
+    _(DW_OP_reg13, 0x5d)               \
+    _(DW_OP_reg14, 0x5e)               \
+    _(DW_OP_reg15, 0x5f)               \
+    _(DW_OP_reg16, 0x60)               \
+    _(DW_OP_reg17, 0x61)               \
+    _(DW_OP_reg18, 0x62)               \
+    _(DW_OP_reg19, 0x63)               \
+    _(DW_OP_reg20, 0x64)               \
+    _(DW_OP_reg21, 0x65)               \
+    _(DW_OP_reg22, 0x66)               \
+    _(DW_OP_reg23, 0x67)               \
+    _(DW_OP_reg24, 0x68)               \
+    _(DW_OP_reg25, 0x69)               \
+    _(DW_OP_reg26, 0x6a)               \
+    _(DW_OP_reg27, 0x6b)               \
+    _(DW_OP_reg28, 0x6c)               \
+    _(DW_OP_reg29, 0x6d)               \
+    _(DW_OP_reg30, 0x6e)               \
+    _(DW_OP_reg31, 0x6f)               \
+    _(DW_OP_breg0, 0x70)               \
+    _(DW_OP_breg1, 0x71)               \
+    _(DW_OP_breg2, 0x72)               \
+    _(DW_OP_breg3, 0x73)               \
+    _(DW_OP_breg4, 0x74)               \
+    _(DW_OP_breg5, 0x75)               \
+    _(DW_OP_breg6, 0x76)               \
+    _(DW_OP_breg7, 0x77)               \
+    _(DW_OP_breg8, 0x78)               \
+    _(DW_OP_breg9, 0x79)               \
+    _(DW_OP_breg10, 0x7a)              \
+    _(DW_OP_breg11, 0x7b)              \
+    _(DW_OP_breg12, 0x7c)              \
+    _(DW_OP_breg13, 0x7d)              \
+    _(DW_OP_breg14, 0x7e)              \
+    _(DW_OP_breg15, 0x7f)              \
+    _(DW_OP_breg16, 0x80)              \
+    _(DW_OP_breg17, 0x81)              \
+    _(DW_OP_breg18, 0x82)              \
+    _(DW_OP_breg19, 0x83)              \
+    _(DW_OP_breg20, 0x84)              \
+    _(DW_OP_breg21, 0x85)              \
+    _(DW_OP_breg22, 0x86)              \
+    _(DW_OP_breg23, 0x87)              \
+    _(DW_OP_breg24, 0x88)              \
+    _(DW_OP_breg25, 0x89)              \
+    _(DW_OP_breg26, 0x8a)              \
+    _(DW_OP_breg27, 0x8b)              \
+    _(DW_OP_breg28, 0x8c)              \
+    _(DW_OP_breg29, 0x8d)              \
+    _(DW_OP_breg30, 0x8e)              \
+    _(DW_OP_breg31, 0x8f)              \
+    _(DW_OP_regx, 0x90)                \
+    _(DW_OP_fbreg, 0x91)               \
+    _(DW_OP_bregx, 0x92)               \
+    _(DW_OP_piece, 0x93)               \
+    _(DW_OP_deref_size, 0x94)          \
+    _(DW_OP_xderef_size, 0x95)         \
+    _(DW_OP_nop, 0x96)                 \
+    _(DW_OP_push_object_address, 0x97) \
+    _(DW_OP_call2, 0x98)               \
+    _(DW_OP_call4, 0x99)               \
+    _(DW_OP_call_ref, 0x9a)            \
+    _(DW_OP_form_tls_address, 0x9b)    \
+    _(DW_OP_call_frame_cfa, 0x9c)      \
+    _(DW_OP_bit_piece, 0x9d)           \
+    _(DW_OP_implicit_value, 0x9e)      \
+    _(DW_OP_stack_value, 0x9f)         \
+    _(DW_OP_implicit_pointer, 0xa0)    \
+    _(DW_OP_addrx, 0xa1)               \
+    _(DW_OP_constx, 0xa2)              \
+    _(DW_OP_entry_value, 0xa3)         \
+    _(DW_OP_const_type, 0xa4)          \
+    _(DW_OP_regval_type, 0xa5)         \
+    _(DW_OP_deref_type, 0xa6)          \
+    _(DW_OP_xderef_type, 0xa7)         \
+    _(DW_OP_convert, 0xa8)             \
+    _(DW_OP_reinterpret, 0xa9)         \
+    _(DW_OP_lo_user, 0xe0)             \
+    _(DW_OP_hi_user, 0xff)             \
+    _(DW_OP_WASM_location, 0xed)
+
+typedef enum dw_op
+{
+    DW_OP_LIST(X_ENUM)
+} dw_op;
+
+oc_str8 dw_op_get_string(u32 opcode)
+{
+    oc_str8 res = { 0 };
+    switch(opcode)
+    {
+        DW_OP_LIST(X_NAME_CASE_STR8);
+    }
+    return res;
+}
+
+#define DW_LLE_LIST(_)               \
+    _(DW_LLE_end_of_list, 0x00)      \
+    _(DW_LLE_base_addressx, 0x01)    \
+    _(DW_LLE_startx_endx, 0x02)      \
+    _(DW_LLE_startx_length, 0x03)    \
+    _(DW_LLE_offset_pair, 0x04)      \
+    _(DW_LLE_default_location, 0x05) \
+    _(DW_LLE_base_address, 0x06)     \
+    _(DW_LLE_start_end, 0x07)        \
+    _(DW_LLE_start_length, 0x08)
+
+typedef enum dw_lle
+{
+    DW_LLE_LIST(X_ENUM)
+} dw_lle;
 
 #undef X_ENUM
 #undef X_NAME_CASE
@@ -1622,6 +1827,505 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
     return lineInfo;
 }
 
+void dw_print_expression(dw_unit* unit, oc_str8 data)
+{
+    OC_ASSERT(data.len == 0 || (u8)data.ptr[0] <= DW_OP_WASM_location);
+
+    u64 codeIndex = 0;
+    while(codeIndex < data.len)
+    {
+        dw_op op = (u8)data.ptr[codeIndex];
+        codeIndex++;
+
+        if((u8)data.ptr[0] == 0x91)
+        {
+            printf("..\n");
+        }
+
+        printf("%.*s ", oc_str8_ip(dw_op_get_string(op)));
+
+        switch(op)
+        {
+            case DW_OP_addr:
+            {
+                codeIndex += 4; //TODO: size is target specific
+            }
+            break;
+            case DW_OP_deref:
+            {
+            }
+            break;
+            case DW_OP_const1u:
+            {
+                codeIndex += 1;
+            }
+            break;
+            case DW_OP_const1s:
+            {
+                codeIndex += 1;
+            }
+            break;
+            case DW_OP_const2u:
+            {
+                codeIndex += 2;
+            }
+            break;
+            case DW_OP_const2s:
+            {
+                codeIndex += 2;
+            }
+            break;
+            case DW_OP_const4u:
+            {
+                codeIndex += 4;
+            }
+            break;
+            case DW_OP_const4s:
+            {
+                codeIndex += 4;
+            }
+            break;
+            case DW_OP_const8u:
+            {
+                codeIndex += 8;
+            }
+            break;
+            case DW_OP_const8s:
+            {
+                codeIndex += 8;
+            }
+            break;
+            case DW_OP_constu:
+            {
+                u64 opd = 0;
+                codeIndex += dw_read_leb128_u64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_consts:
+            {
+                i64 opd = 0;
+                codeIndex += dw_read_leb128_i64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_dup:
+            {
+            }
+            break;
+            case DW_OP_drop:
+            {
+            }
+            break;
+            case DW_OP_over:
+            {
+            }
+            break;
+            case DW_OP_pick:
+            {
+                codeIndex += 1;
+            }
+            break;
+            case DW_OP_swap:
+            {
+            }
+            break;
+            case DW_OP_rot:
+            {
+            }
+            break;
+            case DW_OP_xderef:
+            {
+            }
+            break;
+            case DW_OP_abs:
+            {
+            }
+            break;
+            case DW_OP_and:
+            {
+            }
+            break;
+            case DW_OP_div:
+            {
+            }
+            break;
+            case DW_OP_minus:
+            {
+            }
+            break;
+            case DW_OP_mod:
+            {
+            }
+            break;
+            case DW_OP_mul:
+            {
+            }
+            break;
+            case DW_OP_neg:
+            {
+            }
+            break;
+            case DW_OP_not:
+            {
+            }
+            break;
+            case DW_OP_or:
+            {
+            }
+            break;
+            case DW_OP_plus:
+            {
+            }
+            break;
+            case DW_OP_plus_uconst:
+            {
+                u64 opd = 0;
+                codeIndex += dw_read_leb128_u64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_shl:
+            {
+            }
+            break;
+            case DW_OP_shr:
+            {
+            }
+            break;
+            case DW_OP_shra:
+            {
+            }
+            break;
+            case DW_OP_xor:
+            {
+            }
+            break;
+            case DW_OP_bra:
+            {
+                codeIndex += 2;
+            }
+            break;
+            case DW_OP_eq:
+            {
+            }
+            break;
+            case DW_OP_ge:
+            {
+            }
+            break;
+            case DW_OP_gt:
+            {
+            }
+            break;
+            case DW_OP_le:
+            {
+            }
+            break;
+            case DW_OP_lt:
+            {
+            }
+            break;
+            case DW_OP_ne:
+            {
+            }
+            break;
+            case DW_OP_skip:
+            {
+                codeIndex += 2;
+            }
+            break;
+            case DW_OP_lit0:
+            case DW_OP_lit1:
+            case DW_OP_lit2:
+            case DW_OP_lit3:
+            case DW_OP_lit4:
+            case DW_OP_lit5:
+            case DW_OP_lit6:
+            case DW_OP_lit7:
+            case DW_OP_lit8:
+            case DW_OP_lit9:
+            case DW_OP_lit10:
+            case DW_OP_lit11:
+            case DW_OP_lit12:
+            case DW_OP_lit13:
+            case DW_OP_lit14:
+            case DW_OP_lit15:
+            case DW_OP_lit16:
+            case DW_OP_lit17:
+            case DW_OP_lit18:
+            case DW_OP_lit19:
+            case DW_OP_lit20:
+            case DW_OP_lit21:
+            case DW_OP_lit22:
+            case DW_OP_lit23:
+            case DW_OP_lit24:
+            case DW_OP_lit25:
+            case DW_OP_lit26:
+            case DW_OP_lit27:
+            case DW_OP_lit28:
+            case DW_OP_lit29:
+            case DW_OP_lit30:
+            case DW_OP_lit31:
+            {
+            }
+            break;
+
+            case DW_OP_reg0:
+            case DW_OP_reg1:
+            case DW_OP_reg2:
+            case DW_OP_reg3:
+            case DW_OP_reg4:
+            case DW_OP_reg5:
+            case DW_OP_reg6:
+            case DW_OP_reg7:
+            case DW_OP_reg8:
+            case DW_OP_reg9:
+            case DW_OP_reg10:
+            case DW_OP_reg11:
+            case DW_OP_reg12:
+            case DW_OP_reg13:
+            case DW_OP_reg14:
+            case DW_OP_reg15:
+            case DW_OP_reg16:
+            case DW_OP_reg17:
+            case DW_OP_reg18:
+            case DW_OP_reg19:
+            case DW_OP_reg20:
+            case DW_OP_reg21:
+            case DW_OP_reg22:
+            case DW_OP_reg23:
+            case DW_OP_reg24:
+            case DW_OP_reg25:
+            case DW_OP_reg26:
+            case DW_OP_reg27:
+            case DW_OP_reg28:
+            case DW_OP_reg29:
+            case DW_OP_reg30:
+            case DW_OP_reg31:
+            {
+            }
+            break;
+
+            case DW_OP_breg0:
+            case DW_OP_breg1:
+            case DW_OP_breg2:
+            case DW_OP_breg3:
+            case DW_OP_breg4:
+            case DW_OP_breg5:
+            case DW_OP_breg6:
+            case DW_OP_breg7:
+            case DW_OP_breg8:
+            case DW_OP_breg9:
+            case DW_OP_breg10:
+            case DW_OP_breg11:
+            case DW_OP_breg12:
+            case DW_OP_breg13:
+            case DW_OP_breg14:
+            case DW_OP_breg15:
+            case DW_OP_breg16:
+            case DW_OP_breg17:
+            case DW_OP_breg18:
+            case DW_OP_breg19:
+            case DW_OP_breg20:
+            case DW_OP_breg21:
+            case DW_OP_breg22:
+            case DW_OP_breg23:
+            case DW_OP_breg24:
+            case DW_OP_breg25:
+            case DW_OP_breg26:
+            case DW_OP_breg27:
+            case DW_OP_breg28:
+            case DW_OP_breg29:
+            case DW_OP_breg30:
+            case DW_OP_breg31:
+            {
+                i64 opd = 0;
+                codeIndex += dw_read_leb128_i64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+
+            case DW_OP_regx:
+            {
+                u64 opd = 0;
+                codeIndex += dw_read_leb128_u64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_fbreg:
+            {
+                i64 opd = 0;
+                codeIndex += dw_read_leb128_i64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_bregx:
+            {
+                u64 reg = 0;
+                i64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&reg, data.ptr, data.len, codeIndex);
+                codeIndex += dw_read_leb128_i64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_piece:
+            {
+                u64 opd = 0;
+                codeIndex += dw_read_leb128_u64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_deref_size:
+            {
+                codeIndex += 1;
+            }
+            break;
+            case DW_OP_xderef_size:
+            {
+                codeIndex += 1;
+            }
+            break;
+            case DW_OP_nop:
+            {
+            }
+            break;
+            case DW_OP_push_object_address:
+            {
+            }
+            break;
+            case DW_OP_call2:
+            {
+                codeIndex += 2;
+            }
+            break;
+            case DW_OP_call4:
+            {
+                codeIndex += 4;
+            }
+            break;
+            case DW_OP_call_ref:
+            {
+                codeIndex += (unit->format == DW_DWARF32) ? 4 : 8;
+            }
+            break;
+            case DW_OP_form_tls_address:
+            {
+            }
+            break;
+            case DW_OP_call_frame_cfa:
+            {
+            }
+            break;
+            case DW_OP_bit_piece:
+            {
+                u64 size = 0;
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&size, data.ptr, data.len, codeIndex);
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_implicit_value:
+            {
+                u64 size = 0;
+                codeIndex += dw_read_leb128_u64(&size, data.ptr, data.len, codeIndex);
+
+                codeIndex += size;
+            }
+            break;
+            case DW_OP_stack_value:
+            {
+            }
+            break;
+            case DW_OP_implicit_pointer:
+            {
+                codeIndex += (unit->format == DW_DWARF32) ? 4 : 8;
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_addrx:
+            {
+                u64 opd = 0;
+                codeIndex += dw_read_leb128_u64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_constx:
+            {
+                u64 opd = 0;
+                codeIndex += dw_read_leb128_u64(&opd, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_entry_value:
+            {
+                u64 size = 0;
+                codeIndex += dw_read_leb128_u64(&size, data.ptr, data.len, codeIndex);
+
+                codeIndex += size;
+            }
+            break;
+            case DW_OP_const_type:
+            {
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+
+                u8 size = data.ptr[codeIndex];
+                codeIndex += 1;
+
+                codeIndex += size;
+            }
+            break;
+            case DW_OP_regval_type:
+            {
+                u64 reg = 0;
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&reg, data.ptr, data.len, codeIndex);
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_deref_type:
+            {
+                codeIndex += 1;
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_xderef_type:
+            {
+                codeIndex += 1;
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_convert:
+            {
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+            case DW_OP_reinterpret:
+            {
+                u64 offset = 0;
+                codeIndex += dw_read_leb128_u64(&offset, data.ptr, data.len, codeIndex);
+            }
+            break;
+
+            case DW_OP_WASM_location:
+            {
+                u8 code = data.ptr[codeIndex];
+                codeIndex++;
+                if(code == 3)
+                {
+                    codeIndex += 4;
+                }
+                else
+                {
+                    i64 i;
+                    codeIndex += dw_read_leb128_i64(&i, data.ptr, data.len, codeIndex);
+                }
+            }
+            break;
+
+            default:
+            {
+            }
+            break;
+        }
+    }
+}
+
 void dw_print_line_table_header(void)
 {
     printf("Address            Line   Column File   ISA Discriminator OpIndex Flags\n"
@@ -2031,6 +2735,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
             offset += dw_read_leb128_u64(&len, data, fileSize, offset);
             res->string.len = len;
             offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
+            OC_ASSERT(res->string.len == 0 || (u8)res->string.ptr[0] <= DW_OP_WASM_location);
         }
         break;
 
@@ -2997,7 +3702,7 @@ void dw_print_indent(u64 indent)
     }
 }
 
-void dw_print_die(dw_die* die, u32 indent)
+void dw_print_die(dw_unit* unit, dw_die* die, u32 indent)
 {
     printf("0x%08llx: ", die->start);
     dw_print_indent(indent);
@@ -3029,13 +3734,19 @@ void dw_print_die(dw_die* die, u32 indent)
             {
                 printf("\t(\"%.*s\")", oc_str8_ip(attr->string));
             }
+            else if(attr->abbrev->form == DW_FORM_exprloc)
+            {
+                printf("\t(");
+                dw_print_expression(unit, attr->string);
+                printf(")");
+            }
             printf("\n");
         }
 
         printf("\n");
         oc_list_for(die->children, child, dw_die, parentElt)
         {
-            dw_print_die(child, indent + 1);
+            dw_print_die(unit, child, indent + 1);
         }
     }
 }
@@ -3050,7 +3761,7 @@ void dw_print_debug_info(dw_info* info)
         printf("    type: %s\n", dw_get_cu_type_string(unit->type));
         printf("    version: %i\n", unit->version);
 
-        dw_print_die(unit->rootDie, 0);
+        dw_print_die(unit, unit->rootDie, 0);
     }
 }
 
