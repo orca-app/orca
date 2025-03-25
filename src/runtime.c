@@ -1692,6 +1692,9 @@ void debugger_ui_update(oc_runtime* app)
 
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
+                    oc_ui_label("title", "Callstack:");
+                    oc_ui_label("spacer", " ");
+
                     for(u32 level = 0; level <= interpreter->controlStackTop; level++)
                     {
                         wa_func* func = interpreter->controlStack[level].func;
@@ -2187,104 +2190,130 @@ void debugger_ui_update(oc_runtime* app)
 
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
-                if(app->debuggerUI.showSymbols && app->env.paused)
+                if(app->env.paused)
                 {
-                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-                    oc_ui_style_set_f32(OC_UI_SPACING, 5);
-
-                    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-                    u32 funcIndex = execFunc - interpreter->instance->functions;
-                    u32 codeIndex = interpreter->pc - execFunc->code;
-
-                    for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
+                    if(app->debuggerUI.showSymbols)
                     {
-                        oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                        oc_ui_style_set_f32(OC_UI_SPACING, 5);
 
-                        if(selectedFunction != oldSelectedFunction || interpreter->cachedRegs[regIndex].valI64 != interpreter->locals[regIndex].valI64)
+                        oc_ui_label("title", "Registers:");
+                        oc_ui_label("spacer", " ");
+
+                        wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+                        u32 funcIndex = execFunc - interpreter->instance->functions;
+                        u32 codeIndex = interpreter->pc - execFunc->code;
+
+                        for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
                         {
-                            oc_ui_style_rule_str8(regId)
+                            oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
+
+                            if(selectedFunction != oldSelectedFunction || interpreter->cachedRegs[regIndex].valI64 != interpreter->locals[regIndex].valI64)
                             {
-                                oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
+                                oc_ui_style_rule_str8(regId)
+                                {
+                                    oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
+                                }
                             }
-                        }
 
-                        oc_str8 regText = { 0 };
+                            oc_str8 regText = { 0 };
 
-                        wa_register_map* map = &app->env.module->registerMaps[funcIndex][regIndex];
+                            wa_register_map* map = &app->env.module->registerMaps[funcIndex][regIndex];
 
-                        wa_value_type type = WA_TYPE_UNKNOWN;
-                        for(u32 rangeIndex = 0; rangeIndex < map->count; rangeIndex++)
-                        {
-                            wa_register_range* range = &map->ranges[rangeIndex];
-                            if(codeIndex >= range->start && codeIndex <= range->end)
+                            wa_value_type type = WA_TYPE_UNKNOWN;
+                            for(u32 rangeIndex = 0; rangeIndex < map->count; rangeIndex++)
                             {
-                                type = range->type;
+                                wa_register_range* range = &map->ranges[rangeIndex];
+                                if(codeIndex >= range->start && codeIndex <= range->end)
+                                {
+                                    type = range->type;
+                                    break;
+                                }
+                            }
+
+                            switch(type)
+                            {
+                                case WA_TYPE_I32:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu (i32) = %i",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valI32);
+                                }
+                                break;
+                                case WA_TYPE_I64:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu (i64) = %lli",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valI64);
+                                }
+                                break;
+                                case WA_TYPE_F32:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu (f32) = %f",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valF32);
+                                }
+                                break;
+                                case WA_TYPE_F64:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu (f64) = %f",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valF64);
+                                }
+                                break;
+                                case WA_TYPE_FUNC_REF:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu (funcref) = 0x%016llx",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valI64);
+                                }
+                                break;
+                                case WA_TYPE_EXTERN_REF:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu (externref) = 0x%016llx",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valI64);
+                                }
+                                break;
+                                default:
+                                {
+                                    regText = oc_str8_pushf(scratch.arena,
+                                                            "r%llu = 0x%016llx",
+                                                            regIndex,
+                                                            interpreter->locals[regIndex].valI64);
+                                }
                                 break;
                             }
-                        }
 
-                        switch(type)
+                            oc_ui_label_str8(regId, regText);
+                        }
+                    }
+                    else
+                    {
+                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                        oc_ui_style_set_f32(OC_UI_SPACING, 5);
+
+                        oc_ui_label("title", "Variables:");
+                        oc_ui_label("spacer", " ");
+
+                        wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+                        u32 funcIndex = execFunc - interpreter->instance->functions;
+                        wa_debug_function* funcInfo = &interpreter->instance->module->functionLocals[funcIndex];
+
+                        for(u64 varIndex = 0; varIndex < funcInfo->count; varIndex++)
                         {
-                            case WA_TYPE_I32:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu (i32) = %i",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valI32);
-                            }
-                            break;
-                            case WA_TYPE_I64:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu (i64) = %lli",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valI64);
-                            }
-                            break;
-                            case WA_TYPE_F32:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu (f32) = %f",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valF32);
-                            }
-                            break;
-                            case WA_TYPE_F64:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu (f64) = %f",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valF64);
-                            }
-                            break;
-                            case WA_TYPE_FUNC_REF:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu (funcref) = 0x%016llx",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valI64);
-                            }
-                            break;
-                            case WA_TYPE_EXTERN_REF:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu (externref) = 0x%016llx",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valI64);
-                            }
-                            break;
-                            default:
-                            {
-                                regText = oc_str8_pushf(scratch.arena,
-                                                        "r%llu = 0x%016llx",
-                                                        regIndex,
-                                                        interpreter->locals[regIndex].valI64);
-                            }
-                            break;
-                        }
+                            oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);
 
-                        oc_ui_label_str8(regId, regText);
+                            oc_ui_label_str8(varId, funcInfo->vars[varIndex].name);
+                        }
                     }
                 }
             }

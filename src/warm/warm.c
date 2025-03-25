@@ -876,6 +876,18 @@ typedef struct wa_register_map
     wa_register_range* ranges;
 } wa_register_map;
 
+typedef struct wa_debug_variable
+{
+    oc_str8 name;
+    //...
+} wa_debug_variable;
+
+typedef struct wa_debug_function
+{
+    u32 count;
+    wa_debug_variable* vars;
+} wa_debug_function;
+
 typedef struct wa_module
 {
     oc_arena* arena;
@@ -955,6 +967,8 @@ typedef struct wa_module
     wa_wasm_to_line_entry* wasmToLine;
 
     wa_register_map** registerMaps;
+
+    wa_debug_function* functionLocals;
 
 } wa_module;
 
@@ -3152,6 +3166,8 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     return file;
 }
 
+oc_str8 wa_module_get_function_name(wa_module* module, u32 index);
+
 void wa_parse_dwarf(wa_parser* parser, wa_module* module)
 {
     /////////////////////////////////////////////////////////////////////////
@@ -3212,48 +3228,13 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
         dw_dump_abbrev_table(dwarfSections.abbrev);
     }
     */
+    dw_parse_info(module->arena, &dwarfSections, module->debugInfo);
 
     //NOTE: load line info if it exists
-    //TODO: put that in dw_info
     if(dwarfSections.line.len)
     {
         module->debugInfo->line = oc_arena_push_type(module->arena, dw_line_info);
         *module->debugInfo->line = dw_load_line_info(module->arena, &dwarfSections);
-
-        dw_parse_info(module->arena, &dwarfSections, module->debugInfo);
-
-        for(u64 unitIndex = 0; unitIndex < module->debugInfo->unitCount; unitIndex++)
-        {
-            dw_unit* unit = &module->debugInfo->units[unitIndex];
-            dw_die* die = dw_die_find_next_with_tag(unit->rootDie, unit->rootDie, DW_TAG_subprogram);
-            while(die)
-            {
-                dw_attr* attr = dw_die_get_attr(die, DW_AT_name);
-                /*
-                if(attr)
-                {
-                    printf("%.*s\n", oc_str8_ip(attr->string));
-                }
-                */
-                if(attr && !oc_str8_cmp(attr->string, OC_STR8("oc_on_frame_refresh")))
-                {
-                    printf("%.*s\n", oc_str8_ip(attr->string));
-
-                    dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
-                    while(var)
-                    {
-                        dw_attr* name = dw_die_get_attr(var, DW_AT_name);
-                        if(name)
-                        {
-                            printf("\t%.*s\n", oc_str8_ip(name->string));
-                        }
-                        var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
-                    }
-                }
-
-                die = dw_die_find_next_with_tag(unit->rootDie, die, DW_TAG_subprogram);
-            }
-        }
 
         //        dw_print_debug_info(module->debugInfo);
 
@@ -5338,6 +5319,69 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     wa_parse_data_count(&parser, module);
     wa_parse_code(&parser, module);
     wa_parse_data(&parser, module);
+
+    //NOTE: extract per-function local variables
+    module->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
+    memset(module->functionLocals, 0, module->functionCount * sizeof(wa_debug_function));
+
+    for(u64 unitIndex = 0; unitIndex < module->debugInfo->unitCount; unitIndex++)
+    {
+        dw_unit* unit = &module->debugInfo->units[unitIndex];
+        dw_die* die = dw_die_find_next_with_tag(unit->rootDie, unit->rootDie, DW_TAG_subprogram);
+        while(die)
+        {
+            dw_attr* funcNameAttr = dw_die_get_attr(die, DW_AT_name);
+            if(funcNameAttr)
+            {
+                //TODO: better way of finding function
+                bool found = false;
+                u64 funcIndex = 0;
+                for(; funcIndex < module->functionCount; funcIndex++)
+                {
+                    oc_str8 funcName = wa_module_get_function_name(module, funcIndex);
+                    if(!oc_str8_cmp(funcName, funcNameAttr->string))
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if(found)
+                {
+                    wa_debug_function* funcInfo = &module->functionLocals[funcIndex];
+                    funcInfo->count = 0;
+
+                    {
+                        dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
+                        while(var)
+                        {
+                            funcInfo->count++;
+                            var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
+                        }
+                    }
+
+                    funcInfo->vars = oc_arena_push_array(module->arena, wa_debug_variable, funcInfo->count);
+
+                    {
+                        dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
+                        u64 varIndex = 0;
+                        while(var)
+                        {
+                            dw_attr* name = dw_die_get_attr(var, DW_AT_name);
+                            if(name)
+                            {
+                                funcInfo->vars[varIndex].name = oc_str8_push_copy(module->arena, name->string);
+                            }
+                            var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
+                            varIndex++;
+                        }
+                    }
+                }
+            }
+
+            die = dw_die_find_next_with_tag(unit->rootDie, die, DW_TAG_subprogram);
+        }
+    }
 
     if(oc_list_empty(module->errors))
     {
