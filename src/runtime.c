@@ -1477,6 +1477,8 @@ void debugger_ui_update(oc_runtime* app)
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
 
         static i64 selectedFunction = -1;
+        static i64 selectedFrame = 0;
+
         f32 scrollSpeed = 0.3;
         app->debuggerUI.freshScroll = false;
 
@@ -1499,6 +1501,9 @@ void debugger_ui_update(oc_runtime* app)
                 wa_source_node* oldSelectedFile = app->debuggerUI.selectedFile;
 
                 //NOTE: select new function and file
+
+                selectedFrame = 0;
+
                 wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
                 selectedFunction = execFunc - app->env.instance->functions;
 
@@ -1673,16 +1678,16 @@ void debugger_ui_update(oc_runtime* app)
                 }
             }
 
-            oc_ui_box("stack-trace")
+            oc_ui_box("callstack")
             {
+                //TODO: review layout once we have a simpler way of expressing a list of equal rows from unequal items
+
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
-                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
 
-                oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_f32(OC_UI_SPACING, 5);
 
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
@@ -1692,28 +1697,82 @@ void debugger_ui_update(oc_runtime* app)
 
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
-                    oc_ui_label("title", "Callstack:");
-                    oc_ui_label("spacer", " ");
-
-                    for(u32 level = 0; level <= interpreter->controlStackTop; level++)
+                    oc_ui_box("title")
                     {
-                        wa_func* func = interpreter->controlStack[level].func;
-                        u64 addr = 0;
-                        if(level == interpreter->controlStackTop)
-                        {
-                            addr = interpreter->pc - func->code;
-                        }
-                        else
-                        {
-                            addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
-                        }
-                        u32 functionIndex = func - interpreter->instance->functions;
-                        oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                        oc_str8 label = oc_str8_pushf(scratch.arena, "label-%i", level);
-                        oc_str8 text = oc_str8_pushf(scratch.arena, "[%i] %.*s + 0x%08llx", level, oc_str8_ip(name), addr);
+                        oc_ui_label("title", "Callstack:");
+                        oc_ui_label("spacer", " ");
+                    }
 
-                        oc_ui_label_str8(label, text);
+                    oc_ui_box* callstackScrollPanel = oc_ui_box("callstack-scroll-panel")
+                    {
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+
+                        oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
+                        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
+                        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+
+                        oc_ui_box* callstackContents = oc_ui_box("callstackContents")
+                        {
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+                            for(u32 level = 0; level <= interpreter->controlStackTop; level++)
+                            {
+                                wa_func* func = interpreter->controlStack[level].func;
+                                u64 addr = 0;
+                                if(level == interpreter->controlStackTop)
+                                {
+                                    addr = interpreter->pc - func->code;
+                                }
+                                else
+                                {
+                                    addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
+                                }
+                                u32 functionIndex = func - interpreter->instance->functions;
+                                oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
+
+                                oc_str8 label = oc_str8_pushf(scratch.arena, "label-%i", level);
+                                oc_str8 text = oc_str8_pushf(scratch.arena, "[%i] %.*s + 0x%08llx", level, oc_str8_ip(name), addr);
+
+                                oc_ui_style_rule(".label.hover")
+                                {
+                                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                                }
+
+                                oc_ui_style_rule(".label")
+                                {
+                                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 2.5);
+
+                                    //TODO: this is a hack because we don't have another option to grow labels to the parent for now
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, .minSize = callstackContents->rect.w });
+                                }
+
+                                if(interpreter->controlStackTop - level == selectedFrame)
+                                {
+                                    oc_ui_style_rule_str8(label)
+                                    {
+                                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                                    }
+                                }
+
+                                if(oc_ui_label_str8(label, text).pressed)
+                                {
+                                    selectedFrame = interpreter->controlStackTop - level;
+                                }
+                            }
+                        }
                     }
                 }
             }
