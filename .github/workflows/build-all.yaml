@@ -142,12 +142,10 @@ jobs:
           cp -r artifact/angle-mac-x64 build/angle.out
 
       - name: Build and run tests
-        shell: cmd
         run: |
           zig build test
 
       - name: Build sketches
-        shell: cmd
         run: |
           zig build sketches
 
@@ -196,12 +194,10 @@ jobs:
           cp -r artifact/angle-mac-arm64 build/angle.out
 
       - name: Build and run tests
-        shell: cmd
         run: |
           zig build test
 
       - name: Build sketches
-        shell: cmd
         run: |
           zig build sketches
 
