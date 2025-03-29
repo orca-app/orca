@@ -458,7 +458,6 @@ pub fn build(b: *Build) !void {
     try orca_platform_compile_flags.append("-std=c11");
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
     try orca_platform_compile_flags.append("-D_USE_MATH_DEFINES");
-    try orca_platform_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
         try orca_platform_compile_flags.append("-DOC_DEBUG");
         try orca_platform_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
@@ -578,7 +577,6 @@ pub fn build(b: *Build) !void {
     defer orca_runtime_compile_flags.deinit();
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0"); // TODO remove bytebox support
-    try orca_runtime_compile_flags.append("-fno-sanitize=undefined");
     if (optimize == .Debug) {
         try orca_runtime_compile_flags.append("-DOC_DEBUG");
         try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
@@ -1071,7 +1069,6 @@ pub fn build(b: *Build) !void {
 
     var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
     defer orca_tool_compile_flags.deinit();
-    try orca_tool_compile_flags.append("-fno-sanitize=undefined"); // stb_image appears to invoke undefined behavior :(
     try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
