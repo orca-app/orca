@@ -46,8 +46,8 @@ typedef struct {
   unsigned size;
   unsigned mtime;
   unsigned type;
-  char name[100];
-  char linkname[100];
+  char name[227];
+  char linkname[227];
 } mtar_header_t;
 
 

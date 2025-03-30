@@ -28,7 +28,7 @@
 #include "microtar.h"
 
 typedef struct {
-  char name[100];
+  char name[227];
   char mode[8];
   char owner[8];
   char group[8];
@@ -36,10 +36,11 @@ typedef struct {
   char mtime[12];
   char checksum[8];
   char type;
-  char linkname[100];
-  char _padding[255];
+  char linkname[227];
+  char _padding[1];
 } mtar_raw_header_t;
 
+static_assert(sizeof(mtar_raw_header_t) == 512);
 
 static unsigned round_up(unsigned n, unsigned incr) {
   return n + (incr - n % incr) % incr;
