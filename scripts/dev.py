@@ -1287,12 +1287,14 @@ def system_orca_dir():
         res = subprocess.run(["orca", "install-path"], check=True, capture_output=True, text=True)
         install_path = res.stdout.strip()
         return install_path
-    except subprocess.CalledProcessError:
-        print("You must install the Orca cli tool and add the directory where you")
-        print("installed it to your PATH before the dev tooling can determine the")
-        print("system Orca directory. You can download the cli tool from:")
-        print("https://github.com/orca-app/orca/releases/latest")
-        exit(1)
+    except:
+        return os.path.join(os.path.expanduser("~"), ".orca")
+
+        # print("You must install the Orca cli tool and add the directory where you")
+        # print("installed it to your PATH before the dev tooling can determine the")
+        # print("system Orca directory. You can download the cli tool from:")
+        # print("https://github.com/orca-app/orca/releases/latest")
+        #exit(1)
 
 def package_sdk_internal(dest, target):
     bin_dir = os.path.join(dest, "bin")
