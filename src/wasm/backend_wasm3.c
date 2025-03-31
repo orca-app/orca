@@ -430,7 +430,7 @@ wa_func* wa_instance_find_function(wa_instance* instance, oc_str8 exportName)
     return (wa_func*)m3Func;
 }
 
-wa_func_type wa_function_get_type(oc_arena* scratch, wa_instance* instance, wa_func* function)
+wa_func_type wa_func_get_type(oc_arena* scratch, wa_instance* instance, wa_func* function)
 {
     if(function == NULL)
     {
