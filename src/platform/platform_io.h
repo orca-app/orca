@@ -28,13 +28,13 @@ typedef u16 oc_file_open_flags;
 enum oc_file_open_flags_enum
 {
     OC_FILE_OPEN_NONE = 0,
-    OC_FILE_OPEN_APPEND = 1 << 1,
-    OC_FILE_OPEN_TRUNCATE = 1 << 2,
-    OC_FILE_OPEN_CREATE = 1 << 3,
+    OC_FILE_OPEN_APPEND = 1 << 0,
+    OC_FILE_OPEN_TRUNCATE = 1 << 1,
+    OC_FILE_OPEN_CREATE = 1 << 2,
 
-    OC_FILE_OPEN_SYMLINK = 1 << 4,
-    OC_FILE_OPEN_NO_FOLLOW = 1 << 5,
-    OC_FILE_OPEN_RESTRICT = 1 << 6,
+    OC_FILE_OPEN_SYMLINK = 1 << 3,
+    OC_FILE_OPEN_NO_FOLLOW = 1 << 4,
+    OC_FILE_OPEN_RESTRICT = 1 << 5,
     //...
 };
 
@@ -43,8 +43,8 @@ typedef u16 oc_file_access;
 enum oc_file_access_enum
 {
     OC_FILE_ACCESS_NONE = 0,
-    OC_FILE_ACCESS_READ = 1 << 1,
-    OC_FILE_ACCESS_WRITE = 1 << 2,
+    OC_FILE_ACCESS_READ = 1 << 0,
+    OC_FILE_ACCESS_WRITE = 1 << 1,
 };
 
 typedef enum
