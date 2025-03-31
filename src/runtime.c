@@ -1480,7 +1480,7 @@ void debugger_ui_update(oc_runtime* app)
         static i64 selectedFunction = -1;
         static i64 selectedFrame = 0;
 
-        f32 scrollSpeed = 0.3;
+        f32 scrollSpeed = 0.5;
         app->debuggerUI.freshScroll = false;
 
         wa_source_info* sourceInfo = wa_module_get_source_info(app->env.module);
@@ -1937,6 +1937,11 @@ void debugger_ui_update(oc_runtime* app)
                                                     targetScroll = lineY + lineH - codeView->rect.h + scrollMargin;
                                                 }
                                             }
+                                            if(fabsf(targetScroll - codeView->scroll.y) > 300)
+                                            {
+                                                f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -300, 300);
+                                                codeView->scroll.y = targetScroll - delta;
+                                            }
                                             codeView->scroll.y += scrollSpeed * (targetScroll - codeView->scroll.y);
                                         }
 
@@ -2181,6 +2186,12 @@ void debugger_ui_update(oc_runtime* app)
                                             targetScroll = lineY + lineH - codeView->rect.h + scrollMargin;
                                         }
                                     }
+                                    if(fabsf(targetScroll - codeView->scroll.y) > 200)
+                                    {
+                                        f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -200, 200);
+                                        codeView->scroll.y = targetScroll - delta;
+                                    }
+
                                     codeView->scroll.y += scrollSpeed * (targetScroll - codeView->scroll.y);
                                 }
 
@@ -2487,6 +2498,7 @@ i32 control_runloop(void* user)
                 }
             }
             else
+#endif // OC_WASM_DEBUGGER
             {
                 if(app->debugOverlay.show)
                 {
@@ -2513,9 +2525,9 @@ i32 control_runloop(void* user)
                             {
                                 if(event->key.mods & OC_KEYMOD_SHIFT)
                                 {
-    #ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
+#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
                                     oc_debugger_ui_open(app);
-    #endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
+#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
                                 }
                                 else
                                 {
@@ -2534,7 +2546,6 @@ i32 control_runloop(void* user)
                     queue_event(&app->eventBuffer, event);
                 }
             }
-#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
         }
 
         //TODO: if vm has suspended, drain queue here
