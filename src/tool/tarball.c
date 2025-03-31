@@ -147,7 +147,10 @@ int untar(FILE* file, oc_str8 out_dir)
         if(h.type == MTAR_TDIR)
         {
             oc_arena_scope scratch = oc_scratch_begin();
-            oc_str8 dir_path = oc_path_append(scratch.arena, out_dir, OC_STR8(h.name));
+            oc_str8 dir_path = out_dir;
+            dir_path = oc_path_append(scratch.arena, dir_path, OC_STR8(h.prefix));
+            dir_path = oc_path_append(scratch.arena, dir_path, OC_STR8(h.name));
+
             bool ok = oc_sys_mkdirs(dir_path);
             oc_scratch_end(scratch);
             if(!ok)
@@ -167,7 +170,10 @@ int untar(FILE* file, oc_str8 out_dir)
                 break;
             }
 
-            oc_str8 path = oc_path_append(scratch.arena, out_dir, OC_STR8(h.name));
+            oc_str8 path = out_dir;
+            path = oc_path_append(scratch.arena, path, OC_STR8(h.prefix));
+            path = oc_path_append(scratch.arena, path, OC_STR8(h.name));
+
             bool ok = write_file_from_tar(path, &h, buf, h.size);
             oc_scratch_end(scratch);
             if(!ok)
