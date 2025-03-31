@@ -40,14 +40,14 @@ typedef u32 oc_window_style;
 
 enum oc_window_style_enum
 {
-    OC_WINDOW_STYLE_NO_TITLE = 0x01 << 0,
-    OC_WINDOW_STYLE_FIXED_SIZE = 0x01 << 1,
-    OC_WINDOW_STYLE_NO_CLOSE = 0x01 << 2,
-    OC_WINDOW_STYLE_NO_MINIFY = 0x01 << 3,
-    OC_WINDOW_STYLE_NO_FOCUS = 0x01 << 4,
-    OC_WINDOW_STYLE_FLOAT = 0x01 << 5,
-    OC_WINDOW_STYLE_POPUPMENU = 0x01 << 6,
-    OC_WINDOW_STYLE_NO_BUTTONS = 0x01 << 7
+    OC_WINDOW_STYLE_NO_TITLE = 1 << 0,
+    OC_WINDOW_STYLE_FIXED_SIZE = 1 << 1,
+    OC_WINDOW_STYLE_NO_CLOSE = 1 << 2,
+    OC_WINDOW_STYLE_NO_MINIFY = 1 << 3,
+    OC_WINDOW_STYLE_NO_FOCUS = 1 << 4,
+    OC_WINDOW_STYLE_FLOAT = 1 << 5,
+    OC_WINDOW_STYLE_POPUPMENU = 1 << 6,
+    OC_WINDOW_STYLE_NO_BUTTONS = 1 << 7
 };
 
 typedef enum
@@ -225,12 +225,12 @@ typedef enum
 
 typedef enum
 {
-    OC_KEYMOD_NONE = 0x00,
-    OC_KEYMOD_ALT = 0x01,
-    OC_KEYMOD_SHIFT = 0x02,
-    OC_KEYMOD_CTRL = 0x04,
-    OC_KEYMOD_CMD = 0x08,
-    OC_KEYMOD_MAIN_MODIFIER = 0x10 /* CMD on Mac, CTRL on Win32 */
+    OC_KEYMOD_NONE = 0,
+    OC_KEYMOD_ALT = 1 << 0,
+    OC_KEYMOD_SHIFT = 1 << 1,
+    OC_KEYMOD_CTRL = 1 << 2,
+    OC_KEYMOD_CMD = 1 << 3,
+    OC_KEYMOD_MAIN_MODIFIER = 1 << 4 /* CMD on Mac, CTRL on Win32 */
 } oc_keymod_flags;
 
 typedef enum
@@ -417,7 +417,7 @@ typedef u32 oc_file_dialog_flags;
 
 enum _oc_file_dialog_flags
 {
-    OC_FILE_DIALOG_FILES = 1,
+    OC_FILE_DIALOG_FILES = 1 << 0,
     OC_FILE_DIALOG_DIRECTORIES = 1 << 1,
     OC_FILE_DIALOG_MULTIPLE = 1 << 2,
     OC_FILE_DIALOG_CREATE_DIRECTORIES = 1 << 3,
