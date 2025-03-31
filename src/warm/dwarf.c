@@ -700,12 +700,27 @@ typedef struct dw_abbrev_table
     dw_abbrev_entry* entries;
 } dw_abbrev_table;
 
+typedef struct dw_loc_entry
+{
+    u64 start;
+    u64 end;
+    oc_str8 desc;
+} dw_loc_entry;
+
+typedef struct dw_loc
+{
+    bool single;
+    u64 entryCount;
+    dw_loc_entry* entries;
+} dw_loc;
+
 typedef struct dw_attr
 {
     dw_abbrev_attr* abbrev;
 
     union
     {
+        dw_loc loc;
         oc_str8 string;
         u8 valU8;
         u16 valU16;
@@ -947,6 +962,7 @@ typedef struct dw_sections
     oc_str8 addr;
     oc_str8 line;
     oc_str8 lineStr;
+    oc_str8 loc;
 } dw_sections;
 
 typedef struct dw_line_machine
@@ -1827,7 +1843,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
     return lineInfo;
 }
 
-void dw_print_expression(dw_unit* unit, oc_str8 data)
+void dw_print_expr(dw_unit* unit, oc_str8 data)
 {
     OC_ASSERT(data.len == 0 || (u8)data.ptr[0] <= DW_OP_WASM_location);
 
@@ -2326,6 +2342,49 @@ void dw_print_expression(dw_unit* unit, oc_str8 data)
     }
 }
 
+void dw_print_indent(u64 indent)
+{
+    for(u64 i = 0; i < indent; i++)
+    {
+        printf("  ");
+    }
+}
+
+void dw_print_loc(dw_unit* unit, dw_loc loc, int indent)
+{
+    if(loc.single)
+    {
+        dw_print_expr(unit, loc.entries[0].desc);
+    }
+    else
+    {
+        u64 baseOffset = 0; //TODO: should be unit's base offset
+        for(u64 i = 0; i < loc.entryCount; i++)
+        {
+            if(i)
+            {
+                printf("            "); // space of address
+                dw_print_indent(indent);
+            }
+            dw_loc_entry* entry = &loc.entries[i];
+            if(entry->start == 0xffffffffffffffff)
+            {
+                printf("0x%08llx:", entry->end);
+                baseOffset = entry->end;
+            }
+            else
+            {
+                printf("[0x%08llx, 0x%08llx): ", entry->start + baseOffset, entry->end + baseOffset);
+                dw_print_expr(unit, entry->desc);
+            }
+            if(i < loc.entryCount - 1)
+            {
+                printf("\n");
+            }
+        }
+    }
+}
+
 void dw_print_line_table_header(void)
 {
     printf("Address            Line   Column File   ISA Discriminator OpIndex Flags\n"
@@ -2465,6 +2524,48 @@ void dw_print_line_info(dw_line_info* info)
     }
 }
 
+/*
+typedef struct dw_loclist_table
+{
+    u64 unitLength;
+    dw_format format;
+    u16 version;
+    u8 addressSize;
+    u8 segmentSelectorSize;
+    u32 offsetEntryCount;
+    u64* offsets;
+
+    //...
+
+} dw_loclist_table;
+
+dw_loclist_table* dw_parse_loclist_table(oc_arean* arena, oc_str8 section)
+{
+    dw_loclist_table* table = oc_arena_push_type(arena, dw_loclist_table);
+    memset(table, 0, sizeof(dw_loclist_table));
+
+    u64 offset = 0;
+    u32 length32 = 0;
+    u8 dwarfFormat = DW_DWARF32;
+
+    offset += dw_read_u32(&length32, section.ptr, section.len, offset);
+
+    if(length32 >= 0xfffffff0)
+    {
+        offset += dw_read_u64(&table->unitLength, section.ptr, section.len, offset);
+        dwarfFormat = DW_DWARF64;
+    }
+    else
+    {
+        table->unitLength = length32;
+    }
+
+    //TODO
+
+    return table;
+}
+*/
+
 dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offset)
 {
     //TODO: check if we already loaded this table
@@ -2568,7 +2669,98 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
     return table;
 }
 
-u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 addressSize, u8 format, char* data, u64 fileSize, u64 offset)
+dw_loc dw_parse_loclist(oc_arena* arena, dw_unit* unit, oc_str8 section, u64 offset)
+{
+    //TODO: parse from debug loclist.
+    // in v4, offset is an offset from the beginning of the debug_loc section
+    // in v5, offset in an offset from the beginning of the debug_loclists section
+    dw_loc loc = { 0 };
+
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    if(unit->version == 4)
+    {
+        typedef struct dw_loc_entry_elt
+        {
+            oc_list_elt listElt;
+            dw_loc_entry entry;
+        } dw_loc_entry_elt;
+
+        oc_list list = { 0 };
+
+        while(offset < section.len)
+        {
+            u64 start = 0;
+            u64 end = 0;
+            oc_str8 desc = { 0 };
+
+            if(unit->addressSize == 4)
+            {
+                u32 start32, end32;
+                offset += dw_read_u32(&start32, section.ptr, section.len, offset);
+                offset += dw_read_u32(&end32, section.ptr, section.len, offset);
+                if(start32 == 0xffffffff)
+                {
+                    start = 0xffffffffffffffff;
+                }
+                else
+                {
+                    start = start32;
+                }
+                end = end32;
+            }
+            else if(unit->addressSize == 8)
+            {
+                offset += dw_read_u64(&start, section.ptr, section.len, offset);
+                offset += dw_read_u64(&end, section.ptr, section.len, offset);
+            }
+            else
+            {
+                OC_ASSERT(0);
+            }
+
+            if(start == 0 && end == 0)
+            {
+                //NOTE end of list entry
+                break;
+            }
+            else if(start != 0xffffffffffffffff)
+            {
+                //NOTE normal entry
+                u16 length = 0;
+                offset += dw_read_u16(&length, section.ptr, section.len, offset);
+                offset += dw_read_str8(&desc.ptr, length, section.ptr, section.len, offset);
+                desc.len = length;
+            }
+
+            dw_loc_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_loc_entry_elt);
+            elt->entry = (dw_loc_entry){
+                .start = start,
+                .end = end,
+                .desc = desc,
+            };
+            oc_list_push_back(&list, &elt->listElt);
+            loc.entryCount++;
+        }
+
+        loc.entries = oc_arena_push_array(arena, dw_loc_entry, loc.entryCount);
+        oc_list_for_indexed(list, it, dw_loc_entry_elt, listElt)
+        {
+            loc.entries[it.index] = it.elt->entry;
+        }
+    }
+    else
+    {
+        //TODO
+        OC_ASSERT(0);
+    }
+
+    oc_scratch_end(scratch);
+
+    return loc;
+}
+
+u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_sections* sections, dw_attr_name name, dw_form form, char* data, u64 fileSize, u64 offset)
 {
     u64 startOffset = offset;
 
@@ -2579,7 +2771,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         //-----------------------
         case DW_FORM_addr:
         {
-            if(addressSize == 4)
+            if(unit->addressSize == 4)
             {
                 u32 address32 = 0;
                 offset += dw_read_u32(&address32, data, fileSize, offset);
@@ -2733,9 +2925,18 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         {
             u64 len = 0;
             offset += dw_read_leb128_u64(&len, data, fileSize, offset);
-            res->string.len = len;
-            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
-            OC_ASSERT(res->string.len == 0 || (u8)res->string.ptr[0] <= DW_OP_WASM_location);
+
+            oc_str8 expr = { .len = len };
+            offset += dw_read_str8(&expr.ptr, expr.len, data, fileSize, offset);
+
+            res->loc = (dw_loc){
+                .single = true,
+                .entryCount = 1,
+                .entries = oc_arena_push_type(arena, dw_loc_entry),
+            };
+            res->loc.entries[0] = (dw_loc_entry){
+                .desc = expr,
+            };
         }
         break;
 
@@ -2813,7 +3014,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         case DW_FORM_ref_addr:
         {
             u64 ref64 = 0;
-            if(format == DW_DWARF32)
+            if(unit->format == DW_DWARF32)
             {
                 u32 ref32 = 0;
                 offset += dw_read_u32(&ref32, data, fileSize, offset);
@@ -2862,7 +3063,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         case DW_FORM_strp_sup:
         {
             u64 strOffset = 0;
-            if(format == DW_DWARF32)
+            if(unit->format == DW_DWARF32)
             {
                 u32 strOffset32 = 0;
                 offset += dw_read_u32(&strOffset32, data, fileSize, offset);
@@ -2996,7 +3197,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         case DW_FORM_sec_offset:
         {
             u64 addrOffset = 0;
-            if(format == DW_DWARF32)
+            if(unit->format == DW_DWARF32)
             {
                 u32 addrOffset32 = 0;
                 offset += dw_read_u32(&addrOffset32, data, fileSize, offset);
@@ -3005,6 +3206,19 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
             else
             {
                 offset += dw_read_u64(&addrOffset, data, fileSize, offset);
+            }
+
+            switch(name)
+            {
+                case DW_AT_location:
+                {
+                    res->loc = dw_parse_loclist(arena, unit, sections->loc, addrOffset);
+                }
+                break;
+
+                default:
+                    //TODO
+                    break;
             }
         }
         break;
@@ -3016,7 +3230,7 @@ u64 dw_parse_form_value(dw_attr* res, dw_sections* sections, dw_form form, u32 a
         {
             u64 indForm = 0;
             offset += dw_read_leb128_u64(&indForm, data, fileSize, offset);
-            offset += dw_parse_form_value(res, sections, indForm, addressSize, format, data, fileSize, offset);
+            offset += dw_parse_form_value(arena, res, unit, sections, name, indForm, data, fileSize, offset);
         }
         break;
 
@@ -3656,7 +3870,7 @@ u64 dw_parse_die(oc_arena* arena, dw_die* die, dw_sections* sections, dw_unit* u
     {
         dw_attr* attr = &die->attributes[attrIndex];
         attr->abbrev = &die->abbrev->attributes[attrIndex];
-        offset += dw_parse_form_value(attr, sections, attr->abbrev->form, unit->addressSize, unit->format, contents.ptr, contents.len, offset);
+        offset += dw_parse_form_value(arena, attr, unit, sections, attr->abbrev->name, attr->abbrev->form, contents.ptr, contents.len, offset);
     }
 
 end:
@@ -3694,14 +3908,6 @@ dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
     return 0;
 }
 
-void dw_print_indent(u64 indent)
-{
-    for(u64 i = 0; i < indent; i++)
-    {
-        printf("  ");
-    }
-}
-
 void dw_print_die(dw_unit* unit, dw_die* die, u32 indent)
 {
     printf("0x%08llx: ", die->start);
@@ -3734,10 +3940,10 @@ void dw_print_die(dw_unit* unit, dw_die* die, u32 indent)
             {
                 printf("\t(\"%.*s\")", oc_str8_ip(attr->string));
             }
-            else if(attr->abbrev->form == DW_FORM_exprloc)
+            else if(attr->abbrev->name == DW_AT_location)
             {
                 printf("\t(");
-                dw_print_expression(unit, attr->string);
+                dw_print_loc(unit, attr->loc, indent + 2);
                 printf(")");
             }
             printf("\n");
