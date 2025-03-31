@@ -37,9 +37,19 @@ typedef struct {
   char checksum[8];
   char type;
   char linkname[100];
-  char _padding[255];
+
+  char magic[6];
+  char version[2];
+  char uname[32];
+  char gname[32];
+  char devmajor[8];
+  char devminor[8];
+  char prefix[155];
+
+  char _padding[12];
 } mtar_raw_header_t;
 
+static_assert(sizeof(mtar_raw_header_t) == 512);
 
 static unsigned round_up(unsigned n, unsigned incr) {
   return n + (incr - n % incr) % incr;
@@ -110,6 +120,7 @@ static int raw_to_header(mtar_header_t *h, const mtar_raw_header_t *rh) {
   h->type = rh->type;
   strncpy(h->name, rh->name, sizeof(h->name));
   strncpy(h->linkname, rh->linkname, sizeof(h->name));
+  strncpy(h->prefix, rh->prefix, sizeof(h->prefix));
 
   return MTAR_ESUCCESS;
 }
@@ -127,6 +138,7 @@ static int header_to_raw(mtar_raw_header_t *rh, const mtar_header_t *h) {
   rh->type = h->type ? h->type : MTAR_TREG;
   strncpy(rh->name, h->name, sizeof(h->name));
   strncpy(rh->linkname, h->linkname, sizeof(h->name));
+  strncpy(rh->prefix, h->prefix, sizeof(h->prefix));
 
   /* Calculate and write checksum */
   chksum = checksum(rh);
