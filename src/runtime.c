@@ -1215,6 +1215,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
                 memset(found, 0, sizeof(wa_source_node));
 
                 found->parent = currentNode;
+                //TODO: don't set file index for directory nodes
                 found->index = fileIndex;
                 found->name = eltName->string;
                 found->id = nodeCount;
@@ -1412,7 +1413,7 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
 
             if(app->debuggerUI.autoScroll)
             {
-                f32 scrollMargin = 300;
+                f32 scrollMargin = panel->rect.h * 0.3;
 
                 if(lineY - targetScroll < scrollMargin)
                 {
@@ -1440,7 +1441,7 @@ void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int
 
 wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
 {
-    if(node->index == fileIndex)
+    if(oc_list_empty(node->children) && node->index == fileIndex)
     {
         return node;
     }
