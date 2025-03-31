@@ -3229,6 +3229,10 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
         {
             dwarfSections.lineStr = sectionContents;
         }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_loc")))
+        {
+            dwarfSections.loc = sectionContents;
+        }
     }
 
     module->debugInfo = oc_arena_push_type(module->arena, dw_info);
@@ -8815,7 +8819,8 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
         });
 
     wa_line_loc lineLoc = startLoc;
-    while(lineLoc.fileIndex == startLoc.fileIndex && lineLoc.line == startLoc.line)
+    while((lineLoc.fileIndex == startLoc.fileIndex && lineLoc.line == startLoc.line)
+          || lineLoc.line == 0)
     {
         wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
             interpreter,
@@ -8842,7 +8847,10 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
             break;
         }
 
-        startLoc = wa_line_loc_from_warm_loc(
+        func = interpreter->controlStack[interpreter->controlStackTop].func;
+        funcIndex = func - interpreter->instance->functions;
+
+        lineLoc = wa_line_loc_from_warm_loc(
             interpreter->instance->module,
             (wa_warm_loc){
                 .module = interpreter->instance->module,
