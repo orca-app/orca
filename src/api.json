@@ -6314,37 +6314,37 @@
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_APPEND",
                                 "doc": "Open the file in 'append' mode. All writes append data at the end of the file.",
-                                "value": 2
+                                "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_TRUNCATE",
                                 "doc": "Truncate the file to 0 bytes when opening.",
-                                "value": 4
+                                "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_CREATE",
                                 "doc": "Create the file if it does not exist.",
-                                "value": 8
+                                "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_SYMLINK",
                                 "doc": "If the file is a symlink, open the symlink itself instead of following it.",
-                                "value": 16
+                                "value": 8
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_NO_FOLLOW",
                                 "doc": "If the file is a symlink, the call to open will fail.",
-                                "value": 32
+                                "value": 16
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_RESTRICT",
                                 "doc": "Reserved.",
-                                "value": 64
+                                "value": 32
                             }
                         ]
                     }
@@ -6376,13 +6376,13 @@
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_READ",
                                 "doc": "The file handle can be used for reading from the file.",
-                                "value": 2
+                                "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_WRITE",
                                 "doc": "The file handle can be used for writing to the file.",
-                                "value": 4
+                                "value": 2
                             }
                         ]
                     }
