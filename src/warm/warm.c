@@ -5,6 +5,7 @@
 #include <stdlib.h>
 
 #include "warm.h"
+#include "dwarf.c"
 
 typedef enum wa_instr_op
 {
@@ -876,27 +877,15 @@ typedef struct wa_register_map
     wa_register_range* ranges;
 } wa_register_map;
 
-typedef struct wa_debug_loc_part
-{
-    u64 bitOffset;
-    u64 bitSize;
-    // expression
-} wa_debug_loc_part;
-
-typedef struct wa_debug_loc
-{
-    u64 count;
-    wa_debug_loc_part* parts;
-} wa_debug_loc;
-
 typedef struct wa_debug_variable
 {
     oc_str8 name;
-    wa_debug_loc* loc;
+    dw_loc* loc;
 } wa_debug_variable;
 
 typedef struct wa_debug_function
 {
+    dw_loc* frameBase;
     u32 count;
     wa_debug_variable* vars;
 } wa_debug_function;
@@ -3138,8 +3127,6 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     }
 }
 
-#include "dwarf.c"
-
 wa_source_node* wa_source_node_alloc(wa_module* module)
 {
     wa_source_node* node = oc_arena_push_type(module->arena, wa_source_node);
@@ -5369,6 +5356,15 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
                     wa_debug_function* funcInfo = &module->functionLocals[funcIndex];
                     funcInfo->count = 0;
 
+                    //NOTE: get frame base expr loc
+                    dw_attr* frameBase = dw_die_get_attr(die, DW_AT_frame_base);
+                    if(frameBase)
+                    {
+                        OC_DEBUG_ASSERT(frameBase->abbrev->form == DW_FORM_exprloc);
+                        funcInfo->frameBase = &frameBase->loc;
+                    }
+
+                    //NOTE: get variables
                     {
                         //TODO: get with multiple tags, eg here we also need formal_parameter
                         dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
@@ -5393,9 +5389,10 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
                             }
 
                             dw_attr* loc = dw_die_get_attr(var, DW_AT_location);
-                            if(loc && loc->abbrev->form == DW_FORM_exprloc)
+                            if(loc)
                             {
-                                //                                funcInfo->vars[varIndex].loc = wa_compile_dwarf_location(module, unit, loc->string);
+                                funcInfo->vars[varIndex].loc = &loc->loc;
+                                //TODO: compile the expr to wasm
                             }
 
                             var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);

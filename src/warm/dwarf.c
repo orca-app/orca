@@ -3940,7 +3940,7 @@ void dw_print_die(dw_unit* unit, dw_die* die, u32 indent)
             {
                 printf("\t(\"%.*s\")", oc_str8_ip(attr->string));
             }
-            else if(attr->abbrev->name == DW_AT_location)
+            else if(attr->abbrev->name == DW_AT_location || attr->abbrev->name == DW_AT_frame_base)
             {
                 printf("\t(");
                 dw_print_loc(unit, attr->loc, indent + 2);
