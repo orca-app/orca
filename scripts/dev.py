@@ -1288,6 +1288,8 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
 
+    shutil.copy(os.path.join("build", "angle.out", "angle.json"), bin_dir)
+    shutil.copy(os.path.join("build", "dawn.out", "dawn.json"), bin_dir)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
