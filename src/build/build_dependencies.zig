@@ -4,6 +4,11 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+// const c = @cImport({
+//     @cInclude("curl/curl.h");
+//     @cInclude("microtar.h");
+// });
+
 const MAX_FILE_SIZE = 1024 * 1024 * 128;
 
 const Lib = enum {
@@ -14,6 +19,13 @@ const Lib = enum {
         return switch (lib) {
             .Angle => "angle",
             .Dawn => "dawn",
+        };
+    }
+
+    fn toStrCased(lib: Lib) []const u8 {
+        return switch (lib) {
+            .Angle => "Angle",
+            .Dawn => "Dawn",
         };
     }
 };
@@ -27,6 +39,7 @@ const Options = struct {
     paths: struct {
         python: []const u8,
         cmake: []const u8,
+        orca_tool_exe: []const u8,
         intermediate_dir: []const u8,
         output_dir: []const u8,
     },
@@ -40,6 +53,7 @@ const Options = struct {
         var python: ?[]const u8 = null;
         var cmake: ?[]const u8 = null;
         var intermediate_dir: ?[]const u8 = null;
+        var orca_tool_path: ?[]const u8 = null;
 
         for (args, 0..) |raw_arg, i| {
             if (i == 0) {
@@ -72,6 +86,8 @@ const Options = struct {
                 cmake = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--intermediate")) {
                 intermediate_dir = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--orca-tool")) {
+                orca_tool_path = splitIter.next();
             }
 
             // logic above should have consumed all tokens, if any are left it's an error
@@ -96,6 +112,8 @@ const Options = struct {
             missing_arg = "cmake";
         } else if (intermediate_dir == null) {
             missing_arg = "intermediate";
+        } else if (orca_tool_path == null) {
+            missing_arg = "orca-tool";
         }
 
         if (missing_arg) |arg| {
@@ -124,6 +142,7 @@ const Options = struct {
             .paths = .{
                 .python = python.?,
                 .cmake = cmake.?,
+                .orca_tool_exe = orca_tool_path.?,
                 .intermediate_dir = intermediate_dir.?,
                 .output_dir = output_dir,
             },
@@ -137,7 +156,7 @@ const Sort = struct {
     }
 };
 
-fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *const std.process.EnvMap) !void {
+fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: ?*const std.process.EnvMap) !void {
     var log_msg = std.ArrayList(u8).init(arena);
     var log_writer = log_msg.writer();
     try log_writer.print("running: ", .{});
@@ -329,31 +348,105 @@ fn isLibUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool 
     return true;
 }
 
-fn buildAngle(opts: *const Options) !void {
-    if (isLibUpToDate(opts, .NoError)) {
-        // std.log.info("angle is up to date - no rebuild needed.\n", .{});
-        return;
-    } else if (opts.check_only) {
-        const msg =
-            \\Angle files are not present or don't match required commit.
-            \\Angle commit: {s}
-            \\
-            \\You can build the required files by running 'zig build angle'
-            \\
-            \\Alternatively you can trigger a CI run to build the binaries on github:
-            \\  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml
-            \\  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml
-            \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
-            \\  * Put the contents of the artifacts folder in './build/angle.out'
-        ;
-        std.log.err(msg, .{opts.commit_sha});
-        return error.AngleOutOfDate;
-    }
+// const CurlDownloadWrapper = struct {
+//     allocator: std.mem.Allocator,
+//     data: []u8 = &.{},
 
+//     export fn write(ptr: [*]c_char, size: usize, nmemb: usize, userdata: *anyopaque) usize {
+//         const wrapper: *CurlDownloadWrapper = @alignCast(@ptrCast(userdata));
+//         const slice: [*]u8 = @as([*]u8, @ptrCast(ptr));
+//         const downloaded: []u8 = slice[0 .. size * nmemb];
+//         wrapper.data = wrapper.allocator.dupe(u8, downloaded) catch &.{};
+//         return wrapper.data.len;
+//     }
+// };
+
+// fn curlDownload(opts: *const Options, url: [:0]const u8, headers: []const []const u8) ![]const u8 {
+//     const handle: ?*c.CURL = c.curl_easy_init();
+//     defer c.curl_easy_cleanup(handle);
+
+//     var wrapper = CurlDownloadWrapper{ .allocator = opts.arena };
+//     var error_buffer: [c.CURL_ERROR_SIZE]c_char = undefined;
+
+//     _ = c.curl_easy_setopt(handle, c.CURLOPT_ERRORBUFFER, &error_buffer);
+//     _ = c.curl_easy_setopt(handle, c.CURLOPT_FAILONERROR, @as(i32, 1));
+//     _ = c.curl_easy_setopt(handle, c.CURLOPT_FOLLOWLOCATION, @as(i32, 1));
+//     _ = c.curl_easy_setopt(handle, c.CURLOPT_WRITEFUNCTION, &CurlDownloadWrapper.write);
+//     _ = c.curl_easy_setopt(handle, c.CURLOPT_WRITEDATA, &wrapper);
+//     _ = c.curl_easy_setopt(handle, c.CURLOPT_URL, url.ptr);
+
+//     var header_list: ?*c.curl_slist = null;
+//     defer c.curl_slist_free_all(header_list);
+
+//     if (headers.len > 0) {
+//         for (headers) |header| {
+//             header_list = c.curl_slist_append(header_list, @ptrCast(header.ptr));
+//         }
+//         _ = c.curl_easy_setopt(handle, c.CURLOPT_HTTPHEADER, header_list);
+//     }
+
+//     const err: c.CURLcode = c.curl_easy_perform(handle);
+//     if (err != c.CURLE_OK) {
+//         const error_msg = std.mem.sliceTo(@as([]const u8, @ptrCast(&error_buffer)), 0);
+//         std.log.err("Caught error while retrieving URL {s}: {s}", .{ url, error_msg });
+//         return error.DownloadFailed;
+//     }
+
+//     return wrapper.data;
+// }
+
+fn downloadLibFromRelease(opts: *const Options) !void {
     const cwd = std.fs.cwd();
     try cwd.makePath(opts.paths.intermediate_dir);
 
-    std.log.info("angle is out of date - rebuilding", .{});
+    const dest_release_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "release-libs" });
+
+    try exec(
+        opts.arena,
+        &.{
+            opts.paths.orca_tool_exe,
+            "update",
+            "--path",
+            dest_release_path,
+        },
+        opts.paths.intermediate_dir,
+        null,
+    );
+
+    // const release_manifest_json = try curlDownload(
+    //     opts,
+    //     "http://api.github.com/repos/orca-app/orca/releases/latest",
+    //     &.{"X-GitHub-Api-Version: 2022-11-28"},
+    // );
+    // std.log.info("downloaded manifest:\n{s}", .{release_manifest_json});
+
+    // TODO can use the microtar and curl libs already embedded in the project to do the download and extract
+    // or maybe use the zig libs? not sure if they're mature enough yet though
+
+    return error.Unimplemented;
+    // request JSON payload from github API
+    // find tarball URL based on current platform
+    // download tarball
+    // extract tarball
+    // check commit json for matching sha
+    // copy files if all is well
+
+    // {
+    //     "assets": [
+    //     {
+    //         "name": "blah.tar.gz",
+    //         "browser_download_url": "https://github.com/orca-app/orca/releases/download/test-release-4f124dd346/orca-mac-arm64.tar.gz"
+    //     }
+    // }
+
+    // orca-mac-arm64.tar.gz
+    // orca-mac-x64.tar.gz
+    // orca-windows.tar.gz
+}
+
+fn buildAngle(opts: *const Options) !void {
+    const cwd = std.fs.cwd();
+    try cwd.makePath(opts.paths.intermediate_dir);
 
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
@@ -508,32 +601,11 @@ fn buildAngle(opts: *const Options) !void {
 }
 
 fn buildDawn(opts: *const Options) !void {
-    if (isLibUpToDate(opts, .NoError)) {
-        // std.log.info("dawn is up to date - no rebuild needed.\n", .{});
-        return;
-    } else if (opts.check_only) {
-        const msg =
-            \\Dawn files are not present or don't match required commit.
-            \\Dawn commit: {s}
-            \\You can build the required files by running 'zig build dawn'
-            \\
-            \\Alternatively you can trigger a CI run to build the binaries on github:
-            \\  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml
-            \\  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml
-            \\  * Click on "Run workflow" to tigger a new run, or download artifacts from a previous run
-            \\  * Put the contents of the artifacts folder in './build/dawn.out'
-        ;
-        std.log.err(msg, .{opts.commit_sha});
-
-        return error.DawnOutOfDate;
-    }
-
-    std.log.info("dawn is out of date - rebuilding", .{});
+    const cwd = std.fs.cwd();
+    try cwd.makePath(opts.paths.intermediate_dir);
 
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
-
-    const cwd = std.fs.cwd();
 
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
 
@@ -555,7 +627,6 @@ fn buildDawn(opts: *const Options) !void {
     _ = try src_dir.updateFile("scripts/standalone.gclient", src_dir, ".gclient", .{});
 
     const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
-    // const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient" else "gclient";
     const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, "gclient" });
     try execShell(opts.arena, &.{ gclient_path, "sync" }, src_path, &env);
 
@@ -682,8 +753,75 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     const opts = try Options.parse(args, allocator);
+    if (isLibUpToDate(&opts, .NoError)) {
+        return;
+    }
+
+    const msg_angle =
+        \\Angle files are not present or don't match required commit ({s}).
+        \\
+        \\You can either:
+        \\
+        \\1. Attempt to use the latest official release's built libs (recommended)
+        \\
+        \\2. Locally build the required files. You can also do this by running 'zig build angle'
+        \\
+        \\3. Trigger a CI run to build the binaries on github:
+        \\  * Go to {s}
+        \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
+        \\  * Put the contents of the artifacts folder in './build/angle.out'
+        \\
+        \\Please enter the option you wish to perform (1, 2, or 3):
+    ;
+
+    const msg_dawn =
+        \\Dawn files are not present or don't match required commit ({s}).
+        \\
+        \\You can either:
+        \\
+        \\1. Attempt to use the latest official release's built libs (recommended)
+        \\
+        \\2. Locally build the required files. You can also do this by running 'zig build dawn'
+        \\
+        \\3. Trigger a CI run to build the binaries on github:
+        \\  * Go to {s}
+        \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
+        \\  * Put the contents of the artifacts folder in './build/dawn.out'
+        \\
+        \\Please enter the option you wish to perform (1, 2, or 3):
+    ;
+
+    const angle_windows_action_url = "https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml";
+    const angle_macos_action_url = "https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml";
+    const dawn_windows_action_url = "https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml";
+    const dawn_macos_action_url = "https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml";
+
+    const action_url = switch (opts.lib) {
+        .Angle => if (builtin.os.tag == .windows) angle_windows_action_url else angle_macos_action_url,
+        .Dawn => if (builtin.os.tag == .windows) dawn_windows_action_url else dawn_macos_action_url,
+    };
+
     switch (opts.lib) {
-        .Angle => try buildAngle(&opts),
-        .Dawn => try buildDawn(&opts),
+        .Angle => std.log.info(msg_angle, .{ opts.commit_sha, action_url }),
+        .Dawn => std.log.info(msg_dawn, .{ opts.commit_sha, action_url }),
+    }
+
+    const stdin_file = std.io.getStdIn().reader();
+    const input_buf: []u8 = try stdin_file.readUntilDelimiterAlloc(allocator, '\n', 16);
+    const input = std.mem.trim(u8, input_buf, "\r");
+
+    if (std.mem.eql(u8, input, "1")) {
+        try downloadLibFromRelease(&opts);
+    } else if (std.mem.eql(u8, input, "2")) {
+        switch (opts.lib) {
+            .Angle => try buildAngle(&opts),
+            .Dawn => try buildDawn(&opts),
+        }
+    } else if (std.mem.eql(u8, input, "3")) {
+        std.log.info("Option 3 selected. After manually copying the artifacts to the build folder, rerun zig build.", .{});
+        return error.ExplicitQuit;
+    } else {
+        std.log.err("Unknown option '{s}' selected.", .{input});
+        return error.UnknownInput;
     }
 }

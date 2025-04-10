@@ -218,6 +218,327 @@ pub fn build(b: *Build) !void {
     const deps_intermediate_path = try cwd.realpathAlloc(b.allocator, "build");
 
     /////////////////////////////////////////////////////////
+    // zlib
+
+    var z_sources = CSources.init(b);
+    defer z_sources.deinit();
+    try z_sources.collect("src/ext/zlib/");
+
+    var z_lib = b.addStaticLibrary(.{
+        .name = "z",
+        .target = target,
+        .optimize = optimize,
+    });
+    z_lib.addIncludePath(b.path("src/ext/zlib/"));
+    z_lib.addCSourceFiles(.{
+        .files = z_sources.files.items,
+        .flags = &.{
+            "-DHAVE_SYS_TYPES_H",
+            "-DHAVE_STDINT_H",
+            "-DHAVE_STDDEF_H",
+            "-DZ_HAVE_UNISTD_H",
+        },
+    });
+    z_lib.linkLibC();
+
+    /////////////////////////////////////////////////////////
+    // curl - used in orca cli tool and build_dependencies helper
+
+    // Original zig build code MIT licensed from: https://github.com/jiacai2050/zig-curl/blob/main/libs/curl.zig
+    const curl_lib = b.addStaticLibrary(.{
+        .name = "curl",
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+
+    var curl_sources = CSources.init(b);
+    try curl_sources.collect("src/ext/curl/lib");
+    try curl_sources.collect("src/ext/curl/lib/vauth");
+    try curl_sources.collect("src/ext/curl/lib/vtls");
+    try curl_sources.collect("src/ext/curl/lib/vssh");
+    try curl_sources.collect("src/ext/curl/lib/vquic");
+
+    for (curl_sources.files.items) |path| {
+        curl_lib.addCSourceFile(.{
+            .file = b.path(path),
+            .flags = &.{ "-std=gnu89", "-fno-sanitize=undefined" },
+        });
+    }
+
+    curl_lib.addIncludePath(b.path("src/ext/curl/lib"));
+    curl_lib.addIncludePath(b.path("src/ext/curl/include"));
+    curl_lib.addIncludePath(b.path("src/ext/zlib"));
+
+    curl_lib.root_module.addCMacro("BUILDING_LIBCURL", "1");
+    curl_lib.root_module.addCMacro("CURL_STATICLIB", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_LDAP", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_LDAPS", "1");
+    // curl_lib.root_module.addCMacro("USE_MBEDTLS", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_DICT", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_FILE", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_FTP", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_GOPHER", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_IMAP", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_MQTT", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_POP3", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_RTSP", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_SMB", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_SMTP", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_TELNET", "1");
+    curl_lib.root_module.addCMacro("CURL_DISABLE_TFTP", "1");
+    curl_lib.root_module.addCMacro("HAVE_LIBZ", "1");
+    curl_lib.root_module.addCMacro("HAVE_ZLIB_H", "1");
+
+    if (target.result.os.tag == .windows) {
+        curl_lib.root_module.addCMacro("USE_WINDOWS_SSPI", "1");
+        curl_lib.root_module.addCMacro("USE_SCHANNEL", "1");
+
+        curl_lib.linkSystemLibrary("ws2_32");
+        curl_lib.linkSystemLibrary("wldap32");
+        curl_lib.linkSystemLibrary("advapi32");
+        curl_lib.linkSystemLibrary("crypt32");
+        curl_lib.linkSystemLibrary("gdi32");
+        curl_lib.linkSystemLibrary("user32");
+        curl_lib.linkSystemLibrary("bcrypt");
+    } else {
+        curl_lib.root_module.addCMacro("CURL_EXTERN_SYMBOL", "__attribute__ ((__visibility__ (\"default\"))");
+
+        if (target.result.os.tag.isDarwin() == false) {
+            curl_lib.root_module.addCMacro("ENABLE_IPV6", "1");
+            curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME_R", "1");
+            curl_lib.root_module.addCMacro("HAVE_MSG_NOSIGNAL", "1");
+        }
+
+        if (target.result.os.tag == .linux) {
+            curl_lib.root_module.addCMacro("HAVE_LINUX_TCP_H", "1");
+            curl_lib.root_module.addCMacro("OS", "\"Linux\"");
+        }
+
+        curl_lib.root_module.addCMacro("HAVE_ALARM", "1");
+        curl_lib.root_module.addCMacro("HAVE_ALLOCA_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_ARPA_INET_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_ARPA_TFTP_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_ASSERT_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_BASENAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_BOOL_T", "1");
+        curl_lib.root_module.addCMacro("HAVE_BUILTIN_AVAILABLE", "1");
+        curl_lib.root_module.addCMacro("HAVE_CLOCK_GETTIME_MONOTONIC", "1");
+        curl_lib.root_module.addCMacro("HAVE_DLFCN_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_ERRNO_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_FCNTL", "1");
+        curl_lib.root_module.addCMacro("HAVE_FCNTL_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_FCNTL_O_NONBLOCK", "1");
+        curl_lib.root_module.addCMacro("HAVE_FREEADDRINFO", "1");
+        curl_lib.root_module.addCMacro("HAVE_FTRUNCATE", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETADDRINFO", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETEUID", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETPPID", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME_R_6", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETHOSTNAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETPPID", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETPROTOBYNAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETPEERNAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETSOCKNAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_IF_NAMETOINDEX", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETPWUID", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETPWUID_R", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETRLIMIT", "1");
+        curl_lib.root_module.addCMacro("HAVE_GETTIMEOFDAY", "1");
+        curl_lib.root_module.addCMacro("HAVE_GMTIME_R", "1");
+        curl_lib.root_module.addCMacro("HAVE_IFADDRS_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_INET_ADDR", "1");
+        curl_lib.root_module.addCMacro("HAVE_INET_PTON", "1");
+        curl_lib.root_module.addCMacro("HAVE_SA_FAMILY_T", "1");
+        curl_lib.root_module.addCMacro("HAVE_INTTYPES_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_IOCTL", "1");
+        curl_lib.root_module.addCMacro("HAVE_IOCTL_FIONBIO", "1");
+        curl_lib.root_module.addCMacro("HAVE_IOCTL_SIOCGIFADDR", "1");
+        curl_lib.root_module.addCMacro("HAVE_LDAP_URL_PARSE", "1");
+        curl_lib.root_module.addCMacro("HAVE_LIBGEN_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_IDN2_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_LL", "1");
+        curl_lib.root_module.addCMacro("HAVE_LOCALE_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_LOCALTIME_R", "1");
+        curl_lib.root_module.addCMacro("HAVE_LONGLONG", "1");
+        curl_lib.root_module.addCMacro("HAVE_MALLOC_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_MEMORY_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_NETDB_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_NETINET_IN_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_NETINET_TCP_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_NET_IF_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_PIPE", "1");
+        curl_lib.root_module.addCMacro("HAVE_POLL", "1");
+        curl_lib.root_module.addCMacro("HAVE_POLL_FINE", "1");
+        curl_lib.root_module.addCMacro("HAVE_POLL_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_POSIX_STRERROR_R", "1");
+        curl_lib.root_module.addCMacro("HAVE_PTHREAD_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_PWD_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_RECV", "1");
+        curl_lib.root_module.addCMacro("HAVE_SELECT", "1");
+        curl_lib.root_module.addCMacro("HAVE_SEND", "1");
+        curl_lib.root_module.addCMacro("HAVE_FSETXATTR", "1");
+        curl_lib.root_module.addCMacro("HAVE_FSETXATTR_5", "1");
+        curl_lib.root_module.addCMacro("HAVE_SETJMP_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SETLOCALE", "1");
+        curl_lib.root_module.addCMacro("HAVE_SETRLIMIT", "1");
+        curl_lib.root_module.addCMacro("HAVE_SETSOCKOPT", "1");
+        curl_lib.root_module.addCMacro("HAVE_SIGACTION", "1");
+        curl_lib.root_module.addCMacro("HAVE_SIGINTERRUPT", "1");
+        curl_lib.root_module.addCMacro("HAVE_SIGNAL", "1");
+        curl_lib.root_module.addCMacro("HAVE_SIGNAL_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SIGSETJMP", "1");
+        curl_lib.root_module.addCMacro("HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID", "1");
+        curl_lib.root_module.addCMacro("HAVE_SOCKET", "1");
+        curl_lib.root_module.addCMacro("HAVE_STDBOOL_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_STDINT_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_STDIO_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_STDLIB_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRCASECMP", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRDUP", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRERROR_R", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRINGS_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRING_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRSTR", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRTOK_R", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRTOLL", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRUCT_SOCKADDR_STORAGE", "1");
+        curl_lib.root_module.addCMacro("HAVE_STRUCT_TIMEVAL", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_IOCTL_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_PARAM_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_POLL_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_RESOURCE_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_SELECT_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_SOCKET_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_STAT_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_TIME_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_TYPES_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_UIO_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_SYS_UN_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_TERMIOS_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_TERMIO_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_TIME_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_UNAME", "1");
+        curl_lib.root_module.addCMacro("HAVE_UNISTD_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_UTIME", "1");
+        curl_lib.root_module.addCMacro("HAVE_UTIMES", "1");
+        curl_lib.root_module.addCMacro("HAVE_UTIME_H", "1");
+        curl_lib.root_module.addCMacro("HAVE_VARIADIC_MACROS_C99", "1");
+        curl_lib.root_module.addCMacro("HAVE_VARIADIC_MACROS_GCC", "1");
+        curl_lib.root_module.addCMacro("RANDOM_FILE", "\"/dev/urandom\"");
+        curl_lib.root_module.addCMacro("RECV_TYPE_ARG1", "int");
+        curl_lib.root_module.addCMacro("RECV_TYPE_ARG2", "void *");
+        curl_lib.root_module.addCMacro("RECV_TYPE_ARG3", "size_t");
+        curl_lib.root_module.addCMacro("RECV_TYPE_ARG4", "int");
+        curl_lib.root_module.addCMacro("RECV_TYPE_RETV", "ssize_t");
+        curl_lib.root_module.addCMacro("SEND_QUAL_ARG2", "const");
+        curl_lib.root_module.addCMacro("SEND_TYPE_ARG1", "int");
+        curl_lib.root_module.addCMacro("SEND_TYPE_ARG2", "void *");
+        curl_lib.root_module.addCMacro("SEND_TYPE_ARG3", "size_t");
+        curl_lib.root_module.addCMacro("SEND_TYPE_ARG4", "int");
+        curl_lib.root_module.addCMacro("SEND_TYPE_RETV", "ssize_t");
+        curl_lib.root_module.addCMacro("SIZEOF_INT", "4");
+        curl_lib.root_module.addCMacro("SIZEOF_SHORT", "2");
+        curl_lib.root_module.addCMacro("SIZEOF_LONG", "8");
+        curl_lib.root_module.addCMacro("SIZEOF_OFF_T", "8");
+        curl_lib.root_module.addCMacro("SIZEOF_CURL_OFF_T", "8");
+        curl_lib.root_module.addCMacro("SIZEOF_SIZE_T", "8");
+        curl_lib.root_module.addCMacro("SIZEOF_TIME_T", "8");
+        curl_lib.root_module.addCMacro("STDC_HEADERS", "1");
+        curl_lib.root_module.addCMacro("TIME_WITH_SYS_TIME", "1");
+        curl_lib.root_module.addCMacro("USE_THREADS_POSIX", "1");
+        curl_lib.root_module.addCMacro("USE_UNIX_SOCKETS", "1");
+        curl_lib.root_module.addCMacro("_FILE_OFFSET_BITS", "64");
+    }
+
+    /////////////////////////////////////////////////////////
+    // Orca CLI tool
+
+    const git_version_tool: []const u8 = blk: {
+        if (git_version_opt) |git_version| {
+            break :blk try b.allocator.dupe(u8, git_version);
+        } else {
+            const git_version = b.run(&.{ "git", "rev-parse", "--short", "HEAD" });
+            break :blk std.mem.trimRight(u8, git_version, "\n");
+        }
+    };
+
+    var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
+    defer orca_tool_compile_flags.deinit();
+    try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
+    try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
+    try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
+    try orca_tool_compile_flags.append("-DCURL_STATICLIB");
+    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
+
+    if (optimize == .Debug) {
+        try orca_tool_compile_flags.append("-DOC_DEBUG");
+        try orca_tool_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
+    }
+
+    const orca_tool_exe = b.addExecutable(.{
+        .name = "orca_tool",
+        .target = target,
+        .optimize = optimize,
+    });
+    orca_tool_exe.addIncludePath(b.path("src/"));
+    orca_tool_exe.addIncludePath(b.path("src/tool"));
+    orca_tool_exe.addIncludePath(b.path("src/ext/stb"));
+    orca_tool_exe.addIncludePath(b.path("src/ext/curl/include"));
+    orca_tool_exe.addIncludePath(b.path("src/ext/zlib"));
+    orca_tool_exe.addIncludePath(b.path("src/ext/microtar"));
+
+    orca_tool_exe.addCSourceFiles(.{
+        .files = &.{
+            "src/tool/main.c",
+            // "src/tool/util.c",
+            // "src/tool/version.c",
+            // "src/tool/sdk_path.c",
+            // "src/tool/install_path.c",
+            // "src/tool/bundle.c",
+            // "src/ext/microtar/microtar.c",
+            // "src/tool/tarball.c",
+            // "src/tool/update.c",
+            // "src/tool/list.c",
+            // "src/tool/system.c",
+            // "src/orca.c",
+        },
+        .flags = orca_tool_compile_flags.items,
+    });
+
+    orca_tool_exe.linkLibrary(curl_lib);
+    orca_tool_exe.linkLibrary(z_lib);
+    if (target.result.os.tag == .windows) {
+        orca_tool_exe.linkSystemLibrary("shlwapi");
+        orca_tool_exe.linkSystemLibrary("shell32");
+        orca_tool_exe.linkSystemLibrary("ole32");
+        orca_tool_exe.linkSystemLibrary("kernel32");
+    } else if (target.result.os.tag.isDarwin()) {
+        orca_tool_exe.linkFramework("Cocoa");
+        orca_tool_exe.linkFramework("SystemConfiguration");
+        orca_tool_exe.linkFramework("CoreFoundation");
+        orca_tool_exe.linkFramework("CoreServices");
+        orca_tool_exe.linkFramework("SystemConfiguration");
+        orca_tool_exe.linkFramework("Security");
+    }
+
+    orca_tool_exe.step.dependOn(&curl_lib.step);
+    orca_tool_exe.step.dependOn(&z_lib.step);
+    orca_tool_exe.linkLibC();
+
+    const orca_tool_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
+
+    var run_orca_tool: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
+    run_orca_tool.step.dependOn(&orca_tool_install.step);
+    if (b.args) |args| {
+        run_orca_tool.addArgs(args); // forwards args afer -- to orca cli, ex: zig build orca-tool -- update
+    }
+
+    const build_tool_step = b.step("orca-tool", "Run the Orca CLI tool");
+    build_tool_step.dependOn(&run_orca_tool.step);
+
+    /////////////////////////////////////////////////////////
     // build_dependencies helper program
 
     const build_deps_exe: *Build.Step.Compile = b.addExecutable(.{
@@ -226,48 +547,42 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = .Debug,
     });
+    // build_deps_exe.addIncludePath(b.path("src/ext/curl/include"));
+    // build_deps_exe.addIncludePath(b.path("src/ext/microtar"));
+    // build_deps_exe.linkLibrary(curl_lib);
+    // build_deps_exe.linkLibrary(z_lib);
+    // build_deps_exe.addCSourceFiles(.{
+    //     .files = &.{"src/ext/microtar/microtar.c"},
+    //     .flags = &.{},
+    // });
 
     /////////////////////////////////////////////////////////
-    // angle build + check
+    // angle build
 
     var run_angle_build: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_angle_build.addArg("--lib=angle");
     run_angle_build.addArg(b.fmt("--sha={s}", .{shas.angle}));
     run_angle_build.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
+    run_angle_build.addPrefixedFileArg("--orca-tool=", orca_tool_exe.getEmittedBin());
     RunHelpers.addPythonArg(run_angle_build, target, b);
     RunHelpers.addCmakeArg(run_angle_build, target, b);
 
     const build_angle_step = b.step("angle", "Build Angle libs");
     build_angle_step.dependOn(&run_angle_build.step);
 
-    var run_angle_uptodate: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
-    run_angle_uptodate.addArg("--check");
-    run_angle_uptodate.addArg("--lib=angle");
-    run_angle_uptodate.addArg(b.fmt("--sha={s}", .{shas.angle}));
-    run_angle_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
-    RunHelpers.addPythonArg(run_angle_uptodate, target, b);
-    RunHelpers.addCmakeArg(run_angle_uptodate, target, b);
-
     /////////////////////////////////////////////////////////
-    // dawn build + check
+    // dawn build
 
     var run_dawn_build: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
     run_dawn_build.addArg("--lib=dawn");
     run_dawn_build.addArg(b.fmt("--sha={s}", .{shas.dawn}));
     run_dawn_build.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
+    run_dawn_build.addPrefixedFileArg("--orca-tool=", orca_tool_exe.getEmittedBin());
     RunHelpers.addPythonArg(run_dawn_build, target, b);
     RunHelpers.addCmakeArg(run_dawn_build, target, b);
 
     const build_dawn_step = b.step("dawn", "Build Dawn libs");
     build_dawn_step.dependOn(&run_dawn_build.step);
-
-    var run_dawn_uptodate: *Build.Step.Run = b.addRunArtifact(build_deps_exe);
-    run_dawn_uptodate.addArg("--check");
-    run_dawn_uptodate.addArg("--lib=dawn");
-    run_dawn_uptodate.addArg(b.fmt("--sha={s}", .{shas.dawn}));
-    run_dawn_uptodate.addArg(b.fmt("--intermediate={s}", .{deps_intermediate_path}));
-    RunHelpers.addPythonArg(run_dawn_uptodate, target, b);
-    RunHelpers.addCmakeArg(run_dawn_uptodate, target, b);
 
     /////////////////////////////////////////////////////////
     // CI helper to print the desired angle/dawn shas to stdout
@@ -344,7 +659,7 @@ pub fn build(b: *Build) !void {
         stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libEGL.dylib"), "build/bin/libEGL.dylib");
         stage_angle_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/bin/libGLESv2.dylib");
     }
-    stage_angle_artifacts.step.dependOn(&run_angle_uptodate.step);
+    stage_angle_artifacts.step.dependOn(&run_angle_build.step);
 
     var stage_dawn_artifacts = b.addUpdateSourceFiles();
     stage_dawn_artifacts.addCopyFileToSource(b.path("build/dawn.out/include/webgpu.h"), "src/ext/dawn/include/webgpu.h");
@@ -354,7 +669,7 @@ pub fn build(b: *Build) !void {
     } else {
         stage_angle_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/bin/libwebgpu.dylib");
     }
-    stage_dawn_artifacts.step.dependOn(&run_dawn_uptodate.step);
+    stage_dawn_artifacts.step.dependOn(&run_dawn_build.step);
 
     // generate GLES API spec from OpenGL XML registry
     // TODO port this to C or Zig
@@ -823,305 +1138,6 @@ pub fn build(b: *Build) !void {
     const build_wasm_sdk_step = b.step("orca-wasm-sdk", "Build the Orca wasm sdk from source.");
     build_wasm_sdk_step.dependOn(&wasm_sdk_install.step);
 
-    /////////////////////////////////////////////////////////
-    // Orca CLI tool and dependencies
-
-    // zlib
-
-    var z_sources = CSources.init(b);
-    defer z_sources.deinit();
-    try z_sources.collect("src/ext/zlib/");
-
-    var z_lib = b.addStaticLibrary(.{
-        .name = "z",
-        .target = target,
-        .optimize = optimize,
-    });
-    z_lib.addIncludePath(b.path("src/ext/zlib/"));
-    z_lib.addCSourceFiles(.{
-        .files = z_sources.files.items,
-        .flags = &.{
-            "-DHAVE_SYS_TYPES_H",
-            "-DHAVE_STDINT_H",
-            "-DHAVE_STDDEF_H",
-            "-DZ_HAVE_UNISTD_H",
-        },
-    });
-    z_lib.linkLibC();
-
-    // curl
-
-    // Original code MIT licensed from: https://github.com/jiacai2050/zig-curl/blob/main/libs/curl.zig
-    const curl_lib = b.addStaticLibrary(.{
-        .name = "curl",
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
-    });
-
-    var curl_sources = CSources.init(b);
-    try curl_sources.collect("src/ext/curl/lib");
-    try curl_sources.collect("src/ext/curl/lib/vauth");
-    try curl_sources.collect("src/ext/curl/lib/vtls");
-    try curl_sources.collect("src/ext/curl/lib/vssh");
-    try curl_sources.collect("src/ext/curl/lib/vquic");
-
-    for (curl_sources.files.items) |path| {
-        curl_lib.addCSourceFile(.{
-            .file = b.path(path),
-            .flags = &.{"-std=gnu89"},
-        });
-    }
-
-    curl_lib.addIncludePath(b.path("src/ext/curl/lib"));
-    curl_lib.addIncludePath(b.path("src/ext/curl/include"));
-    curl_lib.addIncludePath(b.path("src/ext/zlib"));
-
-    curl_lib.root_module.addCMacro("BUILDING_LIBCURL", "1");
-    curl_lib.root_module.addCMacro("CURL_STATICLIB", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_LDAP", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_LDAPS", "1");
-    // curl_lib.root_module.addCMacro("USE_MBEDTLS", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_DICT", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_FILE", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_FTP", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_GOPHER", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_IMAP", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_MQTT", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_POP3", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_RTSP", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_SMB", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_SMTP", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_TELNET", "1");
-    curl_lib.root_module.addCMacro("CURL_DISABLE_TFTP", "1");
-    curl_lib.root_module.addCMacro("HAVE_LIBZ", "1");
-    curl_lib.root_module.addCMacro("HAVE_ZLIB_H", "1");
-
-    if (target.result.os.tag == .windows) {
-        curl_lib.linkSystemLibrary("ws2_32");
-        curl_lib.linkSystemLibrary("wldap32");
-        curl_lib.linkSystemLibrary("advapi32");
-        curl_lib.linkSystemLibrary("crypt32");
-        curl_lib.linkSystemLibrary("gdi32");
-        curl_lib.linkSystemLibrary("user32");
-        curl_lib.linkSystemLibrary("bcrypt");
-    } else {
-        curl_lib.root_module.addCMacro("CURL_EXTERN_SYMBOL", "__attribute__ ((__visibility__ (\"default\"))");
-
-        if (target.result.os.tag.isDarwin() == false) {
-            curl_lib.root_module.addCMacro("ENABLE_IPV6", "1");
-            curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME_R", "1");
-            curl_lib.root_module.addCMacro("HAVE_MSG_NOSIGNAL", "1");
-        }
-
-        if (target.result.os.tag == .linux) {
-            curl_lib.root_module.addCMacro("HAVE_LINUX_TCP_H", "1");
-        }
-
-        curl_lib.root_module.addCMacro("HAVE_ALARM", "1");
-        curl_lib.root_module.addCMacro("HAVE_ALLOCA_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_ARPA_INET_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_ARPA_TFTP_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_ASSERT_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_BASENAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_BOOL_T", "1");
-        curl_lib.root_module.addCMacro("HAVE_BUILTIN_AVAILABLE", "1");
-        curl_lib.root_module.addCMacro("HAVE_CLOCK_GETTIME_MONOTONIC", "1");
-        curl_lib.root_module.addCMacro("HAVE_DLFCN_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_ERRNO_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_FCNTL", "1");
-        curl_lib.root_module.addCMacro("HAVE_FCNTL_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_FCNTL_O_NONBLOCK", "1");
-        curl_lib.root_module.addCMacro("HAVE_FREEADDRINFO", "1");
-        curl_lib.root_module.addCMacro("HAVE_FTRUNCATE", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETADDRINFO", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETEUID", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETPPID", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME_R_6", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETHOSTNAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETPPID", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETPROTOBYNAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETPEERNAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETSOCKNAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_IF_NAMETOINDEX", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETPWUID", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETPWUID_R", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETRLIMIT", "1");
-        curl_lib.root_module.addCMacro("HAVE_GETTIMEOFDAY", "1");
-        curl_lib.root_module.addCMacro("HAVE_GMTIME_R", "1");
-        curl_lib.root_module.addCMacro("HAVE_IFADDRS_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_INET_ADDR", "1");
-        curl_lib.root_module.addCMacro("HAVE_INET_PTON", "1");
-        curl_lib.root_module.addCMacro("HAVE_SA_FAMILY_T", "1");
-        curl_lib.root_module.addCMacro("HAVE_INTTYPES_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_IOCTL", "1");
-        curl_lib.root_module.addCMacro("HAVE_IOCTL_FIONBIO", "1");
-        curl_lib.root_module.addCMacro("HAVE_IOCTL_SIOCGIFADDR", "1");
-        curl_lib.root_module.addCMacro("HAVE_LDAP_URL_PARSE", "1");
-        curl_lib.root_module.addCMacro("HAVE_LIBGEN_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_IDN2_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_LL", "1");
-        curl_lib.root_module.addCMacro("HAVE_LOCALE_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_LOCALTIME_R", "1");
-        curl_lib.root_module.addCMacro("HAVE_LONGLONG", "1");
-        curl_lib.root_module.addCMacro("HAVE_MALLOC_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_MEMORY_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_NETDB_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_NETINET_IN_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_NETINET_TCP_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_NET_IF_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_PIPE", "1");
-        curl_lib.root_module.addCMacro("HAVE_POLL", "1");
-        curl_lib.root_module.addCMacro("HAVE_POLL_FINE", "1");
-        curl_lib.root_module.addCMacro("HAVE_POLL_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_POSIX_STRERROR_R", "1");
-        curl_lib.root_module.addCMacro("HAVE_PTHREAD_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_PWD_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_RECV", "1");
-        curl_lib.root_module.addCMacro("HAVE_SELECT", "1");
-        curl_lib.root_module.addCMacro("HAVE_SEND", "1");
-        curl_lib.root_module.addCMacro("HAVE_FSETXATTR", "1");
-        curl_lib.root_module.addCMacro("HAVE_FSETXATTR_5", "1");
-        curl_lib.root_module.addCMacro("HAVE_SETJMP_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SETLOCALE", "1");
-        curl_lib.root_module.addCMacro("HAVE_SETRLIMIT", "1");
-        curl_lib.root_module.addCMacro("HAVE_SETSOCKOPT", "1");
-        curl_lib.root_module.addCMacro("HAVE_SIGACTION", "1");
-        curl_lib.root_module.addCMacro("HAVE_SIGINTERRUPT", "1");
-        curl_lib.root_module.addCMacro("HAVE_SIGNAL", "1");
-        curl_lib.root_module.addCMacro("HAVE_SIGNAL_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SIGSETJMP", "1");
-        curl_lib.root_module.addCMacro("HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID", "1");
-        curl_lib.root_module.addCMacro("HAVE_SOCKET", "1");
-        curl_lib.root_module.addCMacro("HAVE_STDBOOL_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_STDINT_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_STDIO_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_STDLIB_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRCASECMP", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRDUP", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRERROR_R", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRINGS_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRING_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRSTR", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRTOK_R", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRTOLL", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRUCT_SOCKADDR_STORAGE", "1");
-        curl_lib.root_module.addCMacro("HAVE_STRUCT_TIMEVAL", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_IOCTL_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_PARAM_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_POLL_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_RESOURCE_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_SELECT_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_SOCKET_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_STAT_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_TIME_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_TYPES_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_UIO_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_SYS_UN_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_TERMIOS_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_TERMIO_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_TIME_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_UNAME", "1");
-        curl_lib.root_module.addCMacro("HAVE_UNISTD_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_UTIME", "1");
-        curl_lib.root_module.addCMacro("HAVE_UTIMES", "1");
-        curl_lib.root_module.addCMacro("HAVE_UTIME_H", "1");
-        curl_lib.root_module.addCMacro("HAVE_VARIADIC_MACROS_C99", "1");
-        curl_lib.root_module.addCMacro("HAVE_VARIADIC_MACROS_GCC", "1");
-        curl_lib.root_module.addCMacro("OS", "\"Linux\"");
-        curl_lib.root_module.addCMacro("RANDOM_FILE", "\"/dev/urandom\"");
-        curl_lib.root_module.addCMacro("RECV_TYPE_ARG1", "int");
-        curl_lib.root_module.addCMacro("RECV_TYPE_ARG2", "void *");
-        curl_lib.root_module.addCMacro("RECV_TYPE_ARG3", "size_t");
-        curl_lib.root_module.addCMacro("RECV_TYPE_ARG4", "int");
-        curl_lib.root_module.addCMacro("RECV_TYPE_RETV", "ssize_t");
-        curl_lib.root_module.addCMacro("SEND_QUAL_ARG2", "const");
-        curl_lib.root_module.addCMacro("SEND_TYPE_ARG1", "int");
-        curl_lib.root_module.addCMacro("SEND_TYPE_ARG2", "void *");
-        curl_lib.root_module.addCMacro("SEND_TYPE_ARG3", "size_t");
-        curl_lib.root_module.addCMacro("SEND_TYPE_ARG4", "int");
-        curl_lib.root_module.addCMacro("SEND_TYPE_RETV", "ssize_t");
-        curl_lib.root_module.addCMacro("SIZEOF_INT", "4");
-        curl_lib.root_module.addCMacro("SIZEOF_SHORT", "2");
-        curl_lib.root_module.addCMacro("SIZEOF_LONG", "8");
-        curl_lib.root_module.addCMacro("SIZEOF_OFF_T", "8");
-        curl_lib.root_module.addCMacro("SIZEOF_CURL_OFF_T", "8");
-        curl_lib.root_module.addCMacro("SIZEOF_SIZE_T", "8");
-        curl_lib.root_module.addCMacro("SIZEOF_TIME_T", "8");
-        curl_lib.root_module.addCMacro("STDC_HEADERS", "1");
-        curl_lib.root_module.addCMacro("TIME_WITH_SYS_TIME", "1");
-        curl_lib.root_module.addCMacro("USE_THREADS_POSIX", "1");
-        curl_lib.root_module.addCMacro("USE_UNIX_SOCKETS", "1");
-        curl_lib.root_module.addCMacro("_FILE_OFFSET_BITS", "64");
-    }
-
-    // orca cli tool
-
-    const git_version_tool: []const u8 = blk: {
-        if (git_version_opt) |git_version| {
-            break :blk try b.allocator.dupe(u8, git_version);
-        } else {
-            const git_version = b.run(&.{ "git", "rev-parse", "--short", "HEAD" });
-            break :blk std.mem.trimRight(u8, git_version, "\n");
-        }
-    };
-
-    var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
-    defer orca_tool_compile_flags.deinit();
-    try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
-    try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
-    try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
-    try orca_tool_compile_flags.append("-DCURL_STATICLIB");
-    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
-
-    if (optimize == .Debug) {
-        try orca_tool_compile_flags.append("-DOC_DEBUG");
-        try orca_tool_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
-    }
-
-    const orca_tool_exe = b.addExecutable(.{
-        .name = "orca_tool",
-        .target = target,
-        .optimize = optimize,
-    });
-    orca_tool_exe.addIncludePath(b.path("src/"));
-    orca_tool_exe.addIncludePath(b.path("src/tool"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/stb"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/curl/include"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/zlib"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/microtar"));
-
-    orca_tool_exe.addCSourceFiles(.{
-        .files = &.{"src/tool/main.c"},
-        .flags = orca_tool_compile_flags.items,
-    });
-
-    orca_tool_exe.linkLibrary(curl_lib);
-    orca_tool_exe.linkLibrary(z_lib);
-    if (target.result.os.tag == .windows) {
-        orca_tool_exe.linkSystemLibrary("shlwapi");
-        orca_tool_exe.linkSystemLibrary("shell32");
-        orca_tool_exe.linkSystemLibrary("ole32");
-        orca_tool_exe.linkSystemLibrary("kernel32");
-    } else if (target.result.os.tag.isDarwin()) {
-        orca_tool_exe.linkFramework("Cocoa");
-        orca_tool_exe.linkFramework("SystemConfiguration");
-        orca_tool_exe.linkFramework("CoreFoundation");
-        orca_tool_exe.linkFramework("CoreServices");
-        orca_tool_exe.linkFramework("SystemConfiguration");
-        orca_tool_exe.linkFramework("Security");
-    }
-
-    orca_tool_exe.step.dependOn(&curl_lib.step);
-    orca_tool_exe.step.dependOn(&z_lib.step);
-    orca_tool_exe.linkLibC();
-
-    const orca_tool_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
-
-    const build_tool_step = b.step("orca-tool", "Build the Orca CLI tool from source.");
-    build_tool_step.dependOn(&orca_tool_install.step);
-
     ///////////////////////////////////////////////////////////////
     // zig build - default install step builds and installs a dev build of orca
 
@@ -1299,7 +1315,6 @@ pub fn build(b: *Build) !void {
     sketches.dependOn(&orca_platform_sketches_install.step);
 
     var stage_sketch_dependency_artifacts = b.addUpdateSourceFiles();
-    stage_sketch_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
     stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/CMUSerif-Roman.ttf"), "build/sketches/resources/CMUSerif-Roman.ttf");
     stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/Courier.ttf"), "build/sketches/resources/Courier.ttf");
     stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("sketches/resources/gamma-1.0-or-2.2.png"), "build/sketches/resources/gamma-1.0-or-2.2.png");
@@ -1323,8 +1338,8 @@ pub fn build(b: *Build) !void {
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/sketches/libGLESv2.dylib");
         stage_sketch_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/sketches/libwebgpu.dylib");
     }
-    stage_sketch_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
-    stage_sketch_dependency_artifacts.step.dependOn(&run_dawn_uptodate.step);
+    stage_sketch_dependency_artifacts.step.dependOn(&run_angle_build.step);
+    stage_sketch_dependency_artifacts.step.dependOn(&run_dawn_build.step);
     sketches.dependOn(&stage_sketch_dependency_artifacts.step);
 
     for (sketches_folders) |sketch| {
@@ -1422,8 +1437,8 @@ pub fn build(b: *Build) !void {
         stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/angle.out/bin/libGLESv2.dylib"), "build/tests/libGLESv2.dylib");
         stage_test_dependency_artifacts.addCopyFileToSource(b.path("build/dawn.out/bin/libwebgpu.dylib"), "build/tests/libwebgpu.dylib");
     }
-    stage_test_dependency_artifacts.step.dependOn(&run_angle_uptodate.step);
-    stage_test_dependency_artifacts.step.dependOn(&run_dawn_uptodate.step);
+    stage_test_dependency_artifacts.step.dependOn(&run_angle_build.step);
+    stage_test_dependency_artifacts.step.dependOn(&run_dawn_build.step);
     tests.dependOn(&stage_test_dependency_artifacts.step);
 
     for (test_configs) |config| {
