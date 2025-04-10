@@ -1,11 +1,25 @@
 name: build-all
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: false
+      ignore-cache:
+        required: false
+        type: string
+        default: false
   workflow_call:
     inputs:
       version:
         type: string
         required: false
+      ignore-cache:
+        required: false
+        type: string
+        default: false
+
   push:
     branches:
       - main
@@ -22,17 +36,39 @@ jobs:
 
   build-angle-mac:
     uses: ./.github/workflows/build-angle-mac.yaml
+    with:
+      ignore-cache: 
 
   build-angle-win:
     uses: ./.github/workflows/build-angle-win.yaml
 
+  determine-version:
+    runs-on: ubuntu-latest
+    outputs:
+       version: ${{ steps.determine-version.outputs.version }}
+    steps:
+      - name: Determine version
+        id: determine-version
+        run: |
+          if [ "${{ inputs.version }}" != '' ] ; then
+            echo Selecting version: ${{ inputs.version }}
+            echo "version='${{ inputs.version }}'" >> "$GITHUB_OUTPUT"
+          else
+            echo Selecting version: ${{ github.ref_name }}
+            echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
+          fi
+
   build-win:
-    needs: [build-dawn-win, build-angle-win]
+    needs: [build-dawn-win, build-angle-win, determine-version]
     runs-on: windows-2022
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - uses: actions/checkout@v4
 
@@ -50,22 +86,21 @@ jobs:
         run: |
           xcopy artifact\angle-windows-x64 build\angle.out\ /s /y
 
-      - name: Build
+      - name: Build and run tests
         shell: cmd
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          orcadev.bat build --release --version ${{github.ref_name}} || exit 1
+          zig build test
 
-      - name: Package
+      - name: Build sketches
         shell: cmd
         run: |
-          if [${{ inputs.version }}]==[] (
-            orcadev.bat install orca || exit 1
+          zig build sketches
+
+      - name: Build and Package
+        shell: cmd
+        run: |
+            zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca --summary all
             tar --format=ustar -cvzf orca-windows.tar.gz orca
-          ) else (
-            orcadev.bat install --version ${{ inputs.version }} orca || exit 1
-            tar --format=ustar -cvzf orca-windows.tar.gz orca
-          )
 
       - uses: actions/upload-artifact@v4
         with:
@@ -73,12 +108,16 @@ jobs:
           path: orca-windows.tar.gz
 
   build-macos-x64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [build-dawn-mac, build-angle-mac, determine-version]
     runs-on: macos-13
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - uses: actions/checkout@v4
 
@@ -96,17 +135,17 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-x64 build/angle.out
 
-      - name: Build
+      - name: Build and run tests
         run: |
-          ./orcadev build --release --version ${{github.ref_name}}
+          zig build test
 
-      - name: Package
+      - name: Build sketches
         run: |
-          if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca
-          else
-            ./orcadev install orca
-          fi
+          zig build sketches
+
+      - name: Build and Package
+        run: |
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca --summary all
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
@@ -115,12 +154,16 @@ jobs:
           path: orca-mac-x64.tar.gz
 
   build-macos-arm64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [build-dawn-mac, build-angle-mac, determine-version]
     runs-on: macos-14
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - uses: actions/checkout@v4
 
@@ -138,17 +181,17 @@ jobs:
           mkdir -p build
           cp -r artifact/angle-mac-arm64 build/angle.out
 
-      - name: Build
+      - name: Build and run tests
         run: |
-          ./orcadev build --release --version ${{github.ref_name}}
+          zig build test
 
-      - name: Package
+      - name: Build sketches
         run: |
-          if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca
-          else
-            ./orcadev install orca
-          fi
+          zig build sketches
+
+      - name: Build and Package
+        run: |
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} -Dsdk-path=orca --summary all
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
 
       - uses: actions/upload-artifact@v4

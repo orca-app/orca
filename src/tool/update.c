@@ -46,6 +46,7 @@ int update(int argc, char** argv)
     flag_init_context(&c);
     flag_help(&c, "Downloads and installs the latest version of Orca.");
     char** tarball = flag_str(&c, NULL, "tarball", NULL, "update the Orca SDK from a tarball");
+    char** path = flag_str(&c, NULL, "path", NULL, "extract the update to a specified path");
 
     if(!flag_parse(&c, argc, argv))
     {
@@ -65,7 +66,7 @@ int update(int argc, char** argv)
         return 1;
     }
 
-    oc_str8 orca_dir = system_orca_dir(&arena);
+    oc_str8 orca_dir = (path && *path) ? OC_STR8(*path) : system_orca_dir(&arena);
     oc_str8 version = { 0 };
     oc_str8 version_dir = { 0 };
 

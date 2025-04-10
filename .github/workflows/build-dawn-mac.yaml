@@ -2,7 +2,17 @@ name: build-dawn-mac
 
 on:
   workflow_dispatch:
+    inputs:
+      ignore-cache:
+        required: false
+        type: string
+        default: false
   workflow_call:
+    inputs:
+      ignore-cache:
+        required: false
+        type: string
+        default: false
 
 jobs:
   build-mac:
@@ -16,25 +26,30 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
+          
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
 
       - name: Dawn version
         id: dawn-version
         run: |
-          echo "DAWN_COMMIT=$(cat deps/dawn-commit.txt)" >> $GITHUB_OUTPUT
+          echo "DAWN_COMMIT=$(zig build print-sha-dawn)" >> $GITHUB_OUTPUT
           ARCH=${{ runner.arch }}
           echo "LOWERCASE_ARCH=$(echo $ARCH | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
       - name: Cache
         id: cache-dawn
         uses: actions/cache@v3
+        if: inputs.ignore-cache != 'true'
         with:
           path: build/dawn.out
           key: dawn-${{ runner.os }}-${{ runner.arch }}-${{ steps.dawn-version.outputs.DAWN_COMMIT }}
 
       - name: Build Dawn
-        if: steps.cache-dawn.outputs.cache-hit != 'true'
+        if: steps.cache-dawn.outputs.cache-hit != 'true' || inputs.ignore-cache == 'true' 
         run: |
-          ./orcadev build-dawn --release --parallel 4
+          zig build dawn -Doptimize=ReleaseFast
 
       - uses: actions/upload-artifact@v4
         with:
