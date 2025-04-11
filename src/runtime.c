@@ -2382,9 +2382,18 @@ void debugger_ui_update(oc_runtime* app)
                         for(u64 varIndex = 0; varIndex < funcInfo->count; varIndex++)
                         {
                             //TODO: var can be unnamed... maybe filter that beforehand
+                            //TODO: we also have double vars, beware of shadowing
 
                             oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);
                             oc_ui_label_str8(varId, funcInfo->vars[varIndex].name);
+
+                            //TODO: extract var value
+                            //TODO: haul that to when we pause & cache vars values
+                            /*
+                                - reserve memory to hold the vars (so we need its size here)
+                                - evaluate expression to fill that memory (which may be pieced together from different places)
+                                - Display value according to type
+                            */
                         }
                     }
                 }

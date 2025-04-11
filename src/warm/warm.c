@@ -877,10 +877,13 @@ typedef struct wa_register_map
     wa_register_range* ranges;
 } wa_register_map;
 
+typedef struct wa_debug_type wa_debug_type;
+
 typedef struct wa_debug_variable
 {
     oc_str8 name;
     dw_loc* loc;
+    wa_debug_type* type;
 } wa_debug_variable;
 
 typedef struct wa_debug_function
@@ -5275,6 +5278,239 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
     oc_arena_cleanup(&context.checkArena);
 }
 
+typedef enum wa_debug_type_kind
+{
+    WA_DEBUG_TYPE_VOID,
+    WA_DEBUG_TYPE_BASIC,
+    WA_DEBUG_TYPE_POINTER,
+    WA_DEBUG_TYPE_STRUCT,
+    WA_DEBUG_TYPE_UNION,
+    WA_DEBUG_TYPE_ENUM,
+    WA_DEBUG_TYPE_ARRAY,
+    WA_DEBUG_TYPE_NAMED,
+    //...
+} wa_debug_type_kind;
+
+typedef enum wa_debug_type_encoding
+{
+    WA_DEBUG_TYPE_SIGNED,
+    WA_DEBUG_TYPE_UNSIGNED,
+    WA_DEBUG_TYPE_FLOAT,
+    WA_DEBUG_TYPE_BOOL,
+} wa_debug_type_encoding;
+
+typedef struct wa_debug_type_field
+{
+    oc_str8 name;
+    wa_debug_type* type;
+} wa_debug_type_field;
+
+typedef struct wa_debug_type_compound
+{
+    u32 count;
+    wa_debug_type_field* fields;
+
+} wa_debug_type_compound;
+
+typedef struct wa_debug_type
+{
+    wa_debug_type_kind kind;
+    u64 size;
+
+    union
+    {
+        wa_debug_type_encoding encoding;
+        wa_debug_type* type;
+        wa_debug_type_compound compound;
+        //TODO enum, etc...
+    };
+} wa_debug_type;
+
+wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* debugInfo, u64 typeRef)
+{
+    wa_debug_type* type = 0;
+
+    //NOTE: find die corresponding to typeRef
+    dw_die* die = 0;
+    for(u64 unitIndex = 0; unitIndex < debugInfo->unitCount; unitIndex++)
+    {
+        dw_unit* unit = &debugInfo->units[unitIndex];
+        u64 unitSize = unit->initialLength + (unit->format == DW_DWARF32 ? 4 : 8);
+
+        if(typeRef >= unit->start && typeRef < unit->start + unitSize)
+        {
+            die = dw_die_next(unit->rootDie, unit->rootDie);
+            while(die && die->start != typeRef)
+            {
+                die = dw_die_next(unit->rootDie, die);
+            }
+
+            if(die)
+            {
+                break;
+            }
+        }
+    }
+
+    if(die)
+    {
+        //NOTE: process die
+        switch(die->abbrev->tag)
+        {
+            case DW_TAG_base_type:
+            {
+                type = oc_arena_push_type(arena, wa_debug_type);
+                memset(type, 0, sizeof(wa_debug_type));
+                type->kind = WA_DEBUG_TYPE_BASIC;
+
+                //TODO: endianity
+
+                dw_attr* encoding = dw_die_get_attr(die, DW_AT_encoding);
+                if(encoding)
+                {
+                    switch(encoding->valU64)
+                    {
+                        case DW_ATE_boolean:
+                            type->encoding = WA_DEBUG_TYPE_BOOL;
+                            break;
+                        case DW_ATE_address:
+                        case DW_ATE_unsigned:
+                        case DW_ATE_unsigned_char:
+                            type->encoding = WA_DEBUG_TYPE_UNSIGNED;
+                            break;
+                        case DW_ATE_signed:
+                        case DW_ATE_signed_char:
+                            type->encoding = WA_DEBUG_TYPE_SIGNED;
+                            break;
+                        case DW_ATE_float:
+                            type->encoding = WA_DEBUG_TYPE_FLOAT;
+                            break;
+                        default:
+                            oc_log_error("unrecognized type encoding %s\n", dw_get_encoding_string(encoding->valU64));
+                            break;
+                    }
+                }
+            }
+            break;
+
+            case DW_TAG_unspecified_type:
+            {
+                type = oc_arena_push_type(arena, wa_debug_type);
+                memset(type, 0, sizeof(wa_debug_type));
+                type->kind = WA_DEBUG_TYPE_VOID;
+            }
+            break;
+
+            case DW_TAG_atomic_type:
+            case DW_TAG_const_type:
+            case DW_TAG_restrict_type:
+            case DW_TAG_volatile_type:
+            {
+                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(typeAttr)
+                {
+                    type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64);
+                }
+            }
+            break;
+
+            case DW_TAG_pointer_type:
+            {
+                type = oc_arena_push_type(arena, wa_debug_type);
+                memset(type, 0, sizeof(wa_debug_type));
+                type->kind = WA_DEBUG_TYPE_POINTER;
+
+                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(typeAttr)
+                {
+                    type->type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64);
+                }
+            }
+            break;
+
+            case DW_TAG_typedef:
+            {
+                type = oc_arena_push_type(arena, wa_debug_type);
+                memset(type, 0, sizeof(wa_debug_type));
+                type->kind = WA_DEBUG_TYPE_NAMED;
+
+                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(typeAttr)
+                {
+                    type->type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64);
+                }
+            }
+            break;
+
+            case DW_TAG_array_type:
+            {
+                type = oc_arena_push_type(arena, wa_debug_type);
+                memset(type, 0, sizeof(wa_debug_type));
+                type->kind = WA_DEBUG_TYPE_ARRAY;
+
+                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(typeAttr)
+                {
+                    type->type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64);
+                }
+
+                /*TODO: array count
+                dw_attr* countAttr = dw_die_get_attr(die, DW_AT_subrange_type);
+                if(countAttr)
+                {
+                    type->array.type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64);
+                }
+                */
+            }
+            break;
+
+            case DW_TAG_structure_type:
+            {
+                //TODO
+            }
+            break;
+
+            case DW_TAG_union_type:
+            {
+                //TODO
+            }
+            break;
+
+            case DW_TAG_enumeration_type:
+            {
+                //TODO
+            }
+            break;
+
+            case DW_TAG_subroutine_type:
+            {
+                //TODO
+            }
+            break;
+
+            default:
+            {
+                oc_log_error("unrecognized DIE type tag %s\n", dw_get_tag_string(die->abbrev->tag));
+            }
+            break;
+        }
+        if(type)
+        {
+            dw_attr* byteSize = dw_die_get_attr(die, DW_AT_byte_size);
+            if(byteSize)
+            {
+                type->size = byteSize->valU64;
+            }
+            //TODO: bitSize and offset
+        }
+    }
+    else
+    {
+        oc_log_error("Could not find referenced type DIE.\n");
+    }
+    return type;
+}
+
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {
     wa_module* module = oc_arena_push_type(arena, wa_module);
@@ -5393,6 +5629,12 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
                             {
                                 funcInfo->vars[varIndex].loc = &loc->loc;
                                 //TODO: compile the expr to wasm
+                            }
+
+                            dw_attr* type = dw_die_get_attr(var, DW_AT_type);
+                            if(type)
+                            {
+                                funcInfo->vars[varIndex].type = wa_build_debug_type_from_dwarf(module->arena, module->debugInfo, type->valU64);
                             }
 
                             var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);

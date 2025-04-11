@@ -262,6 +262,47 @@ const char* dw_get_attr_name_string(u32 name)
     return (res);
 }
 
+#define DW_ATE_LIST(X)              \
+    X(DW_ATE_address, 0x01)         \
+    X(DW_ATE_boolean, 0x02)         \
+    X(DW_ATE_complex_float, 0x03)   \
+    X(DW_ATE_float, 0x04)           \
+    X(DW_ATE_signed, 0x05)          \
+    X(DW_ATE_signed_char, 0x06)     \
+    X(DW_ATE_unsigned, 0x07)        \
+    X(DW_ATE_unsigned_char, 0x08)   \
+    X(DW_ATE_imaginary_float, 0x09) \
+    X(DW_ATE_packed_decimal, 0x0a)  \
+    X(DW_ATE_numeric_string, 0x0b)  \
+    X(DW_ATE_edited, 0x0c)          \
+    X(DW_ATE_signed_fixed, 0x0d)    \
+    X(DW_ATE_unsigned_fixed, 0x0e)  \
+    X(DW_ATE_decimal_float, 0x0f)   \
+    X(DW_ATE_UTF, 0x10)             \
+    X(DW_ATE_UCS, 0x11)             \
+    X(DW_ATE_ASCII, 0x12)           \
+    X(DW_ATE_lo_user, 0x80)         \
+    X(DW_ATE_hi_user, 0xff)
+
+typedef enum dw_encoding
+{
+    DW_ATE_LIST(X_ENUM)
+} dw_encoding;
+
+const char* dw_get_encoding_string(u32 name)
+{
+    const char* res = 0;
+    switch(name)
+    {
+        DW_ATE_LIST(X_NAME_CASE);
+
+        default:
+            res = "Unknown encoding";
+            break;
+    }
+    return (res);
+}
+
 #define DW_FORM_LIST(X)             \
     X(DW_FORM_addr, 0x01)           \
     X(DW_FORM_block2, 0x03)         \
@@ -2871,27 +2912,36 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
             {
                 case DW_FORM_data1:
                 {
-                    res->string.len = 1;
+                    u8 val = 0;
+                    offset += dw_read_u8(&val, data, fileSize, offset);
+                    res->valU64 = val;
                 }
                 break;
                 case DW_FORM_data2:
                 {
-                    res->string.len = 2;
+                    u16 val = 0;
+                    offset += dw_read_u16(&val, data, fileSize, offset);
+                    res->valU64 = val;
                 }
                 break;
                 case DW_FORM_data4:
                 {
-                    res->string.len = 4;
+                    u32 val = 0;
+                    offset += dw_read_u32(&val, data, fileSize, offset);
+                    res->valU64 = val;
                 }
                 break;
                 case DW_FORM_data8:
                 {
-                    res->string.len = 4;
+                    u64 val = 0;
+                    offset += dw_read_u64(&val, data, fileSize, offset);
+                    res->valU64 = val;
                 }
                 break;
+
                 case DW_FORM_data16:
                 {
-                    res->string.len = 4;
+                    oc_log_error("DW_FORM_data16 unsupported for now\n");
                 }
                 break;
 
@@ -2899,7 +2949,6 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
                     OC_ASSERT(0, "unreachable");
                     break;
             }
-            offset += dw_read_str8(&res->string.ptr, res->string.len, data, fileSize, offset);
         }
         break;
         case DW_FORM_sdata:
@@ -2979,35 +3028,40 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
         //-----------------------
         // reference class
         //-----------------------
-        //TODO use/extract references
+        //NOTE: we store refs as u64 offset relative to the start of the debug section
         case DW_FORM_ref1:
         {
             u8 ref8 = 0;
             offset += dw_read_u8(&ref8, data, fileSize, offset);
+            res->valU64 = unit->start + ref8;
         }
         break;
         case DW_FORM_ref2:
         {
             u16 ref16 = 0;
             offset += dw_read_u16(&ref16, data, fileSize, offset);
+            res->valU64 = unit->start + ref16;
         }
         break;
         case DW_FORM_ref4:
         {
             u32 ref32 = 0;
             offset += dw_read_u32(&ref32, data, fileSize, offset);
+            res->valU64 = unit->start + ref32;
         }
         break;
         case DW_FORM_ref8:
         {
             u64 ref64 = 0;
             offset += dw_read_u64(&ref64, data, fileSize, offset);
+            res->valU64 = unit->start + ref64;
         }
         break;
         case DW_FORM_ref_udata:
         {
             u64 ref64 = 0;
             offset += dw_read_leb128_u64(&ref64, data, fileSize, offset);
+            res->valU64 = unit->start + ref64;
         }
         break;
 
@@ -3024,6 +3078,7 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
             {
                 offset += dw_read_u64(&ref64, data, fileSize, offset);
             }
+            res->valU64 = ref64;
         }
         break;
 
@@ -3031,6 +3086,7 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
         {
             u64 sig = 0;
             offset += dw_read_u64(&sig, data, fileSize, offset);
+            //TODO: store the signature and find corresponding def later?
         }
         break;
 
@@ -3038,6 +3094,7 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
         {
             u32 supOffset = 0;
             offset += dw_read_u32(&supOffset, data, fileSize, offset);
+            //TODO: support supplementary object files??
         }
         break;
 
@@ -3045,6 +3102,7 @@ u64 dw_parse_form_value(oc_arena* arena, dw_attr* res, dw_unit* unit, dw_section
         {
             u64 supOffset = 0;
             offset += dw_read_u64(&supOffset, data, fileSize, offset);
+            //TODO: support supplementary object files??
         }
         break;
 
@@ -3871,10 +3929,35 @@ u64 dw_parse_die(oc_arena* arena, dw_die* die, dw_sections* sections, dw_unit* u
         dw_attr* attr = &die->attributes[attrIndex];
         attr->abbrev = &die->abbrev->attributes[attrIndex];
         offset += dw_parse_form_value(arena, attr, unit, sections, attr->abbrev->name, attr->abbrev->form, contents.ptr, contents.len, offset);
+
+        //TODO: some forms need interpretation based on the attr name,
+        //      review how we parse forms w/ context specific meaning
     }
 
 end:
     return (offset - startOffset);
+}
+
+dw_die* dw_die_next(dw_die* root, dw_die* die)
+{
+    if(!oc_list_empty(die->children))
+    {
+        die = oc_list_first_entry(die->children, dw_die, parentElt);
+    }
+    else if(die->parentElt.next)
+    {
+        die = oc_list_entry(die->parentElt.next, dw_die, parentElt);
+    }
+    else if(die->parent && die->parent != root && die->parent->parentElt.next)
+    {
+        die = oc_list_entry(die->parent->parentElt.next, dw_die, parentElt);
+    }
+    else
+    {
+        die = 0;
+    }
+
+    return die;
 }
 
 dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
