@@ -5314,6 +5314,7 @@ typedef struct wa_debug_type_compound
 
 typedef struct wa_debug_type
 {
+    oc_str8 name;
     wa_debug_type_kind kind;
     u64 size;
 
@@ -5502,6 +5503,12 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* debugInf
                 type->size = byteSize->valU64;
             }
             //TODO: bitSize and offset
+
+            dw_attr* name = dw_die_get_attr(die, DW_AT_name);
+            if(name)
+            {
+                type->name = name->string;
+            }
         }
     }
     else
@@ -9211,4 +9218,96 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
         result = wa_warm_loc_from_wasm_loc(wasmLoc);
     }
     return result;
+}
+
+oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_variable* var)
+{
+    oc_str8 res = {
+        .len = var->type->size,
+        .ptr = oc_arena_push_aligned(arena, var->type->size, 8),
+    };
+    memset(res.ptr, 0, res.len);
+
+    dw_loc* loc = var->loc;
+
+    //TODO: basic dwarf expr vm
+    for(u64 entryIndex = 0; entryIndex < loc->entryCount; entryIndex++)
+    {
+        dw_loc_entry* entry = &loc->entries[entryIndex];
+
+        u64 pc = 0;
+        u64 sp = 0;
+
+        typedef enum dw_stack_value_type
+        {
+            DW_STACK_VALUE_ADDRESS,
+            DW_STACK_VALUE_OPERAND,
+            DW_STACK_VALUE_LOCAL,
+            DW_STACK_VALUE_GLOBAL,
+            DW_STACK_VALUE_U64,
+            //...
+
+        } dw_stack_value_type;
+
+        typedef struct dw_stack_value
+        {
+            dw_stack_value_type type;
+
+            union
+            {
+                u32 valU32;
+                u64 valU64;
+                //...
+            };
+        } dw_stack_value;
+
+        const u64 DW_STACK_MAX = 1024;
+        dw_stack_value stack[DW_STACK_MAX];
+
+        while(pc < entry->desc.len)
+        {
+            dw_op op = entry->desc.ptr[pc];
+            pc++;
+
+            switch(op)
+            {
+                case DW_OP_addr:
+                {
+                    u32 opd = 0;
+                    memcpy(&opd, entry->desc.ptr + pc, sizeof(u32));
+                    pc += sizeof(u32);
+                    stack[sp] = (dw_stack_value){
+                        .type = DW_STACK_VALUE_ADDRESS,
+                        .valU32 = opd,
+                    };
+                    sp++;
+                }
+                break;
+
+                default:
+                    oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(op));
+                    goto end;
+            }
+        }
+        //NOTE: here we either get an address or a value on the top of the stack
+        OC_ASSERT(sp > 0);
+
+        dw_stack_value addr = stack[sp - 1];
+
+        switch(addr.type)
+        {
+            case DW_STACK_VALUE_ADDRESS:
+            {
+                memcpy(res.ptr, interpreter->instance->memories[0]->ptr + addr.valU32, res.len);
+            }
+            break;
+
+            default:
+                break;
+        }
+    end:
+        continue;
+    }
+
+    return res;
 }

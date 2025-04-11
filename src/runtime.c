@@ -2381,19 +2381,77 @@ void debugger_ui_update(oc_runtime* app)
 
                         for(u64 varIndex = 0; varIndex < funcInfo->count; varIndex++)
                         {
+                            wa_debug_variable* var = &funcInfo->vars[varIndex];
+
                             //TODO: var can be unnamed... maybe filter that beforehand
                             //TODO: we also have double vars, beware of shadowing
 
                             oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);
-                            oc_ui_label_str8(varId, funcInfo->vars[varIndex].name);
 
-                            //TODO: extract var value
-                            //TODO: haul that to when we pause & cache vars values
-                            /*
+                            oc_ui_box_str8(varId)
+                            {
+                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+                                oc_ui_style_set_f32(OC_UI_SPACING, 10);
+
+                                oc_ui_label_str8(OC_STR8("name"), var->name);
+
+                                //TODO: extract var value
+                                //TODO: haul that to when we pause & cache vars values
+                                /*
                                 - reserve memory to hold the vars (so we need its size here)
                                 - evaluate expression to fill that memory (which may be pieced together from different places)
                                 - Display value according to type
                             */
+
+                                if(var->type->name.len)
+                                {
+                                    oc_ui_label_str8(OC_STR8("type"), var->type->name);
+                                }
+                                if(var->type->kind == WA_DEBUG_TYPE_BASIC)
+                                {
+                                    oc_str8 buff = wa_debug_variable_get_value(scratch.arena, interpreter, var);
+                                    switch(var->type->encoding)
+                                    {
+                                        case WA_DEBUG_TYPE_BOOL:
+                                        {
+                                            //TODO
+                                        }
+                                        break;
+
+                                        case WA_DEBUG_TYPE_UNSIGNED:
+                                        {
+                                            //TODO
+                                        }
+                                        break;
+
+                                        case WA_DEBUG_TYPE_SIGNED:
+                                        {
+                                            //TODO
+                                        }
+                                        break;
+
+                                        case WA_DEBUG_TYPE_FLOAT:
+                                        {
+                                            oc_str8 valStr = { 0 };
+                                            if(var->type->size == 4)
+                                            {
+                                                f32 f = 0;
+                                                memcpy(&f, buff.ptr, var->type->size);
+                                                valStr = oc_str8_pushf(scratch.arena, "%f", f);
+                                            }
+                                            else if(var->type->size == 8)
+                                            {
+                                                f64 f = 0;
+                                                memcpy(&f, buff.ptr, var->type->size);
+                                                valStr = oc_str8_pushf(scratch.arena, "%f", f);
+                                            }
+
+                                            oc_ui_label_str8(OC_STR8("value"), valStr);
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
                         }
                     }
                 }
