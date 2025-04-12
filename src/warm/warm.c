@@ -9220,85 +9220,205 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
     return result;
 }
 
-oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_variable* var)
+wa_debug_type* wa_debug_type_strip(wa_debug_type* type)
 {
+    while(type && type->kind == WA_DEBUG_TYPE_NAMED)
+    {
+        type = type->type;
+    }
+    return type;
+}
+
+typedef enum dw_stack_value_type
+{
+    DW_STACK_VALUE_ADDRESS,
+    DW_STACK_VALUE_OPERAND,
+    DW_STACK_VALUE_LOCAL,
+    DW_STACK_VALUE_GLOBAL,
+    DW_STACK_VALUE_U64,
+    //...
+
+} dw_stack_value_type;
+
+typedef struct dw_stack_value
+{
+    dw_stack_value_type type;
+
+    union
+    {
+        u32 valU32;
+        u64 valU64;
+        //...
+    };
+} dw_stack_value;
+
+dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_function* funcInfo, oc_str8 expr)
+{
+    u64 pc = 0;
+    u64 sp = 0;
+    u8* code = (u8*)expr.ptr;
+
+    const u64 DW_STACK_MAX = 1024;
+    dw_stack_value stack[DW_STACK_MAX];
+
+    while(pc < expr.len)
+    {
+        dw_op op = code[pc];
+        pc++;
+
+        switch(op)
+        {
+            case DW_OP_addr:
+            {
+                u32 opd = 0;
+                memcpy(&opd, expr.ptr + pc, sizeof(u32));
+                pc += sizeof(u32);
+                stack[sp] = (dw_stack_value){
+                    .type = DW_STACK_VALUE_ADDRESS,
+                    .valU32 = opd,
+                };
+                sp++;
+            }
+            break;
+
+            case DW_OP_fbreg:
+            {
+                i64 offset = 0;
+                pc += dw_read_leb128_i64(&offset, expr.ptr, expr.len, pc);
+
+                OC_ASSERT(funcInfo->frameBase->single && funcInfo->frameBase->entryCount == 1);
+                dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, funcInfo->frameBase->entries[0].desc);
+
+                /*NOTE: what the spec says and what clang does seem to differ:
+                    - dwarf says that DW_OP_stack_value means the _value_ of the object (not its location) is on the top of the stack
+                    - But clang often produces expressions of the form (DW_OP_WASM_location 0x00 idx, DW_OP_stack_value) for frame bases,
+                    and the expected result is the memory address stored in local idx.
+                    So, if we get a wasm local location here, we load its contents before terminating the expression...
+                */
+                if(frameBase.type == DW_STACK_VALUE_LOCAL)
+                {
+                    frameBase.type = DW_STACK_VALUE_ADDRESS;
+                    frameBase.valU32 = interpreter->locals[frameBase.valU32].valI32;
+                }
+                //TODO: otherwise load anyway???
+
+                stack[sp] = (dw_stack_value){
+                    .type = DW_STACK_VALUE_ADDRESS,
+                    .valU32 = frameBase.valU32 + offset,
+                };
+                sp++;
+            }
+            break;
+
+            case DW_OP_WASM_location:
+            {
+                u8 kind = 0;
+                pc += dw_read_u8(&kind, expr.ptr, expr.len, pc);
+                switch(kind)
+                {
+                    case 0x00:
+                    {
+                        //NOTE: wasm local
+                        u32 index = 0;
+                        pc += dw_read_leb128_u32(&index, expr.ptr, expr.len, pc);
+                        stack[sp] = (dw_stack_value){
+                            .type = DW_STACK_VALUE_LOCAL,
+                            .valU32 = index,
+                        };
+                        sp++;
+                    }
+                    break;
+                    case 0x01:
+                    {
+                        //NOTE: wasm global, leb128
+                        u32 index = 0;
+                        pc += dw_read_leb128_u32(&index, expr.ptr, expr.len, pc);
+                        stack[sp] = (dw_stack_value){
+                            .type = DW_STACK_VALUE_GLOBAL,
+                            .valU32 = index,
+                        };
+                        sp++;
+                    }
+                    break;
+                    case 0x02:
+                    {
+                        //NOTE: wasm operand stack
+                        u32 index = 0;
+                        pc += dw_read_leb128_u32(&index, expr.ptr, expr.len, pc);
+                        stack[sp] = (dw_stack_value){
+                            .type = DW_STACK_VALUE_OPERAND,
+                            .valU32 = index,
+                        };
+                        sp++;
+                    }
+                    break;
+                    case 0x03:
+                    {
+                        //NOTE: wasm global, u32
+                        u32 index = 0;
+                        pc += dw_read_u32(&index, expr.ptr, expr.len, pc);
+                        stack[sp] = (dw_stack_value){
+                            .type = DW_STACK_VALUE_GLOBAL,
+                            .valU32 = index,
+                        };
+                        sp++;
+                    }
+                    break;
+                    default:
+                        oc_log_error("unrecognized WASM location kind %hhu\n", kind);
+                        goto end;
+                }
+            }
+            break;
+
+            case DW_OP_stack_value:
+            {
+                goto end;
+            }
+            break;
+
+            default:
+                oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(op));
+                goto end;
+        }
+    }
+
+end:
+    OC_ASSERT(sp > 0);
+    return (stack[sp - 1]);
+}
+
+oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var)
+{
+    wa_debug_type* type = wa_debug_type_strip(var->type);
+
     oc_str8 res = {
-        .len = var->type->size,
-        .ptr = oc_arena_push_aligned(arena, var->type->size, 8),
+        .len = type->size,
+        .ptr = oc_arena_push_aligned(arena, type->size, 8),
     };
     memset(res.ptr, 0, res.len);
 
     dw_loc* loc = var->loc;
 
-    //TODO: basic dwarf expr vm
     for(u64 entryIndex = 0; entryIndex < loc->entryCount; entryIndex++)
     {
         dw_loc_entry* entry = &loc->entries[entryIndex];
 
-        u64 pc = 0;
-        u64 sp = 0;
+        dw_stack_value val = wa_interpret_dwarf_expr(interpreter, funcInfo, entry->desc);
 
-        typedef enum dw_stack_value_type
-        {
-            DW_STACK_VALUE_ADDRESS,
-            DW_STACK_VALUE_OPERAND,
-            DW_STACK_VALUE_LOCAL,
-            DW_STACK_VALUE_GLOBAL,
-            DW_STACK_VALUE_U64,
-            //...
-
-        } dw_stack_value_type;
-
-        typedef struct dw_stack_value
-        {
-            dw_stack_value_type type;
-
-            union
-            {
-                u32 valU32;
-                u64 valU64;
-                //...
-            };
-        } dw_stack_value;
-
-        const u64 DW_STACK_MAX = 1024;
-        dw_stack_value stack[DW_STACK_MAX];
-
-        while(pc < entry->desc.len)
-        {
-            dw_op op = entry->desc.ptr[pc];
-            pc++;
-
-            switch(op)
-            {
-                case DW_OP_addr:
-                {
-                    u32 opd = 0;
-                    memcpy(&opd, entry->desc.ptr + pc, sizeof(u32));
-                    pc += sizeof(u32);
-                    stack[sp] = (dw_stack_value){
-                        .type = DW_STACK_VALUE_ADDRESS,
-                        .valU32 = opd,
-                    };
-                    sp++;
-                }
-                break;
-
-                default:
-                    oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(op));
-                    goto end;
-            }
-        }
-        //NOTE: here we either get an address or a value on the top of the stack
-        OC_ASSERT(sp > 0);
-
-        dw_stack_value addr = stack[sp - 1];
-
-        switch(addr.type)
+        switch(val.type)
         {
             case DW_STACK_VALUE_ADDRESS:
             {
-                memcpy(res.ptr, interpreter->instance->memories[0]->ptr + addr.valU32, res.len);
+                //TODO: bounds check
+                if(loc->single)
+                {
+                    memcpy(res.ptr, interpreter->instance->memories[0]->ptr + val.valU32, res.len);
+                }
+                else
+                {
+                    memcpy(res.ptr + entry->start, interpreter->instance->memories[0]->ptr + val.valU32, entry->end - entry->start);
+                }
             }
             break;
 

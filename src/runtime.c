@@ -2407,10 +2407,13 @@ void debugger_ui_update(oc_runtime* app)
                                 {
                                     oc_ui_label_str8(OC_STR8("type"), var->type->name);
                                 }
-                                if(var->type->kind == WA_DEBUG_TYPE_BASIC)
+
+                                wa_debug_type* type = wa_debug_type_strip(var->type);
+
+                                if(type && type->kind == WA_DEBUG_TYPE_BASIC)
                                 {
-                                    oc_str8 buff = wa_debug_variable_get_value(scratch.arena, interpreter, var);
-                                    switch(var->type->encoding)
+                                    oc_str8 buff = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
+                                    switch(type->encoding)
                                     {
                                         case WA_DEBUG_TYPE_BOOL:
                                         {
@@ -2433,16 +2436,16 @@ void debugger_ui_update(oc_runtime* app)
                                         case WA_DEBUG_TYPE_FLOAT:
                                         {
                                             oc_str8 valStr = { 0 };
-                                            if(var->type->size == 4)
+                                            if(type->size == 4)
                                             {
                                                 f32 f = 0;
-                                                memcpy(&f, buff.ptr, var->type->size);
+                                                memcpy(&f, buff.ptr, type->size);
                                                 valStr = oc_str8_pushf(scratch.arena, "%f", f);
                                             }
-                                            else if(var->type->size == 8)
+                                            else if(type->size == 8)
                                             {
                                                 f64 f = 0;
-                                                memcpy(&f, buff.ptr, var->type->size);
+                                                memcpy(&f, buff.ptr, type->size);
                                                 valStr = oc_str8_pushf(scratch.arena, "%f", f);
                                             }
 
