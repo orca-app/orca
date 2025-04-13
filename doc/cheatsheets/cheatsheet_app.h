@@ -19,7 +19,7 @@ void oc_on_mouse_wheel(f32 deltaX, f32 deltaY);
 void oc_on_key_down(oc_scan_code scan, oc_key_code key);
 void oc_on_key_up(oc_scan_code scan, oc_key_code key);
 void oc_on_frame_refresh(void);
-void oc_on_resize(f32 width, f32 height);
+void oc_on_resize(u32 width, u32 height);
 void oc_on_raw_event(oc_event* event);
 void oc_on_terminate(void);
 

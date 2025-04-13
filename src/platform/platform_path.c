@@ -20,6 +20,7 @@ oc_str8 oc_path_slice_directory(oc_str8 fullPath)
             break;
         }
     }
+
     oc_str8 directory = { 0 };
     if(lastSlashIndex < 0)
     {
@@ -33,6 +34,7 @@ oc_str8 oc_path_slice_directory(oc_str8 fullPath)
     {
         directory = oc_str8_slice(fullPath, 0, lastSlashIndex);
     }
+
     return (directory);
 }
 

@@ -6314,37 +6314,37 @@
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_APPEND",
                                 "doc": "Open the file in 'append' mode. All writes append data at the end of the file.",
-                                "value": 2
+                                "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_TRUNCATE",
                                 "doc": "Truncate the file to 0 bytes when opening.",
-                                "value": 4
+                                "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_CREATE",
                                 "doc": "Create the file if it does not exist.",
-                                "value": 8
+                                "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_SYMLINK",
                                 "doc": "If the file is a symlink, open the symlink itself instead of following it.",
-                                "value": 16
+                                "value": 8
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_NO_FOLLOW",
                                 "doc": "If the file is a symlink, the call to open will fail.",
-                                "value": 32
+                                "value": 16
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_OPEN_RESTRICT",
                                 "doc": "Reserved.",
-                                "value": 64
+                                "value": 32
                             }
                         ]
                     }
@@ -6376,13 +6376,13 @@
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_READ",
                                 "doc": "The file handle can be used for reading from the file.",
-                                "value": 2
+                                "value": 1
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_FILE_ACCESS_WRITE",
                                 "doc": "The file handle can be used for writing to the file.",
-                                "value": 4
+                                "value": 2
                             }
                         ]
                     }
@@ -12577,13 +12577,6 @@
         },
         {
             "kind": "typename",
-            "name": "oc_ui_box",
-            "type": {
-                "kind": "struct"
-            }
-        },
-        {
-            "kind": "typename",
             "name": "oc_ui_context",
             "type": {
                 "kind": "struct"
@@ -14536,6 +14529,438 @@
                 "kind": "void"
             },
             "params": []
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_PRIMARY",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "primary"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_PRIMARY_HOVER",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "primary-hover"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_PRIMARY_ACTIVE",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "primary-active"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_PRIMARY_DISABLED",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "primary-disabled"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_0",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-0"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_1",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-1"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_2",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-2"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_3",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-3"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_BG_0",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "bg-0"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_BG_1",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "bg-1"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_BG_2",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "bg-2"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_BG_3",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "bg-3"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_BG_4",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "bg-4"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_FILL_0",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "fill-0"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_FILL_1",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "fill-1"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_FILL_2",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "fill-2"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_BORDER",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "border"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TOOLTIP",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "tooltip"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_ROUNDNESS_SMALL",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "roundness-small"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_ROUNDNESS_REGULAR",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "roundness-regular"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_ROUNDNESS_LARGE",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "roundness-large"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_SMALL",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-small"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_REGULAR",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-regular"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_HEADER_0",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-header-0"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_HEADER_1",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-header-1"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_HEADER_2",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-header-2"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_HEADER_3",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-header-3"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_TEXT_SIZE_HEADER_4",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "text-size-header-4"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_FONT_REGULAR",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "font-regular"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_EXTRA_TIGHT",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-extra-tight"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_TIGHT",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-tight"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_REGULAR_TIGHT",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-regular-tight"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_REGULAR",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-regular"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_REGULAR_LOOSE",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-regular-loose"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_LOOSE",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-loose"
+            }
+        },
+        {
+            "kind": "const",
+            "name": "OC_UI_THEME_SPACING_EXTRA_LOOSE",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_str8"
+            },
+            "init": {
+                "kind": "string",
+                "value": "spacing-extra-loose"
+            }
         }
     ]
 },
