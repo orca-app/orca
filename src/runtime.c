@@ -1457,7 +1457,7 @@ wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
     return 0;
 }
 
-void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 indent, u32* uid)
+void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 indent, u32* uid, bool showType)
 {
     wa_debug_type* strippedType = wa_debug_type_strip(type);
     OC_ASSERT(strippedType);
@@ -1501,21 +1501,34 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
                 oc_ui_label_str8(OC_STR8("name"), nameStr);
             }
 
-            if(type->name.len)
+            if(showType)
             {
-                oc_str8 typeStr = oc_str8_pushf(scratch.arena, "(%.*s) ", oc_str8_ip(type->name));
-                oc_ui_label_str8(OC_STR8("type"), typeStr);
-            }
-            else if(strippedType->kind == WA_DEBUG_TYPE_UNION)
-            {
-                oc_ui_label("type", "(anonymous union) ");
-            }
-            else if(strippedType->kind == WA_DEBUG_TYPE_STRUCT)
-            {
-                oc_ui_label("type", "(anonymous struct) ");
+                if(type->name.len)
+                {
+                    oc_str8 typeStr = oc_str8_pushf(scratch.arena, "(%.*s) ", oc_str8_ip(type->name));
+                    oc_ui_label_str8(OC_STR8("type"), typeStr);
+                }
+                else if(strippedType->kind == WA_DEBUG_TYPE_UNION)
+                {
+                    oc_ui_label("type", "(anonymous union) ");
+                }
+                else if(strippedType->kind == WA_DEBUG_TYPE_STRUCT)
+                {
+                    oc_ui_label("type", "(anonymous struct) ");
+                }
+                else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
+                {
+                    wa_debug_type* eltType = strippedType->array.type;
+                    oc_str8 typeStr = oc_str8_pushf(scratch.arena, "((%.*s)[%llu]) ", oc_str8_ip(eltType->name), strippedType->array.count);
+                    oc_ui_label_str8(OC_STR8("type"), typeStr);
+                }
             }
 
-            if(strippedType->kind == WA_DEBUG_TYPE_BASIC)
+            if(!data.len)
+            {
+                oc_ui_label("unavailable", "unavailable");
+            }
+            else if(strippedType->kind == WA_DEBUG_TYPE_BASIC)
             {
                 switch(strippedType->encoding)
                 {
@@ -1527,13 +1540,87 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
 
                     case WA_DEBUG_TYPE_UNSIGNED:
                     {
-                        //TODO
+                        oc_str8 valStr = { 0 };
+                        switch(strippedType->size)
+                        {
+                            case 1:
+                            {
+                                valStr = oc_str8_pushf(scratch.arena, "%hhu", *data.ptr);
+                            }
+                            break;
+
+                            case 2:
+                            {
+                                u16 u = 0;
+                                memcpy(&u, data.ptr, sizeof(u16));
+                                valStr = oc_str8_pushf(scratch.arena, "%hu", u);
+                            }
+                            break;
+
+                            case 4:
+                            {
+                                u32 u = 0;
+                                memcpy(&u, data.ptr, sizeof(u32));
+                                valStr = oc_str8_pushf(scratch.arena, "%u", u);
+                            }
+                            break;
+
+                            case 8:
+                            {
+                                u64 u = 0;
+                                memcpy(&u, data.ptr, sizeof(u64));
+                                valStr = oc_str8_pushf(scratch.arena, "%llu", u);
+                            }
+                            break;
+
+                            default:
+                                valStr = oc_str8_pushf(scratch.arena, "unsupported size %llu", strippedType->size);
+                                break;
+                        }
+                        oc_ui_label_str8(OC_STR8("value"), valStr);
                     }
                     break;
 
                     case WA_DEBUG_TYPE_SIGNED:
                     {
-                        //TODO
+                        oc_str8 valStr = { 0 };
+                        switch(strippedType->size)
+                        {
+                            case 1:
+                            {
+                                valStr = oc_str8_pushf(scratch.arena, "%hhi", *data.ptr);
+                            }
+                            break;
+
+                            case 2:
+                            {
+                                i16 i = 0;
+                                memcpy(&i, data.ptr, sizeof(i16));
+                                valStr = oc_str8_pushf(scratch.arena, "%hi", i);
+                            }
+                            break;
+
+                            case 4:
+                            {
+                                i32 i = 0;
+                                memcpy(&i, data.ptr, sizeof(i32));
+                                valStr = oc_str8_pushf(scratch.arena, "%i", i);
+                            }
+                            break;
+
+                            case 8:
+                            {
+                                i64 i = 0;
+                                memcpy(&i, data.ptr, sizeof(i64));
+                                valStr = oc_str8_pushf(scratch.arena, "%lli", i);
+                            }
+                            break;
+
+                            default:
+                                valStr = oc_str8_pushf(scratch.arena, "unsupported size %llu", strippedType->size);
+                                break;
+                        }
+                        oc_ui_label_str8(OC_STR8("value"), valStr);
                     }
                     break;
 
@@ -1559,11 +1646,23 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
                 }
             }
         }
-        if(strippedType->kind == WA_DEBUG_TYPE_STRUCT || strippedType->kind == WA_DEBUG_TYPE_UNION)
+        if(data.len)
         {
-            oc_list_for(strippedType->fields, field, wa_debug_type_field, listElt)
+            if(strippedType->kind == WA_DEBUG_TYPE_STRUCT || strippedType->kind == WA_DEBUG_TYPE_UNION)
             {
-                debugger_ui_value(field->name, field->type, oc_str8_slice(data, field->offset, data.len - field->offset), indent + 1, uid);
+                oc_list_for(strippedType->fields, field, wa_debug_type_field, listElt)
+                {
+                    debugger_ui_value(field->name, field->type, oc_str8_slice(data, field->offset, data.len - field->offset), indent + 1, uid, true);
+                }
+            }
+            else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
+            {
+                for(u64 i = 0; i < strippedType->array.count; i++)
+                {
+                    oc_str8 indexStr = oc_str8_pushf(scratch.arena, "[%llu]", i);
+                    wa_debug_type* eltType = wa_debug_type_strip(strippedType->array.type);
+                    debugger_ui_value(indexStr, eltType, oc_str8_slice(data, i * eltType->size, (i + 1) * eltType->size), indent + 1, uid, false);
+                }
             }
         }
     }
@@ -2493,6 +2592,10 @@ void debugger_ui_update(oc_runtime* app)
                         {
                             oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
                         }
+                        oc_ui_style_rule("unavailable.label")
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
+                        }
 
                         wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
                         u32 funcIndex = execFunc - interpreter->instance->functions;
@@ -2508,7 +2611,7 @@ void debugger_ui_update(oc_runtime* app)
                             //TODO: we also have double vars, beware of shadowing
 
                             oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
-                            debugger_ui_value(var->name, var->type, data, 0, &varUID);
+                            debugger_ui_value(var->name, var->type, data, 0, &varUID, true);
 
                             /*
                             oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);

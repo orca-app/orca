@@ -5320,6 +5320,13 @@ typedef struct wa_debug_type
         wa_debug_type_encoding encoding;
         wa_debug_type* type;
         oc_list fields;
+
+        struct
+        {
+            wa_debug_type* type;
+            u64 count;
+        } array;
+
         //TODO enum, etc...
     };
 } wa_debug_type;
@@ -5331,6 +5338,15 @@ wa_debug_type* wa_debug_type_alloc(oc_arena* arena, u64 typeRef, wa_debug_type_k
     type->kind = kind;
     type->dwarfRef = typeRef;
     oc_list_push_back(types, &type->listElt);
+    return type;
+}
+
+wa_debug_type* wa_debug_type_strip(wa_debug_type* type)
+{
+    while(type && type->kind == WA_DEBUG_TYPE_NAMED)
+    {
+        type = type->type;
+    }
     return type;
 }
 
@@ -5458,8 +5474,37 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* debugInf
                 dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(typeAttr)
                 {
-                    type->type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64, types);
+                    type->array.type = wa_build_debug_type_from_dwarf(arena, debugInfo, typeAttr->valU64, types);
                 }
+
+                //TODO stride
+
+                ///////////////////////////////////////
+                //TODO: multi dim arrays...
+                ///////////////////////////////////////
+                u64 size = wa_debug_type_strip(type->array.type)->size;
+
+                oc_list_for(die->children, child, dw_die, parentElt)
+                {
+                    if(child->abbrev)
+                    {
+                        if(child->abbrev->tag == DW_TAG_subrange_type)
+                        {
+                            dw_attr* count = dw_die_get_attr(child, DW_AT_count);
+                            if(count)
+                            {
+                                type->array.count = count->valU64;
+                                size *= type->array.count;
+                            }
+                        }
+                        else if(child->abbrev->tag == DW_TAG_enumeration_type)
+                        {
+                            //TODO
+                        }
+                    }
+                }
+                type->size = size;
+                //TODO: dynamic ranks
 
                 /*TODO: array count
                 dw_attr* countAttr = dw_die_get_attr(die, DW_AT_subrange_type);
@@ -9259,15 +9304,6 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
     return result;
 }
 
-wa_debug_type* wa_debug_type_strip(wa_debug_type* type)
-{
-    while(type && type->kind == WA_DEBUG_TYPE_NAMED)
-    {
-        type = type->type;
-    }
-    return type;
-}
-
 typedef enum dw_stack_value_type
 {
     DW_STACK_VALUE_ADDRESS,
@@ -9429,6 +9465,10 @@ end:
 
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var)
 {
+    if(!var->loc)
+    {
+        return (oc_str8){ 0 };
+    }
     wa_debug_type* type = wa_debug_type_strip(var->type);
 
     oc_str8 res = {
