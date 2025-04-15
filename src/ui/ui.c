@@ -1632,6 +1632,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     box->keyString = oc_str8_push_copy(ui->frameArena, string);
     box->text = (oc_str8){ 0 };
+    box->drawProc = 0;
 
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
