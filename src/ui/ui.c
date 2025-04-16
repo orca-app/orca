@@ -483,6 +483,9 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
         }
         else
         {
+            //NOTE: first make a copy of pattern string in frame arena
+            patternString = oc_str8_push_copy(oc_ui_frame_arena(), patternString);
+
             //NOTE: parse pattern from patternString
             oc_ui_pattern pattern = { 0 };
             u32 selectorStart = 0;
