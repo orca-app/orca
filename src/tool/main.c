@@ -32,9 +32,9 @@
 #include "update.c"
 #include "list.c"
 #include "system.c"
-
+ 
 int main(int argc, char** argv)
-{
+{ 
     Flag_Context c;
     flag_init_context(&c);
 

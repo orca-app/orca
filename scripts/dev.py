@@ -639,7 +639,7 @@ def build_runtime_mac(release, wasm_backend):
         defines += ["-DOC_WASM_BACKEND_WASM3=1", "-DOC_WASM_BACKEND_BYTEBOX=0"]
         libs += ["-lwasm3"]
 
-    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG -DOC_LOG_COMPILE_DEBUG"]
+    debug_flags = ["-O2"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address", "-fsanitize=undefined"]
     flags = [
         *debug_flags,
         "--std=c11",
@@ -797,7 +797,7 @@ def build_platform_layer_lib_win(release):
         *includes,
         "src/orca.c", "/Fo:build/bin/orca.o",
         "/LD", "/link",
-        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.xml",
+        "/MANIFEST:EMBED", "/MANIFESTINPUT:src/app/win32_manifest.manifest",
         *libs,
         "/OUT:build/bin/orca.dll",
         "/IMPLIB:build/bin/orca.dll.lib",
@@ -824,8 +824,11 @@ def build_platform_layer_lib_mac(release):
 
     flags = [f"-mmacos-version-min={MACOS_VERSION_MIN}"]
     cflags = ["-std=c11"]
-    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG"]
+    debug_flags = ["-O3"] if release else ["-g", "-DOC_DEBUG", "-DOC_LOG_COMPILE_DEBUG", "-fsanitize=address", "-fsanitize=undefined"]
     ldflags = [f"-L{MAC_SDK_DIR}/usr/lib", f"-F{MAC_SDK_DIR}/System/Library/Frameworks/"]
+    if not release:
+        ldflags.extend(["-fsanitize=address", "-fsanitize=undefined"])
+
     includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 
     # compile platform layer. We use one compilation unit for all C code, and one
@@ -846,9 +849,10 @@ def build_platform_layer_lib_mac(release):
     ], check=True)
 
     # build dynamic library
+        # Note: we must use clang instead of ld for ubsan to link the correct runtime libraries
     subprocess.run([
-        "ld",
-        *ldflags, "-dylib",
+        "clang",
+        *ldflags, "-dynamiclib",
         "-o", "build/bin/liborca.dylib",
         "build/orca_c.o", "build/orca_objc.o",
         "-Lbuild/bin", "-lc",
@@ -965,7 +969,7 @@ def build_sdk_internal(release):
 #------------------------------------------------------
 def build_libc(args):
     ensure_programs()
-    build_lib_internal(args.release)
+    build_libc_internal(args.release)
 
 def build_libc_internal(release):
     print("Building orca-libc...")

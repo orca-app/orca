@@ -6,7 +6,6 @@
 *
 **************************************************************************/
 
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include "platform/platform.h"
 #include <math.h>
 
