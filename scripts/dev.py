@@ -1314,6 +1314,12 @@ def package_sdk_internal(dest, target, dev_dest):
         shutil.copy(os.path.join("build", "angle.out", "angle.json"), dev_dest)
         shutil.copy(os.path.join("build", "dawn.out", "dawn.json"), dev_dest)
 
+        dev_dawn_include_dir = os.path.join(dev_dest, "src/ext/dawn/include")
+        shutil.copytree("build/dawn.out/include", dev_dawn_include_dir, dirs_exist_ok=True)
+
+        dev_angle_include_dir = os.path.join(dev_dest, "src/ext/angle/include")
+        shutil.copytree("build/angle.out/include", dev_angle_include_dir, dirs_exist_ok=True)
+
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
 
