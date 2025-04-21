@@ -61,11 +61,13 @@ jobs:
         run: |
           if [${{ inputs.version }}]==[] (
             orcadev.bat install orca dev-dependencies || exit 1
+            tar --format=ustar -cvzf orca-windows.tar.gz orca
+            tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
           ) else (
             orcadev.bat install --version ${{ inputs.version }} orca dev-dependencies || exit 1
+            tar --format=ustar -cvzf orca-windows.tar.gz orca
+            tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
           )
-          tar --format=ustar -cvzf orca-windows.tar.gz orca
-          tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
 
       - uses: actions/upload-artifact@v4
         with:
