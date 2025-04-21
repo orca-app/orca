@@ -32,8 +32,11 @@ jobs:
         run: |
           mkdir releases
           cp artifacts/orca-windows.tar.gz releases
+          cp artifacts/orca-windows-dev.tar.gz releases
           cp artifacts/orca-mac-x64.tar.gz releases
+          cp artifacts/orca-mac-x64-dev.tar.gz releases
           cp artifacts/orca-mac-arm64.tar.gz releases
+          cp artifacts/orca-mac-arm64-dev.tar.gz releases
           cp samples.tar.gz releases
 
       - uses: ncipollo/release-action@v1
