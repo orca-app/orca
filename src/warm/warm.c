@@ -3236,7 +3236,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     }
     */
     dw_parse_info(module->arena, &dwarfSections, module->debugInfo);
-    dw_print_debug_info(module->debugInfo);
+    //    dw_print_debug_info(module->debugInfo);
 
     //NOTE: load line info if it exists
     if(dwarfSections.line.len)
