@@ -60,17 +60,24 @@ jobs:
         shell: cmd
         run: |
           if [${{ inputs.version }}]==[] (
-            orcadev.bat install orca || exit 1
+            orcadev.bat install orca dev-dependencies || exit 1
             tar --format=ustar -cvzf orca-windows.tar.gz orca
+            tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
           ) else (
-            orcadev.bat install --version ${{ inputs.version }} orca || exit 1
+            orcadev.bat install --version ${{ inputs.version }} orca dev-dependencies || exit 1
             tar --format=ustar -cvzf orca-windows.tar.gz orca
+            tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
           )
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-windows
           path: orca-windows.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-dependencies-windows
+          path: dev-dependencies-windows.tar.gz
 
   build-macos-x64:
     needs: [build-dawn-mac, build-angle-mac]
@@ -103,16 +110,22 @@ jobs:
       - name: Package
         run: |
           if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca
+            ./orcadev install --version ${{ inputs.version }} orca dev-dependencies
           else
-            ./orcadev install orca
+            ./orcadev install orca dev-dependencies
           fi
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
+          tar --format=ustar -czf dev-dependencies-mac-x64.tar.gz dev-dependencies
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-mac-x64
           path: orca-mac-x64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-dependencies-mac-x64
+          path: dev-dependencies-mac-x64.tar.gz
 
   build-macos-arm64:
     needs: [build-dawn-mac, build-angle-mac]
@@ -145,13 +158,19 @@ jobs:
       - name: Package
         run: |
           if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca
+            ./orcadev install --version ${{ inputs.version }} orca dev-dependencies
           else
-            ./orcadev install orca
+            ./orcadev install orca dev-dependencies
           fi
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
+          tar --format=ustar -czf dev-dependencies-mac-arm64.tar.gz dev-dependencies
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-mac-arm64
           path: orca-mac-arm64.tar.gz
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dev-dependencies-mac-arm64
+          path: dev-dependencies-mac-arm64.tar.gz

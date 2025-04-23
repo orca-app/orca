@@ -64,12 +64,14 @@ def attach_dev_commands(subparsers):
 
     package_cmd = subparsers.add_parser("package-sdk", help="Packages the Orca SDK for a release.")
     package_cmd.add_argument("--target")
+    package_cmd.add_argument("dev_dest", help="Package development libs into this path")
     package_cmd.add_argument("dest")
     package_cmd.set_defaults(func=dev_shellish(package_sdk))
 
     install_cmd = subparsers.add_parser("install", help="Install a dev build of the Orca tools into the system Orca directory.")
     install_cmd.add_argument("--version")
     install_cmd.add_argument("install_dir", nargs='?')
+    install_cmd.add_argument("dev_dest", nargs='?', help="Package development libs into this path")
     install_cmd.set_defaults(func=dev_shellish(install))
 
     clean_cmd = subparsers.add_parser("clean", help="Delete all build artifacts and start fresh.")
@@ -1296,7 +1298,7 @@ def system_orca_dir():
         # print("https://github.com/orca-app/orca/releases/latest")
         #exit(1)
 
-def package_sdk_internal(dest, target):
+def package_sdk_internal(dest, target, dev_dest):
     bin_dir = os.path.join(dest, "bin")
     libc_dir = os.path.join(dest, "orca-libc")
     res_dir = os.path.join(dest, "resources")
@@ -1315,6 +1317,18 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libEGL.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "webgpu.dll"), bin_dir)
+
+        if dev_dest != None and dev_dest != "":
+            dev_bin_dir = os.path.join(dev_dest, "bin")
+            os.makedirs(dev_bin_dir, exist_ok=True)
+            shutil.copy(os.path.join("build", "bin", "webgpu.dll"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "webgpu.lib"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "libEGL.dll"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "libEGL.dll.lib"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "libGLESv2.dll"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "libGLESv2.dll.lib"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "d3dcompiler_47.dll"), dev_bin_dir)
+
     else:
         shutil.copy(os.path.join("build", "bin", "orca"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "orca_runtime"), bin_dir)
@@ -1324,8 +1338,23 @@ def package_sdk_internal(dest, target):
         shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), bin_dir)
         shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), bin_dir)
 
-    shutil.copy(os.path.join("build", "angle.out", "angle.json"), bin_dir)
-    shutil.copy(os.path.join("build", "dawn.out", "dawn.json"), bin_dir)
+        if dev_dest != None and dev_dest != "":
+            dev_bin_dir = os.path.join(dev_dest, "bin")
+            os.makedirs(dev_bin_dir, exist_ok=True)
+            shutil.copy(os.path.join("build", "bin", "libEGL.dylib"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "libGLESv2.dylib"), dev_bin_dir)
+            shutil.copy(os.path.join("build", "bin", "libwebgpu.dylib"), dev_bin_dir)
+
+    if dev_dest != None and dev_dest != "":
+        os.makedirs(dev_dest, exist_ok=True)
+        shutil.copy(os.path.join("build", "angle.out", "angle.json"), dev_dest)
+        shutil.copy(os.path.join("build", "dawn.out", "dawn.json"), dev_dest)
+
+        dev_dawn_include_dir = os.path.join(dev_dest, "src/ext/dawn/include")
+        shutil.copytree("build/dawn.out/include", dev_dawn_include_dir, dirs_exist_ok=True)
+
+        dev_angle_include_dir = os.path.join(dev_dest, "src/ext/angle/include")
+        shutil.copytree("build/angle.out/include", dev_angle_include_dir, dirs_exist_ok=True)
 
     shutil.copytree(os.path.join("build", "orca-libc"), libc_dir, dirs_exist_ok=True)
     shutil.copytree("resources", res_dir, dirs_exist_ok=True)
@@ -1372,7 +1401,7 @@ def package_sdk_internal(dest, target):
 def package_sdk(args):
     dest = args.dest
     target = platform.system() if args.target == None else args.target
-    package_sdk_internal(dest, target)
+    package_sdk_internal(dest, target, args.dev_dest)
 
 #------------------------------------------------------
 # install
@@ -1412,7 +1441,7 @@ def install(args):
 
     print(f"Installing dev build of Orca in {dest}")
 
-    package_sdk_internal(dest, platform.system())
+    package_sdk_internal(dest, platform.system(), args.dev_dest)
 
     tool_path = os.path.join("build", "bin", "orca.exe") if platform.system() == "Windows" else os.path.join("build","bin","orca")
     shutil.copy(tool_path, orca_dir)
