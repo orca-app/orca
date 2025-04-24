@@ -2503,7 +2503,7 @@ void debugger_ui_update(oc_runtime* app)
 
                             oc_str8 regText = { 0 };
 
-                            wa_register_map* map = &app->env.module->registerMaps[funcIndex][regIndex];
+                            wa_register_map* map = &app->env.module->debugInfo.registerMaps[funcIndex][regIndex];
 
                             wa_value_type type = WA_TYPE_UNKNOWN;
                             for(u32 rangeIndex = 0; rangeIndex < map->count; rangeIndex++)
@@ -2599,7 +2599,7 @@ void debugger_ui_update(oc_runtime* app)
 
                         wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
                         u32 funcIndex = execFunc - interpreter->instance->functions;
-                        wa_debug_function* funcInfo = &interpreter->instance->module->functionLocals[funcIndex];
+                        wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo.functionLocals[funcIndex];
 
                         u32 varUID = 0;
 
