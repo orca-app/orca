@@ -1139,23 +1139,34 @@ pub fn build(b: *Build) !void {
         .optimize = .Debug,
     });
 
-    const sdk_install_dir_opt = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
+    const sdk_install_path_opt = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
+    const sdk_deps_install_path_opt = b.option([]const u8, "sdk-deps-path", "Specify absolute path for installing Orca SDK angle and dawn dependencies.");
 
-    var orca_install = b.addRunArtifact(package_sdk_exe);
+    const SdkHelpers = struct {
+        fn addAbsolutePathArg(b_: *Build, run: *Build.Step.Run, prefix: []const u8, path: []const u8) void {
+            var path_absolute = path;
+            if (std.fs.path.isAbsolute(path_absolute) == false) {
+                path_absolute = b_.pathFromRoot(path);
+            }
+            std.debug.assert(std.fs.path.isAbsolute(path_absolute));
+
+            const sdk_path = std.mem.join(b_.allocator, "", &.{ prefix, path_absolute }) catch @panic("OOM");
+            run.addArg(sdk_path);
+        }
+    };
+
+    var orca_install: *Build.Step.Run = b.addRunArtifact(package_sdk_exe);
     orca_install.addArg("--dev-install");
     orca_install.addPrefixedFileArg("--artifacts-path=", b.path("build"));
     orca_install.addPrefixedFileArg("--resources-path=", b.path("resources"));
     orca_install.addPrefixedFileArg("--src-path=", b.path("src"));
 
-    if (sdk_install_dir_opt) |sdk_install_dir| {
-        var sdk_install_path_absolute = sdk_install_dir;
-        if (std.fs.path.isAbsolute(sdk_install_path_absolute) == false) {
-            sdk_install_path_absolute = b.pathFromRoot(sdk_install_dir);
-        }
-        std.debug.assert(std.fs.path.isAbsolute(sdk_install_path_absolute));
+    if (sdk_install_path_opt) |sdk_install_path| {
+        SdkHelpers.addAbsolutePathArg(b, orca_install, "--sdk-path=", sdk_install_path);
+    }
 
-        const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_path_absolute });
-        orca_install.addArg(sdk_path);
+    if (sdk_deps_install_path_opt) |sdk_deps_install_path| {
+        SdkHelpers.addAbsolutePathArg(b, orca_install, "--sdk-deps-path=", sdk_deps_install_path);
     }
 
     if (git_version_opt) |git_version| {
@@ -1180,18 +1191,15 @@ pub fn build(b: *Build) !void {
     package_sdk_to_dir.addPrefixedFileArg("--resources-path=", b.path("resources"));
     package_sdk_to_dir.addPrefixedFileArg("--src-path=", b.path("src"));
 
-    if (sdk_install_dir_opt) |sdk_install_dir| {
-        var sdk_install_path_absolute = sdk_install_dir;
-        if (std.fs.path.isAbsolute(sdk_install_path_absolute) == false) {
-            sdk_install_path_absolute = b.pathFromRoot(sdk_install_dir);
-        }
-        std.debug.assert(std.fs.path.isAbsolute(sdk_install_path_absolute));
-
-        const sdk_path = try std.mem.join(b.allocator, "", &.{ "--sdk-path=", sdk_install_path_absolute });
-        package_sdk_to_dir.addArg(sdk_path);
+    if (sdk_install_path_opt) |sdk_install_path| {
+        SdkHelpers.addAbsolutePathArg(b, package_sdk_to_dir, "--sdk-path=", sdk_install_path);
     } else {
         const fail = b.addFail("package-sdk requires -Dsdk-path");
         package_sdk_to_dir.step.dependOn(&fail.step);
+    }
+
+    if (sdk_deps_install_path_opt) |sdk_deps_install_path| {
+        SdkHelpers.addAbsolutePathArg(b, package_sdk_to_dir, "--sdk-deps-path=", sdk_deps_install_path);
     }
 
     if (git_version_opt) |git_version| {

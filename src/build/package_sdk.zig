@@ -5,6 +5,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const join = std.fs.path.join;
+const assert = std.debug.assert;
+
 fn trimWhitespace(str0: []const u8) []const u8 {
     const trim = std.mem.trim;
     const str1 = trim(u8, str0, "\n");
@@ -42,12 +45,26 @@ fn findGitVersion(arena: std.mem.Allocator) ![]const u8 {
     return output;
 }
 
+fn indexOfString(haystack: []const []const u8, needle: []const u8) ?usize {
+    for (haystack, 0..) |item, i| {
+        if (std.mem.eql(u8, item, needle)) {
+            return i;
+        }
+    }
+    return null;
+}
+
+const CopyFolderOpts = struct {
+    include_extensions: []const []const u8 = &.{},
+    ignore_patterns: []const []const u8 = &.{},
+    required_filenames: []const []const u8 = &.{},
+};
+
 fn copyFolder(
     allocator: std.mem.Allocator,
     dest: []const u8,
     src: []const u8,
-    include_extensions: []const []const u8,
-    ignore_patterns: []const []const u8,
+    opts: *const CopyFolderOpts,
 ) !void {
     std.log.info("copying '{s}' to '{s}'", .{ src, dest });
 
@@ -57,8 +74,11 @@ fn copyFolder(
     const src_dir: std.fs.Dir = try cwd.openDir(src, .{ .iterate = true });
     const dest_dir: std.fs.Dir = try cwd.openDir(dest, .{ .iterate = true });
 
+    var required_filenames = std.ArrayList([]const u8).init(allocator);
+    try required_filenames.appendSlice(opts.required_filenames);
+
     var normalized_ignore_patterns = std.ArrayList([]u8).init(allocator);
-    for (ignore_patterns) |pattern| {
+    for (opts.ignore_patterns) |pattern| {
         try normalized_ignore_patterns.append(try std.fs.path.resolve(allocator, &.{pattern}));
     }
 
@@ -66,9 +86,9 @@ fn copyFolder(
     while (try src_walker.next()) |src_entry| {
         var included: bool = true;
         if (src_entry.kind != .directory) {
-            included = include_extensions.len == 0;
+            included = opts.include_extensions.len == 0;
             const extension = std.fs.path.extension(src_entry.basename);
-            for (include_extensions) |included_extension| {
+            for (opts.include_extensions) |included_extension| {
                 if (std.mem.eql(u8, extension, included_extension)) {
                     included = true;
                     break;
@@ -84,12 +104,39 @@ fn copyFolder(
             }
         }
 
-        if (included and !ignored) {
-            _ = switch (src_entry.kind) {
-                .file => try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{}),
-                else => {},
-            };
+        var finish: bool = false;
+        if (ignored == false and src_entry.kind == .file and required_filenames.items.len > 0) {
+            ignored = true;
+            for (required_filenames.items, 0..) |filename, i| {
+                if (std.mem.eql(u8, filename, src_entry.path)) {
+                    ignored = false;
+                    _ = required_filenames.swapRemove(i);
+                    finish = required_filenames.items.len == 0;
+                    break;
+                }
+            }
         }
+
+        if (included and !ignored) {
+            if (src_entry.kind == .file) {
+                if (opts.required_filenames.len > 0) {
+                    const src_file_path: []const u8 = try join(allocator, &.{ src, src_entry.path });
+                    const dest_file_path: []const u8 = try join(allocator, &.{ dest, src_entry.path });
+                    std.log.info("copying '{s}' to '{s}'", .{ src_file_path, dest_file_path });
+                }
+                _ = try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{});
+            }
+        }
+
+        if (finish) {
+            break;
+        }
+    }
+
+    if (required_filenames.items.len > 0) {
+        const joined = try std.mem.join(allocator, ", ", required_filenames.items);
+        std.log.err("Failed to find required files: {s}", .{joined});
+        return error.FailedToCopyRequiredFiles;
     }
 }
 
@@ -141,6 +188,7 @@ fn findSystemOrcaDir(allocator: std.mem.Allocator, should_log: ShouldLog) ![]con
 const Options = struct {
     arena: std.mem.Allocator,
     sdk_path: []const u8,
+    sdk_deps_path_opt: ?[]const u8,
     artifacts_path: []const u8,
     resources_path: []const u8,
     src_path: []const u8,
@@ -149,6 +197,7 @@ const Options = struct {
 
     fn parse(args: []const [:0]const u8, arena: std.mem.Allocator) !Options {
         var sdk_path: ?[]const u8 = null;
+        var sdk_deps_path: ?[]const u8 = null;
         var artifacts_path: ?[]const u8 = null;
         var resources_path: ?[]const u8 = null;
         var src_path: ?[]const u8 = null;
@@ -164,6 +213,8 @@ const Options = struct {
             const arg: []const u8 = splitIter.next().?;
             if (std.mem.eql(u8, arg, "--sdk-path")) {
                 sdk_path = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--sdk-deps-path")) {
+                sdk_deps_path = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--artifacts-path")) {
                 artifacts_path = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--resources-path")) {
@@ -210,15 +261,16 @@ const Options = struct {
                     , .{});
                     return e;
                 };
-                sdk_path = try std.fs.path.join(arena, &.{ orca_dir, version.? });
+                sdk_path = try join(arena, &.{ orca_dir, version.? });
             } else {
-                sdk_path = try std.fs.path.join(arena, &.{ sdk_path.?, version.? });
+                sdk_path = try join(arena, &.{ sdk_path.?, version.? });
             }
         }
 
         return Options{
             .arena = arena,
             .sdk_path = sdk_path.?,
+            .sdk_deps_path_opt = sdk_deps_path,
             .artifacts_path = artifacts_path.?,
             .resources_path = resources_path.?,
             .src_path = src_path.?,
@@ -237,84 +289,156 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     const opts = try Options.parse(args, allocator);
+    const cwd = std.fs.cwd();
 
-    std.fs.deleteTreeAbsolute(opts.sdk_path) catch {};
-
-    const src_paths: []const []const u8 = &.{
-        try std.fs.path.join(opts.arena, &.{ opts.artifacts_path, "bin" }),
-        try std.fs.path.join(opts.arena, &.{ opts.artifacts_path, "orca-libc" }),
-        opts.resources_path,
-    };
-
-    const dest_paths: []const []const u8 = &.{
-        try std.fs.path.join(opts.arena, &.{ opts.sdk_path, "bin" }),
-        try std.fs.path.join(opts.arena, &.{ opts.sdk_path, "orca-libc" }),
-        try std.fs.path.join(opts.arena, &.{ opts.sdk_path, "resources" }),
-    };
-
-    for (src_paths, dest_paths) |src, dest| {
-        try copyFolder(opts.arena, dest, src, &.{}, &.{});
-    }
-
-    const header_extensions: []const []const u8 = &.{
-        ".h",
-    };
-    // For copying the src directory, manually copy the curl and wasm3 dirs since we only care
-    // about the headers in a specific directory. Everything else is ok though
+    // package SDK
     {
-        const dest_src_path = try std.fs.path.join(opts.arena, &.{ opts.sdk_path, "src" });
-        const ignore_patterns: []const []const u8 = &.{
-            "tool/",
-            "orca-libc/",
-            "wasm/",
-            "ext/curl/",
-            "ext/wasm3/",
-            "ext/zlib/build/", // copy all headers in zlib except zlib/build
+        std.fs.deleteTreeAbsolute(opts.sdk_path) catch {};
+
+        const src_bin_path = try join(opts.arena, &.{ opts.artifacts_path, "bin" });
+        const dest_bin_path = try join(opts.arena, &.{ opts.sdk_path, "bin" });
+        const bin_files_windows: []const []const u8 = &.{
+            "orca_tool.exe",
+            "orca_platform.dll",
+            "orca_runtime.exe",
+            "liborca_wasm.a",
+            "libEGL.dll",
+            "libGLESv2.dll",
+            "webgpu.dll",
         };
-        try copyFolder(opts.arena, dest_src_path, opts.src_path, header_extensions, ignore_patterns);
-    }
+        const bin_files_macos: []const []const u8 = &.{
+            "orca_tool",
+            "orca_platform",
+            "orca_runtime",
+            "liborca.dylib",
+            "liborca_wasm.a",
+            "libEGL.dylib",
+            "libGLESv2.dylib",
+            "libwebgpu.dylib",
+        };
+        const bin_files = if (builtin.os.tag == .windows) bin_files_windows else bin_files_macos;
+        try copyFolder(opts.arena, dest_bin_path, src_bin_path, &.{ .required_filenames = bin_files });
 
-    {
-        const curl_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/curl/include" });
-        const curl_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.sdk_path, "src/ext/curl/include" });
+        const src_paths: []const []const u8 = &.{
+            try join(opts.arena, &.{ opts.artifacts_path, "orca-libc" }),
+            opts.resources_path,
+        };
 
-        try copyFolder(opts.arena, curl_dest_path, curl_src_path, header_extensions, &.{});
-    }
+        const dest_paths: []const []const u8 = &.{
+            try join(opts.arena, &.{ opts.sdk_path, "orca-libc" }),
+            try join(opts.arena, &.{ opts.sdk_path, "resources" }),
+        };
 
-    {
-        const wasm3_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/wasm3/source" });
-        const wasm3_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.sdk_path, "src/ext/wasm3/source" });
-        try copyFolder(opts.arena, wasm3_dest_path, wasm3_src_path, header_extensions, &.{});
-    }
-
-    // dev installs need to overwrite the orca tool in case there were any changes
-    if (opts.is_dev_install) {
-        const orca_dir_path: []const u8 = if (std.fs.path.dirname(opts.sdk_path)) |orca_dir| orca_dir else opts.sdk_path;
-
-        const src_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca_tool.exe" else "orca_tool";
-        const src_tool_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.artifacts_path, "bin", src_orca_exe_name });
-
-        const dest_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca.exe" else "orca";
-        const dest_tool_path: []const u8 = try std.fs.path.join(opts.arena, &.{ orca_dir_path, dest_orca_exe_name });
-
-        std.log.info("copying '{s}' to '{s}'", .{ src_tool_path, dest_tool_path });
-        const cwd = std.fs.cwd();
-        const orca_dir: std.fs.Dir = try cwd.openDir(orca_dir_path, .{ .iterate = true });
-        _ = try cwd.updateFile(src_tool_path, orca_dir, dest_tool_path, .{});
-
-        // copy pdb file as well since windows debuggers have a hard time finding the debug symbols otherwise
-        if (builtin.os.tag == .windows) {
-            const src_pdb_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.artifacts_path, "bin", "orca_tool.pdb" });
-            const dest_pdb_path: []const u8 = try std.fs.path.join(opts.arena, &.{ orca_dir_path, "orca.pdb" });
-            std.log.info("copying '{s}' to '{s}'", .{ src_pdb_path, dest_pdb_path });
-            _ = try cwd.updateFile(src_pdb_path, orca_dir, dest_pdb_path, .{});
+        for (src_paths, dest_paths) |src, dest| {
+            try copyFolder(opts.arena, dest, src, &.{});
         }
 
-        try orca_dir.writeFile(.{
-            .sub_path = "current_version",
-            .data = opts.version,
-        });
+        const header_extensions: []const []const u8 = &.{
+            ".h",
+        };
+        // For copying the src directory, manually copy the curl and wasm3 dirs since we only care
+        // about the headers in a specific directory. Everything else is ok though
+        {
+            const dest_src_path = try join(opts.arena, &.{ opts.sdk_path, "src" });
+            const ignore_patterns: []const []const u8 = &.{
+                "tool/",
+                "orca-libc/",
+                "wasm/",
+                "ext/curl/",
+                "ext/wasm3/",
+                "ext/zlib/build/", // copy all headers in zlib except zlib/build
+            };
+            try copyFolder(opts.arena, dest_src_path, opts.src_path, &.{ .include_extensions = header_extensions, .ignore_patterns = ignore_patterns });
+        }
+
+        {
+            const curl_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/curl/include" });
+            const curl_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.sdk_path, "src/ext/curl/include" });
+
+            try copyFolder(opts.arena, curl_dest_path, curl_src_path, &.{ .include_extensions = header_extensions });
+        }
+
+        {
+            const wasm3_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/wasm3/source" });
+            const wasm3_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.sdk_path, "src/ext/wasm3/source" });
+            try copyFolder(opts.arena, wasm3_dest_path, wasm3_src_path, &.{ .include_extensions = header_extensions });
+        }
+
+        // dev installs need to overwrite the orca tool in case there were any changes
+        if (opts.is_dev_install) {
+            const orca_dir_path: []const u8 = if (std.fs.path.dirname(opts.sdk_path)) |orca_dir| orca_dir else opts.sdk_path;
+
+            const src_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca_tool.exe" else "orca_tool";
+            const src_tool_path: []const u8 = try join(opts.arena, &.{ opts.artifacts_path, "bin", src_orca_exe_name });
+
+            const dest_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca.exe" else "orca";
+            const dest_tool_path: []const u8 = try join(opts.arena, &.{ orca_dir_path, dest_orca_exe_name });
+
+            std.log.info("copying '{s}' to '{s}'", .{ src_tool_path, dest_tool_path });
+            const orca_dir: std.fs.Dir = try cwd.openDir(orca_dir_path, .{ .iterate = true });
+            _ = try cwd.updateFile(src_tool_path, orca_dir, dest_tool_path, .{});
+
+            // copy pdb file as well since windows debuggers have a hard time finding the debug symbols otherwise
+            if (builtin.os.tag == .windows) {
+                const src_pdb_path: []const u8 = try join(opts.arena, &.{ opts.artifacts_path, "bin", "orca_tool.pdb" });
+                const dest_pdb_path: []const u8 = try join(opts.arena, &.{ orca_dir_path, "orca.pdb" });
+                std.log.info("copying '{s}' to '{s}'", .{ src_pdb_path, dest_pdb_path });
+                _ = try cwd.updateFile(src_pdb_path, orca_dir, dest_pdb_path, .{});
+            }
+
+            try orca_dir.writeFile(.{
+                .sub_path = "current_version",
+                .data = opts.version,
+            });
+        }
+
+        std.log.info("Packaged Orca SDK to {s}\n", .{opts.sdk_path});
     }
 
-    std.log.info("Packaged Orca SDK to {s}", .{opts.sdk_path});
+    if (opts.sdk_deps_path_opt) |sdk_deps_path| {
+        std.fs.deleteTreeAbsolute(sdk_deps_path) catch {};
+
+        const src_angle_json_path = try join(opts.arena, &.{ opts.artifacts_path, "angle.out", "angle.json" });
+        const dest_angle_json_path = try join(opts.arena, &.{ sdk_deps_path, "angle.json" });
+        assert(std.fs.path.isAbsolute(src_angle_json_path));
+        assert(std.fs.path.isAbsolute(dest_angle_json_path));
+        _ = try std.fs.Dir.updateFile(cwd, src_angle_json_path, cwd, dest_angle_json_path, .{});
+
+        const src_dawn_json_path = try join(opts.arena, &.{ opts.artifacts_path, "dawn.out", "dawn.json" });
+        const dest_dawn_json_path = try join(opts.arena, &.{ sdk_deps_path, "dawn.json" });
+        assert(std.fs.path.isAbsolute(src_dawn_json_path));
+        assert(std.fs.path.isAbsolute(dest_dawn_json_path));
+        _ = try std.fs.Dir.updateFile(cwd, src_dawn_json_path, cwd, dest_dawn_json_path, .{});
+
+        const src_bin_path = try join(opts.arena, &.{ opts.artifacts_path, "bin" });
+        const dest_bin_path = try join(opts.arena, &.{ sdk_deps_path, "bin" });
+        const bin_files_windows: []const []const u8 = &.{
+            "libEGL.dll",
+            "libEGL.dll.lib",
+            "libGLESv2.dll",
+            "libGLESv2.dll.lib",
+            "webgpu.dll",
+            "webgpu.lib",
+            "d3dcompiler_47.dll",
+        };
+        const bin_files_macos: []const []const u8 = &.{
+            "libEGL.dylib",
+            "libGLESv2.dylib",
+            "libwebgpu.dylib",
+        };
+        const bin_files = if (builtin.os.tag == .windows) bin_files_windows else bin_files_macos;
+        try copyFolder(opts.arena, dest_bin_path, src_bin_path, &.{ .required_filenames = bin_files });
+
+        const src_angle_include_path = try join(opts.arena, &.{ opts.artifacts_path, "angle.out", "include" });
+        const dest_angle_include_path = try join(opts.arena, &.{ sdk_deps_path, "src", "ext", "angle", "include" });
+        try cwd.makePath(dest_angle_include_path);
+        try copyFolder(opts.arena, dest_angle_include_path, src_angle_include_path, &.{ .include_extensions = &.{".h"} });
+
+        const src_dawn_include_path = try join(opts.arena, &.{ opts.artifacts_path, "dawn.out", "include" });
+        const dest_dawn_include_path = try join(opts.arena, &.{ sdk_deps_path, "src", "ext", "dawn", "include" });
+        try cwd.makePath(dest_dawn_include_path);
+        try copyFolder(opts.arena, dest_dawn_include_path, src_dawn_include_path, &.{ .include_extensions = &.{".h"} });
+
+        std.log.info("Packaged dev dependencies to {s}", .{sdk_deps_path});
+    }
 }
