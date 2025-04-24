@@ -1542,18 +1542,24 @@ void dw_read_file_entries(oc_arena* arena,
     oc_scratch_end(scratch);
 }
 
+void dw_read_inital_length(dw_reader* reader, u64* length, u8* format)
+{
+    *format = DW_DWARF32;
+    *length = dw_read_u32(reader);
+
+    if(*length >= 0xfffffff0)
+    {
+        *format = DW_DWARF64;
+        *length = dw_read_u64(reader);
+    }
+}
+
 int dw_read_line_program_header(oc_arena* arena, dw_reader* reader, dw_line_program_header* header, dw_sections* sections)
 {
     header->offset = dw_reader_offset(reader);
 
-    u8 dwarfFormat = DW_DWARF32;
-    header->unitLength = dw_read_u32(reader);
-
-    if(header->unitLength >= 0xfffffff0)
-    {
-        dwarfFormat = DW_DWARF64;
-        header->unitLength = dw_read_u64(reader);
-    }
+    u8 dwarfFormat = 0;
+    dw_read_inital_length(reader, &header->unitLength, &dwarfFormat);
 
     header->version = dw_read_u16(reader);
 
@@ -3146,19 +3152,15 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
 
             dw_reader strOffsetReader = dw_reader_from_str8(sections->strOffsets);
 
-            u32 strOffsetLengthSize = 4;
-            u64 strOffsetLength = dw_read_u32(&strOffsetReader);
+            u8 strOffsetFormat = DW_DWARF32;
+            u64 strOffsetLength = 0;
 
-            if(strOffsetLength >= 0xfffffff0)
-            {
-                strOffsetLengthSize = 8;
-                strOffsetLength = dw_read_u64(&strOffsetReader);
-            }
+            dw_read_inital_length(&strOffsetReader, &strOffsetLength, &strOffsetFormat);
 
             u16 strOffsetVersion = dw_read_u16(&strOffsetReader);
             u16 padding = dw_read_u16(&strOffsetReader);
 
-            if(strOffsetLengthSize == 4)
+            if(strOffsetFormat == DW_DWARF32)
             {
                 dw_reader_skip(&strOffsetReader, index * 4);
                 strOffset = dw_read_u32(&strOffsetReader);
@@ -3404,14 +3406,7 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
 
         unit->start = dw_reader_offset(&reader);
 
-        unit->format = DW_DWARF32;
-        unit->initialLength = dw_read_u32(&reader);
-
-        if(unit->initialLength >= 0xfffffff0)
-        {
-            unit->format = DW_DWARF64;
-            unit->initialLength = dw_read_u64(&reader);
-        }
+        dw_read_inital_length(&reader, &unit->initialLength, &unit->format);
 
         unit->version = dw_read_u16(&reader);
 
