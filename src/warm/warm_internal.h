@@ -966,12 +966,10 @@ typedef struct wa_module
 
 } wa_module;
 
-typedef struct wa_parser
+enum
 {
-    oc_arena* arena;
-    wa_module* module;
-    char* contents;
-    u64 len;
-    u64 offset;
-
-} wa_parser;
+    WA_TYPE_STACK_MAX_LEN = 512,
+    WA_CONTROL_STACK_MAX_LEN = 512,
+    WA_MAX_REG = 4096,
+    WA_MAX_SLOT_COUNT = 4096,
+};
