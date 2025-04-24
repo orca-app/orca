@@ -3228,15 +3228,7 @@ void wa_parse_dwarf(wa_parser* parser, wa_module* module)
     module->debugInfo = oc_arena_push_type(module->arena, dw_info);
     memset(module->debugInfo, 0, sizeof(dw_info));
 
-    /*
-    //NOTE: dump dwarf abbrev table if it exists
-    if(dwarfSections.abbrev.len)
-    {
-        dw_dump_abbrev_table(dwarfSections.abbrev);
-    }
-    */
     dw_parse_info(module->arena, &dwarfSections, module->debugInfo);
-    //    dw_print_debug_info(module->debugInfo);
 
     //NOTE: load line info if it exists
     if(dwarfSections.line.len)
