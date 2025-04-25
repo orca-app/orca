@@ -552,17 +552,37 @@ def build_bytebox(release):
 def build_warm(release):
     print("Building warm...")
     flags = [
-        "-std=c11", "-g",  "-O0"
+        "-std=c11", "-g",  "-O0", f"-mmacos-version-min={MACOS_VERSION_MIN}"
     ]
+
+    files = [
+        "src/warm/wasm_tables.c",
+        "src/warm/wa_types.c",
+        "src/warm/debug_import.c",
+        "src/warm/parser.c",
+        "src/warm/compiler.c",
+        "src/warm/module.c",
+        "src/warm/instance.c",
+        "src/warm/interpreter.c",
+        "src/warm/debug_info.c",
+        "src/warm/warm_adapter.c",
+    ]
+
     if platform.system() == "Windows":
         log_error(f"TODO: implement warm build for Windows'{platform.system()}'")
         exit(1)
     elif platform.system() == "Darwin":
-        subprocess.run([
-            "clang", "-c", *flags, "-Isrc", "-o", "build/bin/warm_adapter.o", "src/warm/warm_adapter.c"
-        ], check=True)
-        subprocess.run(["libtool", "-static", "-o", "build/lib/libwarm.a", "-no_warning_for_no_symbols", "build/bin/warm_adapter.o"], check=True)
-        subprocess.run(["rm", "build/bin/warm_adapter.o"], check=True)
+        os.makedirs("build/obj", exist_ok=True)
+
+        for f in files:
+            name = os.path.splitext(os.path.basename(f))[0] + ".o"
+            subprocess.run([
+                "clang", "-c", *flags, "-Isrc",
+                "-o", f"build/obj/{name}",
+                f,
+            ], check=True)
+        subprocess.run(["libtool", "-static", "-o", "build/lib/libwarm.a", *glob.glob("build/obj/*.o")], check=True)
+        subprocess.run(["rm", "-rf", "build/obj"], check=True)
     else:
         log_error(f"can't build warm for unknown platform '{platform.system()}'")
         exit(1)

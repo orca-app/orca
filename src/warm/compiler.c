@@ -1,4 +1,5 @@
 #include "warm_internal.h"
+#include "wasm_tables.h"
 
 //-------------------------------------------------------------------------
 // Compile

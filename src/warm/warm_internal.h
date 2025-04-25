@@ -7,6 +7,9 @@
 **************************************************************************/
 #pragma once
 
+#include "util/typedefs.h"
+#include "warm.h"
+
 typedef enum wa_instr_op
 {
     WA_INSTR_INVALID = 0,
@@ -834,8 +837,6 @@ typedef struct wa_section
 
 } wa_section;
 
-typedef struct dw_info dw_info;
-
 typedef struct wa_name_entry
 {
     u32 index;
@@ -916,6 +917,7 @@ typedef struct wa_debug_type
     };
 } wa_debug_type;
 
+typedef struct dw_info dw_info;
 typedef struct dw_loc dw_loc;
 
 typedef struct wa_debug_variable
@@ -1021,6 +1023,19 @@ typedef struct wa_module
 
 } wa_module;
 
+typedef struct wa_module_error
+{
+    oc_list_elt moduleElt;
+    oc_list_elt astElt;
+
+    wa_ast* ast;
+    bool blockEnd;
+
+    wa_status status;
+    oc_str8 string;
+
+} wa_module_error;
+
 enum
 {
     WA_TYPE_STACK_MAX_LEN = 512,
@@ -1029,18 +1044,46 @@ enum
     WA_MAX_SLOT_COUNT = 4096,
 };
 
-typedef struct wa_instance
+typedef struct wa_bytecode_mapping
 {
-    wa_status status;
+    oc_list_elt listElt;
 
-    oc_arena* arena;
-    wa_module* module;
+    u32 funcIndex;
+    u32 codeIndex;
+    wa_instr* instr;
 
-    wa_func* functions;
-    wa_global** globals;
-    wa_table** tables;
-    wa_memory** memories;
+} wa_bytecode_mapping;
 
-    wa_data_segment* data;
-    wa_element* elements;
-} wa_instance;
+void wa_parse_dwarf(oc_str8 contents, wa_module* module);
+
+extern const wa_func_type WA_BLOCK_VALUE_TYPES[];
+bool wa_is_value_type(u64 t);
+bool wa_is_value_type_numeric(u64 t);
+
+void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
+void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
+
+wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
+
+wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
+wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
+
+oc_str8 wa_module_get_function_name(wa_module* module, u32 index);
+
+wa_breakpoint* wa_interpreter_find_breakpoint_any(wa_interpreter* interpreter, wa_warm_loc* loc);
+wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);
+wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);
+wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
+wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
+wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
+
+wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
+void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
+wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
+void wa_interpreter_cache_registers(wa_interpreter* interpreter);
+wa_status wa_interpreter_continue(wa_interpreter* interpreter);
+wa_status wa_interpreter_step(wa_interpreter* interpreter);
+wa_status wa_interpreter_step_line(wa_interpreter* interpreter);
+void wa_interpreter_suspend(wa_interpreter* interpreter);
+
+oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var);

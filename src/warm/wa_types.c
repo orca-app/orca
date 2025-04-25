@@ -5,6 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include "warm_internal.h"
 
 static const wa_value_type WA_BLOCK_TYPE_I32_VAL = WA_TYPE_I32;
 static const wa_value_type WA_BLOCK_TYPE_I64_VAL = WA_TYPE_I64;
@@ -14,7 +15,7 @@ static const wa_value_type WA_BLOCK_TYPE_V128_VAL = WA_TYPE_V128;
 static const wa_value_type WA_BLOCK_TYPE_FUNC_REF_VAL = WA_TYPE_FUNC_REF;
 static const wa_value_type WA_BLOCK_TYPE_EXTERN_REF_VAL = WA_TYPE_EXTERN_REF;
 
-static const wa_func_type WA_BLOCK_VALUE_TYPES[] = {
+const wa_func_type WA_BLOCK_VALUE_TYPES[] = {
     [0] = { 0 },
     [1] = {
         .returnCount = 1,

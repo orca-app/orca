@@ -6,9 +6,9 @@
 *
 **************************************************************************/
 
-#include "util/macros.h"
+#include "wasm_tables.h"
 
-static const char* wa_instr_strings[] = {
+const char* wa_instr_strings[] = {
     [WA_INSTR_INVALID] = "[invalid instruction]",
     [WA_INSTR_nop] = "nop",
     [WA_INSTR_unreachable] = "unreachable",
@@ -456,13 +456,7 @@ static const char* wa_instr_strings[] = {
     [WA_INSTR_breakpoint] = "debug_break",
 };
 
-typedef enum wa_instruction_prefix
-{
-    WA_INSTR_PREFIX_EXTENDED = 0xfc,
-    WA_INSTR_PREFIX_VECTOR = 0xfd,
-} wa_instruction_prefix;
-
-static const wa_instr_op wa_instr_decode_basic[] = {
+const wa_instr_op wa_instr_decode_basic[] = {
     [0x00] = WA_INSTR_unreachable,
     [0x01] = WA_INSTR_nop,
     [0x02] = WA_INSTR_block,
@@ -648,7 +642,7 @@ static const wa_instr_op wa_instr_decode_basic[] = {
     [0xc4] = WA_INSTR_i64_extend32_s,
 };
 
-static const wa_instr_op wa_instr_decode_extended[] = {
+const wa_instr_op wa_instr_decode_extended[] = {
     [12] = WA_INSTR_table_init,
     [13] = WA_INSTR_elem_drop,
     [14] = WA_INSTR_table_copy,
@@ -669,7 +663,7 @@ static const wa_instr_op wa_instr_decode_extended[] = {
     [7] = WA_INSTR_i64_trunc_sat_f64_u,
 };
 
-static const wa_instr_op wa_instr_decode_vector[] = {
+const wa_instr_op wa_instr_decode_vector[] = {
     [0] = WA_INSTR_v128_load,
     [1] = WA_INSTR_v128_load8x8_s,
     [2] = WA_INSTR_v128_load8x8_u,
@@ -908,72 +902,11 @@ static const wa_instr_op wa_instr_decode_vector[] = {
     [95] = WA_INSTR_f64x2_promote_low_f32x4,
 };
 
-static const u64 wa_instr_decode_basic_len = oc_array_size(wa_instr_decode_basic);
-static const u64 wa_instr_decode_extended_len = oc_array_size(wa_instr_decode_extended);
-static const u64 wa_instr_decode_vector_len = oc_array_size(wa_instr_decode_vector);
+const u64 wa_instr_decode_basic_len = oc_array_size(wa_instr_decode_basic);
+const u64 wa_instr_decode_extended_len = oc_array_size(wa_instr_decode_extended);
+const u64 wa_instr_decode_vector_len = oc_array_size(wa_instr_decode_vector);
 
-typedef enum wa_immediate_type
-{
-    WA_IMM_ZERO,
-    WA_IMM_I32,
-    WA_IMM_I64,
-    WA_IMM_F32,
-    WA_IMM_F64,
-    WA_IMM_VALUE_TYPE,
-    WA_IMM_REF_TYPE,
-    WA_IMM_LOCAL_INDEX,
-    WA_IMM_GLOBAL_INDEX,
-    WA_IMM_FUNC_INDEX,
-    WA_IMM_TYPE_INDEX,
-    WA_IMM_TABLE_INDEX,
-    WA_IMM_ELEM_INDEX,
-    WA_IMM_DATA_INDEX,
-    WA_IMM_MEM_ARG,
-    WA_IMM_LANE_INDEX,
-    WA_IMM_V128,
-    WA_IMM_LABEL,
-
-} wa_immediate_type;
-
-typedef enum wa_opd_kind
-{
-    WA_OPD_UNKNOWN = 0,
-    WA_OPD_CONST_I32,
-    WA_OPD_CONST_I64,
-    WA_OPD_CONST_F32,
-    WA_OPD_CONST_F64,
-    WA_OPD_LOCAL_INDEX,
-    WA_OPD_GLOBAL_INDEX,
-    WA_OPD_JUMP_TARGET,
-    WA_OPD_MEM_ARG,
-    WA_OPD_FUNC_INDEX,
-} wa_opd_kind;
-
-enum
-{
-    WA_INSTR_IN_MAX_COUNT = 3,
-    WA_INSTR_OUT_MAX_COUNT = 3,
-    WA_INSTR_OPD_MAX_COUNT = 4,
-};
-
-typedef struct wa_instr_info
-{
-    u32 immCount;
-    wa_immediate_type imm[WA_INSTR_IMM_MAX_COUNT];
-
-    u32 inCount;
-    wa_value_type in[WA_INSTR_IN_MAX_COUNT];
-
-    u32 outCount;
-    wa_value_type out[WA_INSTR_OUT_MAX_COUNT];
-
-    u32 opdCount;
-    wa_opd_kind opd[WA_INSTR_OPD_MAX_COUNT];
-
-    bool defined;
-} wa_instr_info;
-
-static const wa_instr_info wa_instr_infos[] = {
+const wa_instr_info wa_instr_infos[] = {
     [WA_INSTR_nop] = {
         .defined = true,
     },

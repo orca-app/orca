@@ -5,7 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
+#include "warm_internal.h"
 #include "dwarf.c"
 
 //------------------------------------------------------------------------
@@ -50,8 +50,6 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     }
     return file;
 }
-
-oc_str8 wa_module_get_function_name(wa_module* module, u32 index);
 
 void wa_parse_dwarf(oc_str8 contents, wa_module* module)
 {
@@ -598,19 +596,102 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
     return type;
 }
 
+void wa_import_debug_locals(wa_module* module)
+{
+    //NOTE: extract per-function local variables
+    module->debugInfo.functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
+    memset(module->debugInfo.functionLocals, 0, module->functionCount * sizeof(wa_debug_function));
+
+    //NOTE: list of all types to deduplicate types
+    oc_list types = { 0 };
+
+    for(u64 unitIndex = 0; unitIndex < module->debugInfo.dwarf->unitCount; unitIndex++)
+    {
+        dw_unit* unit = &module->debugInfo.dwarf->units[unitIndex];
+        dw_die* die = dw_die_find_next_with_tag(unit->rootDie, unit->rootDie, DW_TAG_subprogram);
+        while(die)
+        {
+            dw_attr* funcNameAttr = dw_die_get_attr(die, DW_AT_name);
+            if(funcNameAttr)
+            {
+                //TODO: better way of finding function
+                bool found = false;
+                u64 funcIndex = 0;
+                for(; funcIndex < module->functionCount; funcIndex++)
+                {
+                    oc_str8 funcName = wa_module_get_function_name(module, funcIndex);
+                    if(!oc_str8_cmp(funcName, funcNameAttr->string))
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if(found)
+                {
+                    wa_debug_function* funcInfo = &module->debugInfo.functionLocals[funcIndex];
+                    funcInfo->count = 0;
+
+                    //NOTE: get frame base expr loc
+                    dw_attr* frameBase = dw_die_get_attr(die, DW_AT_frame_base);
+                    if(frameBase)
+                    {
+                        OC_DEBUG_ASSERT(frameBase->abbrev->form == DW_FORM_exprloc);
+                        funcInfo->frameBase = &frameBase->loc;
+                    }
+
+                    //NOTE: get variables
+                    {
+                        //TODO: get with multiple tags, eg here we also need formal_parameter
+                        dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
+                        while(var)
+                        {
+                            funcInfo->count++;
+                            var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
+                        }
+                    }
+
+                    funcInfo->vars = oc_arena_push_array(module->arena, wa_debug_variable, funcInfo->count);
+
+                    {
+                        dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
+                        u64 varIndex = 0;
+                        while(var)
+                        {
+                            dw_attr* name = dw_die_get_attr(var, DW_AT_name);
+                            if(name)
+                            {
+                                funcInfo->vars[varIndex].name = oc_str8_push_copy(module->arena, name->string);
+                            }
+
+                            dw_attr* loc = dw_die_get_attr(var, DW_AT_location);
+                            if(loc)
+                            {
+                                funcInfo->vars[varIndex].loc = &loc->loc;
+                                //TODO: compile the expr to wasm
+                            }
+
+                            dw_attr* type = dw_die_get_attr(var, DW_AT_type);
+                            if(type)
+                            {
+                                funcInfo->vars[varIndex].type = wa_build_debug_type_from_dwarf(module->arena, module->debugInfo.dwarf, type->valU64, &types);
+                            }
+
+                            var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
+                            varIndex++;
+                        }
+                    }
+                }
+            }
+
+            die = dw_die_find_next_with_tag(unit->rootDie, die, DW_TAG_subprogram);
+        }
+    }
+}
+
 //-------------------------------------------------------------------------
 // emitting bytecode mapping
 //-------------------------------------------------------------------------
-
-typedef struct wa_bytecode_mapping
-{
-    oc_list_elt listElt;
-
-    u32 funcIndex;
-    u32 codeIndex;
-    wa_instr* instr;
-
-} wa_bytecode_mapping;
 
 void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr)
 {

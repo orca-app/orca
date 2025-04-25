@@ -5,9 +5,13 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <stdio.h>
+#include <math.h>
 
 #include "warm_internal.h"
+#include "wasm_tables.h"
 #include "interpreter.h"
+#include "instance.h"
 
 //-------------------------------------------------------------------------------
 // Interpreter

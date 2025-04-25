@@ -5,7 +5,11 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <stdio.h>
+#include <math.h>
+
 #include "warm_internal.h"
+#include "wasm_tables.h"
 
 typedef struct wa_parser
 {
@@ -20,19 +24,6 @@ typedef struct wa_parser
 //-------------------------------------------------------------------------
 // errors
 //-------------------------------------------------------------------------
-
-typedef struct wa_module_error
-{
-    oc_list_elt moduleElt;
-    oc_list_elt astElt;
-
-    wa_ast* ast;
-    bool blockEnd;
-
-    wa_status status;
-    oc_str8 string;
-
-} wa_module_error;
 
 void wa_parse_error(wa_parser* parser, wa_ast* ast, const char* fmt, ...)
 {

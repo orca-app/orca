@@ -1,4 +1,13 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2024 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
 #pragma once
+
+#include "warm_internal.h"
 
 typedef struct wa_control
 {

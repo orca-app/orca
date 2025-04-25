@@ -220,7 +220,7 @@ enum
 typedef u32 oc_wasm_addr;
 typedef u32 oc_wasm_size;
 
-bool wa_status_is_fail(wa_status status);
+static inline bool wa_status_is_fail(wa_status status);
 oc_str8 wa_status_string(wa_status status);
 oc_str8 wa_value_type_string(wa_value_type type);
 
@@ -263,7 +263,7 @@ wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter);
 //////////////////////////////////////////////////////////////////
 // Inline implementation
 
-inline bool wa_status_is_fail(wa_status status)
+static inline bool wa_status_is_fail(wa_status status)
 {
     return status != WA_OK;
 }

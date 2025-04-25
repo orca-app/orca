@@ -1,4 +1,17 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2024 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
+#include "reader.h"
+#include "dwarf.h"
+#include "instance.h"
 #include "interpreter.h"
+
+wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
 
 //-------------------------------------------------------------------------
 // bytecode -> instr map
