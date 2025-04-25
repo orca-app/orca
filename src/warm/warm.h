@@ -13,6 +13,250 @@
 
 #include "instructions.h"
 
+//------------------------------------------------------------------------
+// wasm module AST structs
+//------------------------------------------------------------------------
+typedef struct wa_ast_loc
+{
+    u64 start;
+    u64 len;
+} wa_ast_loc;
+
+typedef enum
+{
+    WA_AST_U8,
+    WA_AST_U32,
+    WA_AST_I32,
+    WA_AST_U64,
+    WA_AST_I64,
+    WA_AST_F32,
+    WA_AST_F64,
+    WA_AST_NAME,
+    WA_AST_VECTOR,
+
+    WA_AST_ROOT,
+    WA_AST_MAGIC,
+    WA_AST_SECTION,
+    WA_AST_TYPE,
+    WA_AST_FUNC_ENTRY,
+    WA_AST_TYPE_INDEX,
+    WA_AST_FUNC_INDEX,
+    WA_AST_LIMITS,
+    WA_AST_TABLE_TYPE,
+    WA_AST_ELEMENT,
+    WA_AST_DATA_SEGMENT,
+    WA_AST_IMPORT,
+    WA_AST_EXPORT,
+    WA_AST_FUNC,
+    WA_AST_LOCAL_ENTRY,
+    WA_AST_FUNC_BODY,
+    WA_AST_INSTR,
+    WA_AST_MEM_ARG,
+
+    WA_AST_VALUE_TYPE,
+    WA_AST_GLOBAL,
+
+    WA_AST_NAME_SUBSECTION,
+    WA_AST_NAME_ENTRY,
+} wa_ast_kind;
+
+static const char* wa_ast_kind_strings[] = {
+    "u8",
+    "u32",
+    "i32",
+    "u64",
+    "i64",
+    "f32",
+    "f64",
+    "name",
+    "vector",
+    "root",
+    "magic number",
+    "section",
+    "type",
+    "function entry",
+    "type index",
+    "func index",
+    "limits",
+    "table type",
+    "element",
+    "data segment",
+    "import",
+    "export",
+    "function",
+    "local entry",
+    "function body",
+    "instruction",
+    "memArg",
+    "value type",
+    "global",
+    "name subsection",
+    "name entry",
+};
+
+typedef struct wa_instr wa_instr;
+typedef struct wa_ast wa_ast;
+
+typedef struct wa_ast
+{
+    oc_list_elt parentElt;
+    wa_ast* parent;
+    oc_list children;
+
+    wa_ast_loc loc;
+    wa_ast_kind kind;
+    oc_str8 label;
+
+    oc_list errors;
+
+    union
+    {
+        u8 valU8;
+        u32 valU32;
+        i32 valI32;
+        u64 valU64;
+        i64 valI64;
+        f32 valF32;
+        f64 valF64;
+        wa_value_type valueType;
+        oc_str8 str8;
+        wa_instr* instr;
+        wa_func* func;
+        wa_func_type* type;
+    };
+
+} wa_ast;
+
+//------------------------------------------------------------------------
+// debug structs
+//------------------------------------------------------------------------
+
+typedef struct wa_wasm_to_line_entry
+{
+    u64 wasmOffset;
+    wa_line_loc loc;
+} wa_wasm_to_line_entry;
+
+typedef struct wa_register_range
+{
+    u64 start;
+    u64 end;
+    wa_value_type type;
+} wa_register_range;
+
+typedef struct wa_register_map
+{
+    u32 count;
+    wa_register_range* ranges;
+} wa_register_map;
+
+typedef enum wa_debug_type_kind
+{
+    WA_DEBUG_TYPE_VOID,
+    WA_DEBUG_TYPE_BASIC,
+    WA_DEBUG_TYPE_POINTER,
+    WA_DEBUG_TYPE_STRUCT,
+    WA_DEBUG_TYPE_UNION,
+    WA_DEBUG_TYPE_ENUM,
+    WA_DEBUG_TYPE_ARRAY,
+    WA_DEBUG_TYPE_NAMED,
+    //...
+} wa_debug_type_kind;
+
+typedef enum wa_debug_type_encoding
+{
+    WA_DEBUG_TYPE_SIGNED,
+    WA_DEBUG_TYPE_UNSIGNED,
+    WA_DEBUG_TYPE_FLOAT,
+    WA_DEBUG_TYPE_BOOL,
+} wa_debug_type_encoding;
+
+typedef struct wa_debug_type wa_debug_type;
+
+typedef struct wa_debug_type_field
+{
+    oc_list_elt listElt;
+    oc_str8 name;
+    wa_debug_type* type;
+    u64 offset;
+} wa_debug_type_field;
+
+typedef struct wa_debug_type
+{
+    oc_list_elt listElt;
+    u64 dwarfRef;
+    oc_str8 name;
+    wa_debug_type_kind kind;
+    u64 size;
+
+    union
+    {
+        wa_debug_type_encoding encoding;
+        wa_debug_type* type;
+        oc_list fields;
+
+        struct
+        {
+            wa_debug_type* type;
+            u64 count;
+        } array;
+
+        //TODO enum, etc...
+    };
+} wa_debug_type;
+
+typedef struct dw_info dw_info;
+typedef struct dw_loc dw_loc;
+
+typedef struct wa_debug_variable
+{
+    oc_str8 name;
+    dw_loc* loc;
+    wa_debug_type* type;
+} wa_debug_variable;
+
+typedef struct wa_debug_function
+{
+    dw_loc* frameBase;
+    u32 count;
+    wa_debug_variable* vars;
+} wa_debug_function;
+
+typedef struct wa_bytecode_mapping
+{
+    oc_list_elt listElt;
+
+    u32 funcIndex;
+    u32 codeIndex;
+    wa_instr* instr;
+
+} wa_bytecode_mapping;
+
+typedef struct wa_debug_info
+{
+    u32 warmToWasmMapLen;
+    oc_list* warmToWasmMap;
+
+    u32 wasmToWarmMapLen;
+    oc_list* wasmToWarmMap;
+
+    dw_info* dwarf;
+
+    wa_source_info sourceInfo;
+
+    u64 wasmToLineCount;
+    wa_wasm_to_line_entry* wasmToLine;
+
+    wa_register_map** registerMaps;
+
+    wa_debug_function* functionLocals;
+
+} wa_debug_info;
+
+//------------------------------------------------------------------------
+// wasm module structs
+//------------------------------------------------------------------------
+
 typedef union wa_code
 {
     u64 valU64;
@@ -38,7 +282,6 @@ typedef union wa_code
 
 } wa_code;
 
-typedef struct wa_ast wa_ast;
 typedef struct wa_instr wa_instr;
 
 typedef struct wa_instr
@@ -173,114 +416,6 @@ typedef struct wa_export
 
 } wa_export;
 
-typedef struct wa_ast_loc
-{
-    u64 start;
-    u64 len;
-} wa_ast_loc;
-
-typedef enum
-{
-    WA_AST_U8,
-    WA_AST_U32,
-    WA_AST_I32,
-    WA_AST_U64,
-    WA_AST_I64,
-    WA_AST_F32,
-    WA_AST_F64,
-    WA_AST_NAME,
-    WA_AST_VECTOR,
-
-    WA_AST_ROOT,
-    WA_AST_MAGIC,
-    WA_AST_SECTION,
-    WA_AST_TYPE,
-    WA_AST_FUNC_ENTRY,
-    WA_AST_TYPE_INDEX,
-    WA_AST_FUNC_INDEX,
-    WA_AST_LIMITS,
-    WA_AST_TABLE_TYPE,
-    WA_AST_ELEMENT,
-    WA_AST_DATA_SEGMENT,
-    WA_AST_IMPORT,
-    WA_AST_EXPORT,
-    WA_AST_FUNC,
-    WA_AST_LOCAL_ENTRY,
-    WA_AST_FUNC_BODY,
-    WA_AST_INSTR,
-    WA_AST_MEM_ARG,
-
-    WA_AST_VALUE_TYPE,
-    WA_AST_GLOBAL,
-
-    WA_AST_NAME_SUBSECTION,
-    WA_AST_NAME_ENTRY,
-} wa_ast_kind;
-
-static const char* wa_ast_kind_strings[] = {
-    "u8",
-    "u32",
-    "i32",
-    "u64",
-    "i64",
-    "f32",
-    "f64",
-    "name",
-    "vector",
-    "root",
-    "magic number",
-    "section",
-    "type",
-    "function entry",
-    "type index",
-    "func index",
-    "limits",
-    "table type",
-    "element",
-    "data segment",
-    "import",
-    "export",
-    "function",
-    "local entry",
-    "function body",
-    "instruction",
-    "memArg",
-    "value type",
-    "global",
-    "name subsection",
-    "name entry",
-};
-
-typedef struct wa_ast
-{
-    oc_list_elt parentElt;
-    wa_ast* parent;
-    oc_list children;
-
-    wa_ast_loc loc;
-    wa_ast_kind kind;
-    oc_str8 label;
-
-    oc_list errors;
-
-    union
-    {
-        u8 valU8;
-        u32 valU32;
-        i32 valI32;
-        u64 valU64;
-        i64 valI64;
-        f32 valF32;
-        f64 valF64;
-        wa_value_type valueType;
-        oc_str8 str8;
-        wa_instr* instr;
-        wa_func* func;
-        wa_func_type* type;
-    };
-
-} wa_ast;
-
 typedef struct wa_section
 {
     oc_list_elt listElt;
@@ -297,128 +432,6 @@ typedef struct wa_name_entry
     u32 index;
     oc_str8 name;
 } wa_name_entry;
-
-typedef struct wa_wasm_to_line_entry
-{
-    u64 wasmOffset;
-    wa_line_loc loc;
-} wa_wasm_to_line_entry;
-
-typedef struct wa_register_range
-{
-    u64 start;
-    u64 end;
-    wa_value_type type;
-} wa_register_range;
-
-typedef struct wa_register_map
-{
-    u32 count;
-    wa_register_range* ranges;
-} wa_register_map;
-
-typedef enum wa_debug_type_kind
-{
-    WA_DEBUG_TYPE_VOID,
-    WA_DEBUG_TYPE_BASIC,
-    WA_DEBUG_TYPE_POINTER,
-    WA_DEBUG_TYPE_STRUCT,
-    WA_DEBUG_TYPE_UNION,
-    WA_DEBUG_TYPE_ENUM,
-    WA_DEBUG_TYPE_ARRAY,
-    WA_DEBUG_TYPE_NAMED,
-    //...
-} wa_debug_type_kind;
-
-typedef enum wa_debug_type_encoding
-{
-    WA_DEBUG_TYPE_SIGNED,
-    WA_DEBUG_TYPE_UNSIGNED,
-    WA_DEBUG_TYPE_FLOAT,
-    WA_DEBUG_TYPE_BOOL,
-} wa_debug_type_encoding;
-
-typedef struct wa_debug_type wa_debug_type;
-
-typedef struct wa_debug_type_field
-{
-    oc_list_elt listElt;
-    oc_str8 name;
-    wa_debug_type* type;
-    u64 offset;
-} wa_debug_type_field;
-
-typedef struct wa_debug_type
-{
-    oc_list_elt listElt;
-    u64 dwarfRef;
-    oc_str8 name;
-    wa_debug_type_kind kind;
-    u64 size;
-
-    union
-    {
-        wa_debug_type_encoding encoding;
-        wa_debug_type* type;
-        oc_list fields;
-
-        struct
-        {
-            wa_debug_type* type;
-            u64 count;
-        } array;
-
-        //TODO enum, etc...
-    };
-} wa_debug_type;
-
-typedef struct dw_info dw_info;
-typedef struct dw_loc dw_loc;
-
-typedef struct wa_debug_variable
-{
-    oc_str8 name;
-    dw_loc* loc;
-    wa_debug_type* type;
-} wa_debug_variable;
-
-typedef struct wa_debug_function
-{
-    dw_loc* frameBase;
-    u32 count;
-    wa_debug_variable* vars;
-} wa_debug_function;
-
-typedef struct wa_bytecode_mapping
-{
-    oc_list_elt listElt;
-
-    u32 funcIndex;
-    u32 codeIndex;
-    wa_instr* instr;
-
-} wa_bytecode_mapping;
-
-typedef struct wa_debug_info
-{
-    u32 warmToWasmMapLen;
-    oc_list* warmToWasmMap;
-
-    u32 wasmToWarmMapLen;
-    oc_list* wasmToWarmMap;
-
-    dw_info* dwarf;
-
-    wa_source_info sourceInfo;
-
-    u64 wasmToLineCount;
-    wa_wasm_to_line_entry* wasmToLine;
-
-    wa_register_map** registerMaps;
-
-    wa_debug_function* functionLocals;
-
-} wa_debug_info;
 
 typedef struct wa_module_toc
 {
@@ -438,6 +451,19 @@ typedef struct wa_module_toc
     wa_section names;
     oc_list customSections;
 } wa_module_toc;
+
+typedef struct wa_module_error
+{
+    oc_list_elt moduleElt;
+    oc_list_elt astElt;
+
+    wa_ast* ast;
+    bool blockEnd;
+
+    wa_status status;
+    oc_str8 string;
+
+} wa_module_error;
 
 typedef struct wa_module
 {
@@ -487,19 +513,6 @@ typedef struct wa_module
     wa_debug_info debugInfo;
 
 } wa_module;
-
-typedef struct wa_module_error
-{
-    oc_list_elt moduleElt;
-    oc_list_elt astElt;
-
-    wa_ast* ast;
-    bool blockEnd;
-
-    wa_status status;
-    oc_str8 string;
-
-} wa_module_error;
 
 enum
 {
