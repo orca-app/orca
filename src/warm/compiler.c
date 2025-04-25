@@ -1,5 +1,12 @@
-#include "warm_internal.h"
-#include "wasm_tables.h"
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2024 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+#include "warm.h"
+#include "instructions.h"
 
 //-------------------------------------------------------------------------
 // Compile

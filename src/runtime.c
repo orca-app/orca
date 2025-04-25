@@ -30,9 +30,8 @@
     #include "wasm/backend_bytebox.c"
 #elif OC_WASM_BACKEND_WARM
     #include "warm/warm_adapter.c"
-    #include "warm/warm_internal.h"
+    #include "warm/warm.h"
     #include "warm/interpreter.h"
-    #include "warm/wasm_tables.h"
 #else
     #error "Unknown wasm backend"
 #endif

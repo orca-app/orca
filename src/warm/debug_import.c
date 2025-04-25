@@ -5,7 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include "warm_internal.h"
+#include "warm.h"
 #include "dwarf.c"
 
 //------------------------------------------------------------------------

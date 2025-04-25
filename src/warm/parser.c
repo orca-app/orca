@@ -8,8 +8,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "warm_internal.h"
-#include "wasm_tables.h"
+#include "warm.h"
 
 typedef struct wa_parser
 {
@@ -116,7 +115,7 @@ void wa_parser_seek(wa_parser* parser, u64 offset, oc_str8 label)
     parser->offset = offset;
 }
 
-wa_ast* wa_read_byte(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_byte(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U8);
     ast->label = label;
@@ -138,7 +137,7 @@ wa_ast* wa_read_byte(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return (ast);
 }
 
-wa_ast* wa_read_raw_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_raw_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U32);
     ast->label = label;
@@ -160,7 +159,7 @@ wa_ast* wa_read_raw_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return (ast);
 }
 
-wa_ast* wa_read_leb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth, bool isSigned)
+wa_ast* wa_parser_read_leb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth, bool isSigned)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U64);
     ast->label = label;
@@ -256,13 +255,13 @@ wa_ast* wa_read_leb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bit
     return (ast);
 }
 
-wa_ast* wa_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    return (wa_read_leb128(parser, parent, label, 64, false));
+    return (wa_parser_read_leb128(parser, parent, label, 64, false));
 }
 
 /*
-wa_ast* wa_read_sleb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth)
+wa_ast* wa_parser_read_sleb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_I64);
     ast->label = label;
@@ -337,14 +336,14 @@ wa_ast* wa_read_sleb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bi
 }
 */
 
-wa_ast* wa_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    return (wa_read_leb128(parser, parent, label, 64, true));
+    return (wa_parser_read_leb128(parser, parent, label, 64, true));
 }
 
-wa_ast* wa_read_leb128_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_leb128_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    wa_ast* ast = wa_read_leb128(parser, parent, label, 32, false);
+    wa_ast* ast = wa_parser_read_leb128(parser, parent, label, 32, false);
     ast->kind = WA_AST_U32;
     ast->label = label;
 
@@ -366,9 +365,9 @@ wa_ast* wa_read_leb128_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return ast;
 }
 
-wa_ast* wa_read_leb128_i32(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_leb128_i32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    wa_ast* ast = wa_read_leb128(parser, parent, label, 32, true);
+    wa_ast* ast = wa_parser_read_leb128(parser, parent, label, 32, true);
     ast->kind = WA_AST_I32;
     ast->label = label;
 
@@ -390,7 +389,7 @@ wa_ast* wa_read_leb128_i32(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return ast;
 }
 
-wa_ast* wa_read_f32(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_f32(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_F32);
     ast->label = label;
@@ -412,7 +411,7 @@ wa_ast* wa_read_f32(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return ast;
 }
 
-wa_ast* wa_read_f64(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_f64(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_F64);
     ast->label = label;
@@ -438,12 +437,12 @@ wa_ast* wa_read_f64(wa_parser* parser, wa_ast* parent, oc_str8 label)
 // Parsing
 //------------------------------------------------------------------------
 
-wa_ast* wa_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_NAME);
     ast->label = label;
 
-    wa_ast* lenAst = wa_read_leb128_u32(parser, ast, label);
+    wa_ast* lenAst = wa_parser_read_leb128_u32(parser, ast, label);
     if(!wa_ast_has_errors(lenAst))
     {
         u32 len = lenAst->valU32;
@@ -511,12 +510,12 @@ wa_ast* wa_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
     return (ast);
 }
 
-wa_ast* wa_read_bytes_vector(wa_parser* parser, wa_ast* parent, oc_str8 label)
+wa_ast* wa_parser_read_bytes_vector(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
     wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_VECTOR);
     ast->label = label;
 
-    wa_ast* lenAst = wa_read_leb128_u32(parser, ast, label);
+    wa_ast* lenAst = wa_parser_read_leb128_u32(parser, ast, label);
     if(!wa_ast_has_errors(lenAst))
     {
         u32 len = lenAst->valU32;
@@ -540,7 +539,7 @@ wa_ast* wa_read_bytes_vector(wa_parser* parser, wa_ast* parent, oc_str8 label)
 
 wa_ast* wa_parse_value_type(wa_parser* parser, wa_ast* parent, oc_str8 label)
 {
-    wa_ast* ast = wa_read_leb128_u32(parser, parent, label);
+    wa_ast* ast = wa_parser_read_leb128_u32(parser, parent, label);
     ast->kind = WA_AST_VALUE_TYPE;
     ast->valueType = (wa_value_type)ast->valU32;
 
@@ -559,13 +558,13 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
     while(!wa_parser_end(parser))
     {
         wa_ast* ast = wa_ast_begin(parser, module->root, WA_AST_SECTION);
-        wa_ast* sectionID = wa_read_byte(parser, ast, OC_STR8("section ID"));
+        wa_ast* sectionID = wa_parser_read_byte(parser, ast, OC_STR8("section ID"));
         if(wa_ast_has_errors(sectionID))
         {
             return;
         }
 
-        wa_ast* sectionLen = wa_read_leb128_u32(parser, ast, OC_STR8("section length"));
+        wa_ast* sectionLen = wa_parser_read_leb128_u32(parser, ast, OC_STR8("section length"));
         if(wa_ast_has_errors(sectionLen))
         {
             return;
@@ -580,7 +579,7 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
         {
             case 0:
             {
-                wa_ast* name = wa_read_name(parser, ast, OC_STR8("section name"));
+                wa_ast* name = wa_parser_read_name(parser, ast, OC_STR8("section name"));
 
                 if(!oc_str8_cmp(name->str8, OC_STR8("name")))
                 {
@@ -707,7 +706,7 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 wa_ast* wa_ast_begin_vector(wa_parser* parser, wa_ast* parent, u32* count)
 {
     wa_ast* vectorAst = wa_ast_begin(parser, parent, WA_AST_VECTOR);
-    wa_ast* countAst = wa_read_leb128_u32(parser, vectorAst, OC_STR8("count"));
+    wa_ast* countAst = wa_parser_read_leb128_u32(parser, vectorAst, OC_STR8("count"));
 
     if(wa_ast_has_errors(countAst))
     {
@@ -734,8 +733,8 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
     while(parser->offset - startOffset < module->toc.names.len)
     {
         wa_ast* subsection = wa_ast_begin(parser, section, WA_AST_NAME_SUBSECTION);
-        wa_ast* id = wa_read_byte(parser, subsection, OC_STR8("subsection id"));
-        wa_ast* size = wa_read_leb128_u32(parser, subsection, OC_STR8("subsection size"));
+        wa_ast* id = wa_parser_read_byte(parser, subsection, OC_STR8("subsection id"));
+        wa_ast* size = wa_parser_read_leb128_u32(parser, subsection, OC_STR8("subsection size"));
         u32 subStartOffset = parser->offset;
 
         switch(id->valU8)
@@ -754,8 +753,8 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
                 for(u32 entryIndex = 0; entryIndex < module->functionNameCount; entryIndex++)
                 {
                     wa_ast* entry = wa_ast_begin(parser, vector, WA_AST_NAME_ENTRY);
-                    wa_ast* index = wa_read_leb128_u32(parser, entry, OC_STR8("index"));
-                    wa_ast* name = wa_read_name(parser, entry, OC_STR8("name"));
+                    wa_ast* index = wa_parser_read_leb128_u32(parser, entry, OC_STR8("index"));
+                    wa_ast* name = wa_parser_read_name(parser, entry, OC_STR8("name"));
 
                     module->functionNames[entryIndex] = (wa_name_entry){
                         .index = index->valU32,
@@ -820,7 +819,7 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
         wa_ast* typeAst = wa_ast_begin(parser, vector, WA_AST_TYPE);
         typeAst->type = type;
 
-        wa_ast* b = wa_read_byte(parser, typeAst, OC_STR8("type prefix"));
+        wa_ast* b = wa_parser_read_byte(parser, typeAst, OC_STR8("type prefix"));
 
         if(b->valU8 != 0x60)
         {
@@ -831,7 +830,7 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
             return;
         }
 
-        wa_ast* paramCountAst = wa_read_leb128_u32(parser, typeAst, OC_STR8("parameter count"));
+        wa_ast* paramCountAst = wa_parser_read_leb128_u32(parser, typeAst, OC_STR8("parameter count"));
         type->paramCount = paramCountAst->valU32;
         type->params = oc_arena_push_array(parser->arena, wa_value_type, type->paramCount);
 
@@ -841,7 +840,7 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
             type->params[typeIndex] = paramAst->valU32;
         }
 
-        wa_ast* returnCountAst = wa_read_leb128_u32(parser, typeAst, OC_STR8("return count"));
+        wa_ast* returnCountAst = wa_parser_read_leb128_u32(parser, typeAst, OC_STR8("return count"));
         type->returnCount = returnCountAst->valU32;
         type->returns = oc_arena_push_array(parser->arena, wa_value_type, type->returnCount);
 
@@ -869,7 +868,7 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
 wa_ast* wa_parse_limits(wa_parser* parser, wa_ast* parent, wa_limits* limits)
 {
     wa_ast* limitsAst = wa_ast_begin(parser, parent, WA_AST_LIMITS);
-    wa_ast* kindAst = wa_read_byte(parser, limitsAst, OC_STR8("limit kind"));
+    wa_ast* kindAst = wa_parser_read_byte(parser, limitsAst, OC_STR8("limit kind"));
     u8 kind = kindAst->valU8;
 
     if(kind != WA_LIMIT_MIN && kind != WA_LIMIT_MIN_MAX)
@@ -883,12 +882,12 @@ wa_ast* wa_parse_limits(wa_parser* parser, wa_ast* parent, wa_limits* limits)
     {
         limits->kind = kind;
 
-        wa_ast* minAst = wa_read_leb128_u32(parser, limitsAst, OC_STR8("min limit"));
+        wa_ast* minAst = wa_parser_read_leb128_u32(parser, limitsAst, OC_STR8("min limit"));
         limits->min = minAst->valU32;
 
         if(limits->kind == WA_LIMIT_MIN_MAX)
         {
-            wa_ast* maxAst = wa_read_leb128_u32(parser, limitsAst, OC_STR8("max limit"));
+            wa_ast* maxAst = wa_parser_read_leb128_u32(parser, limitsAst, OC_STR8("max limit"));
             limits->max = maxAst->valU32;
         }
     }
@@ -917,9 +916,9 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
         wa_import* import = &module->imports[importIndex];
 
         wa_ast* importAst = wa_ast_begin(parser, vector, WA_AST_IMPORT);
-        wa_ast* moduleNameAst = wa_read_name(parser, importAst, OC_STR8("module name"));
-        wa_ast* importNameAst = wa_read_name(parser, importAst, OC_STR8("import name"));
-        wa_ast* kindAst = wa_read_byte(parser, importAst, OC_STR8("import kind"));
+        wa_ast* moduleNameAst = wa_parser_read_name(parser, importAst, OC_STR8("module name"));
+        wa_ast* importNameAst = wa_parser_read_name(parser, importAst, OC_STR8("import name"));
+        wa_ast* kindAst = wa_parser_read_byte(parser, importAst, OC_STR8("import kind"));
 
         import->moduleName = moduleNameAst->str8;
         import->importName = importNameAst->str8;
@@ -929,7 +928,7 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
         {
             case WA_IMPORT_FUNCTION:
             {
-                wa_ast* indexAst = wa_read_leb128_u32(parser, importAst, OC_STR8("type index"));
+                wa_ast* indexAst = wa_parser_read_leb128_u32(parser, importAst, OC_STR8("type index"));
                 indexAst->kind = WA_AST_TYPE_INDEX;
                 import->index = indexAst->valU32;
 
@@ -946,7 +945,7 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
             break;
             case WA_IMPORT_TABLE:
             {
-                wa_ast* typeAst = wa_read_byte(parser, importAst, OC_STR8("table type"));
+                wa_ast* typeAst = wa_parser_read_byte(parser, importAst, OC_STR8("table type"));
                 import->type = typeAst->valU8;
 
                 if(import->type != WA_TYPE_FUNC_REF && import->type != WA_TYPE_EXTERN_REF)
@@ -973,7 +972,7 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
                 //TODO: coalesce with globals section parsing
 
                 wa_ast* typeAst = wa_parse_value_type(parser, importAst, OC_STR8("type"));
-                wa_ast* mutAst = wa_read_byte(parser, importAst, OC_STR8("mut"));
+                wa_ast* mutAst = wa_parser_read_byte(parser, importAst, OC_STR8("mut"));
 
                 import->type = typeAst->valueType;
 
@@ -1056,7 +1055,7 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
         {
             wa_func* func = &module->functions[module->functionImportCount + funcIndex];
 
-            wa_ast* typeIndexAst = wa_read_leb128_u32(parser, vector, OC_STR8("type index"));
+            wa_ast* typeIndexAst = wa_parser_read_leb128_u32(parser, vector, OC_STR8("type index"));
             typeIndexAst->kind = WA_AST_FUNC_ENTRY;
             u32 typeIndex = typeIndexAst->valU32;
 
@@ -1127,7 +1126,7 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
 
             wa_ast* globalAst = wa_ast_begin(parser, vector, WA_AST_GLOBAL);
             wa_ast* typeAst = wa_parse_value_type(parser, globalAst, OC_STR8("type"));
-            wa_ast* mutAst = wa_read_byte(parser, globalAst, OC_STR8("mut"));
+            wa_ast* mutAst = wa_parser_read_byte(parser, globalAst, OC_STR8("mut"));
 
             global->type = typeAst->valueType;
 
@@ -1206,7 +1205,7 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
             wa_ast* tableAst = wa_ast_begin(parser, vector, WA_AST_TABLE_TYPE);
 
             //TODO coalesce with parsing of table in imports
-            wa_ast* typeAst = wa_read_byte(parser, tableAst, OC_STR8("table type"));
+            wa_ast* typeAst = wa_parser_read_byte(parser, tableAst, OC_STR8("table type"));
             table->type = typeAst->valU8;
 
             if(table->type != WA_TYPE_FUNC_REF && table->type != WA_TYPE_EXTERN_REF)
@@ -1308,9 +1307,9 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
         wa_export* export = &module->exports[exportIndex];
 
         wa_ast* exportAst = wa_ast_begin(parser, vector, WA_AST_EXPORT);
-        wa_ast* nameAst = wa_read_name(parser, exportAst, OC_STR8("export name"));
-        wa_ast* kindAst = wa_read_byte(parser, exportAst, OC_STR8("export kind"));
-        wa_ast* indexAst = wa_read_leb128_u32(parser, exportAst, OC_STR8("export index"));
+        wa_ast* nameAst = wa_parser_read_name(parser, exportAst, OC_STR8("export name"));
+        wa_ast* kindAst = wa_parser_read_byte(parser, exportAst, OC_STR8("export kind"));
+        wa_ast* indexAst = wa_parser_read_leb128_u32(parser, exportAst, OC_STR8("export index"));
 
         export->name = nameAst->str8;
         export->kind = kindAst->valU8;
@@ -1381,7 +1380,7 @@ void wa_parse_start(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.start.offset, OC_STR8("start section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* startAst = wa_read_leb128_u32(parser, section, OC_STR8("start index"));
+    wa_ast* startAst = wa_parser_read_leb128_u32(parser, section, OC_STR8("start index"));
 
     module->hasStart = true;
     module->startIndex = startAst->valU32;
@@ -1419,12 +1418,12 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
 
         instr->ast = instrAst;
 
-        wa_ast* byteAst = wa_read_byte(parser, instrAst, OC_STR8("opcode"));
+        wa_ast* byteAst = wa_parser_read_byte(parser, instrAst, OC_STR8("opcode"));
         u8 byte = byteAst->valU8;
 
         if(byte == WA_INSTR_PREFIX_EXTENDED)
         {
-            wa_ast* extAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("extended instruction"));
+            wa_ast* extAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("extended instruction"));
             u32 code = extAst->valU32;
 
             if(code >= wa_instr_decode_extended_len)
@@ -1439,7 +1438,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
         }
         else if(byte == WA_INSTR_PREFIX_VECTOR)
         {
-            wa_ast* extAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("vector instruction"));
+            wa_ast* extAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("vector instruction"));
             u32 code = extAst->valU32;
 
             if(code >= wa_instr_decode_vector_len)
@@ -1505,7 +1504,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
            || instr->op == WA_INSTR_if)
         {
             //NOTE: parse block type
-            wa_ast* blockTypeAst = wa_read_leb128_i64(parser, instrAst, OC_STR8("block type"));
+            wa_ast* blockTypeAst = wa_parser_read_leb128_i64(parser, instrAst, OC_STR8("block type"));
             i64 t = blockTypeAst->valI64;
             if(t >= 0)
             {
@@ -1571,10 +1570,10 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
 
             for(u32 i = 0; i < instr->immCount - 1; i++)
             {
-                wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
+                wa_ast* immAst = wa_parser_read_leb128_u32(parser, vector, OC_STR8("label"));
                 instr->imm[i].index = immAst->valU32;
             }
-            wa_ast* immAst = wa_read_leb128_u32(parser, vector, OC_STR8("label"));
+            wa_ast* immAst = wa_parser_read_leb128_u32(parser, vector, OC_STR8("label"));
             instr->imm[instr->immCount - 1].index = immAst->valU32;
 
             wa_ast_end(parser, vector);
@@ -1592,31 +1591,31 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 {
                     case WA_IMM_ZERO:
                     {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("zero"));
+                        wa_ast* immAst = wa_parser_read_byte(parser, instrAst, OC_STR8("zero"));
                         instr->imm[immIndex].valI32 = immAst->valU8;
                     }
                     break;
                     case WA_IMM_I32:
                     {
-                        wa_ast* immAst = wa_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
+                        wa_ast* immAst = wa_parser_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
                         instr->imm[immIndex].valI32 = immAst->valI32;
                     }
                     break;
                     case WA_IMM_I64:
                     {
-                        wa_ast* immAst = wa_read_leb128_i64(parser, instrAst, OC_STR8("i64"));
+                        wa_ast* immAst = wa_parser_read_leb128_i64(parser, instrAst, OC_STR8("i64"));
                         instr->imm[immIndex].valI64 = immAst->valI64;
                     }
                     break;
                     case WA_IMM_F32:
                     {
-                        wa_ast* immAst = wa_read_f32(parser, instrAst, OC_STR8("f32"));
+                        wa_ast* immAst = wa_parser_read_f32(parser, instrAst, OC_STR8("f32"));
                         instr->imm[immIndex].valF32 = immAst->valF32;
                     }
                     break;
                     case WA_IMM_F64:
                     {
-                        wa_ast* immAst = wa_read_f64(parser, instrAst, OC_STR8("f64"));
+                        wa_ast* immAst = wa_parser_read_f64(parser, instrAst, OC_STR8("f64"));
                         instr->imm[immIndex].valF64 = immAst->valF64;
                     }
                     break;
@@ -1628,21 +1627,21 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                     break;
                     case WA_IMM_REF_TYPE:
                     {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("ref type"));
+                        wa_ast* immAst = wa_parser_read_byte(parser, instrAst, OC_STR8("ref type"));
                         instr->imm[immIndex].valueType = immAst->valU8;
                     }
                     break;
 
                     case WA_IMM_LOCAL_INDEX:
                     {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
+                        wa_ast* immAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("index"));
                         instr->imm[immIndex].index = immAst->valU32;
                     }
                     break;
 
                     case WA_IMM_FUNC_INDEX:
                     {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
+                        wa_ast* immAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
                         instr->imm[immIndex].index = immAst->valU32;
                         immAst->kind = WA_AST_FUNC_INDEX;
                     }
@@ -1655,15 +1654,15 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                     case WA_IMM_DATA_INDEX:
                     case WA_IMM_LABEL:
                     {
-                        wa_ast* immAst = wa_read_leb128_u32(parser, instrAst, OC_STR8("index"));
+                        wa_ast* immAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("index"));
                         instr->imm[immIndex].index = immAst->valU32;
                     }
                     break;
                     case WA_IMM_MEM_ARG:
                     {
                         wa_ast* memArgAst = wa_ast_begin(parser, instrAst, WA_AST_MEM_ARG);
-                        wa_ast* alignAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
-                        wa_ast* offsetAst = wa_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+                        wa_ast* alignAst = wa_parser_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
+                        wa_ast* offsetAst = wa_parser_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
 
                         instr->imm[immIndex].memArg.align = alignAst->valU32;
                         instr->imm[immIndex].memArg.offset = offsetAst->valU32;
@@ -1673,7 +1672,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                     break;
                     case WA_IMM_LANE_INDEX:
                     {
-                        wa_ast* immAst = wa_read_byte(parser, instrAst, OC_STR8("lane index"));
+                        wa_ast* immAst = wa_parser_read_byte(parser, instrAst, OC_STR8("lane index"));
                         instr->imm[immIndex].laneIndex = immAst->valU8;
                     }
                     break;
@@ -1730,7 +1729,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
         wa_element* element = &module->elements[eltIndex];
 
         wa_ast* elementAst = wa_ast_begin(parser, vector, WA_AST_ELEMENT);
-        wa_ast* prefixAst = wa_read_leb128_u32(parser, elementAst, OC_STR8("prefix"));
+        wa_ast* prefixAst = wa_parser_read_leb128_u32(parser, elementAst, OC_STR8("prefix"));
         u32 prefix = prefixAst->valU32;
 
         if(prefix > 7)
@@ -1757,7 +1756,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x02)
             {
                 //NOTE: explicit table index
-                wa_ast* tableIndexAst = wa_read_leb128_u32(parser, elementAst, OC_STR8("table index"));
+                wa_ast* tableIndexAst = wa_parser_read_leb128_u32(parser, elementAst, OC_STR8("table index"));
                 //TODO validate index
                 element->tableIndex = tableIndexAst->valU32;
             }
@@ -1772,7 +1771,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x03)
             {
                 //NOTE ref type
-                wa_ast* refTypeAst = wa_read_byte(parser, elementAst, OC_STR8("refType"));
+                wa_ast* refTypeAst = wa_parser_read_byte(parser, elementAst, OC_STR8("refType"));
                 if(refTypeAst->valU8 != WA_TYPE_FUNC_REF && refTypeAst->valU8 != WA_TYPE_EXTERN_REF)
                 {
                     wa_parse_error(parser, refTypeAst, "ref type should be externref or funcref.");
@@ -1781,7 +1780,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             }
 
             wa_ast* exprVec = wa_ast_begin(parser, elementAst, WA_AST_VECTOR);
-            wa_ast* exprVecCount = wa_read_leb128_u32(parser, exprVec, OC_STR8("count"));
+            wa_ast* exprVecCount = wa_parser_read_leb128_u32(parser, exprVec, OC_STR8("count"));
             element->initCount = exprVecCount->valU32;
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
             memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
@@ -1797,7 +1796,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x03)
             {
                 //NOTE refkind
-                wa_ast* refKindAst = wa_read_byte(parser, elementAst, OC_STR8("refKind"));
+                wa_ast* refKindAst = wa_parser_read_byte(parser, elementAst, OC_STR8("refKind"));
                 if(refKindAst->valU8 != 0x00)
                 {
                     wa_parse_error(parser, refKindAst, "ref kind should be 0.");
@@ -1805,7 +1804,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             }
 
             wa_ast* funcVec = wa_ast_begin(parser, elementAst, WA_AST_VECTOR);
-            wa_ast* funcVecCount = wa_read_leb128_u32(parser, funcVec, OC_STR8("count"));
+            wa_ast* funcVecCount = wa_parser_read_leb128_u32(parser, funcVec, OC_STR8("count"));
             element->initCount = funcVecCount->valU32;
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
             memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
@@ -1813,7 +1812,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             for(u32 i = 0; i < element->initCount; i++)
             {
                 //TODO validate index
-                wa_ast* funcIndexAst = wa_read_leb128_u32(parser, funcVec, OC_STR8("index"));
+                wa_ast* funcIndexAst = wa_parser_read_leb128_u32(parser, funcVec, OC_STR8("index"));
                 funcIndexAst->kind = WA_AST_FUNC_INDEX;
 
                 wa_instr* init = oc_arena_push_array(parser->arena, wa_instr, 2);
@@ -1855,7 +1854,7 @@ void wa_parse_data_count(wa_parser* parser, wa_module* module)
     wa_parser_seek(parser, module->toc.dataCount.offset, OC_STR8("data count section"));
     u64 startOffset = parser->offset;
 
-    wa_ast* dataCount = wa_read_leb128_u32(parser, section, OC_STR8("data count"));
+    wa_ast* dataCount = wa_parser_read_leb128_u32(parser, section, OC_STR8("data count"));
     module->dataCount = dataCount->valU32;
 
     //NOTE: check section size
@@ -1901,7 +1900,7 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
         wa_data_segment* seg = &module->data[segIndex];
 
         wa_ast* segmentAst = wa_ast_begin(parser, vector, WA_AST_DATA_SEGMENT);
-        wa_ast* prefixAst = wa_read_leb128_u32(parser, segmentAst, OC_STR8("prefix"));
+        wa_ast* prefixAst = wa_parser_read_leb128_u32(parser, segmentAst, OC_STR8("prefix"));
         u32 prefix = prefixAst->valU32;
 
         if(prefix > 2)
@@ -1920,7 +1919,7 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
             if(prefix & 0x02)
             {
                 //NOTE: explicit memory index
-                wa_ast* memoryIndexAst = wa_read_leb128_u32(parser, segmentAst, OC_STR8("memory index"));
+                wa_ast* memoryIndexAst = wa_parser_read_leb128_u32(parser, segmentAst, OC_STR8("memory index"));
                 //TODO validate index
                 seg->memoryIndex = memoryIndexAst->valU32;
             }
@@ -1928,7 +1927,7 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
         }
 
         //NOTE: parse vec(bytes)
-        wa_ast* initVec = wa_read_bytes_vector(parser, segmentAst, OC_STR8("init"));
+        wa_ast* initVec = wa_parser_read_bytes_vector(parser, segmentAst, OC_STR8("init"));
         seg->init = initVec->str8;
 
         wa_ast_end(parser, segmentAst);
@@ -1987,7 +1986,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 
         oc_arena_scope scratch = oc_scratch_begin();
 
-        wa_ast* lenAst = wa_read_leb128_u32(parser, funcAst, OC_STR8("function length"));
+        wa_ast* lenAst = wa_parser_read_leb128_u32(parser, funcAst, OC_STR8("function length"));
 
         u32 funcLen = lenAst->valU32;
         u32 funcStartOffset = parser->offset;
@@ -2003,8 +2002,8 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         for(u32 localEntryIndex = 0; localEntryIndex < localEntryCount; localEntryIndex++)
         {
             wa_ast* localEntryAst = wa_ast_begin(parser, localsVector, WA_AST_LOCAL_ENTRY);
-            wa_ast* countAst = wa_read_leb128_u32(parser, localEntryAst, OC_STR8("count"));
-            wa_ast* typeAst = wa_read_byte(parser, localEntryAst, OC_STR8("type"));
+            wa_ast* countAst = wa_parser_read_leb128_u32(parser, localEntryAst, OC_STR8("count"));
+            wa_ast* typeAst = wa_parser_read_byte(parser, localEntryAst, OC_STR8("type"));
             typeAst->kind = WA_AST_VALUE_TYPE;
 
             counts[localEntryIndex] = countAst->valU32;
@@ -2092,7 +2091,7 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
 
     module->root = wa_ast_alloc(&parser, WA_AST_ROOT);
 
-    wa_ast* magic = wa_read_raw_u32(&parser, module->root, OC_STR8("wasm magic number"));
+    wa_ast* magic = wa_parser_read_raw_u32(&parser, module->root, OC_STR8("wasm magic number"));
     if(magic->kind == WA_AST_U32
        && magic->valU32 != 0x6d736100)
     {
@@ -2101,7 +2100,7 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
     }
     magic->kind = WA_AST_MAGIC;
 
-    wa_ast* version = wa_read_raw_u32(&parser, module->root, OC_STR8("wasm version"));
+    wa_ast* version = wa_parser_read_raw_u32(&parser, module->root, OC_STR8("wasm version"));
     if(version->kind == WA_AST_U32
        && version->valU32 != 1)
     {

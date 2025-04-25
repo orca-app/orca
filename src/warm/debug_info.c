@@ -150,19 +150,19 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
     const u64 DW_STACK_MAX = 1024;
     dw_stack_value stack[DW_STACK_MAX];
 
-    dw_reader reader = {
+    wa_reader reader = {
         .contents = expr,
     };
 
-    while(dw_reader_has_more(&reader))
+    while(wa_reader_has_more(&reader))
     {
-        dw_op op = dw_read_u8(&reader);
+        dw_op op = wa_read_u8(&reader);
 
         switch(op)
         {
             case DW_OP_addr:
             {
-                u32 opd = dw_read_u32(&reader);
+                u32 opd = wa_read_u32(&reader);
 
                 stack[sp] = (dw_stack_value){
                     .type = DW_STACK_VALUE_ADDRESS,
@@ -174,7 +174,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
 
             case DW_OP_fbreg:
             {
-                i64 offset = dw_read_leb128_i64(&reader);
+                i64 offset = wa_read_leb128_i64(&reader);
 
                 OC_ASSERT(funcInfo->frameBase->single && funcInfo->frameBase->entryCount == 1);
                 dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, funcInfo->frameBase->entries[0].desc);
@@ -202,13 +202,13 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
 
             case DW_OP_WASM_location:
             {
-                u8 kind = dw_read_u8(&reader);
+                u8 kind = wa_read_u8(&reader);
                 switch(kind)
                 {
                     case 0x00:
                     {
                         //NOTE: wasm local
-                        u32 index = dw_read_leb128_u32(&reader);
+                        u32 index = wa_read_leb128_u32(&reader);
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_LOCAL,
                             .valU32 = index,
@@ -219,7 +219,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                     case 0x01:
                     {
                         //NOTE: wasm global, leb128
-                        u32 index = dw_read_leb128_u32(&reader);
+                        u32 index = wa_read_leb128_u32(&reader);
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_GLOBAL,
                             .valU32 = index,
@@ -230,7 +230,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                     case 0x02:
                     {
                         //NOTE: wasm operand stack
-                        u32 index = dw_read_leb128_u32(&reader);
+                        u32 index = wa_read_leb128_u32(&reader);
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_OPERAND,
                             .valU32 = index,
@@ -241,7 +241,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                     case 0x03:
                     {
                         //NOTE: wasm global, u32
-                        u32 index = dw_read_u32(&reader);
+                        u32 index = wa_read_u32(&reader);
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_GLOBAL,
                             .valU32 = index,

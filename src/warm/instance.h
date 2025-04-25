@@ -7,7 +7,7 @@
 **************************************************************************/
 #pragma once
 
-#include "warm_internal.h"
+#include "warm.h"
 
 typedef struct wa_instance
 {

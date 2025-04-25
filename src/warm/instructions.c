@@ -6,7 +6,7 @@
 *
 **************************************************************************/
 
-#include "wasm_tables.h"
+#include "instructions.h"
 
 const char* wa_instr_strings[] = {
     [WA_INSTR_INVALID] = "[invalid instruction]",

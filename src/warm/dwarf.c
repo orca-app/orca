@@ -5,7 +5,6 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include <math.h>
 #include <stdio.h>
 
 #include "util/typedefs.h"
@@ -13,277 +12,7 @@
 #include "util/strings.h"
 
 #include "dwarf.h"
-
-typedef struct dw_reader
-{
-    oc_str8 contents;
-    u64 offset;
-    //TODO: error
-} dw_reader;
-
-dw_reader dw_reader_from_str8(oc_str8 string)
-{
-    dw_reader reader = {
-        .contents = string,
-    };
-    return reader;
-}
-
-bool dw_reader_has_more(dw_reader* reader)
-{
-    return reader->offset < reader->contents.len;
-}
-
-u64 dw_reader_offset(dw_reader* reader)
-{
-    return reader->offset;
-}
-
-void dw_reader_seek(dw_reader* reader, u64 offset)
-{
-    //TODO: check offset and overflows
-    reader->offset = oc_min(reader->contents.len, offset);
-}
-
-void dw_reader_skip(dw_reader* reader, u64 n)
-{
-    //TODO: check offset and overflows
-    reader->offset = oc_min(reader->contents.len, reader->offset + n);
-}
-
-dw_reader dw_reader_subreader(dw_reader* reader, u64 size)
-{
-    if(reader->offset + size > reader->contents.len)
-    {
-        oc_log_error("Couldn't create subreader, size out of range\n");
-    }
-
-    dw_reader sub = {
-        .contents = oc_str8_slice(reader->contents, reader->offset, reader->offset + size),
-        .offset = 0,
-    };
-    return sub;
-}
-
-u64 dw_read_leb128(dw_reader* reader, u32 bitWidth, bool isSigned)
-{
-    char byte = 0;
-    u64 shift = 0;
-    u64 acc = 0;
-    u32 count = 0;
-    u32 maxCount = (u32)ceil(bitWidth / 7.);
-
-    do
-    {
-        if(reader->offset + sizeof(char) > reader->contents.len)
-        {
-            oc_log_error("Couldn't read leb128: unexpected end of file.\n");
-            goto end;
-        }
-
-        if(count >= maxCount)
-        {
-            oc_log_error("Couldn't read leb128: too large for bitWidth.\n");
-            acc = 0;
-            goto end;
-        }
-
-        byte = reader->contents.ptr[reader->offset];
-        reader->offset++;
-
-        acc |= ((u64)byte & 0x7f) << shift;
-        shift += 7;
-        count++;
-    }
-    while(byte & 0x80);
-
-    if(isSigned)
-    {
-        if(count == maxCount)
-        {
-            //NOTE: the spec mandates that unused bits must match the sign bit,
-            // so we construct a mask to select the sign bit and the unused bits,
-            // and we check that they're either all 1 or all 0
-            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
-            u8 lastByteMask = (0xff << (bitsInLastByte - 1)) & 0x7f;
-            u8 bits = byte & lastByteMask;
-
-            if(bits != 0 && bits != lastByteMask)
-            {
-                oc_log_error("Couldn't read signed leb128: unused bits don't match sign bit.\n");
-                acc = 0;
-                goto end;
-            }
-        }
-
-        if(shift < 64 && (byte & 0x40))
-        {
-            acc |= (~0ULL << shift);
-        }
-    }
-    else
-    {
-        if(count == maxCount)
-        {
-            //NOTE: for unsigned the spec mandates that unused bits must be zero,
-            // so we construct a mask to select only unused bits,
-            // and we check that they're all 0
-            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
-            u8 lastByteMask = (0xff << (bitsInLastByte)) & 0x7f;
-            u8 bits = byte & lastByteMask;
-
-            if(bits != 0)
-            {
-                oc_log_error("Couldn't read unsigned leb128: unused bits not zero.\n");
-                acc = 0;
-                goto end;
-            }
-        }
-    }
-end:
-    return acc;
-}
-
-u32 dw_read_leb128_u32(dw_reader* reader)
-{
-    return (u32)dw_read_leb128(reader, 32, false);
-}
-
-u64 dw_read_leb128_u64(dw_reader* reader)
-{
-    return dw_read_leb128(reader, 64, false);
-}
-
-i32 dw_read_leb128_i32(dw_reader* reader)
-{
-    return (i32)dw_read_leb128(reader, 32, true);
-}
-
-i64 dw_read_leb128_i64(dw_reader* reader)
-{
-    return (i64)dw_read_leb128(reader, 64, true);
-}
-
-u64 dw_read_u64(dw_reader* reader)
-{
-    u64 res = 0;
-    if(reader->offset + sizeof(u64) > reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u64));
-        reader->offset += sizeof(u64);
-    }
-    return res;
-}
-
-u32 dw_read_u32(dw_reader* reader)
-{
-    u32 res = 0;
-    if(reader->offset + sizeof(u32) > reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u32));
-        reader->offset += sizeof(u32);
-    }
-    return res;
-}
-
-u16 dw_read_u16(dw_reader* reader)
-{
-    u16 res = 0;
-    if(reader->offset + sizeof(u16) > reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u16));
-        reader->offset += sizeof(u16);
-    }
-    return res;
-}
-
-u8 dw_read_u8(dw_reader* reader)
-{
-    u8 res = 0;
-    if(reader->offset + sizeof(u8) > reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u8));
-        reader->offset += sizeof(u8);
-    }
-    return res;
-}
-
-u8 dw_reader_peek_u8(dw_reader* reader)
-{
-    u8 res = 0;
-    if(reader->offset + sizeof(u8) > reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u8));
-    }
-    return res;
-}
-
-oc_str8 dw_read_bytes(dw_reader* reader, u64 len)
-{
-    oc_str8 res = { 0 };
-    if(reader->offset + len > reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        res = (oc_str8){
-            .ptr = reader->contents.ptr + reader->offset,
-            .len = len,
-        };
-        reader->offset += len;
-    }
-    return res;
-}
-
-oc_str8 dw_read_cstring(dw_reader* reader)
-{
-    oc_str8 res = { 0 };
-    if(reader->offset >= reader->contents.len)
-    {
-        oc_log_error("read out of bounds\n");
-    }
-    else
-    {
-        size_t len = strnlen(reader->contents.ptr + reader->offset,
-                             reader->contents.len - reader->offset);
-
-        if(reader->offset + len >= reader->contents.len)
-        {
-            //NOTE >= since we also need to fit a null byte
-            oc_log_error("read out of bounds\n");
-        }
-        else
-        {
-            res = (oc_str8){
-                .ptr = reader->contents.ptr + reader->offset,
-                .len = len,
-            };
-            reader->offset += len + 1;
-        }
-    }
-    return res;
-}
+#include "reader.h"
 
 typedef struct dw_sections
 {
@@ -421,8 +150,8 @@ typedef struct dw_file_entry_elt
     dw_file_entry entry;
 } dw_file_entry_elt;
 
-void dw_read_file_entries(oc_arena* arena,
-                          dw_reader* reader,
+void wa_read_file_entries(oc_arena* arena,
+                          wa_reader* reader,
                           u64* entryCount,
                           dw_file_entry** entries,
                           dw_sections* sections,
@@ -434,7 +163,7 @@ void dw_read_file_entries(oc_arena* arena,
 
     if(header->version == 5)
     {
-        formatCount = dw_read_u8(reader);
+        formatCount = wa_read_u8(reader);
     }
     else
     {
@@ -455,8 +184,8 @@ void dw_read_file_entries(oc_arena* arena,
     {
         for(int i = 0; i < formatCount; i++)
         {
-            format[i].content = dw_read_leb128_u64(reader);
-            format[i].form = dw_read_leb128_u64(reader);
+            format[i].content = wa_read_leb128_u64(reader);
+            format[i].form = wa_read_leb128_u64(reader);
 
             if(format[i].content <= DW_LNCT_MD5)
             {
@@ -470,7 +199,7 @@ void dw_read_file_entries(oc_arena* arena,
                 }
             }
         }
-        *entryCount = dw_read_leb128_u64(reader);
+        *entryCount = wa_read_leb128_u64(reader);
     }
     else
     {
@@ -503,15 +232,15 @@ void dw_read_file_entries(oc_arena* arena,
     oc_list entryList = { 0 };
     u64 entryIndex = 0;
 
-    while(dw_reader_has_more(reader))
+    while(wa_reader_has_more(reader))
     {
         if(header->version == 5 && entryIndex >= *entryCount)
         {
             break;
         }
-        else if(header->version == 4 && dw_reader_peek_u8(reader) == 0)
+        else if(header->version == 4 && wa_reader_peek_u8(reader) == 0)
         {
-            dw_reader_skip(reader, 1);
+            wa_reader_skip(reader, 1);
             break;
         }
 
@@ -534,7 +263,7 @@ void dw_read_file_entries(oc_arena* arena,
                     {
                         case DW_FORM_string:
                         {
-                            entry->path = dw_read_cstring(reader);
+                            entry->path = wa_read_cstring(reader);
                         }
                         break;
                         case DW_FORM_line_strp:
@@ -544,11 +273,11 @@ void dw_read_file_entries(oc_arena* arena,
                             u64 strp = 0;
                             if(header->addressSize == 4)
                             {
-                                strp = dw_read_u32(reader);
+                                strp = wa_read_u32(reader);
                             }
                             else
                             {
-                                strp = dw_read_u64(reader);
+                                strp = wa_read_u64(reader);
                             }
                             oc_str8 section = { 0 };
                             if(form == DW_FORM_line_strp)
@@ -566,9 +295,9 @@ void dw_read_file_entries(oc_arena* arena,
                                 exit(-1);
                             }
 
-                            dw_reader strReader = dw_reader_from_str8(section);
-                            dw_reader_seek(&strReader, strp);
-                            entry->path = dw_read_cstring(&strReader);
+                            wa_reader strReader = wa_reader_from_str8(section);
+                            wa_reader_seek(&strReader, strp);
+                            entry->path = wa_read_cstring(&strReader);
                         }
                         break;
 
@@ -586,17 +315,17 @@ void dw_read_file_entries(oc_arena* arena,
                     {
                         case DW_FORM_data1:
                         {
-                            entry->dirIndex = dw_read_u8(reader);
+                            entry->dirIndex = wa_read_u8(reader);
                         }
                         break;
                         case DW_FORM_data2:
                         {
-                            entry->dirIndex = dw_read_u16(reader);
+                            entry->dirIndex = wa_read_u16(reader);
                         }
                         break;
                         case DW_FORM_udata:
                         {
-                            entry->dirIndex = dw_read_leb128_u64(reader);
+                            entry->dirIndex = wa_read_leb128_u64(reader);
                         }
                         break;
 
@@ -614,24 +343,24 @@ void dw_read_file_entries(oc_arena* arena,
                     {
                         case DW_FORM_data4:
                         {
-                            entry->timestamp = dw_read_u32(reader);
+                            entry->timestamp = wa_read_u32(reader);
                         }
                         break;
                         case DW_FORM_data8:
                         {
-                            entry->timestamp = dw_read_u64(reader);
+                            entry->timestamp = wa_read_u64(reader);
                         }
                         break;
                         case DW_FORM_udata:
                         {
-                            entry->timestamp = dw_read_leb128_u64(reader);
+                            entry->timestamp = wa_read_leb128_u64(reader);
                         }
                         break;
                         case DW_FORM_block:
                         {
                             //NOTE(martin): I don't know how to interpret the block, so just warn and skip it
-                            u64 len = dw_read_leb128_u64(reader);
-                            oc_str8 str = dw_read_bytes(reader, len);
+                            u64 len = wa_read_leb128_u64(reader);
+                            oc_str8 str = wa_read_bytes(reader, len);
 
                             printf("warning: unsupported form DW_FORM_block in %s file entry format\n",
                                    dw_get_line_header_entry_format_string(content));
@@ -652,27 +381,27 @@ void dw_read_file_entries(oc_arena* arena,
                     {
                         case DW_FORM_data1:
                         {
-                            entry->size = dw_read_u8(reader);
+                            entry->size = wa_read_u8(reader);
                         }
                         break;
                         case DW_FORM_data2:
                         {
-                            entry->size = dw_read_u16(reader);
+                            entry->size = wa_read_u16(reader);
                         }
                         break;
                         case DW_FORM_data4:
                         {
-                            entry->size = dw_read_u32(reader);
+                            entry->size = wa_read_u32(reader);
                         }
                         break;
                         case DW_FORM_data8:
                         {
-                            entry->size = dw_read_u64(reader);
+                            entry->size = wa_read_u64(reader);
                         }
                         break;
                         case DW_FORM_udata:
                         {
-                            entry->size = dw_read_leb128_u64(reader);
+                            entry->size = wa_read_leb128_u64(reader);
                         }
                         break;
 
@@ -692,7 +421,7 @@ void dw_read_file_entries(oc_arena* arena,
                                dw_get_line_header_entry_format_string(content));
                         exit(-1);
                     }
-                    oc_str8 md5 = dw_read_bytes(reader, 16);
+                    oc_str8 md5 = wa_read_bytes(reader, 16);
                     if(md5.len == 16)
                     {
                         memcpy(entry->md5, md5.ptr, 16);
@@ -745,26 +474,26 @@ void dw_read_file_entries(oc_arena* arena,
     oc_scratch_end(scratch);
 }
 
-void dw_read_inital_length(dw_reader* reader, u64* length, u8* format)
+void wa_read_inital_length(wa_reader* reader, u64* length, u8* format)
 {
     *format = DW_DWARF32;
-    *length = dw_read_u32(reader);
+    *length = wa_read_u32(reader);
 
     if(*length >= 0xfffffff0)
     {
         *format = DW_DWARF64;
-        *length = dw_read_u64(reader);
+        *length = wa_read_u64(reader);
     }
 }
 
-int dw_read_line_program_header(oc_arena* arena, dw_reader* reader, dw_line_program_header* header, dw_sections* sections)
+int wa_read_line_program_header(oc_arena* arena, wa_reader* reader, dw_line_program_header* header, dw_sections* sections)
 {
-    header->offset = dw_reader_offset(reader);
+    header->offset = wa_reader_offset(reader);
 
     u8 dwarfFormat = 0;
-    dw_read_inital_length(reader, &header->unitLength, &dwarfFormat);
+    wa_read_inital_length(reader, &header->unitLength, &dwarfFormat);
 
-    header->version = dw_read_u16(reader);
+    header->version = wa_read_u16(reader);
 
     if(header->version != 5 && header->version != 4)
     {
@@ -774,14 +503,14 @@ int dw_read_line_program_header(oc_arena* arena, dw_reader* reader, dw_line_prog
 
     if(header->version == 5)
     {
-        header->addressSize = dw_read_u8(reader);
+        header->addressSize = wa_read_u8(reader);
         if(header->addressSize != 4 && header->addressSize != 8)
         {
             oc_log_error("address size should be 4 or 8\n");
             exit(-1);
         }
 
-        header->segmentSelectorSize = dw_read_u8(reader);
+        header->segmentSelectorSize = wa_read_u8(reader);
     }
     else
     {
@@ -793,32 +522,32 @@ int dw_read_line_program_header(oc_arena* arena, dw_reader* reader, dw_line_prog
 
     if(dwarfFormat == DW_DWARF32)
     {
-        header->headerLength = dw_read_u32(reader);
+        header->headerLength = wa_read_u32(reader);
     }
     else
     {
-        header->headerLength = dw_read_u64(reader);
+        header->headerLength = wa_read_u64(reader);
     }
-    u64 headerLengthBase = dw_reader_offset(reader);
+    u64 headerLengthBase = wa_reader_offset(reader);
 
-    header->minInstructionLength = dw_read_u8(reader);
-    header->maxOperationsPerInstruction = dw_read_u8(reader);
-    header->defaultIsStmt = dw_read_u8(reader);
-    header->lineBase = dw_read_u8(reader);
-    header->lineRange = dw_read_u8(reader);
-    header->opcodeBase = dw_read_u8(reader);
+    header->minInstructionLength = wa_read_u8(reader);
+    header->maxOperationsPerInstruction = wa_read_u8(reader);
+    header->defaultIsStmt = wa_read_u8(reader);
+    header->lineBase = wa_read_u8(reader);
+    header->lineRange = wa_read_u8(reader);
+    header->opcodeBase = wa_read_u8(reader);
 
     //TODO: support non-12 sizes
     for(int i = 0; i < 12; i++)
     {
-        header->standardOpcodeLength[i] = dw_read_u8(reader);
+        header->standardOpcodeLength[i] = wa_read_u8(reader);
     }
 
     // directories
-    dw_read_file_entries(arena, reader, &header->dirEntryCount, &header->dirEntries, sections, header, true);
+    wa_read_file_entries(arena, reader, &header->dirEntryCount, &header->dirEntries, sections, header, true);
 
     // files
-    dw_read_file_entries(arena, reader, &header->fileEntryCount, &header->fileEntries, sections, header, false);
+    wa_read_file_entries(arena, reader, &header->fileEntryCount, &header->fileEntries, sections, header, false);
 
     //NOTE: return offset from start to beginning of line program code
     return (headerLengthBase + header->headerLength - header->offset);
@@ -891,18 +620,18 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
 {
     dw_line_info lineInfo = { 0 };
 
-    dw_reader reader = dw_reader_from_str8(sections->line);
+    wa_reader reader = wa_reader_from_str8(sections->line);
 
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
     oc_list tablesList = { 0 };
     u64 tableCount = 0;
 
-    while(dw_reader_has_more(&reader))
+    while(wa_reader_has_more(&reader))
     {
-        u64 unitStart = dw_reader_offset(&reader);
+        u64 unitStart = wa_reader_offset(&reader);
         dw_line_program_header header = { 0 };
 
-        dw_read_line_program_header(arena, &reader, &header, sections);
+        wa_read_line_program_header(arena, &reader, &header, sections);
 
         u64 unitLineInfoEnd = unitStart + header.addressSize + header.unitLength;
 
@@ -924,9 +653,9 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
         dw_line_machine_reset(&machine, header.defaultIsStmt);
 
         //TODO: use subreader
-        while(dw_reader_offset(&reader) < unitLineInfoEnd)
+        while(wa_reader_offset(&reader) < unitLineInfoEnd)
         {
-            u8 opcode = dw_read_u8(&reader);
+            u8 opcode = wa_read_u8(&reader);
 
             if(opcode >= header.opcodeBase)
             {
@@ -948,8 +677,8 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
             else if(opcode == 0)
             {
                 // extended opcode
-                u32 opcodeSize = dw_read_leb128_u32(&reader);
-                opcode = dw_read_u8(&reader);
+                u32 opcodeSize = wa_read_leb128_u32(&reader);
+                opcode = wa_read_u8(&reader);
 
                 switch(opcode)
                 {
@@ -967,12 +696,12 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                         if(header.addressSize == 4)
                         {
                             tombstoneAddress = 0xffffffff;
-                            address = dw_read_u32(&reader);
+                            address = wa_read_u32(&reader);
                         }
                         else if(header.addressSize == 8)
                         {
                             tombstoneAddress = 0xffffffffffffffff;
-                            address = dw_read_u64(&reader);
+                            address = wa_read_u64(&reader);
                         }
                         else
                         {
@@ -985,7 +714,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     break;
                     case DW_LNE_set_discriminator:
                     {
-                        u64 disc = dw_read_leb128_u64(&reader);
+                        u64 disc = wa_read_leb128_u64(&reader);
                         machine.discriminator = disc;
                     }
                     break;
@@ -1022,26 +751,26 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     break;
                     case DW_LNS_advance_pc:
                     {
-                        u64 opAdvance = dw_read_leb128_u64(&reader);
+                        u64 opAdvance = wa_read_leb128_u64(&reader);
                         machine.address += header.minInstructionLength * ((machine.opIndex + opAdvance) / header.maxOperationsPerInstruction);
                         machine.opIndex = (machine.opIndex + opAdvance) % header.maxOperationsPerInstruction;
                     }
                     break;
                     case DW_LNS_advance_line:
                     {
-                        int64_t lineAdvance = dw_read_leb128_i64(&reader);
+                        int64_t lineAdvance = wa_read_leb128_i64(&reader);
                         machine.line += lineAdvance;
                     }
                     break;
                     case DW_LNS_set_file:
                     {
-                        u64 file = dw_read_leb128_u64(&reader);
+                        u64 file = wa_read_leb128_u64(&reader);
                         machine.file = file;
                     }
                     break;
                     case DW_LNS_set_column:
                     {
-                        u64 column = dw_read_leb128_u64(&reader);
+                        u64 column = wa_read_leb128_u64(&reader);
                         machine.column = column;
                     }
                     break;
@@ -1067,7 +796,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     break;
                     case DW_LNS_fixed_advance_pc:
                     {
-                        uint16_t inc = dw_read_u16(&reader);
+                        uint16_t inc = wa_read_u16(&reader);
                         machine.address += inc;
                         machine.opIndex = 0;
                     }
@@ -1084,7 +813,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
                     break;
                     case DW_LNS_set_isa:
                     {
-                        u64 isa = dw_read_leb128_u64(&reader);
+                        u64 isa = wa_read_leb128_u64(&reader);
                         machine.isa = isa;
                     }
                     break;
@@ -1125,11 +854,11 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
 
 void dw_print_expr(dw_unit* unit, oc_str8 data)
 {
-    dw_reader reader = dw_reader_from_str8(data);
+    wa_reader reader = wa_reader_from_str8(data);
 
-    while(dw_reader_has_more(&reader))
+    while(wa_reader_has_more(&reader))
     {
-        dw_op op = dw_read_u8(&reader);
+        dw_op op = wa_read_u8(&reader);
 
         printf("%.*s ", oc_str8_ip(dw_op_get_string(op)));
 
@@ -1137,7 +866,7 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
         {
             case DW_OP_addr:
             {
-                dw_reader_skip(&reader, 4); //TODO: size is target specific
+                wa_reader_skip(&reader, 4); //TODO: size is target specific
             }
             break;
             case DW_OP_deref:
@@ -1146,52 +875,52 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_const1u:
             {
-                dw_reader_skip(&reader, 1);
+                wa_reader_skip(&reader, 1);
             }
             break;
             case DW_OP_const1s:
             {
-                dw_reader_skip(&reader, 1);
+                wa_reader_skip(&reader, 1);
             }
             break;
             case DW_OP_const2u:
             {
-                dw_reader_skip(&reader, 2);
+                wa_reader_skip(&reader, 2);
             }
             break;
             case DW_OP_const2s:
             {
-                dw_reader_skip(&reader, 2);
+                wa_reader_skip(&reader, 2);
             }
             break;
             case DW_OP_const4u:
             {
-                dw_reader_skip(&reader, 4);
+                wa_reader_skip(&reader, 4);
             }
             break;
             case DW_OP_const4s:
             {
-                dw_reader_skip(&reader, 4);
+                wa_reader_skip(&reader, 4);
             }
             break;
             case DW_OP_const8u:
             {
-                dw_reader_skip(&reader, 8);
+                wa_reader_skip(&reader, 8);
             }
             break;
             case DW_OP_const8s:
             {
-                dw_reader_skip(&reader, 8);
+                wa_reader_skip(&reader, 8);
             }
             break;
             case DW_OP_constu:
             {
-                u64 opd = dw_read_leb128_u64(&reader);
+                u64 opd = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_consts:
             {
-                i64 opd = dw_read_leb128_i64(&reader);
+                i64 opd = wa_read_leb128_i64(&reader);
             }
             break;
             case DW_OP_dup:
@@ -1208,7 +937,7 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_pick:
             {
-                dw_reader_skip(&reader, 1);
+                wa_reader_skip(&reader, 1);
             }
             break;
             case DW_OP_swap:
@@ -1265,7 +994,7 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_plus_uconst:
             {
-                u64 opd = dw_read_leb128_u64(&reader);
+                u64 opd = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_shl:
@@ -1286,7 +1015,7 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_bra:
             {
-                dw_reader_skip(&reader, 2);
+                wa_reader_skip(&reader, 2);
             }
             break;
             case DW_OP_eq:
@@ -1315,7 +1044,7 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_skip:
             {
-                dw_reader_skip(&reader, 2);
+                wa_reader_skip(&reader, 2);
             }
             break;
             case DW_OP_lit0:
@@ -1423,39 +1152,39 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             case DW_OP_breg30:
             case DW_OP_breg31:
             {
-                i64 opd = dw_read_leb128_i64(&reader);
+                i64 opd = wa_read_leb128_i64(&reader);
             }
             break;
 
             case DW_OP_regx:
             {
-                u64 opd = dw_read_leb128_u64(&reader);
+                u64 opd = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_fbreg:
             {
-                i64 opd = dw_read_leb128_i64(&reader);
+                i64 opd = wa_read_leb128_i64(&reader);
             }
             break;
             case DW_OP_bregx:
             {
-                u64 reg = dw_read_leb128_u64(&reader);
-                i64 offset = dw_read_leb128_i64(&reader);
+                u64 reg = wa_read_leb128_u64(&reader);
+                i64 offset = wa_read_leb128_i64(&reader);
             }
             break;
             case DW_OP_piece:
             {
-                u64 opd = dw_read_leb128_u64(&reader);
+                u64 opd = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_deref_size:
             {
-                dw_reader_skip(&reader, 1);
+                wa_reader_skip(&reader, 1);
             }
             break;
             case DW_OP_xderef_size:
             {
-                dw_reader_skip(&reader, 1);
+                wa_reader_skip(&reader, 1);
             }
             break;
             case DW_OP_nop:
@@ -1468,17 +1197,17 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_call2:
             {
-                dw_reader_skip(&reader, 2);
+                wa_reader_skip(&reader, 2);
             }
             break;
             case DW_OP_call4:
             {
-                dw_reader_skip(&reader, 4);
+                wa_reader_skip(&reader, 4);
             }
             break;
             case DW_OP_call_ref:
             {
-                dw_reader_skip(&reader, (unit->format == DW_DWARF32) ? 4 : 8);
+                wa_reader_skip(&reader, (unit->format == DW_DWARF32) ? 4 : 8);
             }
             break;
             case DW_OP_form_tls_address:
@@ -1491,14 +1220,14 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_bit_piece:
             {
-                u64 size = dw_read_leb128_u64(&reader);
-                u64 offset = dw_read_leb128_u64(&reader);
+                u64 size = wa_read_leb128_u64(&reader);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_implicit_value:
             {
-                u64 size = dw_read_leb128_u64(&reader);
-                dw_reader_skip(&reader, size);
+                u64 size = wa_read_leb128_u64(&reader);
+                wa_reader_skip(&reader, size);
             }
             break;
             case DW_OP_stack_value:
@@ -1507,73 +1236,73 @@ void dw_print_expr(dw_unit* unit, oc_str8 data)
             break;
             case DW_OP_implicit_pointer:
             {
-                dw_reader_skip(&reader, (unit->format == DW_DWARF32) ? 4 : 8);
-                u64 offset = dw_read_leb128_u64(&reader);
+                wa_reader_skip(&reader, (unit->format == DW_DWARF32) ? 4 : 8);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_addrx:
             {
-                u64 opd = dw_read_leb128_u64(&reader);
+                u64 opd = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_constx:
             {
-                u64 opd = dw_read_leb128_u64(&reader);
+                u64 opd = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_entry_value:
             {
-                u64 size = dw_read_leb128_u64(&reader);
-                dw_reader_skip(&reader, size);
+                u64 size = wa_read_leb128_u64(&reader);
+                wa_reader_skip(&reader, size);
             }
             break;
             case DW_OP_const_type:
             {
-                u64 offset = dw_read_leb128_u64(&reader);
-                u8 size = dw_read_u8(&reader);
+                u64 offset = wa_read_leb128_u64(&reader);
+                u8 size = wa_read_u8(&reader);
 
-                dw_reader_skip(&reader, size);
+                wa_reader_skip(&reader, size);
             }
             break;
             case DW_OP_regval_type:
             {
-                u64 reg = dw_read_leb128_u64(&reader);
-                u64 offset = dw_read_leb128_u64(&reader);
+                u64 reg = wa_read_leb128_u64(&reader);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_deref_type:
             {
-                dw_reader_skip(&reader, 1);
-                u64 offset = dw_read_leb128_u64(&reader);
+                wa_reader_skip(&reader, 1);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_xderef_type:
             {
-                dw_reader_skip(&reader, 1);
-                u64 offset = dw_read_leb128_u64(&reader);
+                wa_reader_skip(&reader, 1);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_convert:
             {
-                u64 offset = dw_read_leb128_u64(&reader);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
             case DW_OP_reinterpret:
             {
-                u64 offset = dw_read_leb128_u64(&reader);
+                u64 offset = wa_read_leb128_u64(&reader);
             }
             break;
 
             case DW_OP_WASM_location:
             {
-                u8 code = dw_read_u8(&reader);
+                u8 code = wa_read_u8(&reader);
                 if(code == 3)
                 {
-                    dw_reader_skip(&reader, 4);
+                    wa_reader_skip(&reader, 4);
                 }
                 else
                 {
-                    i64 i = dw_read_leb128_i64(&reader);
+                    i64 i = wa_read_leb128_i64(&reader);
                 }
             }
             break;
@@ -1792,11 +1521,11 @@ dw_loclist_table* dw_parse_loclist_table(oc_arean* arena, oc_str8 section)
     u32 length32 = 0;
     u8 dwarfFormat = DW_DWARF32;
 
-    offset += dw_read_u32(&length32, section.ptr, section.len, offset);
+    offset += wa_read_u32(&length32, section.ptr, section.len, offset);
 
     if(length32 >= 0xfffffff0)
     {
-        offset += dw_read_u64(&table->unitLength, section.ptr, section.len, offset);
+        offset += wa_read_u64(&table->unitLength, section.ptr, section.len, offset);
         dwarfFormat = DW_DWARF64;
     }
     else
@@ -1837,13 +1566,13 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
     oc_list entries = { 0 };
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
-    dw_reader reader = dw_reader_from_str8(section);
+    wa_reader reader = wa_reader_from_str8(section);
 
-    dw_reader_seek(&reader, offset);
+    wa_reader_seek(&reader, offset);
 
-    while(dw_reader_has_more(&reader))
+    while(wa_reader_has_more(&reader))
     {
-        u64 abbrevCode = dw_read_leb128_u64(&reader);
+        u64 abbrevCode = wa_read_leb128_u64(&reader);
         if(abbrevCode == 0)
         {
             //NOTE: null entry, this is the end of the table
@@ -1855,17 +1584,17 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
 
         entry->code = abbrevCode;
 
-        entry->tag = dw_read_leb128_u32(&reader);
-        entry->hasChildren = dw_read_u8(&reader);
+        entry->tag = wa_read_leb128_u32(&reader);
+        entry->hasChildren = wa_read_u8(&reader);
 
         //NOTE: parse attributes
         oc_list attributes = { 0 };
         entry->attrCount = 0;
 
-        while(dw_reader_has_more(&reader))
+        while(wa_reader_has_more(&reader))
         {
-            u32 attrName = dw_read_leb128_u32(&reader);
-            u32 attrForm = dw_read_leb128_u32(&reader);
+            u32 attrName = wa_read_leb128_u32(&reader);
+            u32 attrForm = wa_read_leb128_u32(&reader);
 
             if(attrName == 0 && attrForm == 0)
             {
@@ -1881,7 +1610,7 @@ dw_abbrev_table* dw_load_abbrev_table(oc_arena* arena, oc_str8 section, u64 offs
 
             if(attr->form == DW_FORM_implicit_const)
             {
-                attr->implicitConst = dw_read_leb128_i64(&reader);
+                attr->implicitConst = wa_read_leb128_i64(&reader);
             }
 
             oc_list_push_back(&attributes, &attrElt->listElt);
@@ -1923,8 +1652,8 @@ dw_loc dw_parse_loclist(oc_arena* arena, dw_unit* unit, oc_str8 section, u64 off
 
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
-    dw_reader reader = dw_reader_from_str8(section);
-    dw_reader_seek(&reader, offset);
+    wa_reader reader = wa_reader_from_str8(section);
+    wa_reader_seek(&reader, offset);
 
     if(unit->version == 4)
     {
@@ -1944,8 +1673,8 @@ dw_loc dw_parse_loclist(oc_arena* arena, dw_unit* unit, oc_str8 section, u64 off
 
             if(unit->addressSize == 4)
             {
-                start = dw_read_u32(&reader);
-                end = dw_read_u32(&reader);
+                start = wa_read_u32(&reader);
+                end = wa_read_u32(&reader);
                 if(start == 0xffffffff)
                 {
                     start = 0xffffffffffffffff;
@@ -1953,8 +1682,8 @@ dw_loc dw_parse_loclist(oc_arena* arena, dw_unit* unit, oc_str8 section, u64 off
             }
             else if(unit->addressSize == 8)
             {
-                start = dw_read_u64(&reader);
-                end = dw_read_u64(&reader);
+                start = wa_read_u64(&reader);
+                end = wa_read_u64(&reader);
             }
             else
             {
@@ -1969,8 +1698,8 @@ dw_loc dw_parse_loclist(oc_arena* arena, dw_unit* unit, oc_str8 section, u64 off
             else if(start != 0xffffffffffffffff)
             {
                 //NOTE normal entry
-                u16 length = dw_read_u16(&reader);
-                desc = dw_read_bytes(&reader, length);
+                u16 length = wa_read_u16(&reader);
+                desc = wa_read_bytes(&reader, length);
             }
 
             dw_loc_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_loc_entry_elt);
@@ -2000,7 +1729,7 @@ dw_loc dw_parse_loclist(oc_arena* arena, dw_unit* unit, oc_str8 section, u64 off
     return loc;
 }
 
-void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_unit* unit, dw_sections* sections, dw_attr_name name, dw_form form)
+void dw_parse_form_value(oc_arena* arena, wa_reader* reader, dw_attr* res, dw_unit* unit, dw_sections* sections, dw_attr_name name, dw_form form)
 {
     switch(form)
     {
@@ -2011,23 +1740,23 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         {
             if(unit->addressSize == 4)
             {
-                res->valU64 = dw_read_u32(reader);
+                res->valU64 = wa_read_u32(reader);
             }
             else
             {
-                res->valU64 = dw_read_u64(reader);
+                res->valU64 = wa_read_u64(reader);
             }
         }
         break;
         case DW_FORM_addrx1:
         {
-            u8 indOffset = dw_read_u8(reader);
+            u8 indOffset = wa_read_u8(reader);
             //TODO: get address from debug_addr section
         }
         break;
         case DW_FORM_addrx2:
         {
-            u16 indOffset = dw_read_u16(reader);
+            u16 indOffset = wa_read_u16(reader);
             //TODO: get address from debug_addr section
         }
         break;
@@ -2035,21 +1764,21 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         {
             u64 indOffset = 0;
             u8* indOffset8 = (u8*)&indOffset;
-            indOffset8[0] = dw_read_u8(reader);
-            indOffset8[1] = dw_read_u8(reader);
-            indOffset8[2] = dw_read_u8(reader);
+            indOffset8[0] = wa_read_u8(reader);
+            indOffset8[1] = wa_read_u8(reader);
+            indOffset8[2] = wa_read_u8(reader);
             //TODO: get address from debug_addr section
         }
         break;
         case DW_FORM_addrx4:
         {
-            u32 indOffset = dw_read_u32(reader);
+            u32 indOffset = wa_read_u32(reader);
             //TODO: get address from debug_addr section
         }
         break;
         case DW_FORM_addrx:
         {
-            u64 indOffset = dw_read_leb128_u64(reader);
+            u64 indOffset = wa_read_leb128_u64(reader);
             //TODO: get address from debug_addr section
         }
         break;
@@ -2059,26 +1788,26 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_block1:
         {
-            u8 len = dw_read_u8(reader);
-            res->string = dw_read_bytes(reader, len);
+            u8 len = wa_read_u8(reader);
+            res->string = wa_read_bytes(reader, len);
         }
         break;
         case DW_FORM_block2:
         {
-            u16 len = dw_read_u16(reader);
-            res->string = dw_read_bytes(reader, len);
+            u16 len = wa_read_u16(reader);
+            res->string = wa_read_bytes(reader, len);
         }
         break;
         case DW_FORM_block4:
         {
-            u32 len = dw_read_u32(reader);
-            res->string = dw_read_bytes(reader, len);
+            u32 len = wa_read_u32(reader);
+            res->string = wa_read_bytes(reader, len);
         }
         break;
         case DW_FORM_block:
         {
-            u64 len = dw_read_leb128_u64(reader);
-            res->string = dw_read_bytes(reader, len);
+            u64 len = wa_read_leb128_u64(reader);
+            res->string = wa_read_bytes(reader, len);
         }
         break;
 
@@ -2095,22 +1824,22 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
             {
                 case DW_FORM_data1:
                 {
-                    res->valU64 = dw_read_u8(reader);
+                    res->valU64 = wa_read_u8(reader);
                 }
                 break;
                 case DW_FORM_data2:
                 {
-                    res->valU64 = dw_read_u16(reader);
+                    res->valU64 = wa_read_u16(reader);
                 }
                 break;
                 case DW_FORM_data4:
                 {
-                    res->valU64 = dw_read_u32(reader);
+                    res->valU64 = wa_read_u32(reader);
                 }
                 break;
                 case DW_FORM_data8:
                 {
-                    res->valU64 = dw_read_u64(reader);
+                    res->valU64 = wa_read_u64(reader);
                 }
                 break;
 
@@ -2128,12 +1857,12 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         break;
         case DW_FORM_sdata:
         {
-            res->valI64 = dw_read_leb128_i64(reader);
+            res->valI64 = wa_read_leb128_i64(reader);
         }
         break;
         case DW_FORM_udata:
         {
-            res->valU64 = dw_read_leb128_u64(reader);
+            res->valU64 = wa_read_leb128_u64(reader);
         }
         break;
         case DW_FORM_implicit_const:
@@ -2147,8 +1876,8 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_exprloc:
         {
-            u64 len = dw_read_leb128_u64(reader);
-            oc_str8 expr = dw_read_bytes(reader, len);
+            u64 len = wa_read_leb128_u64(reader);
+            oc_str8 expr = wa_read_bytes(reader, len);
 
             res->loc = (dw_loc){
                 .single = true,
@@ -2166,7 +1895,7 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_flag:
         {
-            res->valU8 = dw_read_u8(reader);
+            res->valU8 = wa_read_u8(reader);
         }
         break;
         case DW_FORM_flag_present:
@@ -2180,7 +1909,7 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_loclistx:
         {
-            u64 listOffset = dw_read_leb128_u64(reader);
+            u64 listOffset = wa_read_leb128_u64(reader);
             //TODO: extract list of entries form debug_loclists section
         }
         break;
@@ -2190,7 +1919,7 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_rnglistx:
         {
-            u64 rngListIndex = dw_read_leb128_u64(reader);
+            u64 rngListIndex = wa_read_leb128_u64(reader);
             //TODO: extract rnglist of entries form debug_rnglists section
         }
         break;
@@ -2201,27 +1930,27 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //NOTE: we store refs as u64 offset relative to the start of the debug section
         case DW_FORM_ref1:
         {
-            res->valU64 = unit->start + dw_read_u8(reader);
+            res->valU64 = unit->start + wa_read_u8(reader);
         }
         break;
         case DW_FORM_ref2:
         {
-            res->valU64 = unit->start + dw_read_u16(reader);
+            res->valU64 = unit->start + wa_read_u16(reader);
         }
         break;
         case DW_FORM_ref4:
         {
-            res->valU64 = unit->start + dw_read_u32(reader);
+            res->valU64 = unit->start + wa_read_u32(reader);
         }
         break;
         case DW_FORM_ref8:
         {
-            res->valU64 = unit->start + dw_read_u64(reader);
+            res->valU64 = unit->start + wa_read_u64(reader);
         }
         break;
         case DW_FORM_ref_udata:
         {
-            res->valU64 = unit->start + dw_read_leb128_u64(reader);
+            res->valU64 = unit->start + wa_read_leb128_u64(reader);
         }
         break;
 
@@ -2229,32 +1958,32 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         {
             if(unit->format == DW_DWARF32)
             {
-                res->valU64 = dw_read_u32(reader);
+                res->valU64 = wa_read_u32(reader);
             }
             else
             {
-                res->valU64 = dw_read_u64(reader);
+                res->valU64 = wa_read_u64(reader);
             }
         }
         break;
 
         case DW_FORM_ref_sig8:
         {
-            u64 sig = dw_read_u64(reader);
+            u64 sig = wa_read_u64(reader);
             //TODO: store the signature and find corresponding def later?
         }
         break;
 
         case DW_FORM_ref_sup4:
         {
-            u32 supOffset = dw_read_u32(reader);
+            u32 supOffset = wa_read_u32(reader);
             //TODO: support supplementary object files??
         }
         break;
 
         case DW_FORM_ref_sup8:
         {
-            u64 supOffset = dw_read_u64(reader);
+            u64 supOffset = wa_read_u64(reader);
             //TODO: support supplementary object files??
         }
         break;
@@ -2264,7 +1993,7 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_string:
         {
-            res->string = dw_read_cstring(reader);
+            res->string = wa_read_cstring(reader);
         }
         break;
 
@@ -2276,11 +2005,11 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
             u64 strOffset = 0;
             if(unit->format == DW_DWARF32)
             {
-                strOffset = dw_read_u32(reader);
+                strOffset = wa_read_u32(reader);
             }
             else
             {
-                strOffset = dw_read_u64(reader);
+                strOffset = wa_read_u64(reader);
             }
 
             oc_str8* strSection = 0;
@@ -2299,9 +2028,9 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
 
             if(strSection)
             {
-                dw_reader strReader = dw_reader_from_str8(*strSection);
-                dw_reader_seek(&strReader, strOffset);
-                res->string = dw_read_cstring(&strReader);
+                wa_reader strReader = wa_reader_from_str8(*strSection);
+                wa_reader_seek(&strReader, strOffset);
+                res->string = wa_read_cstring(&strReader);
             }
         }
         break;
@@ -2317,30 +2046,30 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
             {
                 case DW_FORM_strx1:
                 {
-                    index = dw_read_u8(reader);
+                    index = wa_read_u8(reader);
                 }
                 break;
                 case DW_FORM_strx2:
                 {
-                    index = dw_read_u16(reader);
+                    index = wa_read_u16(reader);
                 }
                 break;
                 case DW_FORM_strx3:
                 {
-                    u16 index16 = dw_read_u16(reader);
-                    u8 index8 = dw_read_u8(reader);
+                    u16 index16 = wa_read_u16(reader);
+                    u8 index8 = wa_read_u8(reader);
                     memcpy(&index, &index16, sizeof(u16));
                     memcpy(((char*)&index) + sizeof(u16), &index8, sizeof(u8));
                 }
                 break;
                 case DW_FORM_strx4:
                 {
-                    index = dw_read_u32(reader);
+                    index = wa_read_u32(reader);
                 }
                 break;
                 case DW_FORM_strx:
                 {
-                    index = dw_read_leb128_u64(reader);
+                    index = wa_read_leb128_u64(reader);
                 }
                 break;
 
@@ -2353,30 +2082,30 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
             //NOTE: compute start of offsets table
             //TODO: take into account string offset base...
 
-            dw_reader strOffsetReader = dw_reader_from_str8(sections->strOffsets);
+            wa_reader strOffsetReader = wa_reader_from_str8(sections->strOffsets);
 
             u8 strOffsetFormat = DW_DWARF32;
             u64 strOffsetLength = 0;
 
-            dw_read_inital_length(&strOffsetReader, &strOffsetLength, &strOffsetFormat);
+            wa_read_inital_length(&strOffsetReader, &strOffsetLength, &strOffsetFormat);
 
-            u16 strOffsetVersion = dw_read_u16(&strOffsetReader);
-            u16 padding = dw_read_u16(&strOffsetReader);
+            u16 strOffsetVersion = wa_read_u16(&strOffsetReader);
+            u16 padding = wa_read_u16(&strOffsetReader);
 
             if(strOffsetFormat == DW_DWARF32)
             {
-                dw_reader_skip(&strOffsetReader, index * 4);
-                strOffset = dw_read_u32(&strOffsetReader);
+                wa_reader_skip(&strOffsetReader, index * 4);
+                strOffset = wa_read_u32(&strOffsetReader);
             }
             else
             {
-                dw_reader_skip(&strOffsetReader, index * 8);
-                strOffset = dw_read_u64(&strOffsetReader);
+                wa_reader_skip(&strOffsetReader, index * 8);
+                strOffset = wa_read_u64(&strOffsetReader);
             }
 
-            dw_reader strReader = dw_reader_from_str8(sections->str);
-            dw_reader_seek(&strReader, strOffset);
-            res->string = dw_read_cstring(&strReader);
+            wa_reader strReader = wa_reader_from_str8(sections->str);
+            wa_reader_seek(&strReader, strOffset);
+            res->string = wa_read_cstring(&strReader);
         }
         break;
 
@@ -2389,11 +2118,11 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
             u64 addrOffset = 0;
             if(unit->format == DW_DWARF32)
             {
-                addrOffset = dw_read_u32(reader);
+                addrOffset = wa_read_u32(reader);
             }
             else
             {
-                addrOffset = dw_read_u64(reader);
+                addrOffset = wa_read_u64(reader);
             }
 
             switch(name)
@@ -2416,7 +2145,7 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
         //-----------------------
         case DW_FORM_indirect:
         {
-            u64 indForm = dw_read_leb128_u64(reader);
+            u64 indForm = wa_read_leb128_u64(reader);
             dw_parse_form_value(arena, reader, res, unit, sections, name, indForm);
         }
         break;
@@ -2429,10 +2158,10 @@ void dw_parse_form_value(oc_arena* arena, dw_reader* reader, dw_attr* res, dw_un
     }
 }
 
-void dw_parse_die(oc_arena* arena, dw_reader* reader, dw_die* die, dw_sections* sections, dw_unit* unit)
+void dw_parse_die(oc_arena* arena, wa_reader* reader, dw_die* die, dw_sections* sections, dw_unit* unit)
 {
     //NOTE: find abbreviation
-    die->abbrevCode = dw_read_leb128_u64(reader);
+    die->abbrevCode = wa_read_leb128_u64(reader);
     if(die->abbrevCode == 0)
     {
         goto end;
@@ -2590,7 +2319,7 @@ void dw_print_debug_info(dw_info* info)
 
 void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
 {
-    dw_reader reader = dw_reader_from_str8(sections->info);
+    wa_reader reader = wa_reader_from_str8(sections->info);
 
     typedef struct dw_unit_elt
     {
@@ -2601,21 +2330,21 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
     oc_list units = { 0 };
     info->unitCount = 0;
 
-    while(dw_reader_has_more(&reader))
+    while(wa_reader_has_more(&reader))
     {
         dw_unit_elt* unitElt = oc_arena_push_type(arena, dw_unit_elt);
         memset(unitElt, 0, sizeof(dw_unit_elt));
         dw_unit* unit = &unitElt->unit;
 
-        unit->start = dw_reader_offset(&reader);
+        unit->start = wa_reader_offset(&reader);
 
-        dw_read_inital_length(&reader, &unit->initialLength, &unit->format);
+        wa_read_inital_length(&reader, &unit->initialLength, &unit->format);
 
-        unit->version = dw_read_u16(&reader);
+        unit->version = wa_read_u16(&reader);
 
         if(unit->version >= 5)
         {
-            unit->type = dw_read_u8(&reader);
+            unit->type = wa_read_u8(&reader);
         }
         else
         {
@@ -2630,28 +2359,28 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
             if(unit->version >= 5)
             {
                 //NOTE: debug abbrev offset and address size are ordered differently in dwarf v4 and v5, because.. why not?
-                unit->addressSize = dw_read_u8(&reader);
+                unit->addressSize = wa_read_u8(&reader);
 
                 if(unit->format == DW_DWARF32)
                 {
-                    unit->abbrevOffset = dw_read_u32(&reader);
+                    unit->abbrevOffset = wa_read_u32(&reader);
                 }
                 else
                 {
-                    unit->abbrevOffset = dw_read_u64(&reader);
+                    unit->abbrevOffset = wa_read_u64(&reader);
                 }
             }
             else
             {
                 if(unit->format == DW_DWARF32)
                 {
-                    unit->abbrevOffset = dw_read_u32(&reader);
+                    unit->abbrevOffset = wa_read_u32(&reader);
                 }
                 else
                 {
-                    unit->abbrevOffset = dw_read_u64(&reader);
+                    unit->abbrevOffset = wa_read_u64(&reader);
                 }
-                unit->addressSize = dw_read_u8(&reader);
+                unit->addressSize = wa_read_u8(&reader);
             }
 
             oc_arena_scope scratch = oc_scratch_begin_next(arena);
@@ -2663,7 +2392,7 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
             do
             {
                 dw_die* die = oc_arena_push_type(arena, dw_die);
-                die->start = dw_reader_offset(&reader);
+                die->start = wa_reader_offset(&reader);
                 if(parentDIE)
                 {
                     die->parent = parentDIE;
@@ -2702,7 +2431,7 @@ void dw_parse_info(oc_arena* arena, dw_sections* sections, dw_info* info)
         info->unitCount++;
 
         // skip to next unit
-        dw_reader_seek(&reader, unit->start + unit->initialLength + (unit->format == DW_DWARF32 ? 4 : 8));
+        wa_reader_seek(&reader, unit->start + unit->initialLength + (unit->format == DW_DWARF32 ? 4 : 8));
     }
     //NOTE: copy units in fixed array
     info->units = oc_arena_push_array(arena, dw_unit, info->unitCount);

@@ -7,15 +7,12 @@
 **************************************************************************/
 #include <stdio.h>
 
-#include "warm_internal.h"
-#include "wasm_tables.h"
+#include "warm.h"
+#include "instructions.h"
+
 //-------------------------------------------------------------------------
 // Module
 //-------------------------------------------------------------------------
-void wa_parse_module(wa_module* module, oc_str8 contents);
-void wa_compile_code(oc_arena* arena, wa_module* module);
-
-void wa_import_debug_locals(wa_module* module);
 
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {
@@ -25,6 +22,8 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
     module->arena = arena;
 
     wa_parse_module(module, contents);
+
+    wa_import_debug_locals(module);
 
     if(oc_list_empty(module->errors))
     {

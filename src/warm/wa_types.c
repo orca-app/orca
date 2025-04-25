@@ -5,7 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include "warm_internal.h"
+#include "warm.h"
 
 static const wa_value_type WA_BLOCK_TYPE_I32_VAL = WA_TYPE_I32;
 static const wa_value_type WA_BLOCK_TYPE_I64_VAL = WA_TYPE_I64;

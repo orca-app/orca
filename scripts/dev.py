@@ -556,7 +556,8 @@ def build_warm(release):
     ]
 
     files = [
-        "src/warm/wasm_tables.c",
+        "src/warm/reader.c",
+        "src/warm/instructions.c",
         "src/warm/wa_types.c",
         "src/warm/debug_import.c",
         "src/warm/parser.c",

@@ -8,8 +8,7 @@
 #include <stdio.h>
 #include <math.h>
 
-#include "warm_internal.h"
-#include "wasm_tables.h"
+#include "warm.h"
 #include "interpreter.h"
 #include "instance.h"
 

@@ -10,32 +10,32 @@
 #include "util/typedefs.h"
 #include "util/strings.h"
 
-typedef struct dw_reader
+typedef struct wa_reader
 {
     oc_str8 contents;
     u64 offset;
     //TODO: error
-} dw_reader;
+} wa_reader;
 
-dw_reader dw_reader_from_str8(oc_str8 string);
-bool dw_reader_has_more(dw_reader* reader);
-u64 dw_reader_offset(dw_reader* reader);
-void dw_reader_seek(dw_reader* reader, u64 offset);
-void dw_reader_skip(dw_reader* reader, u64 n);
-dw_reader dw_reader_subreader(dw_reader* reader, u64 size);
+wa_reader wa_reader_from_str8(oc_str8 string);
+bool wa_reader_has_more(wa_reader* reader);
+u64 wa_reader_offset(wa_reader* reader);
+void wa_reader_seek(wa_reader* reader, u64 offset);
+void wa_reader_skip(wa_reader* reader, u64 n);
+wa_reader wa_reader_subreader(wa_reader* reader, u64 size);
 
-u64 dw_read_leb128(dw_reader* reader, u32 bitWidth, bool isSigned);
-u32 dw_read_leb128_u32(dw_reader* reader);
-u64 dw_read_leb128_u64(dw_reader* reader);
-i32 dw_read_leb128_i32(dw_reader* reader);
-i64 dw_read_leb128_i64(dw_reader* reader);
+u64 wa_read_leb128(wa_reader* reader, u32 bitWidth, bool isSigned);
+u32 wa_read_leb128_u32(wa_reader* reader);
+u64 wa_read_leb128_u64(wa_reader* reader);
+i32 wa_read_leb128_i32(wa_reader* reader);
+i64 wa_read_leb128_i64(wa_reader* reader);
 
-u64 dw_read_u64(dw_reader* reader);
-u32 dw_read_u32(dw_reader* reader);
-u16 dw_read_u16(dw_reader* reader);
-u8 dw_read_u8(dw_reader* reader);
+u64 wa_read_u64(wa_reader* reader);
+u32 wa_read_u32(wa_reader* reader);
+u16 wa_read_u16(wa_reader* reader);
+u8 wa_read_u8(wa_reader* reader);
 
-oc_str8 dw_read_bytes(dw_reader* reader, u64 len);
-oc_str8 dw_read_cstring(dw_reader* reader);
+oc_str8 wa_read_bytes(wa_reader* reader, u64 len);
+oc_str8 wa_read_cstring(wa_reader* reader);
 
-u8 dw_reader_peek_u8(dw_reader* reader);
+u8 wa_reader_peek_u8(wa_reader* reader);
