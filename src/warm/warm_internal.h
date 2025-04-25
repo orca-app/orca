@@ -861,7 +861,62 @@ typedef struct wa_register_map
     wa_register_range* ranges;
 } wa_register_map;
 
+typedef enum wa_debug_type_kind
+{
+    WA_DEBUG_TYPE_VOID,
+    WA_DEBUG_TYPE_BASIC,
+    WA_DEBUG_TYPE_POINTER,
+    WA_DEBUG_TYPE_STRUCT,
+    WA_DEBUG_TYPE_UNION,
+    WA_DEBUG_TYPE_ENUM,
+    WA_DEBUG_TYPE_ARRAY,
+    WA_DEBUG_TYPE_NAMED,
+    //...
+} wa_debug_type_kind;
+
+typedef enum wa_debug_type_encoding
+{
+    WA_DEBUG_TYPE_SIGNED,
+    WA_DEBUG_TYPE_UNSIGNED,
+    WA_DEBUG_TYPE_FLOAT,
+    WA_DEBUG_TYPE_BOOL,
+} wa_debug_type_encoding;
+
 typedef struct wa_debug_type wa_debug_type;
+
+typedef struct wa_debug_type_field
+{
+    oc_list_elt listElt;
+    oc_str8 name;
+    wa_debug_type* type;
+    u64 offset;
+} wa_debug_type_field;
+
+typedef struct wa_debug_type
+{
+    oc_list_elt listElt;
+    u64 dwarfRef;
+    oc_str8 name;
+    wa_debug_type_kind kind;
+    u64 size;
+
+    union
+    {
+        wa_debug_type_encoding encoding;
+        wa_debug_type* type;
+        oc_list fields;
+
+        struct
+        {
+            wa_debug_type* type;
+            u64 count;
+        } array;
+
+        //TODO enum, etc...
+    };
+} wa_debug_type;
+
+typedef struct dw_loc dw_loc;
 
 typedef struct wa_debug_variable
 {
@@ -973,3 +1028,19 @@ enum
     WA_MAX_REG = 4096,
     WA_MAX_SLOT_COUNT = 4096,
 };
+
+typedef struct wa_instance
+{
+    wa_status status;
+
+    oc_arena* arena;
+    wa_module* module;
+
+    wa_func* functions;
+    wa_global** globals;
+    wa_table** tables;
+    wa_memory** memories;
+
+    wa_data_segment* data;
+    wa_element* elements;
+} wa_instance;

@@ -5,6 +5,8 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+#include <math.h>
+#include <stdio.h>
 
 #include "util/typedefs.h"
 #include "util/memory.h"

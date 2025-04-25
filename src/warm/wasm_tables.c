@@ -1,3 +1,11 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2024 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
 #include "util/macros.h"
 
 static const char* wa_instr_strings[] = {
