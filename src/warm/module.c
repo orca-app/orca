@@ -8,12 +8,14 @@
 #include <stdio.h>
 
 #include "warm.h"
-#include "module.h"
 #include "debug_info.h"
 
 //-------------------------------------------------------------------------
 // Module
 //-------------------------------------------------------------------------
+
+void wa_parse_module(wa_module* module, oc_str8 contents);
+void wa_compile_code(oc_arena* arena, wa_module* module);
 
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {

@@ -9,8 +9,6 @@
 #include <math.h>
 
 #include "warm.h"
-#include "interpreter.h"
-#include "instance.h"
 
 //-------------------------------------------------------------------------------
 // Interpreter

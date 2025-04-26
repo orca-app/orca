@@ -9,7 +9,7 @@
 #include <math.h>
 
 #include "warm.h"
-#include "module.h"
+#include "debug_info.h"
 
 typedef struct wa_parser
 {

@@ -9,8 +9,7 @@
 #include "reader.h"
 #include "dwarf.h"
 #include "debug_info.h"
-#include "instance.h"
-#include "interpreter.h"
+#include "warm.h"
 
 wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
 

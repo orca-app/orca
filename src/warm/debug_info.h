@@ -8,7 +8,7 @@
 #pragma once
 
 #include "wasm/wasm.h"
-#include "module.h"
+#include "warm.h"
 
 //------------------------------------------------------------------------
 // debug structs
@@ -136,10 +136,22 @@ typedef struct wa_debug_info
 
 } wa_debug_info;
 
+//------------------------------------------------------------------------
+// helpers
+//------------------------------------------------------------------------
 wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
+
+//------------------------------------------------------------------------
+// building debug info
+//------------------------------------------------------------------------
+void wa_parse_dwarf(oc_str8 contents, wa_module* module);
+void wa_import_debug_locals(wa_module* module);
+void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
+void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
+
+//------------------------------------------------------------------------
+// using debug info
+//------------------------------------------------------------------------
 wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
 wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var);
-
-void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
-void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);

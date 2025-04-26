@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include "instance.h"
-#include "module.h"
+#include "warm.h"
 
 //-------------------------------------------------------------------------
 // instance

@@ -7,11 +7,7 @@
 **************************************************************************/
 
 #include "orca.h"
-#include "wasm/wasm.h"
-
-//#include "warm.c"
 #include "warm.h"
-#include "instance.h"
 
 void wa_module_destroy(wa_module* module)
 {
