@@ -7,6 +7,7 @@
 **************************************************************************/
 #include "warm.h"
 #include "instructions.h"
+#include "debug_info.h"
 
 //-------------------------------------------------------------------------
 // Compile
@@ -1631,8 +1632,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
-    module->debugInfo.registerMaps = oc_arena_push_array(module->arena, wa_register_map*, module->functionCount);
-    memset(module->debugInfo.registerMaps, 0, sizeof(wa_register_map) * module->functionCount);
+    module->debugInfo->registerMaps = oc_arena_push_array(module->arena, wa_register_map*, module->functionCount);
+    memset(module->debugInfo->registerMaps, 0, sizeof(wa_register_map) * module->functionCount);
 
     wa_build_context context = {
         .arena = arena,
@@ -1691,10 +1692,10 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         }
 
         //NOTE: collect register mappings
-        module->debugInfo.registerMaps[funcIndex] = oc_arena_push_array(module->arena, wa_register_map, func->maxRegCount);
+        module->debugInfo->registerMaps[funcIndex] = oc_arena_push_array(module->arena, wa_register_map, func->maxRegCount);
         for(u32 regIndex = 0; regIndex < func->maxRegCount; regIndex++)
         {
-            wa_register_map* map = &module->debugInfo.registerMaps[funcIndex][regIndex];
+            wa_register_map* map = &module->debugInfo->registerMaps[funcIndex][regIndex];
             map->count = context.registerMapCounts[regIndex];
             map->ranges = oc_arena_push_array(module->arena, wa_register_range, map->count);
 

@@ -8,6 +8,7 @@
 
 #include "reader.h"
 #include "dwarf.h"
+#include "debug_info.h"
 #include "instance.h"
 #include "interpreter.h"
 
@@ -27,10 +28,10 @@ wa_wasm_loc wa_wasm_loc_from_warm_loc(wa_warm_loc loc)
 {
     u64 id = (u64)loc.funcIndex << 32 | (u64)loc.codeIndex;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
-    u64 index = hash % loc.module->debugInfo.warmToWasmMapLen;
+    u64 index = hash % loc.module->debugInfo->warmToWasmMapLen;
 
     wa_instr* instr = 0;
-    oc_list_for(loc.module->debugInfo.warmToWasmMap[index], mapping, wa_bytecode_mapping, listElt)
+    oc_list_for(loc.module->debugInfo->warmToWasmMap[index], mapping, wa_bytecode_mapping, listElt)
     {
         if(mapping->funcIndex == loc.funcIndex && mapping->codeIndex == loc.codeIndex)
         {
@@ -53,10 +54,10 @@ wa_warm_loc wa_warm_loc_from_wasm_loc(wa_wasm_loc loc)
 
     u64 id = loc.offset;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
-    u64 index = hash % loc.module->debugInfo.wasmToWarmMapLen;
+    u64 index = hash % loc.module->debugInfo->wasmToWarmMapLen;
 
     wa_instr* instr = 0;
-    oc_list_for(loc.module->debugInfo.wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
+    oc_list_for(loc.module->debugInfo->wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
     {
         if((mapping->instr->ast->loc.start - loc.module->toc.code.offset) == loc.offset)
         {
@@ -75,14 +76,14 @@ wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc)
     wa_line_loc res = { 0 };
     wa_wasm_loc wasmLoc = wa_wasm_loc_from_warm_loc(loc);
 
-    for(u64 entryIndex = 0; entryIndex < module->debugInfo.wasmToLineCount; entryIndex++)
+    for(u64 entryIndex = 0; entryIndex < module->debugInfo->wasmToLineCount; entryIndex++)
     {
-        wa_wasm_to_line_entry* entry = &module->debugInfo.wasmToLine[entryIndex];
+        wa_wasm_to_line_entry* entry = &module->debugInfo->wasmToLine[entryIndex];
         if(entry->wasmOffset > wasmLoc.offset)
         {
             if(entryIndex)
             {
-                res = module->debugInfo.wasmToLine[entryIndex - 1].loc;
+                res = module->debugInfo->wasmToLine[entryIndex - 1].loc;
             }
             break;
         }
@@ -99,9 +100,9 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
 
     u64 currentLine = UINT64_MAX;
 
-    for(u64 entryIndex = 0; entryIndex < module->debugInfo.wasmToLineCount; entryIndex++)
+    for(u64 entryIndex = 0; entryIndex < module->debugInfo->wasmToLineCount; entryIndex++)
     {
-        wa_wasm_to_line_entry* entry = &module->debugInfo.wasmToLine[entryIndex];
+        wa_wasm_to_line_entry* entry = &module->debugInfo->wasmToLine[entryIndex];
 
         if(loc.fileIndex == entry->loc.fileIndex
            && entry->loc.line >= loc.line

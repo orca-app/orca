@@ -8,7 +8,8 @@
 #include <stdio.h>
 
 #include "warm.h"
-#include "instructions.h"
+#include "module.h"
+#include "debug_info.h"
 
 //-------------------------------------------------------------------------
 // Module
@@ -27,14 +28,16 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 
     if(oc_list_empty(module->errors))
     {
-        //TODO: tune this
-        module->debugInfo.warmToWasmMapLen = 4096;
-        module->debugInfo.warmToWasmMap = oc_arena_push_array(arena, oc_list, 4096);
-        memset(module->debugInfo.warmToWasmMap, 0, 4096 * sizeof(oc_list));
+        //TODO: call into debug info api to initalize maps
 
-        module->debugInfo.wasmToWarmMapLen = 4096;
-        module->debugInfo.wasmToWarmMap = oc_arena_push_array(arena, oc_list, 4096);
-        memset(module->debugInfo.wasmToWarmMap, 0, 4096 * sizeof(oc_list));
+        //TODO: tune this
+        module->debugInfo->warmToWasmMapLen = 4096;
+        module->debugInfo->warmToWasmMap = oc_arena_push_array(arena, oc_list, 4096);
+        memset(module->debugInfo->warmToWasmMap, 0, 4096 * sizeof(oc_list));
+
+        module->debugInfo->wasmToWarmMapLen = 4096;
+        module->debugInfo->wasmToWarmMap = oc_arena_push_array(arena, oc_list, 4096);
+        memset(module->debugInfo->wasmToWarmMap, 0, 4096 * sizeof(oc_list));
 
         wa_compile_code(arena, module);
     }
@@ -57,7 +60,7 @@ wa_status wa_module_status(wa_module* module)
 
 wa_source_info* wa_module_get_source_info(wa_module* module)
 {
-    return &module->debugInfo.sourceInfo;
+    return &module->debugInfo->sourceInfo;
 }
 
 //-------------------------------------------------------------------------

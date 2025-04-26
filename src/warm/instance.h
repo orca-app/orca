@@ -8,6 +8,7 @@
 #pragma once
 
 #include "warm.h"
+#include "module.h"
 
 typedef struct wa_instance
 {

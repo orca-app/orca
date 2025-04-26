@@ -7,6 +7,7 @@
 **************************************************************************/
 #include "warm.h"
 #include "dwarf.c"
+#include "debug_info.h"
 
 //------------------------------------------------------------------------
 // Dwarf line processing
@@ -105,34 +106,37 @@ void wa_parse_dwarf(oc_str8 contents, wa_module* module)
         }
     }
 
-    module->debugInfo.dwarf = oc_arena_push_type(module->arena, dw_info);
-    memset(module->debugInfo.dwarf, 0, sizeof(dw_info));
+    module->debugInfo = oc_arena_push_type(module->arena, wa_debug_info);
+    memset(module->debugInfo, 0, sizeof(wa_debug_info));
 
-    dw_parse_info(module->arena, &dwarfSections, module->debugInfo.dwarf);
+    module->debugInfo->dwarf = oc_arena_push_type(module->arena, dw_info);
+    memset(module->debugInfo->dwarf, 0, sizeof(dw_info));
+
+    dw_parse_info(module->arena, &dwarfSections, module->debugInfo->dwarf);
 
     //NOTE: load line info if it exists
     if(dwarfSections.line.len)
     {
-        module->debugInfo.dwarf->line = oc_arena_push_type(module->arena, dw_line_info);
-        *module->debugInfo.dwarf->line = dw_load_line_info(module->arena, &dwarfSections);
+        module->debugInfo->dwarf->line = oc_arena_push_type(module->arena, dw_line_info);
+        *module->debugInfo->dwarf->line = dw_load_line_info(module->arena, &dwarfSections);
 
-        //        dw_print_debug_info(module->debugInfo.dwarf);
+        //        dw_print_debug_info(module->debugInfo->dwarf);
 
         //dw_dump_info(dwarfSections);
-        //dw_print_line_info(module->debugInfo.dwarf->line);
+        //dw_print_line_info(module->debugInfo->dwarf->line);
 
-        dw_line_info* lineInfo = module->debugInfo.dwarf->line;
+        dw_line_info* lineInfo = module->debugInfo->dwarf->line;
 
         //NOTE: alloc wasm to line map
         for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
         {
-            module->debugInfo.wasmToLineCount += lineInfo->tables[tableIndex].entryCount;
+            module->debugInfo->wasmToLineCount += lineInfo->tables[tableIndex].entryCount;
         }
-        module->debugInfo.wasmToLine = oc_arena_push_array(module->arena, wa_wasm_to_line_entry, module->debugInfo.wasmToLineCount);
+        module->debugInfo->wasmToLine = oc_arena_push_array(module->arena, wa_wasm_to_line_entry, module->debugInfo->wasmToLineCount);
         u64 wasmToLineIndex = 0;
 
         //NOTE: build a global file table and build wasm line map
-        wa_source_info* sourceInfo = &module->debugInfo.sourceInfo;
+        wa_source_info* sourceInfo = &module->debugInfo->sourceInfo;
         oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
 
         oc_list files = { 0 };
@@ -156,8 +160,8 @@ void wa_parse_dwarf(oc_str8 contents, wa_module* module)
             if(table->header.version == 4)
             {
                 //NOTE: set current dir current file from CU info
-                OC_ASSERT(tableIndex < module->debugInfo.dwarf->unitCount);
-                dw_unit* unit = &module->debugInfo.dwarf->units[tableIndex];
+                OC_ASSERT(tableIndex < module->debugInfo->dwarf->unitCount);
+                dw_unit* unit = &module->debugInfo->dwarf->units[tableIndex];
                 dw_die* die = unit->rootDie;
 
                 OC_ASSERT(die->abbrev->tag == DW_TAG_compile_unit);
@@ -299,7 +303,7 @@ void wa_parse_dwarf(oc_str8 contents, wa_module* module)
             for(u64 entryIndex = 0; entryIndex < table->entryCount; entryIndex++)
             {
                 dw_line_entry* lineEntry = &table->entries[entryIndex];
-                wa_wasm_to_line_entry* wasmToLineEntry = &module->debugInfo.wasmToLine[wasmToLineIndex];
+                wa_wasm_to_line_entry* wasmToLineEntry = &module->debugInfo->wasmToLine[wasmToLineIndex];
 
                 wasmToLineEntry->wasmOffset = lineEntry->address;
                 wasmToLineEntry->loc.fileIndex = fileIndices[lineEntry->file];
@@ -599,15 +603,15 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 void wa_import_debug_locals(wa_module* module)
 {
     //NOTE: extract per-function local variables
-    module->debugInfo.functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
-    memset(module->debugInfo.functionLocals, 0, module->functionCount * sizeof(wa_debug_function));
+    module->debugInfo->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
+    memset(module->debugInfo->functionLocals, 0, module->functionCount * sizeof(wa_debug_function));
 
     //NOTE: list of all types to deduplicate types
     oc_list types = { 0 };
 
-    for(u64 unitIndex = 0; unitIndex < module->debugInfo.dwarf->unitCount; unitIndex++)
+    for(u64 unitIndex = 0; unitIndex < module->debugInfo->dwarf->unitCount; unitIndex++)
     {
-        dw_unit* unit = &module->debugInfo.dwarf->units[unitIndex];
+        dw_unit* unit = &module->debugInfo->dwarf->units[unitIndex];
         dw_die* die = dw_die_find_next_with_tag(unit->rootDie, unit->rootDie, DW_TAG_subprogram);
         while(die)
         {
@@ -629,7 +633,7 @@ void wa_import_debug_locals(wa_module* module)
 
                 if(found)
                 {
-                    wa_debug_function* funcInfo = &module->debugInfo.functionLocals[funcIndex];
+                    wa_debug_function* funcInfo = &module->debugInfo->functionLocals[funcIndex];
                     funcInfo->count = 0;
 
                     //NOTE: get frame base expr loc
@@ -674,7 +678,7 @@ void wa_import_debug_locals(wa_module* module)
                             dw_attr* type = dw_die_get_attr(var, DW_AT_type);
                             if(type)
                             {
-                                funcInfo->vars[varIndex].type = wa_build_debug_type_from_dwarf(module->arena, module->debugInfo.dwarf, type->valU64, &types);
+                                funcInfo->vars[varIndex].type = wa_build_debug_type_from_dwarf(module->arena, module->debugInfo->dwarf, type->valU64, &types);
                             }
 
                             var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
@@ -702,9 +706,9 @@ void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, w
 
     u64 id = (u64)funcIndex << 32 | (u64)codeIndex;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
-    u64 index = hash % module->debugInfo.warmToWasmMapLen;
+    u64 index = hash % module->debugInfo->warmToWasmMapLen;
 
-    oc_list_push_back(&module->debugInfo.warmToWasmMap[index], &mapping->listElt);
+    oc_list_push_back(&module->debugInfo->warmToWasmMap[index], &mapping->listElt);
 }
 
 void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr)
@@ -716,7 +720,7 @@ void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, w
 
     u64 id = mapping->instr->ast->loc.start - module->toc.code.offset;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
-    u64 index = hash % module->debugInfo.wasmToWarmMapLen;
+    u64 index = hash % module->debugInfo->wasmToWarmMapLen;
 
-    oc_list_push_back(&module->debugInfo.wasmToWarmMap[index], &mapping->listElt);
+    oc_list_push_back(&module->debugInfo->wasmToWarmMap[index], &mapping->listElt);
 }
