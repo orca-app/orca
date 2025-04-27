@@ -308,9 +308,8 @@ pub fn main() !void {
         };
         const bin_files_macos: []const []const u8 = &.{
             "orca_tool",
-            "orca_platform",
             "orca_runtime",
-            "liborca.dylib",
+            "liborca_platform.dylib",
             "liborca_wasm.a",
             "libEGL.dylib",
             "libGLESv2.dylib",
