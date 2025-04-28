@@ -489,31 +489,8 @@ pub fn build(b: *Build) !void {
     orca_tool_exe.addIncludePath(b.path("src/ext/zlib"));
     orca_tool_exe.addIncludePath(b.path("src/ext/microtar"));
 
-    var orca_tool_sources = std.ArrayList([]const u8).init(b.allocator);
-    try orca_tool_sources.appendSlice(&.{
-        "src/tool/main.c",
-        // "src/tool/util.c",
-        // "src/tool/version.c",
-        // "src/tool/sdk_path.c",
-        // "src/tool/install_path.c",
-        // "src/tool/bundle.c",
-        // "src/ext/microtar/microtar.c",
-        // "src/tool/tarball.c",
-        // "src/tool/update.c",
-        // "src/tool/list.c",
-        // "src/tool/system.c",
-        // "src/orca.c",
-    });
-
-    if (target.result.os.tag == .windows) {
-        // orca_tool_sources.append("win32_icon.c");
-        // orca_tool_sources.append("win32_system.c");
-    } else if (target.result.os.tag.isDarwin()) {
-        // orca_tool_sources.append("osx_system.c");
-    }
-
     orca_tool_exe.addCSourceFiles(.{
-        .files = orca_tool_sources.items,
+        .files = &.{"src/tool/main.c"},
         .flags = orca_tool_compile_flags.items,
     });
 
