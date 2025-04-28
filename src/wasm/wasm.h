@@ -324,5 +324,3 @@ typedef struct wa_source_info
     wa_source_file* files;
 
 } wa_source_info;
-
-wa_source_info* wa_module_get_source_info(wa_module* module);

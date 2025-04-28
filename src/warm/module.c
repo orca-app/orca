@@ -8,7 +8,6 @@
 #include <stdio.h>
 
 #include "warm.h"
-#include "debug_info.h"
 
 //-------------------------------------------------------------------------
 // Module
@@ -16,6 +15,9 @@
 
 void wa_parse_module(wa_module* module, oc_str8 contents);
 void wa_compile_code(oc_arena* arena, wa_module* module);
+wa_debug_info* wa_debug_info_create(oc_arena* arena);
+void wa_import_debug_locals(wa_module* module);
+void wa_parse_dwarf(oc_str8 contents, wa_module* module);
 
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {
@@ -26,20 +28,13 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 
     wa_parse_module(module, contents);
 
-    wa_import_debug_locals(module);
-
     if(oc_list_empty(module->errors))
     {
+        module->debugInfo = wa_debug_info_create(module->arena);
+        wa_parse_dwarf(contents, module);
+        wa_import_debug_locals(module);
+
         //TODO: call into debug info api to initalize maps
-
-        //TODO: tune this
-        module->debugInfo->warmToWasmMapLen = 4096;
-        module->debugInfo->warmToWasmMap = oc_arena_push_array(arena, oc_list, 4096);
-        memset(module->debugInfo->warmToWasmMap, 0, 4096 * sizeof(oc_list));
-
-        module->debugInfo->wasmToWarmMapLen = 4096;
-        module->debugInfo->wasmToWarmMap = oc_arena_push_array(arena, oc_list, 4096);
-        memset(module->debugInfo->wasmToWarmMap, 0, 4096 * sizeof(oc_list));
 
         wa_compile_code(arena, module);
     }
@@ -58,11 +53,6 @@ wa_status wa_module_status(wa_module* module)
         wa_module_error* error = oc_list_last_entry(module->errors, wa_module_error, moduleElt);
         return error->status;
     }
-}
-
-wa_source_info* wa_module_get_source_info(wa_module* module)
-{
-    return &module->debugInfo->sourceInfo;
 }
 
 //-------------------------------------------------------------------------

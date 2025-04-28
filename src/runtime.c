@@ -1261,7 +1261,7 @@ void oc_debugger_ui_open(oc_runtime* app)
         debuggerUI->canvas = oc_canvas_context_create();
         debuggerUI->ui = oc_ui_context_create(app->debugOverlay.fontReg);
 
-        wa_source_info* sourceInfo = wa_module_get_source_info(app->env.module);
+        wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
         oc_debugger_build_source_tree(&app->env.arena, &app->debuggerUI.sourceTree, sourceInfo->fileCount, sourceInfo->files);
 
         debuggerUI->init = true;
@@ -1698,7 +1698,7 @@ void debugger_ui_update(oc_runtime* app)
         f32 scrollSpeed = 0.5;
         app->debuggerUI.freshScroll = false;
 
-        wa_source_info* sourceInfo = wa_module_get_source_info(app->env.module);
+        wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
 
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
         //      if paused == false, vm thread can become paused during the frame, but we

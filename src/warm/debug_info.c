@@ -13,6 +13,23 @@
 
 wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
 
+wa_debug_info* wa_debug_info_create(oc_arena* arena)
+{
+    wa_debug_info* info = oc_arena_push_type(arena, wa_debug_info);
+    memset(info, 0, sizeof(wa_debug_info));
+
+    //TODO: tune this
+    info->warmToWasmMapLen = 4096;
+    info->warmToWasmMap = oc_arena_push_array(arena, oc_list, 4096);
+    memset(info->warmToWasmMap, 0, 4096 * sizeof(oc_list));
+
+    info->wasmToWarmMapLen = 4096;
+    info->wasmToWarmMap = oc_arena_push_array(arena, oc_list, 4096);
+    memset(info->wasmToWarmMap, 0, 4096 * sizeof(oc_list));
+
+    return info;
+}
+
 //-------------------------------------------------------------------------
 // bytecode -> instr map
 //-------------------------------------------------------------------------

@@ -106,9 +106,6 @@ void wa_parse_dwarf(oc_str8 contents, wa_module* module)
         }
     }
 
-    module->debugInfo = oc_arena_push_type(module->arena, wa_debug_info);
-    memset(module->debugInfo, 0, sizeof(wa_debug_info));
-
     module->debugInfo->dwarf = oc_arena_push_type(module->arena, dw_info);
     memset(module->debugInfo->dwarf, 0, sizeof(dw_info));
 

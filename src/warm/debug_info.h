@@ -11,7 +11,7 @@
 #include "warm.h"
 
 //------------------------------------------------------------------------
-// debug structs
+// line info structs
 //------------------------------------------------------------------------
 
 typedef struct wa_wasm_to_line_entry
@@ -19,6 +19,20 @@ typedef struct wa_wasm_to_line_entry
     u64 wasmOffset;
     wa_line_loc loc;
 } wa_wasm_to_line_entry;
+
+typedef struct wa_bytecode_mapping
+{
+    oc_list_elt listElt;
+
+    u32 funcIndex;
+    u32 codeIndex;
+    wa_instr* instr;
+
+} wa_bytecode_mapping;
+
+//------------------------------------------------------------------------
+// wasm stack slot to register mappings
+//------------------------------------------------------------------------
 
 typedef struct wa_register_range
 {
@@ -32,6 +46,10 @@ typedef struct wa_register_map
     u32 count;
     wa_register_range* ranges;
 } wa_register_map;
+
+//------------------------------------------------------------------------
+// Debug type info
+//------------------------------------------------------------------------
 
 typedef enum wa_debug_type_kind
 {
@@ -88,6 +106,10 @@ typedef struct wa_debug_type
     };
 } wa_debug_type;
 
+//------------------------------------------------------------------------
+// Variables debug info
+//------------------------------------------------------------------------
+
 typedef struct dw_info dw_info;
 typedef struct dw_loc dw_loc;
 
@@ -105,15 +127,9 @@ typedef struct wa_debug_function
     wa_debug_variable* vars;
 } wa_debug_function;
 
-typedef struct wa_bytecode_mapping
-{
-    oc_list_elt listElt;
-
-    u32 funcIndex;
-    u32 codeIndex;
-    wa_instr* instr;
-
-} wa_bytecode_mapping;
+//------------------------------------------------------------------------
+// Debug info struct
+//------------------------------------------------------------------------
 
 typedef struct wa_debug_info
 {

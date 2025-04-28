@@ -9,7 +9,6 @@
 #include <math.h>
 
 #include "warm.h"
-#include "debug_info.h"
 
 typedef struct wa_parser
 {
@@ -2110,9 +2109,6 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
     }
 
     wa_parse_sections(&parser, module);
-
-    wa_parse_dwarf(contents, module);
-
     wa_parse_names(&parser, module);
     wa_parse_types(&parser, module);
     wa_parse_imports(&parser, module);
