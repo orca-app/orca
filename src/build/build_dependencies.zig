@@ -1,8 +1,11 @@
 // This is a zig program run as part of the orca build process to build angle and dawn
-// libraries from source.
+// libraries from source, or download them from the latest release.
 
 const std = @import("std");
 const builtin = @import("builtin");
+const common = @import("common.zig");
+
+const copyFolder = common.copyFolder;
 
 const MAX_FILE_SIZE = 1024 * 1024 * 128;
 
@@ -16,6 +19,13 @@ const Lib = enum {
             .Dawn => "dawn",
         };
     }
+
+    fn toStrCased(lib: Lib) []const u8 {
+        return switch (lib) {
+            .Angle => "Angle",
+            .Dawn => "Dawn",
+        };
+    }
 };
 
 const Options = struct {
@@ -27,8 +37,9 @@ const Options = struct {
     paths: struct {
         python: []const u8,
         cmake: []const u8,
-        intermediate_dir: []const u8,
-        output_dir: []const u8,
+        orca_tool_exe: []const u8,
+        intermediate_dir: []const u8, // rename to intermediate_path or just intermediates
+        output_dir: []const u8, // rename to output_path or outputs or build
     },
 
     fn parse(args: []const [:0]const u8, arena: std.mem.Allocator) !Options {
@@ -40,6 +51,7 @@ const Options = struct {
         var python: ?[]const u8 = null;
         var cmake: ?[]const u8 = null;
         var intermediate_dir: ?[]const u8 = null;
+        var orca_tool_path: ?[]const u8 = null;
 
         for (args, 0..) |raw_arg, i| {
             if (i == 0) {
@@ -72,6 +84,8 @@ const Options = struct {
                 cmake = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--intermediate")) {
                 intermediate_dir = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--orca-tool")) {
+                orca_tool_path = splitIter.next();
             }
 
             // logic above should have consumed all tokens, if any are left it's an error
@@ -96,6 +110,8 @@ const Options = struct {
             missing_arg = "cmake";
         } else if (intermediate_dir == null) {
             missing_arg = "intermediate";
+        } else if (orca_tool_path == null) {
+            missing_arg = "orca-tool";
         }
 
         if (missing_arg) |arg| {
@@ -124,6 +140,7 @@ const Options = struct {
             .paths = .{
                 .python = python.?,
                 .cmake = cmake.?,
+                .orca_tool_exe = orca_tool_path.?,
                 .intermediate_dir = intermediate_dir.?,
                 .output_dir = output_dir,
             },
@@ -137,7 +154,7 @@ const Sort = struct {
     }
 };
 
-fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: *const std.process.EnvMap) !void {
+fn exec(arena: std.mem.Allocator, argv: []const []const u8, cwd: []const u8, env: ?*const std.process.EnvMap) !void {
     var log_msg = std.ArrayList(u8).init(arena);
     var log_writer = log_msg.writer();
     try log_writer.print("running: ", .{});
@@ -199,25 +216,37 @@ fn pathExists(dir: std.fs.Dir, path: []const u8) std.fs.Dir.AccessError!bool {
     return true;
 }
 
-fn copyFolder(allocator: std.mem.Allocator, dest: []const u8, src: []const u8) !void {
-    std.log.info("copying '{s}' to '{s}'", .{ src, dest });
-
+fn copyFile(dest: []const u8, src: []const u8) !void {
     const cwd = std.fs.cwd();
-    try cwd.makePath(dest);
 
-    const src_dir: std.fs.Dir = try cwd.openDir(src, .{ .iterate = true });
-    const dest_dir: std.fs.Dir = try cwd.openDir(dest, .{ .iterate = true });
-
-    var src_walker = try src_dir.walk(allocator);
-    while (try src_walker.next()) |src_entry| {
-        // std.debug.print("\t{s}\n", .{src_entry.path});
-        _ = switch (src_entry.kind) {
-            .directory => try dest_dir.makePath(src_entry.path),
-            .file => try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{}),
-            else => {},
-        };
+    const dest_folder_path: ?[]const u8 = std.fs.path.dirname(dest);
+    if (dest_folder_path) |path| {
+        try cwd.makePath(path);
     }
+
+    std.log.info("Copying {s} to {s}", .{ src, dest });
+    _ = try cwd.updateFile(src, cwd, dest, .{});
 }
+
+// fn copyFolder(allocator: std.mem.Allocator, dest: []const u8, src: []const u8) !void {
+//     std.log.info("copying '{s}' to '{s}'", .{ src, dest });
+
+//     const cwd = std.fs.cwd();
+//     try cwd.makePath(dest);
+
+//     const src_dir: std.fs.Dir = try cwd.openDir(src, .{ .iterate = true });
+//     const dest_dir: std.fs.Dir = try cwd.openDir(dest, .{ .iterate = true });
+
+//     var src_walker = try src_dir.walk(allocator);
+//     while (try src_walker.next()) |src_entry| {
+//         // std.debug.print("\t{s}\n", .{src_entry.path});
+//         _ = switch (src_entry.kind) {
+//             .directory => try dest_dir.makePath(src_entry.path),
+//             .file => try src_dir.updateFile(src_entry.path, dest_dir, src_entry.path, .{}),
+//             else => {},
+//         };
+//     }
+// }
 
 const CommitStamp = struct {
     commit: []const u8,
@@ -243,6 +272,24 @@ const CommitStamp = struct {
             .data = json_buffer.items,
             .flags = .{},
         });
+    }
+
+    fn read(opts: *const Options, path: []const u8, logfn: LogFn) !CommitStamp {
+        const json_data: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, path, MAX_FILE_SIZE) catch |e| {
+            logfn("Failed to read commit file from location '{s}': {}", .{ path, e });
+            return error.FailedToReadCommitStamp;
+        };
+
+        const stamp = std.json.parseFromSliceLeaky(CommitStamp, opts.arena, json_data, .{}) catch |e| {
+            logfn("Failed to parse commit json '{s}': {}. Raw json data:\n{s}\n", .{
+                path,
+                e,
+                json_data,
+            });
+            return error.FailedToParseCommitStamp;
+        };
+
+        return stamp;
     }
 };
 
@@ -288,6 +335,8 @@ fn ensureDepotTools(opts: *const Options) !std.process.EnvMap {
     return env;
 }
 
+const LogFn = *const fn (comptime format: []const u8, args: anytype) void;
+
 fn noopLog(comptime _: []const u8, _: anytype) void {}
 
 const ShouldLogError = enum {
@@ -296,27 +345,16 @@ const ShouldLogError = enum {
 };
 
 fn isLibUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool {
-    const logfn = if (log_error == .LogError) &std.log.err else &noopLog;
+    const logfn: LogFn = if (log_error == .LogError) &std.log.err else &noopLog;
 
     const commit_filename: []const u8 = switch (opts.lib) {
         .Angle => ANGLE_COMMIT_FILENAME,
         .Dawn => DAWN_COMMIT_FILENAME,
     };
 
-    const commit_stamp_path = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, commit_filename }) catch @panic("OOM");
-    const json_data: []const u8 = std.fs.cwd().readFileAlloc(opts.arena, commit_stamp_path, MAX_FILE_SIZE) catch |e| {
-        logfn("Failed to read commit file from location '{s}': {}", .{ commit_stamp_path, e });
-        return false;
-    };
+    const commit_stamp_path: []const u8 = std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, commit_filename }) catch @panic("OOM");
+    const loaded_stamp: CommitStamp = CommitStamp.read(opts, commit_stamp_path, logfn) catch return false;
 
-    const loaded_stamp = std.json.parseFromSliceLeaky(CommitStamp, opts.arena, json_data, .{}) catch |e| {
-        logfn("Failed to parse file '{s}' json: {}. Raw json data:\n{s}\n", .{
-            commit_stamp_path,
-            e,
-            json_data,
-        });
-        return false;
-    };
     if (std.mem.eql(u8, loaded_stamp.commit, opts.commit_sha) == false) {
         logfn("{s} doesn't match the required angle commit. expected {s}, got {s}", .{
             commit_stamp_path,
@@ -329,31 +367,65 @@ fn isLibUpToDate(opts: *const Options, comptime log_error: ShouldLogError) bool 
     return true;
 }
 
-fn buildAngle(opts: *const Options) !void {
-    if (isLibUpToDate(opts, .NoError)) {
-        // std.log.info("angle is up to date - no rebuild needed.\n", .{});
-        return;
-    } else if (opts.check_only) {
-        const msg =
-            \\Angle files are not present or don't match required commit.
-            \\Angle commit: {s}
-            \\
-            \\You can build the required files by running 'zig build angle'
-            \\
-            \\Alternatively you can trigger a CI run to build the binaries on github:
-            \\  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml
-            \\  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml
-            \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
-            \\  * Put the contents of the artifacts folder in './build/angle.out'
-        ;
-        std.log.err(msg, .{opts.commit_sha});
-        return error.AngleOutOfDate;
-    }
-
-    const cwd = std.fs.cwd();
+fn downloadLibFromRelease(opts: *const Options) !void {
+    const cwd: std.fs.Dir = std.fs.cwd();
     try cwd.makePath(opts.paths.intermediate_dir);
 
-    std.log.info("angle is out of date - rebuilding", .{});
+    const dev_deps_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "dev-dependencies" });
+    try cwd.deleteTree(dev_deps_path);
+
+    try exec(
+        opts.arena,
+        &.{
+            opts.paths.orca_tool_exe,
+            "update",
+            "--dev-deps", // download the latest dev dependencies archive instead of a normal release
+            "--path", // extract the archive to the intermediate directory - it always unpacks into a subfolder named dev-dependencies
+            opts.paths.intermediate_dir,
+        },
+        opts.paths.intermediate_dir,
+        null,
+    );
+
+    const lib_name: []const u8 = opts.lib.toStr();
+    const lib_json_filename: []const u8 = try std.fmt.allocPrint(opts.arena, "{s}.json", .{lib_name});
+    const dev_deps_commit_json_path: []const u8 = try std.fs.path.join(opts.arena, &.{ dev_deps_path, lib_json_filename });
+
+    const commit_stamp: CommitStamp = try CommitStamp.read(opts, dev_deps_commit_json_path, noopLog);
+    if (!std.mem.eql(u8, commit_stamp.commit, opts.commit_sha)) {
+        std.log.err(
+            "Unable to use {s} release lib since required commit {s} does not match release commit {s}",
+            .{ opts.lib.toStrCased(), opts.commit_sha, commit_stamp.commit },
+        );
+        return error.ReleaseLibMismatch;
+    }
+
+    const dest_commit_json_path = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, lib_json_filename });
+    try copyFile(dest_commit_json_path, dev_deps_commit_json_path);
+
+    // need to filter the copied files since the dependencies contains all files in one bin folder
+    const angle_files_windows: []const []const u8 = &.{ "d3dcompiler_47.dll", "libEGL.dll", "libEGL.dll.lib", "libGLESv2.dll", "libGLESv2.dll.lib" };
+    const angle_files_macos: []const []const u8 = &.{ "libEGL.dylib", "libGLESv2.dylib" };
+    const angle_files = if (builtin.os.tag == .windows) angle_files_windows else angle_files_macos;
+
+    const dawn_files_windows: []const []const u8 = &.{ "webgpu.dll", "webgpu.lib" };
+    const dawn_files_macos: []const []const u8 = &.{"webgpu.dylib"};
+    const dawn_files = if (builtin.os.tag == .windows) dawn_files_windows else dawn_files_macos;
+
+    const bin_files = if (opts.lib == .Angle) angle_files else dawn_files;
+
+    const dev_deps_bin_path: []const u8 = try std.fs.path.join(opts.arena, &.{ dev_deps_path, "bin" });
+    const dest_bin_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, "bin" });
+    try copyFolder(opts.arena, dest_bin_path, dev_deps_bin_path, &.{ .required_filenames = bin_files });
+
+    const src_include_path: []const u8 = try std.fs.path.join(opts.arena, &.{ dev_deps_path, "src", "ext", lib_name, "include" });
+    const dest_include_path: []const u8 = try std.fs.path.join(opts.arena, &.{ opts.paths.output_dir, "include" });
+    try copyFolder(opts.arena, dest_include_path, src_include_path, &.{});
+}
+
+fn buildAngle(opts: *const Options) !void {
+    const cwd = std.fs.cwd();
+    try cwd.makePath(opts.paths.intermediate_dir);
 
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
@@ -443,7 +515,7 @@ fn buildAngle(opts: *const Options) !void {
             const dest_include_path = try join(a, &.{ output_dir, folder });
             try cwd.deleteTree(dest_include_path);
             try cwd.makePath(dest_include_path);
-            _ = try copyFolder(a, dest_include_path, src_include_path);
+            _ = try copyFolder(a, dest_include_path, src_include_path, &.{});
         }
 
         var libs = std.ArrayList([]const u8).init(a);
@@ -508,32 +580,11 @@ fn buildAngle(opts: *const Options) !void {
 }
 
 fn buildDawn(opts: *const Options) !void {
-    if (isLibUpToDate(opts, .NoError)) {
-        // std.log.info("dawn is up to date - no rebuild needed.\n", .{});
-        return;
-    } else if (opts.check_only) {
-        const msg =
-            \\Dawn files are not present or don't match required commit.
-            \\Dawn commit: {s}
-            \\You can build the required files by running 'zig build dawn'
-            \\
-            \\Alternatively you can trigger a CI run to build the binaries on github:
-            \\  * For Windows, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml
-            \\  * For macOS, go to https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml
-            \\  * Click on "Run workflow" to tigger a new run, or download artifacts from a previous run
-            \\  * Put the contents of the artifacts folder in './build/dawn.out'
-        ;
-        std.log.err(msg, .{opts.commit_sha});
-
-        return error.DawnOutOfDate;
-    }
-
-    std.log.info("dawn is out of date - rebuilding", .{});
+    const cwd = std.fs.cwd();
+    try cwd.makePath(opts.paths.intermediate_dir);
 
     var env: std.process.EnvMap = try ensureDepotTools(opts);
     defer env.deinit();
-
-    const cwd = std.fs.cwd();
 
     const src_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, opts.lib.toStr() });
 
@@ -555,7 +606,6 @@ fn buildDawn(opts: *const Options) !void {
     _ = try src_dir.updateFile("scripts/standalone.gclient", src_dir, ".gclient", .{});
 
     const depot_tools_path = try std.fs.path.join(opts.arena, &.{ opts.paths.intermediate_dir, "depot_tools" });
-    // const gclient_entrypoint = if (builtin.os.tag == .windows) "gclient" else "gclient";
     const gclient_path = try std.fs.path.join(opts.arena, &.{ depot_tools_path, "gclient" });
     try execShell(opts.arena, &.{ gclient_path, "sync" }, src_path, &env);
 
@@ -682,8 +732,75 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
 
     const opts = try Options.parse(args, allocator);
+    if (isLibUpToDate(&opts, .NoError)) {
+        return;
+    }
+
+    const msg_angle =
+        \\Angle files are not present or don't match required commit ({s}).
+        \\
+        \\You can either:
+        \\
+        \\1. Attempt to use the latest official release's built libs (recommended)
+        \\
+        \\2. Locally build the required files. You can also do this by running 'zig build angle'
+        \\
+        \\3. Trigger a CI run to build the binaries on github:
+        \\  * Go to {s}
+        \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
+        \\  * Put the contents of the artifacts folder in './build/angle.out'
+        \\
+        \\Please enter the option you wish to perform (1, 2, or 3):
+    ;
+
+    const msg_dawn =
+        \\Dawn files are not present or don't match required commit ({s}).
+        \\
+        \\You can either:
+        \\
+        \\1. Attempt to use the latest official release's built libs (recommended)
+        \\
+        \\2. Locally build the required files. You can also do this by running 'zig build dawn'
+        \\
+        \\3. Trigger a CI run to build the binaries on github:
+        \\  * Go to {s}
+        \\  * Click on \"Run workflow\" to tigger a new run, or download artifacts from a previous run
+        \\  * Put the contents of the artifacts folder in './build/dawn.out'
+        \\
+        \\Please enter the option you wish to perform (1, 2, or 3):
+    ;
+
+    const angle_windows_action_url = "https://github.com/orca-app/orca/actions/workflows/build-angle-win.yaml";
+    const angle_macos_action_url = "https://github.com/orca-app/orca/actions/workflows/build-angle-mac.yaml";
+    const dawn_windows_action_url = "https://github.com/orca-app/orca/actions/workflows/build-dawn-win.yaml";
+    const dawn_macos_action_url = "https://github.com/orca-app/orca/actions/workflows/build-dawn-mac.yaml";
+
+    const action_url = switch (opts.lib) {
+        .Angle => if (builtin.os.tag == .windows) angle_windows_action_url else angle_macos_action_url,
+        .Dawn => if (builtin.os.tag == .windows) dawn_windows_action_url else dawn_macos_action_url,
+    };
+
     switch (opts.lib) {
-        .Angle => try buildAngle(&opts),
-        .Dawn => try buildDawn(&opts),
+        .Angle => std.log.info(msg_angle, .{ opts.commit_sha, action_url }),
+        .Dawn => std.log.info(msg_dawn, .{ opts.commit_sha, action_url }),
+    }
+
+    const stdin_file = std.io.getStdIn().reader();
+    const input_buf: []u8 = try stdin_file.readUntilDelimiterAlloc(allocator, '\n', 16);
+    const input = std.mem.trim(u8, input_buf, "\r");
+
+    if (std.mem.eql(u8, input, "1")) {
+        try downloadLibFromRelease(&opts);
+    } else if (std.mem.eql(u8, input, "2")) {
+        switch (opts.lib) {
+            .Angle => try buildAngle(&opts),
+            .Dawn => try buildDawn(&opts),
+        }
+    } else if (std.mem.eql(u8, input, "3")) {
+        std.log.info("Option 3 selected. After manually copying the artifacts to the build folder, rerun zig build.", .{});
+        return error.ExplicitQuit;
+    } else {
+        std.log.err("Unknown option '{s}' selected.", .{input});
+        return error.UnknownInput;
     }
 }
