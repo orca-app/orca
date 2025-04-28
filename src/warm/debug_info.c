@@ -28,6 +28,9 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
 
     //NOTE: parse and process dwarf info from contents
 
+    //TODO: pass debug info to parse dwarf?
+    module->debugInfo = info;
+
     wa_parse_dwarf(module, contents);
     wa_import_debug_locals(module);
 
@@ -63,7 +66,7 @@ wa_wasm_loc wa_wasm_loc_from_warm_loc(wa_warm_loc loc)
     if(instr)
     {
         result.module = loc.module;
-        result.offset = instr->ast->loc.start - loc.module->toc.code.offset;
+        result.offset = instr->loc.start - loc.module->toc.code.offset;
     }
     return (result);
 }
@@ -79,7 +82,7 @@ wa_warm_loc wa_warm_loc_from_wasm_loc(wa_wasm_loc loc)
     wa_instr* instr = 0;
     oc_list_for(loc.module->debugInfo->wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
     {
-        if((mapping->instr->ast->loc.start - loc.module->toc.code.offset) == loc.offset)
+        if((mapping->instr->loc.start - loc.module->toc.code.offset) == loc.offset)
         {
             result.module = loc.module;
             result.funcIndex = mapping->funcIndex;

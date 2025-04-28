@@ -34,8 +34,8 @@ u8 wa_read_u8(wa_reader* reader);
 u16 wa_read_u16(wa_reader* reader);
 u32 wa_read_u32(wa_reader* reader);
 u64 wa_read_u64(wa_reader* reader);
-u64 wa_read_f32(wa_reader* reader);
-u64 wa_read_f64(wa_reader* reader);
+f32 wa_read_f32(wa_reader* reader);
+f64 wa_read_f64(wa_reader* reader);
 
 oc_str8 wa_read_bytes(wa_reader* reader, u64 len);
 oc_str8 wa_read_cstring(wa_reader* reader);

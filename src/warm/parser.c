@@ -9,22 +9,20 @@
 #include <math.h>
 
 #include "warm.h"
+#include "reader.h"
 
 typedef struct wa_parser
 {
     oc_arena* arena;
     wa_module* module;
-    char* contents;
-    u64 len;
-    u64 offset;
-
+    wa_reader reader;
 } wa_parser;
 
 //-------------------------------------------------------------------------
 // errors
 //-------------------------------------------------------------------------
 
-void wa_parse_error(wa_parser* parser, wa_ast* ast, const char* fmt, ...)
+void wa_parse_error(wa_parser* parser, const char* fmt, ...)
 {
     wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
 
@@ -35,10 +33,7 @@ void wa_parse_error(wa_parser* parser, wa_ast* ast, const char* fmt, ...)
     error->string = oc_str8_pushfv(parser->arena, fmt, ap);
     va_end(ap);
 
-    error->ast = ast;
-
     oc_list_push_back(&parser->module->errors, &error->moduleElt);
-    oc_list_push_back(&ast->errors, &error->astElt);
 }
 
 bool wa_module_has_errors(wa_module* module)
@@ -54,550 +49,97 @@ void wa_module_print_errors(wa_module* module)
     }
 }
 
-bool wa_ast_has_errors(wa_ast* ast)
-{
-    return (!oc_list_empty(ast->errors));
-}
-
-//-------------------------------------------------------------------------
-// AST
-//-------------------------------------------------------------------------
-
-wa_ast* wa_ast_alloc(wa_parser* parser, wa_ast_kind kind)
-{
-    wa_ast* ast = oc_arena_push_type(parser->arena, wa_ast);
-    memset(ast, 0, sizeof(wa_ast));
-
-    ast->kind = kind;
-
-    return (ast);
-}
-
-void wa_ast_add_child(wa_ast* parent, wa_ast* child)
-{
-    child->parent = parent;
-    oc_list_push_back(&parent->children, &child->parentElt);
-}
-
-wa_ast* wa_ast_begin(wa_parser* parser, wa_ast* parent, wa_ast_kind kind)
-{
-    wa_ast* ast = oc_arena_push_type(parser->arena, wa_ast);
-    memset(ast, 0, sizeof(wa_ast));
-
-    ast->kind = kind;
-    ast->loc.start = parser->offset;
-
-    if(parent)
-    {
-        wa_ast_add_child(parent, ast);
-    }
-
-    return ast;
-}
-
-void wa_ast_end(wa_parser* parser, wa_ast* ast)
-{
-    ast->loc.len = parser->offset - ast->loc.start;
-}
-
-char* wa_parser_head(wa_parser* parser)
-{
-    return (parser->contents + parser->offset);
-}
-
-bool wa_parser_end(wa_parser* parser)
-{
-    return (parser->offset >= parser->len);
-}
-
-void wa_parser_seek(wa_parser* parser, u64 offset, oc_str8 label)
-{
-    parser->offset = offset;
-}
-
-wa_ast* wa_parser_read_byte(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U8);
-    ast->label = label;
-
-    if(parser->offset + sizeof(u8) > parser->len)
-    {
-        wa_parse_error(parser,
-                       ast,
-                       "Couldn't read %.*s: unexpected end of parser.\n",
-                       oc_str8_ip(label));
-    }
-    else
-    {
-        ast->valU8 = *(u8*)&parser->contents[parser->offset];
-        parser->offset += sizeof(u8);
-    }
-
-    wa_ast_end(parser, ast);
-    return (ast);
-}
-
-wa_ast* wa_parser_read_raw_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U32);
-    ast->label = label;
-
-    if(parser->offset + sizeof(u32) > parser->len)
-    {
-        wa_parse_error(parser,
-                       ast,
-                       "Couldn't read %.*s: unexpected end of parser.\n",
-                       oc_str8_ip(label));
-    }
-    else
-    {
-        ast->valU32 = *(u32*)&parser->contents[parser->offset];
-        parser->offset += sizeof(u32);
-    }
-
-    wa_ast_end(parser, ast);
-    return (ast);
-}
-
-wa_ast* wa_parser_read_leb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth, bool isSigned)
-{
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_U64);
-    ast->label = label;
-
-    char byte = 0;
-    u64 shift = 0;
-    u64 res = 0;
-    u32 count = 0;
-    u32 maxCount = (u32)ceil(bitWidth / 7.);
-
-    do
-    {
-        if(parser->offset + sizeof(char) > parser->len)
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: unexpected end of parser.\n",
-                           oc_str8_ip(label));
-            res = 0;
-            break;
-        }
-
-        if(count >= maxCount)
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: leb128 u64 representation too long.\n",
-                           oc_str8_ip(label));
-            res = 0;
-            break;
-        }
-
-        byte = parser->contents[parser->offset];
-        parser->offset++;
-
-        res |= ((u64)byte & 0x7f) << shift;
-        shift += 7;
-        count++;
-    }
-    while(byte & 0x80);
-
-    if(isSigned)
-    {
-        if(count == maxCount)
-        {
-            //NOTE: the spec mandates that unused bits must match the sign bit,
-            // so we construct a mask to select the sign bit and the unused bits,
-            // and we check that they're either all 1 or all 0
-            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
-            u8 lastByteMask = (0xff << (bitsInLastByte - 1)) & 0x7f;
-            u8 bits = byte & lastByteMask;
-
-            if(bits != 0 && bits != lastByteMask)
-            {
-                wa_parse_error(parser,
-                               ast,
-                               "Couldn't read %.*s: leb128 overflow.\n",
-                               oc_str8_ip(label));
-                res = 0;
-            }
-        }
-
-        if(shift < 64 && (byte & 0x40))
-        {
-            res |= (~0ULL << shift);
-        }
-    }
-    else
-    {
-        if(count == maxCount)
-        {
-            //NOTE: for signed the spec mandates that unused bits must be zero,
-            // so we construct a mask to select only unused bits,
-            // and we check that they're all 0
-            u8 bitsInLastByte = (bitWidth - (maxCount - 1) * 7);
-            u8 lastByteMask = (0xff << (bitsInLastByte)) & 0x7f;
-            u8 bits = byte & lastByteMask;
-
-            if(bits != 0)
-            {
-                wa_parse_error(parser,
-                               ast,
-                               "Couldn't read %.*s: leb128 overflow.\n",
-                               oc_str8_ip(label));
-                res = 0;
-            }
-        }
-    }
-
-    ast->valU64 = res;
-    wa_ast_end(parser, ast);
-
-    return (ast);
-}
-
-wa_ast* wa_parser_read_leb128_u64(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    return (wa_parser_read_leb128(parser, parent, label, 64, false));
-}
-
-/*
-wa_ast* wa_parser_read_sleb128(wa_parser* parser, wa_ast* parent, oc_str8 label, u32 bitWidth)
-{
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_I64);
-    ast->label = label;
-
-    char byte = 0;
-    u64 shift = 0;
-    i64 res = 0;
-
-    u32 maxShift = 7 * (u32)ceil(bitWidth / 7.);
-    do
-    {
-        if(parser->offset + sizeof(char) > parser->len)
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: unexpected end of parser.\n",
-                           oc_str8_ip(label));
-            byte = 0;
-            res = 0;
-            break;
-        }
-
-        if(shift >= maxShift)
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: leb128 i64 representation too long.\n",
-                           oc_str8_ip(label));
-            res = 0;
-            break;
-        }
-
-        byte = parser->contents[parser->offset];
-        parser->offset++;
-
-        if(shift == maxShift && (byte & 0x7e))
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: leb128 overflow.\n",
-                           oc_str8_ip(label));
-            res = 0;
-            byte = 0;
-            break;
-        }
-
-        if(shift >= 64)
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: leb128 overflow.\n",
-                           oc_str8_ip(label));
-            byte = 0;
-            res = 0;
-            break;
-        }
-
-        res |= ((u64)byte & 0x7f) << shift;
-        shift += 7;
-    }
-    while(byte & 0x80);
-
-    if(shift < 64 && (byte & 0x40))
-    {
-        res |= (~0ULL << shift);
-    }
-
-    ast->valI64 = res;
-
-    wa_ast_end(parser, ast);
-    return (ast);
-}
-*/
-
-wa_ast* wa_parser_read_leb128_i64(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    return (wa_parser_read_leb128(parser, parent, label, 64, true));
-}
-
-wa_ast* wa_parser_read_leb128_u32(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_parser_read_leb128(parser, parent, label, 32, false);
-    ast->kind = WA_AST_U32;
-    ast->label = label;
-
-    if(ast->valU64 > UINT32_MAX)
-    {
-        ast->valU64 = 0;
-        if(!wa_ast_has_errors(ast))
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: leb128 overflow.\n",
-                           oc_str8_ip(label));
-        }
-    }
-    else
-    {
-        ast->valU32 = (u32)ast->valU64;
-    }
-    return ast;
-}
-
-wa_ast* wa_parser_read_leb128_i32(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_parser_read_leb128(parser, parent, label, 32, true);
-    ast->kind = WA_AST_I32;
-    ast->label = label;
-
-    if(ast->valI64 > INT32_MAX || ast->valI64 < INT32_MIN)
-    {
-        ast->valI64 = 0;
-        if(!wa_ast_has_errors(ast))
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: leb128 overflow.\n",
-                           oc_str8_ip(label));
-        }
-    }
-    else
-    {
-        ast->valI32 = (i32)ast->valI64;
-    }
-    return ast;
-}
-
-wa_ast* wa_parser_read_f32(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_F32);
-    ast->label = label;
-
-    if(parser->offset + sizeof(f32) > parser->len)
-    {
-        wa_parse_error(parser,
-                       ast,
-                       "Couldn't read %.*s: unexpected end of parser.\n",
-                       oc_str8_ip(label));
-    }
-    else
-    {
-        ast->valF32 = *(f32*)&parser->contents[parser->offset];
-        parser->offset += sizeof(f32);
-    }
-
-    wa_ast_end(parser, ast);
-    return ast;
-}
-
-wa_ast* wa_parser_read_f64(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_F64);
-    ast->label = label;
-
-    if(parser->offset + sizeof(f64) > parser->len)
-    {
-        wa_parse_error(parser,
-                       ast,
-                       "Couldn't read %.*s: unexpected end of parser.\n",
-                       oc_str8_ip(label));
-    }
-    else
-    {
-        ast->valF64 = *(f64*)&parser->contents[parser->offset];
-        parser->offset += sizeof(f64);
-    }
-
-    wa_ast_end(parser, ast);
-    return ast;
-}
-
 //------------------------------------------------------------------------
 // Parsing
 //------------------------------------------------------------------------
 
-wa_ast* wa_parser_read_name(wa_parser* parser, wa_ast* parent, oc_str8 label)
+oc_str8 wa_parse_name(wa_parser* parser)
 {
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_NAME);
-    ast->label = label;
+    u32 len = wa_read_leb128_u32(&parser->reader);
+    oc_str8 string = wa_read_bytes(&parser->reader, len);
 
-    wa_ast* lenAst = wa_parser_read_leb128_u32(parser, ast, label);
-    if(!wa_ast_has_errors(lenAst))
+    oc_utf8_dec dec = {};
+    for(u64 i = 0; i < string.len; i += dec.size)
     {
-        u32 len = lenAst->valU32;
-
-        if(parser->offset + len > parser->len)
+        dec = oc_utf8_decode_at(string, i);
+        if(dec.status != OC_UTF8_OK)
         {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: unexpected end of parser.\n",
-                           oc_str8_ip(label));
-        }
-        else
-        {
-            ast->str8 = oc_str8_push_buffer(parser->arena, len, &parser->contents[parser->offset]);
-            parser->offset += len;
-
-            oc_utf8_dec dec = {};
-            for(u64 i = 0; i < ast->str8.len; i += dec.size)
-            {
-                dec = oc_utf8_decode_at(ast->str8, i);
-                if(dec.status != OC_UTF8_OK)
-                {
-                    break;
-                }
-            }
-
-            switch(dec.status)
-            {
-                case OC_UTF8_OK:
-                    break;
-                case OC_UTF8_OUT_OF_BOUNDS:
-                    wa_parse_error(parser,
-                                   ast,
-                                   "Invalid UTF8 encoding: out of bounds.\n");
-                    break;
-                case OC_UTF8_UNEXPECTED_CONTINUATION_BYTE:
-                    wa_parse_error(parser,
-                                   ast,
-                                   "Invalid UTF8 encoding: unexpected continuation byte.\n");
-                    break;
-                case OC_UTF8_UNEXPECTED_LEADING_BYTE:
-                    wa_parse_error(parser,
-                                   ast,
-                                   "Invalid UTF8 encoding: unexpected leading byte.\n");
-                    break;
-                case OC_UTF8_INVALID_BYTE:
-                    wa_parse_error(parser,
-                                   ast,
-                                   "Invalid UTF8 encoding: invalid byte.\n");
-                    break;
-                case OC_UTF8_INVALID_CODEPOINT:
-                    wa_parse_error(parser,
-                                   ast,
-                                   "Invalid UTF8 encoding: invalid codepoint.\n");
-                    break;
-                case OC_UTF8_OVERLONG_ENCODING:
-                    wa_parse_error(parser,
-                                   ast,
-                                   "Invalid UTF8 encoding: overlong encoding.\n");
-                    break;
-            }
+            break;
         }
     }
-    wa_ast_end(parser, ast);
-    return (ast);
+
+    switch(dec.status)
+    {
+        case OC_UTF8_OK:
+            break;
+        case OC_UTF8_OUT_OF_BOUNDS:
+            wa_parse_error(parser,
+                           "Invalid UTF8 encoding: out of bounds.\n");
+            break;
+        case OC_UTF8_UNEXPECTED_CONTINUATION_BYTE:
+            wa_parse_error(parser,
+                           "Invalid UTF8 encoding: unexpected continuation byte.\n");
+            break;
+        case OC_UTF8_UNEXPECTED_LEADING_BYTE:
+            wa_parse_error(parser,
+                           "Invalid UTF8 encoding: unexpected leading byte.\n");
+            break;
+        case OC_UTF8_INVALID_BYTE:
+            wa_parse_error(parser,
+                           "Invalid UTF8 encoding: invalid byte.\n");
+            break;
+        case OC_UTF8_INVALID_CODEPOINT:
+            wa_parse_error(parser,
+                           "Invalid UTF8 encoding: invalid codepoint.\n");
+            break;
+        case OC_UTF8_OVERLONG_ENCODING:
+            wa_parse_error(parser,
+                           "Invalid UTF8 encoding: overlong encoding.\n");
+            break;
+    }
+
+    return string;
 }
 
-wa_ast* wa_parser_read_bytes_vector(wa_parser* parser, wa_ast* parent, oc_str8 label)
+oc_str8 wa_parse_bytes_vector(wa_parser* parser)
 {
-    wa_ast* ast = wa_ast_begin(parser, parent, WA_AST_VECTOR);
-    ast->label = label;
-
-    wa_ast* lenAst = wa_parser_read_leb128_u32(parser, ast, label);
-    if(!wa_ast_has_errors(lenAst))
-    {
-        u32 len = lenAst->valU32;
-
-        if(parser->offset + len > parser->len)
-        {
-            wa_parse_error(parser,
-                           ast,
-                           "Couldn't read %.*s: unexpected end of parser.\n",
-                           oc_str8_ip(label));
-        }
-        else
-        {
-            ast->str8 = oc_str8_push_buffer(parser->arena, len, &parser->contents[parser->offset]);
-            parser->offset += len;
-        }
-    }
-    wa_ast_end(parser, ast);
-    return (ast);
-}
-
-wa_ast* wa_parse_value_type(wa_parser* parser, wa_ast* parent, oc_str8 label)
-{
-    wa_ast* ast = wa_parser_read_leb128_u32(parser, parent, label);
-    ast->kind = WA_AST_VALUE_TYPE;
-    ast->valueType = (wa_value_type)ast->valU32;
-
-    if(!wa_is_value_type(ast->valU32))
-    {
-        wa_parse_error(parser,
-                       ast,
-                       "unrecognized value type 0x%02x\n",
-                       ast->valU32);
-    }
-    return (ast);
+    u32 len = wa_read_leb128_u32(&parser->reader);
+    oc_str8 string = wa_read_bytes(&parser->reader, len);
+    return (string);
 }
 
 void wa_parse_sections(wa_parser* parser, wa_module* module)
 {
-    while(!wa_parser_end(parser))
+    while(wa_reader_has_more(&parser->reader))
     {
-        wa_ast* ast = wa_ast_begin(parser, module->root, WA_AST_SECTION);
-        wa_ast* sectionID = wa_parser_read_byte(parser, ast, OC_STR8("section ID"));
-        if(wa_ast_has_errors(sectionID))
-        {
-            return;
-        }
+        u8 sectionID = wa_read_u8(&parser->reader);
+        u32 sectionLen = wa_read_leb128_u32(&parser->reader);
 
-        wa_ast* sectionLen = wa_parser_read_leb128_u32(parser, ast, OC_STR8("section length"));
-        if(wa_ast_has_errors(sectionLen))
-        {
-            return;
-        }
-
-        u64 contentOffset = parser->offset;
+        u64 contentOffset = wa_reader_offset(&parser->reader);
 
         //TODO: check if section was already defined...
 
         wa_section* entry = 0;
-        switch(sectionID->valU8)
+        switch(sectionID)
         {
             case 0:
             {
-                wa_ast* name = wa_parser_read_name(parser, ast, OC_STR8("section name"));
+                oc_str8 name = wa_parse_name(parser);
 
-                if(!oc_str8_cmp(name->str8, OC_STR8("name")))
+                if(!oc_str8_cmp(name, OC_STR8("name")))
                 {
                     entry = &module->toc.names;
-                    ast->label = OC_STR8("Names section");
                 }
                 else
                 {
                     entry = oc_arena_push_type(parser->arena, wa_section);
                     memset(entry, 0, sizeof(wa_section));
-                    ast->label = OC_STR8("Custom section");
                 }
-                entry->name = name->str8;
+                entry->name = name;
 
-                if(parser->offset - contentOffset > sectionLen->valU32)
+                if(wa_reader_offset(&parser->reader) - contentOffset > sectionLen)
                 {
                     wa_parse_error(parser,
-                                   ast,
                                    "Unexpected end of custom section.\n",
                                    sectionID);
                 }
@@ -606,68 +148,55 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 
             case 1:
                 entry = &module->toc.types;
-                ast->label = OC_STR8("Types section");
                 break;
 
             case 2:
                 entry = &module->toc.imports;
-                ast->label = OC_STR8("Imports section");
                 break;
 
             case 3:
                 entry = &module->toc.functions;
-                ast->label = OC_STR8("Functions section");
                 break;
 
             case 4:
                 entry = &module->toc.tables;
-                ast->label = OC_STR8("Tables section");
                 break;
 
             case 5:
                 entry = &module->toc.memory;
-                ast->label = OC_STR8("Memory section");
                 break;
 
             case 6:
                 entry = &module->toc.globals;
-                ast->label = OC_STR8("Globals section");
                 break;
 
             case 7:
                 entry = &module->toc.exports;
-                ast->label = OC_STR8("Exports section");
                 break;
 
             case 8:
                 entry = &module->toc.start;
-                ast->label = OC_STR8("Start section");
                 break;
 
             case 9:
                 entry = &module->toc.elements;
-                ast->label = OC_STR8("Elements section");
                 break;
 
             case 10:
                 entry = &module->toc.code;
-                ast->label = OC_STR8("Code section");
                 break;
 
             case 11:
                 entry = &module->toc.data;
-                ast->label = OC_STR8("Data section");
                 break;
 
             case 12:
                 entry = &module->toc.dataCount;
-                ast->label = OC_STR8("Data count section");
                 break;
 
             default:
             {
                 wa_parse_error(parser,
-                               ast,
                                "Unknown section identifier %i.\n",
                                sectionID);
             }
@@ -676,68 +205,50 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 
         if(entry)
         {
-            if(entry->ast)
+            //TODO: check redeclaration
+            /*
             {
-                wa_parse_error(parser, ast, "Redeclaration of %.*s.\n", oc_str8_ip(ast->label));
+                wa_parse_error(parser, "Redeclaration of %.*s.\n", oc_str8_ip(ast->label));
             }
-            entry->id = sectionID->valU8;
-            entry->offset = parser->offset;
-            entry->len = sectionLen->valU32;
-            entry->ast = ast;
+            */
+            entry->id = sectionID;
+            entry->offset = wa_reader_offset(&parser->reader);
+            entry->len = sectionLen;
 
             if(entry->id == 0)
             {
-                entry->len = sectionLen->valU32 - (parser->offset - contentOffset);
+                entry->len = sectionLen - (entry->offset - contentOffset);
                 oc_list_push_back(&module->toc.customSections, &entry->listElt);
             }
         }
-        if(contentOffset + sectionLen->valU32 > parser->len || contentOffset + sectionLen->valU32 < contentOffset)
+        if(contentOffset + sectionLen > parser->reader.contents.len || contentOffset + sectionLen < contentOffset)
         {
             wa_parse_error(parser,
-                           ast,
                            "Length of section out of bounds.\n",
                            sectionID);
         }
-        wa_parser_seek(parser, contentOffset + sectionLen->valU32, OC_STR8("next section"));
-        wa_ast_end(parser, ast);
+        wa_reader_seek(&parser->reader, contentOffset + sectionLen);
     }
-}
-
-wa_ast* wa_ast_begin_vector(wa_parser* parser, wa_ast* parent, u32* count)
-{
-    wa_ast* vectorAst = wa_ast_begin(parser, parent, WA_AST_VECTOR);
-    wa_ast* countAst = wa_parser_read_leb128_u32(parser, vectorAst, OC_STR8("count"));
-
-    if(wa_ast_has_errors(countAst))
-    {
-        *count = 0;
-    }
-    else
-    {
-        *count = countAst->valU32;
-    }
-    return vectorAst;
 }
 
 void wa_parse_names(wa_parser* parser, wa_module* module)
 {
-    wa_ast* section = module->toc.names.ast;
-    if(!section)
+    if(!module->toc.names.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.names.offset, OC_STR8("names section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.names.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    while(parser->offset - startOffset < module->toc.names.len)
+    while(wa_reader_offset(&parser->reader) - startOffset < module->toc.names.len)
     {
-        wa_ast* subsection = wa_ast_begin(parser, section, WA_AST_NAME_SUBSECTION);
-        wa_ast* id = wa_parser_read_byte(parser, subsection, OC_STR8("subsection id"));
-        wa_ast* size = wa_parser_read_leb128_u32(parser, subsection, OC_STR8("subsection size"));
-        u32 subStartOffset = parser->offset;
+        u8 id = wa_read_u8(&parser->reader);
+        u32 size = wa_read_leb128_u32(&parser->reader);
+        u32 subStartOffset = wa_reader_offset(&parser->reader);
 
-        switch(id->valU8)
+        switch(id)
         {
             case 0:
             {
@@ -747,23 +258,14 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
             case 1:
             {
                 //NOTE: function names
-                wa_ast* vector = wa_ast_begin_vector(parser, subsection, &module->functionNameCount);
+                module->functionNameCount = wa_read_leb128_u32(&parser->reader);
                 module->functionNames = oc_arena_push_array(module->arena, wa_name_entry, module->functionNameCount);
 
                 for(u32 entryIndex = 0; entryIndex < module->functionNameCount; entryIndex++)
                 {
-                    wa_ast* entry = wa_ast_begin(parser, vector, WA_AST_NAME_ENTRY);
-                    wa_ast* index = wa_parser_read_leb128_u32(parser, entry, OC_STR8("index"));
-                    wa_ast* name = wa_parser_read_name(parser, entry, OC_STR8("name"));
-
-                    module->functionNames[entryIndex] = (wa_name_entry){
-                        .index = index->valU32,
-                        .name = name->str8,
-                    };
-
-                    wa_ast_end(parser, entry);
+                    module->functionNames[entryIndex].index = wa_read_leb128_u32(&parser->reader);
+                    module->functionNames[entryIndex].name = wa_parse_name(parser);
                 }
-                wa_ast_end(parser, vector);
             }
             break;
             case 2:
@@ -778,164 +280,147 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
             break;
             default:
             {
-                oc_log_warning("Unexpected subsection id %hhi at offset 0x%02x.\n", id->valU8, parser->offset);
+                oc_log_warning("Unexpected subsection id %hhi at offset 0x%02x.\n", id, wa_reader_offset(&parser->reader));
             }
             break;
         }
-        wa_ast_end(parser, subsection);
-        wa_parser_seek(parser, subStartOffset + size->valU32, OC_STR8("next subsection"));
+        wa_reader_seek(&parser->reader, subStartOffset + size);
     }
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.names.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.names.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.names.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
+}
+
+wa_value_type wa_parse_value_type(wa_parser* parser)
+{
+    wa_value_type type = wa_read_leb128_u32(&parser->reader);
+
+    if(!wa_is_value_type(type))
+    {
+        wa_parse_error(parser,
+                       "unrecognized value type 0x%02x\n",
+                       type);
+    }
+    return type;
 }
 
 void wa_parse_types(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse types section
-    wa_ast* section = module->toc.types.ast;
-    if(!section)
+    if(!module->toc.types.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.types.offset, OC_STR8("types section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.types.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->typeCount);
-
+    module->typeCount = wa_read_leb128_u32(&parser->reader);
     module->types = oc_arena_push_array(parser->arena, wa_func_type, module->typeCount);
 
     for(u32 typeIndex = 0; typeIndex < module->typeCount; typeIndex++)
     {
         wa_func_type* type = &module->types[typeIndex];
 
-        wa_ast* typeAst = wa_ast_begin(parser, vector, WA_AST_TYPE);
-        typeAst->type = type;
+        u8 b = wa_read_u8(&parser->reader);
 
-        wa_ast* b = wa_parser_read_byte(parser, typeAst, OC_STR8("type prefix"));
-
-        if(b->valU8 != 0x60)
+        if(b != 0x60)
         {
             wa_parse_error(parser,
-                           b,
                            "Unexpected prefix 0x%02x for function type.\n",
-                           b->valU8);
+                           b);
             return;
         }
 
-        wa_ast* paramCountAst = wa_parser_read_leb128_u32(parser, typeAst, OC_STR8("parameter count"));
-        type->paramCount = paramCountAst->valU32;
+        type->paramCount = wa_read_leb128_u32(&parser->reader);
         type->params = oc_arena_push_array(parser->arena, wa_value_type, type->paramCount);
 
         for(u32 typeIndex = 0; typeIndex < type->paramCount; typeIndex++)
         {
-            wa_ast* paramAst = wa_parse_value_type(parser, typeAst, OC_STR8("parameter type"));
-            type->params[typeIndex] = paramAst->valU32;
+            type->params[typeIndex] = wa_parse_value_type(parser);
         }
 
-        wa_ast* returnCountAst = wa_parser_read_leb128_u32(parser, typeAst, OC_STR8("return count"));
-        type->returnCount = returnCountAst->valU32;
+        type->returnCount = wa_read_leb128_u32(&parser->reader);
         type->returns = oc_arena_push_array(parser->arena, wa_value_type, type->returnCount);
 
         for(u32 typeIndex = 0; typeIndex < type->returnCount; typeIndex++)
         {
-            wa_ast* returnAst = wa_parse_value_type(parser, typeAst, OC_STR8("return type"));
-            type->returns[typeIndex] = returnAst->valU32;
+            type->returns[typeIndex] = wa_parse_value_type(parser);
         }
-
-        wa_ast_end(parser, typeAst);
     }
-    wa_ast_end(parser, vector);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.types.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.types.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.types.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
-wa_ast* wa_parse_limits(wa_parser* parser, wa_ast* parent, wa_limits* limits)
+wa_limits wa_parse_limits(wa_parser* parser)
 {
-    wa_ast* limitsAst = wa_ast_begin(parser, parent, WA_AST_LIMITS);
-    wa_ast* kindAst = wa_parser_read_byte(parser, limitsAst, OC_STR8("limit kind"));
-    u8 kind = kindAst->valU8;
+    wa_limits limits = { 0 };
+    u8 kind = wa_read_u8(&parser->reader);
 
     if(kind != WA_LIMIT_MIN && kind != WA_LIMIT_MIN_MAX)
     {
         wa_parse_error(parser,
-                       kindAst,
                        "Invalid limit kind 0x%02x\n",
                        kind);
     }
     else
     {
-        limits->kind = kind;
+        limits.kind = kind;
+        limits.min = wa_read_leb128_u32(&parser->reader);
 
-        wa_ast* minAst = wa_parser_read_leb128_u32(parser, limitsAst, OC_STR8("min limit"));
-        limits->min = minAst->valU32;
-
-        if(limits->kind == WA_LIMIT_MIN_MAX)
+        if(limits.kind == WA_LIMIT_MIN_MAX)
         {
-            wa_ast* maxAst = wa_parser_read_leb128_u32(parser, limitsAst, OC_STR8("max limit"));
-            limits->max = maxAst->valU32;
+            limits.max = wa_read_leb128_u32(&parser->reader);
         }
     }
-    wa_ast_end(parser, limitsAst);
-    return limitsAst;
+    return limits;
 }
 
 void wa_parse_imports(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse import section
-    wa_ast* section = module->toc.imports.ast;
-    if(!section)
+    if(!module->toc.imports.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.imports.offset, OC_STR8("import section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.imports.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->importCount);
-
+    module->importCount = wa_read_leb128_u32(&parser->reader);
     module->imports = oc_arena_push_array(parser->arena, wa_import, module->importCount);
 
     for(u32 importIndex = 0; importIndex < module->importCount; importIndex++)
     {
         wa_import* import = &module->imports[importIndex];
 
-        wa_ast* importAst = wa_ast_begin(parser, vector, WA_AST_IMPORT);
-        wa_ast* moduleNameAst = wa_parser_read_name(parser, importAst, OC_STR8("module name"));
-        wa_ast* importNameAst = wa_parser_read_name(parser, importAst, OC_STR8("import name"));
-        wa_ast* kindAst = wa_parser_read_byte(parser, importAst, OC_STR8("import kind"));
-
-        import->moduleName = moduleNameAst->str8;
-        import->importName = importNameAst->str8;
-        import->kind = kindAst->valU8;
+        import->moduleName = wa_parse_name(parser);
+        import->importName = wa_parse_name(parser);
+        import->kind = wa_read_u8(&parser->reader);
 
         switch((u32)import->kind)
         {
             case WA_IMPORT_FUNCTION:
             {
-                wa_ast* indexAst = wa_parser_read_leb128_u32(parser, importAst, OC_STR8("type index"));
-                indexAst->kind = WA_AST_TYPE_INDEX;
-                import->index = indexAst->valU32;
+                import->index = wa_read_leb128_u32(&parser->reader);
 
                 if(import->index >= module->typeCount)
                 {
                     wa_parse_error(parser,
-                                   indexAst,
                                    "Out of bounds type index in function import (type count: %u, got index %u)\n",
                                    module->functionCount,
                                    import->index);
@@ -945,24 +430,22 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
             break;
             case WA_IMPORT_TABLE:
             {
-                wa_ast* typeAst = wa_parser_read_byte(parser, importAst, OC_STR8("table type"));
-                import->type = typeAst->valU8;
+                import->type = wa_read_u8(&parser->reader);
 
                 if(import->type != WA_TYPE_FUNC_REF && import->type != WA_TYPE_EXTERN_REF)
                 {
                     wa_parse_error(parser,
-                                   typeAst,
                                    "Invalid type 0x%02x in table import \n",
                                    import->type);
                 }
-                wa_ast* limitsAst = wa_parse_limits(parser, importAst, &import->limits);
+                import->limits = wa_parse_limits(parser);
                 module->tableImportCount++;
             }
             break;
 
             case WA_IMPORT_MEMORY:
             {
-                wa_ast* limitAst = wa_parse_limits(parser, importAst, &import->limits);
+                import->limits = wa_parse_limits(parser);
                 module->memoryImportCount++;
             }
             break;
@@ -970,26 +453,22 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
             case WA_IMPORT_GLOBAL:
             {
                 //TODO: coalesce with globals section parsing
+                import->type = wa_parse_value_type(parser);
+                u8 mut = wa_read_u8(&parser->reader);
 
-                wa_ast* typeAst = wa_parse_value_type(parser, importAst, OC_STR8("type"));
-                wa_ast* mutAst = wa_parser_read_byte(parser, importAst, OC_STR8("mut"));
-
-                import->type = typeAst->valueType;
-
-                if(mutAst->valU8 == 0x00)
+                if(mut == 0x00)
                 {
                     import->mut = false;
                 }
-                else if(mutAst->valU8 == 0x01)
+                else if(mut == 0x01)
                 {
                     import->mut = true;
                 }
                 else
                 {
                     wa_parse_error(parser,
-                                   mutAst,
                                    "invalid byte 0x%02hhx as global mutability.",
-                                   mutAst->valU8);
+                                   mut);
                 }
                 module->globalImportCount++;
             }
@@ -997,38 +476,33 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
             default:
             {
                 wa_parse_error(parser,
-                               importAst,
                                "Unknown import kind 0x%02x\n",
                                (u8)import->kind);
                 return;
             }
         }
-        wa_ast_end(parser, importAst);
     }
-    wa_ast_end(parser, vector);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.imports.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.imports.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.imports.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_functions(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse function section
-    wa_parser_seek(parser, module->toc.functions.offset, OC_STR8("functions section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.functions.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* section = module->toc.functions.ast;
-    wa_ast* vector = 0;
-    if(section)
+    if(module->toc.functions.len)
     {
-        vector = wa_ast_begin_vector(parser, section, &module->functionCount);
+        module->functionCount = wa_read_leb128_u32(&parser->reader);
     }
 
     module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionImportCount + module->functionCount);
@@ -1049,20 +523,17 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: read non-import functions
-    if(section)
+    if(module->toc.functions.len)
     {
         for(u32 funcIndex = 0; funcIndex < module->functionCount; funcIndex++)
         {
             wa_func* func = &module->functions[module->functionImportCount + funcIndex];
 
-            wa_ast* typeIndexAst = wa_parser_read_leb128_u32(parser, vector, OC_STR8("type index"));
-            typeIndexAst->kind = WA_AST_FUNC_ENTRY;
-            u32 typeIndex = typeIndexAst->valU32;
+            u32 typeIndex = wa_read_leb128_u32(&parser->reader);
 
             if(typeIndex >= module->typeCount)
             {
                 wa_parse_error(parser,
-                               typeIndexAst,
                                "Invalid type index %i in function section\n",
                                typeIndex);
             }
@@ -1071,34 +542,31 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
                 func->type = &module->types[typeIndex];
             }
         }
-        wa_ast_end(parser, vector);
     }
     module->functionCount += module->functionImportCount;
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.functions.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.functions.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.functions.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
-wa_ast* wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list* list);
+void wa_parse_constant_expression(wa_parser* parser, oc_list* list);
 
 void wa_parse_globals(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse global section
-    wa_parser_seek(parser, module->toc.globals.offset, OC_STR8("globals section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.globals.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* section = module->toc.globals.ast;
-    wa_ast* vector = 0;
-    if(section)
+    if(module->toc.globals.len)
     {
-        vector = wa_ast_begin_vector(parser, section, &module->globalCount);
+        module->globalCount = wa_read_leb128_u32(&parser->reader);
     }
 
     module->globals = oc_arena_push_array(parser->arena, wa_global_desc, module->globalCount + module->globalImportCount);
@@ -1118,64 +586,54 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
         }
     }
 
-    if(section)
+    if(module->toc.globals.len)
     {
         for(u32 globalIndex = 0; globalIndex < module->globalCount; globalIndex++)
         {
             wa_global_desc* global = &module->globals[globalIndex + module->globalImportCount];
 
-            wa_ast* globalAst = wa_ast_begin(parser, vector, WA_AST_GLOBAL);
-            wa_ast* typeAst = wa_parse_value_type(parser, globalAst, OC_STR8("type"));
-            wa_ast* mutAst = wa_parser_read_byte(parser, globalAst, OC_STR8("mut"));
+            global->type = wa_parse_value_type(parser);
+            u8 mut = wa_read_u8(&parser->reader);
 
-            global->type = typeAst->valueType;
-
-            if(mutAst->valU8 == 0x00)
+            if(mut == 0x00)
             {
                 global->mut = false;
             }
-            else if(mutAst->valU8 == 0x01)
+            else if(mut == 0x01)
             {
                 global->mut = true;
             }
             else
             {
                 wa_parse_error(parser,
-                               mutAst,
                                "invalid byte 0x%02hhx as global mutability.",
-                               mutAst->valU8);
+                               mut);
             }
-            wa_parse_constant_expression(parser, globalAst, &global->init);
-
-            wa_ast_end(parser, globalAst);
+            wa_parse_constant_expression(parser, &global->init);
         }
-        wa_ast_end(parser, vector);
     }
     module->globalCount += module->globalImportCount;
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.globals.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.globals.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.globals.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_tables(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse table section
-    wa_parser_seek(parser, module->toc.tables.offset, OC_STR8("tables section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.tables.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* section = module->toc.tables.ast;
-    wa_ast* vector = 0;
-
-    if(section)
+    if(module->toc.tables.len)
     {
-        vector = wa_ast_begin_vector(parser, section, &module->tableCount);
+        module->tableCount = wa_read_leb128_u32(&parser->reader);
     }
 
     module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
@@ -1195,57 +653,47 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
         }
     }
 
-    if(section)
+    if(module->toc.tables.len)
     {
         //NOTE: read non-import tables
         for(u32 tableIndex = 0; tableIndex < module->tableCount; tableIndex++)
         {
             wa_table_type* table = &module->tables[tableIndex + module->tableImportCount];
 
-            wa_ast* tableAst = wa_ast_begin(parser, vector, WA_AST_TABLE_TYPE);
-
             //TODO coalesce with parsing of table in imports
-            wa_ast* typeAst = wa_parser_read_byte(parser, tableAst, OC_STR8("table type"));
-            table->type = typeAst->valU8;
+            table->type = wa_read_u8(&parser->reader);
 
             if(table->type != WA_TYPE_FUNC_REF && table->type != WA_TYPE_EXTERN_REF)
             {
                 wa_parse_error(parser,
-                               typeAst,
                                "Invalid type 0x%02x in table import \n",
                                table->type);
             }
-            wa_ast* limitsAst = wa_parse_limits(parser, tableAst, &table->limits);
-
-            wa_ast_end(parser, tableAst);
+            table->limits = wa_parse_limits(parser);
         }
-        wa_ast_end(parser, vector);
     }
     module->tableCount += module->tableImportCount;
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.tables.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.tables.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.tables.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_memories(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse table section
-    wa_parser_seek(parser, module->toc.memory.offset, OC_STR8("memory section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.memory.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* section = module->toc.memory.ast;
-    wa_ast* vector = 0;
-
-    if(section)
+    if(module->toc.memory.len)
     {
-        vector = wa_ast_begin_vector(parser, section, &module->memoryCount);
+        module->memoryCount = wa_read_leb128_u32(&parser->reader);
     }
 
     module->memories = oc_arena_push_array(parser->arena, wa_limits, module->memoryImportCount + module->memoryCount);
@@ -1263,57 +711,48 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
         }
     }
 
-    if(section)
+    if(module->toc.memory.len)
     {
         //NOTE: read non-import memories
         for(u32 memoryIndex = 0; memoryIndex < module->memoryCount; memoryIndex++)
         {
-            wa_limits* memory = &module->memories[memoryIndex + module->memoryImportCount];
-            wa_ast* memoryAst = wa_parse_limits(parser, vector, memory);
+            module->memories[memoryIndex + module->memoryImportCount] = wa_parse_limits(parser);
         }
-        wa_ast_end(parser, vector);
     }
     module->memoryCount += module->memoryImportCount;
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.memory.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.memory.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.memory.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_exports(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse export section
-    wa_ast* section = module->toc.exports.ast;
-    if(!section)
+    if(!module->toc.exports.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.exports.offset, OC_STR8("exports section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.exports.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->exportCount);
-
+    module->exportCount = wa_read_leb128_u32(&parser->reader);
     module->exports = oc_arena_push_array(parser->arena, wa_export, module->exportCount);
 
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
     {
         wa_export* export = &module->exports[exportIndex];
 
-        wa_ast* exportAst = wa_ast_begin(parser, vector, WA_AST_EXPORT);
-        wa_ast* nameAst = wa_parser_read_name(parser, exportAst, OC_STR8("export name"));
-        wa_ast* kindAst = wa_parser_read_byte(parser, exportAst, OC_STR8("export kind"));
-        wa_ast* indexAst = wa_parser_read_leb128_u32(parser, exportAst, OC_STR8("export index"));
-
-        export->name = nameAst->str8;
-        export->kind = kindAst->valU8;
-        export->index = indexAst->valU32;
+        export->name = wa_parse_name(parser);
+        export->kind = wa_read_u8(&parser->reader);
+        export->index = wa_read_leb128_u32(&parser->reader);
 
         switch((u32) export->kind)
         {
@@ -1322,7 +761,6 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
                 if(export->index >= module->functionCount)
                 {
                     wa_parse_error(parser,
-                                   indexAst,
                                    "Invalid type index in function export (function count: %u, got index %u)\n",
                                    module->functionCount,
                                    export->index);
@@ -1347,89 +785,76 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
             default:
             {
                 wa_parse_error(parser,
-                               kindAst,
                                "Unknown export kind 0x%02x\n",
                                (u8) export->kind);
                 //TODO end parsing section?
             }
         }
-        wa_ast_end(parser, exportAst);
     }
-    wa_ast_end(parser, vector);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.exports.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.exports.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.exports.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_start(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse export section
-    wa_ast* section = module->toc.start.ast;
-    if(!section)
+    if(!module->toc.start.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.start.offset, OC_STR8("start section"));
-    u64 startOffset = parser->offset;
-
-    wa_ast* startAst = wa_parser_read_leb128_u32(parser, section, OC_STR8("start index"));
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.start.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
     module->hasStart = true;
-    module->startIndex = startAst->valU32;
+    module->startIndex = wa_read_leb128_u32(&parser->reader);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.start.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.start.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.start.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
-wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, oc_list* list, bool constant)
+void wa_parse_expression(wa_parser* parser, u32 localCount, oc_list* list, bool constant)
 {
     wa_module* module = parser->module;
-
-    wa_ast* exprAst = wa_ast_begin(parser, parent, WA_AST_FUNC_BODY);
 
     //TODO: we should validate block nesting here?
 
     i64 blockDepth = 0;
     wa_instr* instr = 0;
 
-    while(!wa_parser_end(parser) && blockDepth >= 0)
+    while(wa_reader_has_more(&parser->reader) && blockDepth >= 0)
     {
         instr = oc_arena_push_type(parser->arena, wa_instr);
         memset(instr, 0, sizeof(wa_instr));
         oc_list_push_back(list, &instr->listElt);
 
-        wa_ast* instrAst = wa_ast_begin(parser, exprAst, WA_AST_INSTR);
-        instrAst->instr = instr;
+        ///////////////////////////////////////////////////////////////////////////////////
+        //TODO: set location of instruction
+        ///////////////////////////////////////////////////////////////////////////////////
 
-        instr->ast = instrAst;
-
-        wa_ast* byteAst = wa_parser_read_byte(parser, instrAst, OC_STR8("opcode"));
-        u8 byte = byteAst->valU8;
+        u8 byte = wa_read_u8(&parser->reader);
 
         if(byte == WA_INSTR_PREFIX_EXTENDED)
         {
-            wa_ast* extAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("extended instruction"));
-            u32 code = extAst->valU32;
+            u32 code = wa_read_leb128_u32(&parser->reader);
 
             if(code >= wa_instr_decode_extended_len)
             {
                 wa_parse_error(parser,
-                               extAst,
                                "Invalid extended instruction %i\n",
                                code);
                 break;
@@ -1438,13 +863,11 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
         }
         else if(byte == WA_INSTR_PREFIX_VECTOR)
         {
-            wa_ast* extAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("vector instruction"));
-            u32 code = extAst->valU32;
+            u32 code = wa_read_leb128_u32(&parser->reader);
 
             if(code >= wa_instr_decode_vector_len)
             {
                 wa_parse_error(parser,
-                               extAst,
                                "Invalid vector instruction %i\n",
                                code);
                 break;
@@ -1456,7 +879,6 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
             if(byte >= wa_instr_decode_basic_len)
             {
                 wa_parse_error(parser,
-                               byteAst,
                                "Invalid basic instruction 0x%02x\n",
                                byte);
                 break;
@@ -1468,7 +890,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
 
         if(!info->defined)
         {
-            wa_parse_error(parser, instrAst, "undefined instruction %s.\n", wa_instr_strings[instr->op]);
+            wa_parse_error(parser, "undefined instruction %s.\n", wa_instr_strings[instr->op]);
             break;
         }
 
@@ -1484,7 +906,6 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                && instr->op != WA_INSTR_end)
             {
                 wa_parse_error(parser,
-                               instrAst,
                                "found non-constant instruction %s while parsing constant expression.\n",
                                wa_instr_strings[instr->op]);
             }
@@ -1493,9 +914,9 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
 
         //NOTE: memory.init and data.drop need a data count section
         if((instr->op == WA_INSTR_memory_init || instr->op == WA_INSTR_data_drop)
-           && !module->toc.dataCount.ast)
+           && !module->toc.dataCount.len)
         {
-            wa_parse_error(parser, instrAst, "%s requires a data count section.\n", wa_instr_strings[instr->op]);
+            wa_parse_error(parser, "%s requires a data count section.\n", wa_instr_strings[instr->op]);
         }
 
         //NOTE: parse immediates, special cases first, then generic
@@ -1504,8 +925,7 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
            || instr->op == WA_INSTR_if)
         {
             //NOTE: parse block type
-            wa_ast* blockTypeAst = wa_parser_read_leb128_i64(parser, instrAst, OC_STR8("block type"));
-            i64 t = blockTypeAst->valI64;
+            i64 t = wa_read_leb128_i64(&parser->reader);
             if(t >= 0)
             {
                 u64 typeIndex = (u64)t;
@@ -1513,7 +933,6 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 if(typeIndex >= module->typeCount)
                 {
                     wa_parse_error(parser,
-                                   blockTypeAst,
                                    "unexpected type index %u (type count: %u)\n",
                                    typeIndex,
                                    module->typeCount);
@@ -1526,7 +945,6 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 if(t != -64 && !wa_is_value_type(t & 0x7f))
                 {
                     wa_parse_error(parser,
-                                   blockTypeAst,
                                    "unrecognized value type 0x%02hhx\n",
                                    t & 0x7f);
                     break;
@@ -1543,45 +961,33 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
         }
         else if(instr->op == WA_INSTR_select_t)
         {
-            wa_ast* vector = wa_ast_begin_vector(parser, instrAst, &instr->immCount);
+            instr->immCount = wa_read_leb128_u32(&parser->reader);
 
             if(instr->immCount != 1)
             {
                 //TODO: should set the error on the count rather than the vector?
                 wa_parse_error(parser,
-                               vector,
                                "select instruction can have at most one immediate\n");
                 break;
             }
-
-            wa_ast* immAst = wa_parse_value_type(parser, vector, OC_STR8("type"));
-
             instr->imm = oc_arena_push_type(parser->arena, wa_code);
-            instr->imm[0].valueType = immAst->valU32;
-
-            wa_ast_end(parser, vector);
+            instr->imm[0].valueType = wa_parse_value_type(parser);
         }
         else if(instr->op == WA_INSTR_br_table)
         {
-            wa_ast* vector = wa_ast_begin_vector(parser, instrAst, &instr->immCount);
-
+            instr->immCount = wa_read_leb128_u32(&parser->reader);
             instr->immCount += 1;
             instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
 
             for(u32 i = 0; i < instr->immCount - 1; i++)
             {
-                wa_ast* immAst = wa_parser_read_leb128_u32(parser, vector, OC_STR8("label"));
-                instr->imm[i].index = immAst->valU32;
+                instr->imm[i].index = wa_read_leb128_u32(&parser->reader);
             }
-            wa_ast* immAst = wa_parser_read_leb128_u32(parser, vector, OC_STR8("label"));
-            instr->imm[instr->immCount - 1].index = immAst->valU32;
-
-            wa_ast_end(parser, vector);
+            instr->imm[instr->immCount - 1].index = wa_read_leb128_u32(&parser->reader);
         }
         else
         {
             //generic case
-
             instr->immCount = info->immCount;
             instr->imm = oc_arena_push_array(parser->arena, wa_code, instr->immCount);
 
@@ -1591,59 +997,49 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 {
                     case WA_IMM_ZERO:
                     {
-                        wa_ast* immAst = wa_parser_read_byte(parser, instrAst, OC_STR8("zero"));
-                        instr->imm[immIndex].valI32 = immAst->valU8;
+                        instr->imm[immIndex].valI32 = wa_read_u8(&parser->reader);
                     }
                     break;
                     case WA_IMM_I32:
                     {
-                        wa_ast* immAst = wa_parser_read_leb128_i32(parser, instrAst, OC_STR8("i32"));
-                        instr->imm[immIndex].valI32 = immAst->valI32;
+                        instr->imm[immIndex].valI32 = wa_read_leb128_i32(&parser->reader);
                     }
                     break;
                     case WA_IMM_I64:
                     {
-                        wa_ast* immAst = wa_parser_read_leb128_i64(parser, instrAst, OC_STR8("i64"));
-                        instr->imm[immIndex].valI64 = immAst->valI64;
+                        instr->imm[immIndex].valI64 = wa_read_leb128_i64(&parser->reader);
                     }
                     break;
                     case WA_IMM_F32:
                     {
-                        wa_ast* immAst = wa_parser_read_f32(parser, instrAst, OC_STR8("f32"));
-                        instr->imm[immIndex].valF32 = immAst->valF32;
+                        instr->imm[immIndex].valF32 = wa_read_f32(&parser->reader);
                     }
                     break;
                     case WA_IMM_F64:
                     {
-                        wa_ast* immAst = wa_parser_read_f64(parser, instrAst, OC_STR8("f64"));
-                        instr->imm[immIndex].valF64 = immAst->valF64;
+                        instr->imm[immIndex].valF64 = wa_read_f64(&parser->reader);
                     }
                     break;
                     case WA_IMM_VALUE_TYPE:
                     {
-                        wa_ast* immAst = wa_parse_value_type(parser, instrAst, OC_STR8("value type"));
-                        instr->imm[immIndex].valueType = immAst->valU32;
+                        instr->imm[immIndex].valueType = wa_parse_value_type(parser);
                     }
                     break;
                     case WA_IMM_REF_TYPE:
                     {
-                        wa_ast* immAst = wa_parser_read_byte(parser, instrAst, OC_STR8("ref type"));
-                        instr->imm[immIndex].valueType = immAst->valU8;
+                        instr->imm[immIndex].valueType = wa_read_u8(&parser->reader);
                     }
                     break;
 
                     case WA_IMM_LOCAL_INDEX:
                     {
-                        wa_ast* immAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("index"));
-                        instr->imm[immIndex].index = immAst->valU32;
+                        instr->imm[immIndex].index = wa_read_leb128_u32(&parser->reader);
                     }
                     break;
 
                     case WA_IMM_FUNC_INDEX:
                     {
-                        wa_ast* immAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("function index"));
-                        instr->imm[immIndex].index = immAst->valU32;
-                        immAst->kind = WA_AST_FUNC_INDEX;
+                        instr->imm[immIndex].index = wa_read_leb128_u32(&parser->reader);
                     }
                     break;
 
@@ -1654,26 +1050,18 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                     case WA_IMM_DATA_INDEX:
                     case WA_IMM_LABEL:
                     {
-                        wa_ast* immAst = wa_parser_read_leb128_u32(parser, instrAst, OC_STR8("index"));
-                        instr->imm[immIndex].index = immAst->valU32;
+                        instr->imm[immIndex].index = wa_read_leb128_u32(&parser->reader);
                     }
                     break;
                     case WA_IMM_MEM_ARG:
                     {
-                        wa_ast* memArgAst = wa_ast_begin(parser, instrAst, WA_AST_MEM_ARG);
-                        wa_ast* alignAst = wa_parser_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
-                        wa_ast* offsetAst = wa_parser_read_leb128_u32(parser, memArgAst, OC_STR8("mem arg"));
-
-                        instr->imm[immIndex].memArg.align = alignAst->valU32;
-                        instr->imm[immIndex].memArg.offset = offsetAst->valU32;
-
-                        wa_ast_end(parser, memArgAst);
+                        instr->imm[immIndex].memArg.align = wa_read_leb128_u32(&parser->reader);
+                        instr->imm[immIndex].memArg.offset = wa_read_leb128_u32(&parser->reader);
                     }
                     break;
                     case WA_IMM_LANE_INDEX:
                     {
-                        wa_ast* immAst = wa_parser_read_byte(parser, instrAst, OC_STR8("lane index"));
-                        instr->imm[immIndex].laneIndex = immAst->valU8;
+                        instr->imm[immIndex].laneIndex = wa_read_u8(&parser->reader);
                     }
                     break;
                     /*
@@ -1689,38 +1077,33 @@ wa_ast* wa_parse_expression(wa_parser* parser, wa_ast* parent, u32 localCount, o
                 }
             }
         }
-        wa_ast_end(parser, instrAst);
     }
 
     if(!instr || instr->op != WA_INSTR_end)
     {
-        wa_parse_error(parser, exprAst, "unexpected end of expression\n");
+        wa_parse_error(parser, "unexpected end of expression\n");
     }
 
     //TODO check that we exited from an end instruction
-
-    wa_ast_end(parser, exprAst);
-    return (exprAst);
 }
 
-wa_ast* wa_parse_constant_expression(wa_parser* parser, wa_ast* parent, oc_list* list)
+void wa_parse_constant_expression(wa_parser* parser, oc_list* list)
 {
-    return wa_parse_expression(parser, parent, 0, list, true);
+    wa_parse_expression(parser, 0, list, true);
 }
 
 void wa_parse_elements(wa_parser* parser, wa_module* module)
 {
-    wa_ast* section = module->toc.elements.ast;
-    if(!section)
+    if(!module->toc.elements.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.elements.offset, OC_STR8("elements section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.elements.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &module->elementCount);
-
+    module->elementCount = wa_read_leb128_u32(&parser->reader);
     module->elements = oc_arena_push_array(parser->arena, wa_element, module->elementCount);
     memset(module->elements, 0, module->elementCount * sizeof(wa_element));
 
@@ -1728,13 +1111,11 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
     {
         wa_element* element = &module->elements[eltIndex];
 
-        wa_ast* elementAst = wa_ast_begin(parser, vector, WA_AST_ELEMENT);
-        wa_ast* prefixAst = wa_parser_read_leb128_u32(parser, elementAst, OC_STR8("prefix"));
-        u32 prefix = prefixAst->valU32;
+        u32 prefix = wa_read_leb128_u32(&parser->reader);
 
         if(prefix > 7)
         {
-            wa_parse_error(parser, prefixAst, "invalid element prefix %u\n", prefix);
+            wa_parse_error(parser, "invalid element prefix %u\n", prefix);
             return;
         }
 
@@ -1756,11 +1137,10 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x02)
             {
                 //NOTE: explicit table index
-                wa_ast* tableIndexAst = wa_parser_read_leb128_u32(parser, elementAst, OC_STR8("table index"));
                 //TODO validate index
-                element->tableIndex = tableIndexAst->valU32;
+                element->tableIndex = wa_read_leb128_u32(&parser->reader);
             }
-            wa_parse_constant_expression(parser, elementAst, &element->tableOffset);
+            wa_parse_constant_expression(parser, &element->tableOffset);
         }
 
         element->type = WA_TYPE_FUNC_REF;
@@ -1771,23 +1151,20 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x03)
             {
                 //NOTE ref type
-                wa_ast* refTypeAst = wa_parser_read_byte(parser, elementAst, OC_STR8("refType"));
-                if(refTypeAst->valU8 != WA_TYPE_FUNC_REF && refTypeAst->valU8 != WA_TYPE_EXTERN_REF)
+                element->type = wa_read_u8(&parser->reader);
+                if(element->type != WA_TYPE_FUNC_REF && element->type != WA_TYPE_EXTERN_REF)
                 {
-                    wa_parse_error(parser, refTypeAst, "ref type should be externref or funcref.");
+                    wa_parse_error(parser, "ref type should be externref or funcref.");
                 }
-                element->type = refTypeAst->valU8;
             }
 
-            wa_ast* exprVec = wa_ast_begin(parser, elementAst, WA_AST_VECTOR);
-            wa_ast* exprVecCount = wa_parser_read_leb128_u32(parser, exprVec, OC_STR8("count"));
-            element->initCount = exprVecCount->valU32;
+            element->initCount = wa_read_leb128_u32(&parser->reader);
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
             memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
 
             for(u32 i = 0; i < element->initCount; i++)
             {
-                wa_parse_constant_expression(parser, elementAst, &element->initInstr[i]);
+                wa_parse_constant_expression(parser, &element->initInstr[i]);
             }
         }
         else
@@ -1796,24 +1173,21 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x03)
             {
                 //NOTE refkind
-                wa_ast* refKindAst = wa_parser_read_byte(parser, elementAst, OC_STR8("refKind"));
-                if(refKindAst->valU8 != 0x00)
+                u8 refKind = wa_read_u8(&parser->reader);
+                if(refKind != 0x00)
                 {
-                    wa_parse_error(parser, refKindAst, "ref kind should be 0.");
+                    wa_parse_error(parser, "ref kind should be 0.");
                 }
             }
 
-            wa_ast* funcVec = wa_ast_begin(parser, elementAst, WA_AST_VECTOR);
-            wa_ast* funcVecCount = wa_parser_read_leb128_u32(parser, funcVec, OC_STR8("count"));
-            element->initCount = funcVecCount->valU32;
+            element->initCount = wa_read_leb128_u32(&parser->reader);
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
             memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
 
             for(u32 i = 0; i < element->initCount; i++)
             {
                 //TODO validate index
-                wa_ast* funcIndexAst = wa_parser_read_leb128_u32(parser, funcVec, OC_STR8("index"));
-                funcIndexAst->kind = WA_AST_FUNC_INDEX;
+                u32 funcIndex = wa_read_leb128_u32(&parser->reader);
 
                 wa_instr* init = oc_arena_push_array(parser->arena, wa_instr, 2);
                 memset(init, 0, 2 * sizeof(wa_instr));
@@ -1821,71 +1195,64 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
                 init[0].op = WA_INSTR_ref_func;
                 init[0].immCount = 1;
                 init[0].imm = oc_arena_push_type(parser->arena, wa_code);
-                init[0].imm[0].index = funcIndexAst->valU32;
+                init[0].imm[0].index = funcIndex;
                 oc_list_push_back(&element->initInstr[i], &init[0].listElt);
 
                 init[1].op = WA_INSTR_end;
                 oc_list_push_back(&element->initInstr[i], &init[1].listElt);
             }
         }
-        wa_ast_end(parser, elementAst);
     }
-    wa_ast_end(parser, vector);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.elements.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.elements.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.elements.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_data_count(wa_parser* parser, wa_module* module)
 {
-    wa_ast* section = module->toc.dataCount.ast;
-    if(!section)
+    if(!module->toc.dataCount.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.dataCount.offset, OC_STR8("data count section"));
-    u64 startOffset = parser->offset;
+    //TODO: use subreader
+    wa_reader_seek(&parser->reader, module->toc.dataCount.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    wa_ast* dataCount = wa_parser_read_leb128_u32(parser, section, OC_STR8("data count"));
-    module->dataCount = dataCount->valU32;
+    module->dataCount = wa_read_leb128_u32(&parser->reader);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.dataCount.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.dataCount.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.dataCount.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_data(wa_parser* parser, wa_module* module)
 {
-    wa_ast* section = module->toc.data.ast;
-    if(!section)
+    if(!module->toc.data.len)
     {
         return;
     }
 
-    wa_parser_seek(parser, module->toc.data.offset, OC_STR8("data section"));
-    u64 startOffset = parser->offset;
+    //TODO use subreader
+    wa_reader_seek(&parser->reader, module->toc.data.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    u32 dataCount = 0;
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &dataCount);
+    u32 dataCount = wa_read_leb128_u32(&parser->reader);
 
-    if(module->toc.dataCount.ast && dataCount != module->dataCount)
+    if(module->toc.dataCount.len && dataCount != module->dataCount)
     {
         wa_parse_error(parser,
-                       vector,
                        "Number of data segments does not match data count section (expected %u, got %u).\n",
                        module->dataCount,
                        dataCount);
@@ -1899,13 +1266,11 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
     {
         wa_data_segment* seg = &module->data[segIndex];
 
-        wa_ast* segmentAst = wa_ast_begin(parser, vector, WA_AST_DATA_SEGMENT);
-        wa_ast* prefixAst = wa_parser_read_leb128_u32(parser, segmentAst, OC_STR8("prefix"));
-        u32 prefix = prefixAst->valU32;
+        u32 prefix = wa_read_leb128_u32(&parser->reader);
 
         if(prefix > 2)
         {
-            wa_parse_error(parser, prefixAst, "invalid segment prefix %u\n", prefix);
+            wa_parse_error(parser, "invalid segment prefix %u\n", prefix);
             return;
         }
 
@@ -1919,58 +1284,48 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
             if(prefix & 0x02)
             {
                 //NOTE: explicit memory index
-                wa_ast* memoryIndexAst = wa_parser_read_leb128_u32(parser, segmentAst, OC_STR8("memory index"));
                 //TODO validate index
-                seg->memoryIndex = memoryIndexAst->valU32;
+                seg->memoryIndex = wa_read_leb128_u32(&parser->reader);
             }
-            wa_parse_constant_expression(parser, segmentAst, &seg->memoryOffset);
+            wa_parse_constant_expression(parser, &seg->memoryOffset);
         }
 
         //NOTE: parse vec(bytes)
-        wa_ast* initVec = wa_parser_read_bytes_vector(parser, segmentAst, OC_STR8("init"));
-        seg->init = initVec->str8;
-
-        wa_ast_end(parser, segmentAst);
+        seg->init = wa_parse_bytes_vector(parser);
     }
-    wa_ast_end(parser, vector);
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.data.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.data.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.data.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
 void wa_parse_code(wa_parser* parser, wa_module* module)
 {
-    wa_ast* section = module->toc.code.ast;
-    if(!section)
+    if(!module->toc.code.len)
     {
         if(module->functionCount - module->functionImportCount)
         {
             wa_parse_error(parser,
-                           module->toc.functions.ast,
                            "Function section declares %i functions, but code section is absent",
                            module->functionCount - module->functionImportCount);
         }
         return;
     }
 
-    wa_parser_seek(parser, module->toc.code.offset, OC_STR8("code section"));
-    u64 startOffset = parser->offset;
+    wa_reader_seek(&parser->reader, module->toc.code.offset);
+    u64 startOffset = wa_reader_offset(&parser->reader);
 
-    u32 functionCount = 0;
-    wa_ast* vector = wa_ast_begin_vector(parser, section, &functionCount);
+    u32 functionCount = wa_read_leb128_u32(&parser->reader);
 
     if(functionCount != module->functionCount - module->functionImportCount)
     {
         //TODO should set the error on the count, not the vector?
         wa_parse_error(parser,
-                       vector,
                        "Function count mismatch (function section: %i, code section: %i\n",
                        module->functionCount - module->functionImportCount,
                        functionCount);
@@ -1981,19 +1336,13 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     {
         wa_func* func = &module->functions[funcIndex];
 
-        wa_ast* funcAst = wa_ast_begin(parser, vector, WA_AST_FUNC);
-        funcAst->func = func;
-
         oc_arena_scope scratch = oc_scratch_begin();
 
-        wa_ast* lenAst = wa_parser_read_leb128_u32(parser, funcAst, OC_STR8("function length"));
-
-        u32 funcLen = lenAst->valU32;
-        u32 funcStartOffset = parser->offset;
+        u32 funcLen = wa_read_leb128_u32(&parser->reader);
+        u32 funcStartOffset = wa_reader_offset(&parser->reader);
 
         //NOTE: parse locals
-        u32 localEntryCount = 0;
-        wa_ast* localsVector = wa_ast_begin_vector(parser, funcAst, &localEntryCount);
+        u32 localEntryCount = wa_read_leb128_u32(&parser->reader);
 
         u32* counts = oc_arena_push_array(scratch.arena, u32, localEntryCount);
         wa_value_type* types = oc_arena_push_array(scratch.arena, wa_value_type, localEntryCount);
@@ -2001,19 +1350,13 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         func->localCount = func->type->paramCount;
         for(u32 localEntryIndex = 0; localEntryIndex < localEntryCount; localEntryIndex++)
         {
-            wa_ast* localEntryAst = wa_ast_begin(parser, localsVector, WA_AST_LOCAL_ENTRY);
-            wa_ast* countAst = wa_parser_read_leb128_u32(parser, localEntryAst, OC_STR8("count"));
-            wa_ast* typeAst = wa_parser_read_byte(parser, localEntryAst, OC_STR8("type"));
-            typeAst->kind = WA_AST_VALUE_TYPE;
-
-            counts[localEntryIndex] = countAst->valU32;
-            types[localEntryIndex] = typeAst->valU8;
+            counts[localEntryIndex] = wa_read_leb128_u32(&parser->reader);
+            types[localEntryIndex] = wa_read_u8(&parser->reader);
 
             if(func->localCount + counts[localEntryIndex] < func->localCount)
             {
                 //NOTE: overflow
                 wa_parse_error(parser,
-                               funcAst,
                                "Too many locals for function %i\n",
                                funcIndex);
                 goto parse_function_end;
@@ -2021,10 +1364,8 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 
             func->localCount += counts[localEntryIndex];
 
-            wa_ast_end(parser, localEntryAst);
             //TODO: validate types? or validate later?
         }
-        wa_ast_end(parser, localsVector);
 
         //NOTE: expand locals
         func->locals = oc_arena_push_array(parser->arena, wa_value_type, func->localCount);
@@ -2048,35 +1389,31 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         }
 
         //NOTE: parse body
-        wa_ast* bodyAst = wa_parse_expression(parser, funcAst, func->localCount, &func->instructions, false);
-
-        wa_ast_end(parser, funcAst);
+        wa_parse_expression(parser, func->localCount, &func->instructions, false);
 
         //NOTE: check entry length
-        if(parser->offset - funcStartOffset != funcLen)
+        if(wa_reader_offset(&parser->reader) - funcStartOffset != funcLen)
         {
             wa_parse_error(parser,
-                           funcAst,
                            "Size of code entry %i does not match declared size (declared %u, got %u)\n",
                            funcIndex,
                            funcLen,
-                           parser->offset - funcStartOffset);
+                           wa_reader_offset(&parser->reader) - funcStartOffset);
             goto parse_function_end;
         }
 
     parse_function_end:
         oc_scratch_end(scratch);
-        wa_parser_seek(parser, funcStartOffset + funcLen, OC_STR8("next function"));
+        wa_reader_seek(&parser->reader, funcStartOffset + funcLen);
     }
 
     //NOTE: check section size
-    if(parser->offset - startOffset != module->toc.code.len)
+    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.code.len)
     {
         wa_parse_error(parser,
-                       section,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.code.len,
-                       parser->offset - startOffset);
+                       wa_reader_offset(&parser->reader) - startOffset);
     }
 }
 
@@ -2085,26 +1422,21 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
     wa_parser parser = {
         .module = module,
         .arena = module->arena,
-        .len = contents.len,
-        .contents = contents.ptr,
+        .reader = wa_reader_from_str8(contents),
     };
 
-    module->root = wa_ast_alloc(&parser, WA_AST_ROOT);
+    u32 magic = wa_read_u32(&parser.reader);
 
-    wa_ast* magic = wa_parser_read_raw_u32(&parser, module->root, OC_STR8("wasm magic number"));
-    if(magic->kind == WA_AST_U32
-       && magic->valU32 != 0x6d736100)
+    if(magic != 0x6d736100)
     {
-        wa_parse_error(&parser, magic, "wrong wasm magic number");
+        wa_parse_error(&parser, "wrong wasm magic number");
         return;
     }
-    magic->kind = WA_AST_MAGIC;
 
-    wa_ast* version = wa_parser_read_raw_u32(&parser, module->root, OC_STR8("wasm version"));
-    if(version->kind == WA_AST_U32
-       && version->valU32 != 1)
+    u32 version = wa_read_u32(&parser.reader);
+    if(version != 1)
     {
-        wa_parse_error(&parser, version, "wrong wasm version");
+        wa_parse_error(&parser, "wrong wasm version");
         return;
     }
 

@@ -715,7 +715,7 @@ void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, w
     mapping->codeIndex = codeIndex;
     mapping->instr = instr;
 
-    u64 id = mapping->instr->ast->loc.start - module->toc.code.offset;
+    u64 id = mapping->instr->loc.start - module->toc.code.offset;
     u64 hash = oc_hash_xx64_string((oc_str8){ .ptr = (char*)&id, .len = 8 });
     u64 index = hash % module->debugInfo->wasmToWarmMapLen;
 

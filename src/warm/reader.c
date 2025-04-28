@@ -215,7 +215,7 @@ u8 wa_read_u8(wa_reader* reader)
     return res;
 }
 
-u64 wa_read_f32(wa_reader* reader)
+f32 wa_read_f32(wa_reader* reader)
 {
     f32 res = 0;
     if(reader->offset + sizeof(f32) > reader->contents.len)
@@ -230,7 +230,7 @@ u64 wa_read_f32(wa_reader* reader)
     return res;
 }
 
-u64 wa_read_f64(wa_reader* reader)
+f64 wa_read_f64(wa_reader* reader)
 {
     f64 res = 0;
     if(reader->offset + sizeof(f64) > reader->contents.len)

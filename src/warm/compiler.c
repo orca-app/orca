@@ -104,7 +104,7 @@ void wa_register_mapping_push(wa_build_context* context, u32 regIndex, u64 start
     context->registerMapCounts[regIndex]++;
 }
 
-void wa_compile_error(wa_build_context* context, wa_ast* ast, const char* fmt, ...)
+void wa_compile_error(wa_build_context* context, wa_instr* instr, const char* fmt, ...)
 {
     wa_module_error* error = oc_arena_push_type(context->arena, wa_module_error);
     memset(error, 0, sizeof(wa_module_error));
@@ -113,30 +113,6 @@ void wa_compile_error(wa_build_context* context, wa_ast* ast, const char* fmt, .
     va_start(ap, fmt);
     error->string = oc_str8_pushfv(context->arena, fmt, ap);
     va_end(ap);
-
-    error->ast = ast;
-    if(ast)
-    {
-        oc_list_push_back(&ast->errors, &error->astElt);
-    }
-
-    oc_list_push_back(&context->module->errors, &error->moduleElt);
-}
-
-void wa_compile_error_block_end(wa_build_context* context, wa_ast* ast, const char* fmt, ...)
-{
-    wa_module_error* error = oc_arena_push_type(context->arena, wa_module_error);
-    memset(error, 0, sizeof(wa_module_error));
-
-    va_list ap;
-    va_start(ap, fmt);
-    error->string = oc_str8_pushfv(context->arena, fmt, ap);
-    va_end(ap);
-
-    error->ast = ast;
-    error->blockEnd = true;
-
-    oc_list_push_back(&ast->errors, &error->astElt);
 
     oc_list_push_back(&context->module->errors, &error->moduleElt);
 }
@@ -236,7 +212,7 @@ u32 wa_allocate_register(wa_build_context* context, wa_value_type type)
     {
         if(context->regCount >= WA_MAX_REG)
         {
-            wa_compile_error(context, context->currentInstr->ast, "register allocation overflow\n");
+            wa_compile_error(context, context->currentInstr, "register allocation overflow\n");
         }
         else
         {
@@ -507,14 +483,14 @@ wa_operand* wa_operand_stack_get_operands(oc_arena* arena,
 
         if(wa_operand_is_nil(&opds[opdIndex]))
         {
-            wa_compile_error(context, instr->ast, "unbalanced stack\n");
+            wa_compile_error(context, instr, "unbalanced stack\n");
             break;
         }
         else
         {
             if(!wa_check_operand_type(opds[opdIndex].type, types[opdIndex]))
             {
-                wa_compile_error(context, instr->ast, "operand types mismatch\n");
+                wa_compile_error(context, instr, "operand types mismatch\n");
                 //TODO: here we can give a better error message since we have all the operands popped so far
                 break;
             }
@@ -902,7 +878,7 @@ void wa_compile_branch(wa_build_context* context, wa_instr* instr, u32 label)
         {
             //TODO here we should pass the ast of the _immediate_, not the instruction
             wa_compile_error(context,
-                             instr->ast,
+                             instr,
                              "block level %u not found\n",
                              label);
             return;
@@ -991,7 +967,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->valI32 != 0)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "non zero value in 0x%x in zero immediate\n",
                                      (u32)imm->valI32);
                     check = false;
@@ -1004,7 +980,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(!wa_is_value_type(imm->valueType))
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid value type 0x%x\n",
                                      (u32)imm->valueType);
                     check = false;
@@ -1016,7 +992,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->valueType != WA_TYPE_FUNC_REF && imm->valueType != WA_TYPE_EXTERN_REF)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid reference type %x\n",
                                      (u32)imm->valueType);
                     check = false;
@@ -1028,7 +1004,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= func->localCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid local index %u (localCount: %u)\n",
                                      imm->index,
                                      func->localCount);
@@ -1041,7 +1017,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= module->functionCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid function index %u (function count: %u)\n",
                                      imm->index,
                                      module->functionCount);
@@ -1054,7 +1030,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= module->globalCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid global index %u (global count: %u)\n",
                                      imm->index,
                                      module->globalCount);
@@ -1067,7 +1043,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= module->typeCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid type index %u (type count: %u)\n",
                                      imm->index,
                                      module->typeCount);
@@ -1081,7 +1057,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= module->tableCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid table index %u (table count: %u)\n",
                                      imm->index,
                                      module->tableCount);
@@ -1094,7 +1070,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= module->elementCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid element index %u (element count: %u)\n",
                                      imm->index,
                                      module->elementCount);
@@ -1107,7 +1083,7 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                 if(imm->index >= module->dataCount)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "invalid data index %u (data count: %u)\n",
                                      imm->index,
                                      module->dataCount);
@@ -1183,7 +1159,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             {
                 //TODO: should this be validated at parse stage?
                 wa_compile_error(context,
-                                 instr->ast,
+                                 instr,
                                  "unexpected else block\n");
             }
             else
@@ -1522,7 +1498,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 if(module->memoryCount == 0)
                 {
                     wa_compile_error(context,
-                                     instr->ast,
+                                     instr,
                                      "found memory instruction, but the module has no declared memory.\n");
                 }
             }
@@ -1544,7 +1520,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             {
                 if(!wa_check_operand_type(inOpds[0].type, inOpds[1].type))
                 {
-                    wa_compile_error(context, instr->ast, "select operands must be of same type\n");
+                    wa_compile_error(context, instr, "select operands must be of same type\n");
                 }
                 out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
                 out[0] = inOpds[0].type;
