@@ -15,9 +15,7 @@
 
 void wa_parse_module(wa_module* module, oc_str8 contents);
 void wa_compile_code(oc_arena* arena, wa_module* module);
-wa_debug_info* wa_debug_info_create(oc_arena* arena);
-void wa_import_debug_locals(wa_module* module);
-void wa_parse_dwarf(oc_str8 contents, wa_module* module);
+wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents);
 
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {
@@ -30,11 +28,7 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 
     if(oc_list_empty(module->errors))
     {
-        module->debugInfo = wa_debug_info_create(module->arena);
-        wa_parse_dwarf(contents, module);
-        wa_import_debug_locals(module);
-
-        //TODO: call into debug info api to initalize maps
+        module->debugInfo = wa_debug_info_create(module, contents);
 
         wa_compile_code(arena, module);
     }

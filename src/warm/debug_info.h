@@ -160,7 +160,7 @@ wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
 //------------------------------------------------------------------------
 // building debug info
 //------------------------------------------------------------------------
-void wa_parse_dwarf(oc_str8 contents, wa_module* module);
+void wa_parse_dwarf(wa_module* module, oc_str8 contents);
 void wa_import_debug_locals(wa_module* module);
 void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
 void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);

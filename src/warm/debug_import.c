@@ -52,7 +52,7 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     return file;
 }
 
-void wa_parse_dwarf(oc_str8 contents, wa_module* module)
+void wa_parse_dwarf(wa_module* module, oc_str8 contents)
 {
     /////////////////////////////////////////////////////////////////////////
     //WIP: Dwarf stuff

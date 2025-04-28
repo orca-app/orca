@@ -11,21 +11,25 @@
 #include "debug_info.h"
 #include "warm.h"
 
-wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
-
-wa_debug_info* wa_debug_info_create(oc_arena* arena)
+wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
 {
-    wa_debug_info* info = oc_arena_push_type(arena, wa_debug_info);
+    wa_debug_info* info = oc_arena_push_type(module->arena, wa_debug_info);
     memset(info, 0, sizeof(wa_debug_info));
 
-    //TODO: tune this
+    //NOTE: alloc warm to wasm maps
+    //TODO: tune size
     info->warmToWasmMapLen = 4096;
-    info->warmToWasmMap = oc_arena_push_array(arena, oc_list, 4096);
+    info->warmToWasmMap = oc_arena_push_array(module->arena, oc_list, 4096);
     memset(info->warmToWasmMap, 0, 4096 * sizeof(oc_list));
 
     info->wasmToWarmMapLen = 4096;
-    info->wasmToWarmMap = oc_arena_push_array(arena, oc_list, 4096);
+    info->wasmToWarmMap = oc_arena_push_array(module->arena, oc_list, 4096);
     memset(info->wasmToWarmMap, 0, 4096 * sizeof(oc_list));
+
+    //NOTE: parse and process dwarf info from contents
+
+    wa_parse_dwarf(module, contents);
+    wa_import_debug_locals(module);
 
     return info;
 }
