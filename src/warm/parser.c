@@ -842,9 +842,7 @@ void wa_parse_expression(wa_parser* parser, u32 localCount, oc_list* list, bool 
         memset(instr, 0, sizeof(wa_instr));
         oc_list_push_back(list, &instr->listElt);
 
-        ///////////////////////////////////////////////////////////////////////////////////
-        //TODO: set location of instruction
-        ///////////////////////////////////////////////////////////////////////////////////
+        instr->loc.start = wa_reader_offset(&parser->reader);
 
         u8 byte = wa_read_u8(&parser->reader);
 
@@ -1077,6 +1075,7 @@ void wa_parse_expression(wa_parser* parser, u32 localCount, oc_list* list, bool 
                 }
             }
         }
+        instr->loc.len = wa_reader_offset(&parser->reader) - instr->loc.start;
     }
 
     if(!instr || instr->op != WA_INSTR_end)

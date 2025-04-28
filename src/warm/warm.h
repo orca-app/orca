@@ -16,11 +16,11 @@
 //------------------------------------------------------------------------
 // wasm module structs
 //------------------------------------------------------------------------
-typedef struct wa_ast_loc
+typedef struct wa_module_loc
 {
     u64 start;
     u64 len;
-} wa_ast_loc;
+} wa_module_loc;
 
 typedef union wa_code
 {
@@ -61,7 +61,7 @@ typedef struct wa_instr
     wa_instr* elseBranch;
     wa_instr* end;
 
-    wa_ast_loc loc;
+    wa_module_loc loc;
     u32 codeIndex;
 } wa_instr;
 
