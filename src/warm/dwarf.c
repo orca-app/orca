@@ -18,6 +18,18 @@
 // structs
 //------------------------------------------------------------------------
 
+typedef struct dw_parser dw_parser;
+typedef void (*dw_error_callback)(dw_parser* parser, u64 loc, oc_str8 message, void* user);
+
+typedef struct dw_parser
+{
+    oc_arena* arena;
+    wa_reader rootReader;
+    dw_sections sections;
+    dw_error_callback errorCallback;
+    void* userData;
+} dw_parser;
+
 typedef struct dw_line_machine
 {
     u64 address;
@@ -57,11 +69,11 @@ typedef struct dw_file_entry_elt
 // errors
 //------------------------------------------------------------------------
 
-void dw_parse_error_str8(dw_parser* parser, oc_str8 message)
+void dw_parse_error_str8(dw_parser* parser, u64 loc, oc_str8 message)
 {
     if(parser->errorCallback)
     {
-        parser->errorCallback(parser, message, parser->userData);
+        parser->errorCallback(parser, loc, message, parser->userData);
     }
     else
     {
@@ -69,7 +81,7 @@ void dw_parse_error_str8(dw_parser* parser, oc_str8 message)
     }
 }
 
-void dw_parse_error(dw_parser* parser, const char* fmt, ...)
+void dw_parse_error(dw_parser* parser, u64 loc, const char* fmt, ...)
 {
     oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
     va_list ap;
@@ -77,7 +89,7 @@ void dw_parse_error(dw_parser* parser, const char* fmt, ...)
     oc_str8 message = oc_str8_pushfv(scratch.arena, fmt, ap);
     va_end(ap);
 
-    dw_parse_error_str8(parser, message);
+    dw_parse_error_str8(parser, loc, message);
 
     oc_scratch_end(scratch);
 }
@@ -85,7 +97,7 @@ void dw_parse_error(dw_parser* parser, const char* fmt, ...)
 void dw_parser_read_error_callback(wa_reader* reader, oc_str8 message, void* user)
 {
     dw_parser* parser = (dw_parser*)parser;
-    dw_parse_error_str8(parser, message);
+    dw_parse_error_str8(parser, wa_reader_absolute_loc(reader), message);
 }
 
 //------------------------------------------------------------------------
@@ -236,7 +248,7 @@ void wa_read_file_entries(dw_parser* parser,
                             {
                                 strp = wa_read_u64(reader);
                             }
-                            oc_str8 section = { 0 };
+                            dw_section section = { 0 };
                             if(form == DW_FORM_line_strp)
                             {
                                 section = sections->lineStr;
@@ -252,8 +264,7 @@ void wa_read_file_entries(dw_parser* parser,
                                 exit(-1);
                             }
 
-                            wa_reader strReader = wa_reader_from_str8(section);
-                            wa_reader_set_error_callback(&strReader, dw_parser_read_error_callback, parser);
+                            wa_reader strReader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
                             wa_reader_seek(&strReader, strp);
                             entry->path = wa_read_cstring(&strReader);
                         }
@@ -565,8 +576,7 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
 {
     dw_line_info lineInfo = { 0 };
 
-    wa_reader reader = wa_reader_from_str8(sections->line);
-    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
+    wa_reader reader = wa_reader_subreader(&parser->rootReader, sections->line.offset, sections->line.len);
 
     oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
     oc_list tablesList = { 0 };
@@ -843,7 +853,7 @@ dw_loclist_table* dw_parse_loclist_table(oc_arean* arena, oc_str8 section)
 }
 */
 
-dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, oc_str8 section, u64 offset)
+dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, dw_section section, u64 offset)
 {
     //TODO: check if we already loaded this table
 
@@ -869,9 +879,7 @@ dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, oc_str8 section, u64 of
     oc_list entries = { 0 };
     oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
 
-    wa_reader reader = wa_reader_from_str8(section);
-    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
-
+    wa_reader reader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
     wa_reader_seek(&reader, offset);
 
     while(wa_reader_has_more(&reader))
@@ -947,7 +955,7 @@ dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, oc_str8 section, u64 of
     return table;
 }
 
-dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, oc_str8 section, u64 offset)
+dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u64 offset)
 {
     //TODO: parse from debug loclist.
     // in v4, offset is an offset from the beginning of the debug_loc section
@@ -956,8 +964,7 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, oc_str8 section, u64 o
 
     oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
 
-    wa_reader reader = wa_reader_from_str8(section);
-    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
+    wa_reader reader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
     wa_reader_seek(&reader, offset);
 
     if(unit->version == 4)
@@ -1150,7 +1157,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
 
                 case DW_FORM_data16:
                 {
-                    dw_parse_error(parser, "DW_FORM_data16 unsupported for now.");
+                    dw_parse_error(parser, wa_reader_absolute_loc(reader), "DW_FORM_data16 unsupported for now.");
                 }
                 break;
 
@@ -1317,7 +1324,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
                 strOffset = wa_read_u64(reader);
             }
 
-            oc_str8* strSection = 0;
+            dw_section* strSection = 0;
             if(form == DW_FORM_strp)
             {
                 strSection = &sections->str;
@@ -1333,8 +1340,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
 
             if(strSection)
             {
-                wa_reader strReader = wa_reader_from_str8(*strSection);
-                wa_reader_set_error_callback(&strReader, dw_parser_read_error_callback, parser);
+                wa_reader strReader = wa_reader_subreader(&parser->rootReader, strSection->offset, strSection->len);
                 wa_reader_seek(&strReader, strOffset);
                 res->string = wa_read_cstring(&strReader);
             }
@@ -1388,8 +1394,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
             //NOTE: compute start of offsets table
             //TODO: take into account string offset base...
 
-            wa_reader strOffsetReader = wa_reader_from_str8(sections->strOffsets);
-            wa_reader_set_error_callback(&strOffsetReader, dw_parser_read_error_callback, parser);
+            wa_reader strOffsetReader = wa_reader_subreader(&parser->rootReader, sections->strOffsets.offset, sections->strOffsets.len);
 
             u8 strOffsetFormat = DW_DWARF32;
             u64 strOffsetLength = 0;
@@ -1410,8 +1415,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
                 strOffset = wa_read_u64(&strOffsetReader);
             }
 
-            wa_reader strReader = wa_reader_from_str8(sections->str);
-            wa_reader_set_error_callback(&strReader, dw_parser_read_error_callback, parser);
+            wa_reader strReader = wa_reader_subreader(&parser->rootReader, sections->str.offset, sections->str.len);
             wa_reader_seek(&strReader, strOffset);
             res->string = wa_read_cstring(&strReader);
         }
@@ -1460,7 +1464,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
 
         default:
             //TODO
-            dw_parse_error(parser, "unsupported form %s\n", dw_get_form_string(form));
+            dw_parse_error(parser, wa_reader_absolute_loc(reader), "unsupported form %s\n", dw_get_form_string(form));
             break;
     }
 }
@@ -1486,7 +1490,7 @@ void dw_parse_die(dw_parser* parser, wa_reader* reader, dw_die* die, dw_sections
 
     if(!die->abbrev)
     {
-        dw_parse_error(parser, "Couldn't find abbrev code %llu\n", die->abbrevCode);
+        dw_parse_error(parser, wa_reader_absolute_loc(reader), "Couldn't find abbrev code %llu\n", die->abbrevCode);
         return;
     }
 
@@ -1509,8 +1513,7 @@ end:
 
 void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
 {
-    wa_reader reader = wa_reader_from_str8(sections->info);
-    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
+    wa_reader reader = wa_reader_subreader(&parser->rootReader, sections->info.offset, sections->info.len);
 
     typedef struct dw_unit_elt
     {
@@ -1636,6 +1639,8 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
 dw_info* dw_parse_dwarf(dw_parser* parser)
 {
     dw_info* dwarf = oc_arena_push_type(parser->arena, dw_info);
+
+    wa_reader_set_error_callback(&parser->rootReader, dw_parser_read_error_callback, parser);
 
     dw_parse_info(parser, &parser->sections, dwarf);
 

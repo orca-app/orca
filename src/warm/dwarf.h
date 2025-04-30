@@ -900,25 +900,20 @@ typedef struct dw_info
 
 } dw_info;
 
+typedef struct dw_section
+{
+    u64 offset;
+    u64 len;
+} dw_section;
+
 typedef struct dw_sections
 {
-    oc_str8 abbrev;
-    oc_str8 info;
-    oc_str8 strOffsets;
-    oc_str8 str;
-    oc_str8 addr;
-    oc_str8 line;
-    oc_str8 lineStr;
-    oc_str8 loc;
+    dw_section abbrev;
+    dw_section info;
+    dw_section strOffsets;
+    dw_section str;
+    dw_section addr;
+    dw_section line;
+    dw_section lineStr;
+    dw_section loc;
 } dw_sections;
-
-typedef struct dw_parser dw_parser;
-typedef void (*dw_error_callback)(dw_parser* parser, oc_str8 message, void* user);
-
-typedef struct dw_parser
-{
-    oc_arena* arena;
-    dw_sections sections;
-    dw_error_callback errorCallback;
-    void* userData;
-} dw_parser;

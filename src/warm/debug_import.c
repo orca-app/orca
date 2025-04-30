@@ -50,12 +50,13 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     return file;
 }
 
-void wa_dwarf_error_callback(dw_parser* parser, oc_str8 message, void* user)
+void wa_dwarf_error_callback(dw_parser* parser, u64 loc, oc_str8 message, void* user)
 {
     wa_module* module = (wa_module*)user;
 
     wa_module_error* error = oc_arena_push_type(module->arena, wa_module_error);
 
+    error->loc = loc;
     error->status = WA_PARSE_ERROR;
     error->string = oc_str8_push_copy(module->arena, message);
     oc_list_push_back(&module->errors, &error->listElt);
@@ -67,8 +68,8 @@ void wa_import_dwarf(wa_module* module, oc_str8 contents)
 
     oc_list_for(module->toc.customSections, section, wa_section, listElt)
     {
-        oc_str8 sectionContents = (oc_str8){
-            .ptr = contents.ptr + section->offset,
+        dw_section sectionContents = {
+            .offset = section->offset,
             .len = section->len,
         };
 
@@ -106,16 +107,17 @@ void wa_import_dwarf(wa_module* module, oc_str8 contents)
         }
     }
 
+    //TODO: We don't really need to keep dwarf struct around after processing, so we could just have
+    //      a local dwarf struct with data allocated on a temp arena.
+    //      For now we just keep the dwarf info around in the module to ease debugging
+
     dw_parser parser = {
         .arena = module->arena,
         .sections = dwarfSections,
         .errorCallback = wa_dwarf_error_callback,
         .userData = module,
+        .rootReader = wa_reader_from_str8(contents),
     };
-
-    //TODO: We don't really need to keep dwarf struct around after processing, so we could just have
-    //      a local dwarf struct with data allocated on a temp arena.
-    //      For now we just keep the dwarf info around in the module to ease debugging
 
     module->debugInfo->dwarf = dw_parse_dwarf(&parser);
 

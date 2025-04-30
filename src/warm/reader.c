@@ -69,6 +69,11 @@ u64 wa_reader_offset(wa_reader* reader)
     return reader->offset;
 }
 
+u64 wa_reader_absolute_loc(wa_reader* reader)
+{
+    return reader->baseLoc + reader->offset;
+}
+
 void wa_reader_seek(wa_reader* reader, u64 offset)
 {
     if(offset > reader->contents.len)

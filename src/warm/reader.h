@@ -38,6 +38,8 @@ void wa_reader_set_error_callback(wa_reader* reader, wa_reader_error_callback ca
 
 bool wa_reader_has_more(wa_reader* reader);
 u64 wa_reader_offset(wa_reader* reader);
+u64 wa_reader_absolute_loc(wa_reader* reader);
+
 void wa_reader_seek(wa_reader* reader, u64 offset);
 void wa_reader_skip(wa_reader* reader, u64 n);
 

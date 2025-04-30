@@ -27,7 +27,7 @@ void wa_parse_error(wa_parser* parser, const char* fmt, ...)
 {
     wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
 
-    error->loc = wa_reader_offset(&parser->reader);
+    error->loc = wa_reader_absolute_loc(&parser->reader);
     error->status = WA_PARSE_ERROR;
 
     va_list ap;
@@ -38,11 +38,11 @@ void wa_parse_error(wa_parser* parser, const char* fmt, ...)
     oc_list_push_back(&parser->module->errors, &error->listElt);
 }
 
-void wa_parse_error_str8(wa_parser* parser, u64 offset, oc_str8 message)
+void wa_parse_error_str8(wa_parser* parser, oc_str8 message)
 {
     wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
 
-    error->loc = offset;
+    error->loc = wa_reader_absolute_loc(&parser->reader);
     error->status = WA_PARSE_ERROR;
     error->string = oc_str8_push_copy(parser->arena, message);
     oc_list_push_back(&parser->module->errors, &error->listElt);
@@ -242,6 +242,7 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
     {
         u8 id = wa_read_u8(&parser->reader);
         u32 size = wa_read_leb128_u32(&parser->reader);
+        //TODO: use subreader
         u32 subStartOffset = wa_reader_offset(&parser->reader);
 
         switch(id)
@@ -1389,7 +1390,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
 void wa_parser_read_error_callback(wa_reader* reader, oc_str8 message, void* user)
 {
     wa_parser* parser = (wa_parser*)user;
-    wa_parse_error_str8(parser, wa_reader_offset(reader), message);
+    wa_parse_error_str8(parser, message);
 }
 
 void wa_parse_module(wa_module* module, oc_str8 contents)
