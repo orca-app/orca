@@ -164,26 +164,24 @@ typedef struct dw_stack_value
     };
 } dw_stack_value;
 
-dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_function* funcInfo, oc_str8 expr)
+dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_function* funcInfo, dw_expr expr)
 {
     u64 sp = 0;
+    u64 pc = 0;
 
     const u64 DW_STACK_MAX = 1024;
     dw_stack_value stack[DW_STACK_MAX];
 
-    wa_reader reader = {
-        .contents = expr,
-    };
-
-    while(wa_reader_has_more(&reader))
+    while(pc < expr.codeLen)
     {
-        dw_op op = wa_read_u8(&reader);
+        dw_expr_instr* instr = &expr.code[pc];
+        pc++;
 
-        switch(op)
+        switch(instr->op)
         {
             case DW_OP_addr:
             {
-                u32 opd = wa_read_u32(&reader);
+                u32 opd = instr->operands[0].valU32;
 
                 stack[sp] = (dw_stack_value){
                     .type = DW_STACK_VALUE_ADDRESS,
@@ -195,10 +193,10 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
 
             case DW_OP_fbreg:
             {
-                i64 offset = wa_read_leb128_i64(&reader);
+                i64 offset = instr->operands[0].valI64;
 
                 OC_ASSERT(funcInfo->frameBase->single && funcInfo->frameBase->entryCount == 1);
-                dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, funcInfo->frameBase->entries[0].desc);
+                dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, funcInfo->frameBase->entries[0].expr);
 
                 /*NOTE: what the spec says and what clang does seem to differ:
                     - dwarf says that DW_OP_stack_value means the _value_ of the object (not its location) is on the top of the stack
@@ -223,13 +221,13 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
 
             case DW_OP_WASM_location:
             {
-                u8 kind = wa_read_u8(&reader);
+                u8 kind = instr->operands[0].valU8;
                 switch(kind)
                 {
                     case 0x00:
                     {
                         //NOTE: wasm local
-                        u32 index = wa_read_leb128_u32(&reader);
+                        u32 index = instr->operands[1].valU64;
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_LOCAL,
                             .valU32 = index,
@@ -240,7 +238,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                     case 0x01:
                     {
                         //NOTE: wasm global, leb128
-                        u32 index = wa_read_leb128_u32(&reader);
+                        u32 index = instr->operands[1].valU64;
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_GLOBAL,
                             .valU32 = index,
@@ -251,7 +249,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                     case 0x02:
                     {
                         //NOTE: wasm operand stack
-                        u32 index = wa_read_leb128_u32(&reader);
+                        u32 index = instr->operands[1].valU64;
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_OPERAND,
                             .valU32 = index,
@@ -262,7 +260,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                     case 0x03:
                     {
                         //NOTE: wasm global, u32
-                        u32 index = wa_read_u32(&reader);
+                        u32 index = instr->operands[1].valU32;
                         stack[sp] = (dw_stack_value){
                             .type = DW_STACK_VALUE_GLOBAL,
                             .valU32 = index,
@@ -284,7 +282,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
             break;
 
             default:
-                oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(op));
+                oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(instr->op));
                 goto end;
         }
     }
@@ -313,7 +311,7 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     {
         dw_loc_entry* entry = &loc->entries[entryIndex];
 
-        dw_stack_value val = wa_interpret_dwarf_expr(interpreter, funcInfo, entry->desc);
+        dw_stack_value val = wa_interpret_dwarf_expr(interpreter, funcInfo, entry->expr);
 
         switch(val.type)
         {

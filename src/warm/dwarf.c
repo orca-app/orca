@@ -1175,6 +1175,7 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
                 .start = start,
                 .end = end,
                 .desc = desc,
+                .expr = expr,
             };
 
             oc_list_push_back(&list, &elt->listElt);
@@ -1346,7 +1347,12 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
         case DW_FORM_exprloc:
         {
             u64 len = wa_read_leb128_u64(reader);
-            oc_str8 expr = wa_read_bytes(reader, len);
+
+            wa_reader exprReader = wa_reader_subreader(reader, wa_reader_offset(reader), len);
+            dw_expr expr = dw_parse_expr(parser, &exprReader, unit->format);
+
+            //TODO: skip and remove string desc
+            oc_str8 desc = wa_read_bytes(reader, len);
 
             res->loc = (dw_loc){
                 .single = true,
@@ -1354,7 +1360,8 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
                 .entries = oc_arena_push_type(parser->arena, dw_loc_entry),
             };
             res->loc.entries[0] = (dw_loc_entry){
-                .desc = expr,
+                .desc = desc,
+                .expr = expr,
             };
         }
         break;
