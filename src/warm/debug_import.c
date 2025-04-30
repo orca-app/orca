@@ -6,8 +6,8 @@
 *
 **************************************************************************/
 #include "warm.h"
-#include "dwarf.c"
 #include "debug_info.h"
+#include "dwarf.c"
 
 //------------------------------------------------------------------------
 // Dwarf line processing
@@ -52,17 +52,13 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     return file;
 }
 
-void wa_parse_dwarf(wa_module* module, oc_str8 contents)
+void wa_dwarf_error_callback(dw_parser* parser, oc_str8 message, void* user)
 {
-    /////////////////////////////////////////////////////////////////////////
-    //WIP: Dwarf stuff
+    //TODO
+}
 
-    //NOTE: load dwarf sections
-    //TODO: - put all that in its own wa_load_debug_info function
-    //      ? split dw_xxx struct (for parsing dwarf specific stuff) from wa_debug_xxx (for internal representation)
-
-    oc_arena_scope scratch = oc_scratch_begin();
-
+void wa_import_dwarf(wa_module* module, oc_str8 contents)
+{
     dw_sections dwarfSections = { 0 };
 
     oc_list_for(module->toc.customSections, section, wa_section, listElt)
@@ -106,22 +102,20 @@ void wa_parse_dwarf(wa_module* module, oc_str8 contents)
         }
     }
 
-    module->debugInfo->dwarf = oc_arena_push_type(module->arena, dw_info);
-    memset(module->debugInfo->dwarf, 0, sizeof(dw_info));
+    dw_parser parser = {
+        .arena = module->arena,
+        .sections = dwarfSections,
+        .errorCallback = wa_dwarf_error_callback,
+        .userData = module,
+    };
 
-    dw_parse_info(module->arena, &dwarfSections, module->debugInfo->dwarf);
+    //TODO: just have plain dwarf struct here, and process after parsing. For now keep pointer stuff
 
-    //NOTE: load line info if it exists
+    module->debugInfo->dwarf = dw_parse_dwarf(&parser);
+
+    //NOTE: process line info if it exists
     if(dwarfSections.line.len)
     {
-        module->debugInfo->dwarf->line = oc_arena_push_type(module->arena, dw_line_info);
-        *module->debugInfo->dwarf->line = dw_load_line_info(module->arena, &dwarfSections);
-
-        //        dw_print_debug_info(module->debugInfo->dwarf);
-
-        //dw_dump_info(dwarfSections);
-        //dw_print_line_info(module->debugInfo->dwarf->line);
-
         dw_line_info* lineInfo = module->debugInfo->dwarf->line;
 
         //NOTE: alloc wasm to line map
@@ -321,8 +315,6 @@ void wa_parse_dwarf(wa_module* module, oc_str8 contents)
 
         oc_scratch_end(scratch);
     }
-
-    oc_scratch_end(scratch);
 }
 
 //-------------------------------------------------------------------------

@@ -26,6 +26,7 @@ void wa_parse_error(wa_parser* parser, const char* fmt, ...)
 {
     wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
 
+    error->loc = wa_reader_offset(&parser->reader);
     error->status = WA_PARSE_ERROR;
 
     va_list ap;
@@ -33,20 +34,17 @@ void wa_parse_error(wa_parser* parser, const char* fmt, ...)
     error->string = oc_str8_pushfv(parser->arena, fmt, ap);
     va_end(ap);
 
-    oc_list_push_back(&parser->module->errors, &error->moduleElt);
+    oc_list_push_back(&parser->module->errors, &error->listElt);
 }
 
-bool wa_module_has_errors(wa_module* module)
+void wa_parse_error_str8(wa_parser* parser, u64 offset, oc_str8 message)
 {
-    return (!oc_list_empty(module->errors));
-}
+    wa_module_error* error = oc_arena_push_type(parser->arena, wa_module_error);
 
-void wa_module_print_errors(wa_module* module)
-{
-    oc_list_for(module->errors, err, wa_module_error, moduleElt)
-    {
-        printf("%.*s", oc_str8_ip(err->string));
-    }
+    error->loc = offset;
+    error->status = WA_PARSE_ERROR;
+    error->string = oc_str8_push_copy(parser->arena, message);
+    oc_list_push_back(&parser->module->errors, &error->listElt);
 }
 
 //------------------------------------------------------------------------
@@ -1416,6 +1414,12 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     }
 }
 
+void wa_parser_read_error_callback(wa_reader* reader, oc_str8 message, void* user)
+{
+    wa_parser* parser = (wa_parser*)user;
+    wa_parse_error_str8(parser, wa_reader_offset(reader), message);
+}
+
 void wa_parse_module(wa_module* module, oc_str8 contents)
 {
     wa_parser parser = {
@@ -1423,6 +1427,7 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
         .arena = module->arena,
         .reader = wa_reader_from_str8(contents),
     };
+    wa_reader_set_error_callback(&parser.reader, wa_parser_read_error_callback, &parser);
 
     u32 magic = wa_read_u32(&parser.reader);
 

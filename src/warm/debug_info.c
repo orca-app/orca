@@ -31,7 +31,7 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
     //TODO: pass debug info to parse dwarf?
     module->debugInfo = info;
 
-    wa_parse_dwarf(module, contents);
+    wa_import_dwarf(module, contents);
     wa_import_debug_locals(module);
 
     return info;

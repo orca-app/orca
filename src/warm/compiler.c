@@ -109,12 +109,17 @@ void wa_compile_error(wa_build_context* context, wa_instr* instr, const char* fm
     wa_module_error* error = oc_arena_push_type(context->arena, wa_module_error);
     memset(error, 0, sizeof(wa_module_error));
 
+    if(instr)
+    {
+        error->loc = instr->loc.start;
+    }
+
     va_list ap;
     va_start(ap, fmt);
     error->string = oc_str8_pushfv(context->arena, fmt, ap);
     va_end(ap);
 
-    oc_list_push_back(&context->module->errors, &error->moduleElt);
+    oc_list_push_back(&context->module->errors, &error->listElt);
 }
 
 bool wa_operand_is_nil(wa_operand* opd)

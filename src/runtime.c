@@ -673,6 +673,11 @@ i32 vm_runloop(void* user)
     oc_arena_init(&app->env.arena);
     app->env.module = wa_module_create(&app->env.arena, app->env.wasmBytecode);
 
+    if(wa_module_status(app->env.module) != WA_OK)
+    {
+        wa_module_print_errors(app->env.module);
+    }
+
     OC_WASM_TRAP(wa_module_status(app->env.module));
 
     //NOTE: bind orca APIs

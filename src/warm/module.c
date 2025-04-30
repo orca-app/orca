@@ -26,10 +26,9 @@ wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 
     wa_parse_module(module, contents);
 
-    if(oc_list_empty(module->errors))
+    if(!wa_module_has_errors(module))
     {
         module->debugInfo = wa_debug_info_create(module, contents);
-
         wa_compile_code(arena, module);
     }
 
@@ -44,8 +43,21 @@ wa_status wa_module_status(wa_module* module)
     }
     else
     {
-        wa_module_error* error = oc_list_last_entry(module->errors, wa_module_error, moduleElt);
+        wa_module_error* error = oc_list_last_entry(module->errors, wa_module_error, listElt);
         return error->status;
+    }
+}
+
+bool wa_module_has_errors(wa_module* module)
+{
+    return (!oc_list_empty(module->errors));
+}
+
+void wa_module_print_errors(wa_module* module)
+{
+    oc_list_for(module->errors, err, wa_module_error, listElt)
+    {
+        printf("0x%08llx: %.*s\n", err->loc, oc_str8_ip(err->string));
     }
 }
 

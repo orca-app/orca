@@ -28,12 +28,10 @@ typedef union wa_code
     i64 valI64;
     i32 valU32;
     i32 valI32;
-
     f32 valF32;
     f64 valF64;
 
     wa_instr_op opcode;
-
     u32 index;
     wa_value_type valueType;
 
@@ -218,11 +216,9 @@ typedef struct wa_module_toc
 
 typedef struct wa_module_error
 {
-    oc_list_elt moduleElt;
-    oc_list_elt astElt;
+    oc_list_elt listElt;
 
-    bool blockEnd;
-
+    u64 loc;
     wa_status status;
     oc_str8 string;
 
@@ -293,6 +289,9 @@ extern const wa_func_type WA_BLOCK_VALUE_TYPES[];
 bool wa_is_value_type(u64 t);
 bool wa_is_value_type_numeric(u64 t);
 
+bool wa_module_has_errors(wa_module* module);
+void wa_module_print_errors(wa_module* module);
+
 //------------------------------------------------------------------------
 // Instance
 //------------------------------------------------------------------------
@@ -325,6 +324,8 @@ typedef struct wa_instance
     wa_data_segment* data;
     wa_element* elements;
 } wa_instance;
+
+wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc_str8 name);
 
 //------------------------------------------------------------------------
 // Interpreter
@@ -385,31 +386,3 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter);
 wa_status wa_interpreter_step(wa_interpreter* interpreter);
 wa_status wa_interpreter_step_line(wa_interpreter* interpreter);
 void wa_interpreter_suspend(wa_interpreter* interpreter);
-
-/*
-enum
-{
-    WA_TYPE_STACK_MAX_LEN = 512,
-    WA_CONTROL_STACK_MAX_LEN = 512,
-    WA_MAX_REG = 4096,
-    WA_MAX_SLOT_COUNT = 4096,
-};
-
-
-
-
-typedef struct wa_import wa_import;
-typedef struct wa_module wa_module;
-typedef struct wa_instance wa_instance;
-typedef struct wa_func wa_func;
-
-
-
-bool wa_module_has_errors(wa_module* module);
-void wa_module_print_errors(wa_module* module);
-
-wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc_str8 name);
-
-//wip...
-wa_status wa_instance_status(wa_instance* instance);
-*/
