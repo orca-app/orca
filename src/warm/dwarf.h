@@ -810,7 +810,6 @@ typedef struct dw_loc_entry
 {
     u64 start;
     u64 end;
-    oc_str8 desc;
     dw_expr expr;
 
 } dw_loc_entry;

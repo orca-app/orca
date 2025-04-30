@@ -1076,12 +1076,12 @@ dw_expr dw_parse_expr(dw_parser* parser, wa_reader* reader, dw_dwarf_format form
                         break;
                     case DW_OPD_ADDR:
                         //TODO: always 32bit for wasm, but we should depend on dwarf info for that...
-                        instr->operands[opdIndex].valU32 = wa_read_u32(reader);
+                        instr->operands[opdIndex].valU64 = wa_read_u32(reader);
                         break;
                     case DW_OPD_REF:
                         if(format == DW_DWARF32)
                         {
-                            instr->operands[opdIndex].valU32 = wa_read_u32(reader);
+                            instr->operands[opdIndex].valU64 = wa_read_u32(reader);
                         }
                         else
                         {
@@ -1131,7 +1131,6 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
         {
             u64 start = 0;
             u64 end = 0;
-            oc_str8 desc = { 0 };
             dw_expr expr = { 0 };
 
             if(unit->addressSize == 4)
@@ -1166,15 +1165,13 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
                 wa_reader exprReader = wa_reader_subreader(&reader, wa_reader_offset(&reader), length);
                 expr = dw_parse_expr(parser, &exprReader, unit->format);
 
-                //TODO: skip and remove string desc
-                desc = wa_read_bytes(&reader, length);
+                wa_reader_skip(&reader, length);
             }
 
             dw_loc_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_loc_entry_elt);
             elt->entry = (dw_loc_entry){
                 .start = start,
                 .end = end,
-                .desc = desc,
                 .expr = expr,
             };
 
@@ -1351,8 +1348,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
             wa_reader exprReader = wa_reader_subreader(reader, wa_reader_offset(reader), len);
             dw_expr expr = dw_parse_expr(parser, &exprReader, unit->format);
 
-            //TODO: skip and remove string desc
-            oc_str8 desc = wa_read_bytes(reader, len);
+            wa_reader_skip(reader, len);
 
             res->loc = (dw_loc){
                 .single = true,
@@ -1360,7 +1356,6 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
                 .entries = oc_arena_push_type(parser->arena, dw_loc_entry),
             };
             res->loc.entries[0] = (dw_loc_entry){
-                .desc = desc,
                 .expr = expr,
             };
         }
@@ -1896,465 +1891,58 @@ void dw_print_indent(u64 indent)
     }
 }
 
-void dw_print_expr(dw_unit* unit, oc_str8 data)
+void dw_print_expr(dw_unit* unit, dw_expr expr)
 {
-    wa_reader reader = wa_reader_from_str8(data);
-
-    while(wa_reader_has_more(&reader))
+    u64 pc = 0;
+    while(pc < expr.codeLen)
     {
-        dw_op op = wa_read_u8(&reader);
+        dw_expr_instr* instr = &expr.code[pc];
 
-        printf("%.*s ", oc_str8_ip(dw_op_get_string(op)));
+        printf("%.*s ", oc_str8_ip(dw_op_get_string(instr->op)));
 
-        switch(op)
+        const dw_op_info* info = &DW_OP_INFO[instr->op];
+
+        if(instr->op == DW_OP_implicit_value)
         {
-            case DW_OP_addr:
-            {
-                wa_reader_skip(&reader, 4); //TODO: size is target specific
-            }
-            break;
-            case DW_OP_deref:
-            {
-            }
-            break;
-            case DW_OP_const1u:
-            {
-                wa_reader_skip(&reader, 1);
-            }
-            break;
-            case DW_OP_const1s:
-            {
-                wa_reader_skip(&reader, 1);
-            }
-            break;
-            case DW_OP_const2u:
-            {
-                wa_reader_skip(&reader, 2);
-            }
-            break;
-            case DW_OP_const2s:
-            {
-                wa_reader_skip(&reader, 2);
-            }
-            break;
-            case DW_OP_const4u:
-            {
-                wa_reader_skip(&reader, 4);
-            }
-            break;
-            case DW_OP_const4s:
-            {
-                wa_reader_skip(&reader, 4);
-            }
-            break;
-            case DW_OP_const8u:
-            {
-                wa_reader_skip(&reader, 8);
-            }
-            break;
-            case DW_OP_const8s:
-            {
-                wa_reader_skip(&reader, 8);
-            }
-            break;
-            case DW_OP_constu:
-            {
-                u64 opd = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_consts:
-            {
-                i64 opd = wa_read_leb128_i64(&reader);
-            }
-            break;
-            case DW_OP_dup:
-            {
-            }
-            break;
-            case DW_OP_drop:
-            {
-            }
-            break;
-            case DW_OP_over:
-            {
-            }
-            break;
-            case DW_OP_pick:
-            {
-                wa_reader_skip(&reader, 1);
-            }
-            break;
-            case DW_OP_swap:
-            {
-            }
-            break;
-            case DW_OP_rot:
-            {
-            }
-            break;
-            case DW_OP_xderef:
-            {
-            }
-            break;
-            case DW_OP_abs:
-            {
-            }
-            break;
-            case DW_OP_and:
-            {
-            }
-            break;
-            case DW_OP_div:
-            {
-            }
-            break;
-            case DW_OP_minus:
-            {
-            }
-            break;
-            case DW_OP_mod:
-            {
-            }
-            break;
-            case DW_OP_mul:
-            {
-            }
-            break;
-            case DW_OP_neg:
-            {
-            }
-            break;
-            case DW_OP_not:
-            {
-            }
-            break;
-            case DW_OP_or:
-            {
-            }
-            break;
-            case DW_OP_plus:
-            {
-            }
-            break;
-            case DW_OP_plus_uconst:
-            {
-                u64 opd = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_shl:
-            {
-            }
-            break;
-            case DW_OP_shr:
-            {
-            }
-            break;
-            case DW_OP_shra:
-            {
-            }
-            break;
-            case DW_OP_xor:
-            {
-            }
-            break;
-            case DW_OP_bra:
-            {
-                wa_reader_skip(&reader, 2);
-            }
-            break;
-            case DW_OP_eq:
-            {
-            }
-            break;
-            case DW_OP_ge:
-            {
-            }
-            break;
-            case DW_OP_gt:
-            {
-            }
-            break;
-            case DW_OP_le:
-            {
-            }
-            break;
-            case DW_OP_lt:
-            {
-            }
-            break;
-            case DW_OP_ne:
-            {
-            }
-            break;
-            case DW_OP_skip:
-            {
-                wa_reader_skip(&reader, 2);
-            }
-            break;
-            case DW_OP_lit0:
-            case DW_OP_lit1:
-            case DW_OP_lit2:
-            case DW_OP_lit3:
-            case DW_OP_lit4:
-            case DW_OP_lit5:
-            case DW_OP_lit6:
-            case DW_OP_lit7:
-            case DW_OP_lit8:
-            case DW_OP_lit9:
-            case DW_OP_lit10:
-            case DW_OP_lit11:
-            case DW_OP_lit12:
-            case DW_OP_lit13:
-            case DW_OP_lit14:
-            case DW_OP_lit15:
-            case DW_OP_lit16:
-            case DW_OP_lit17:
-            case DW_OP_lit18:
-            case DW_OP_lit19:
-            case DW_OP_lit20:
-            case DW_OP_lit21:
-            case DW_OP_lit22:
-            case DW_OP_lit23:
-            case DW_OP_lit24:
-            case DW_OP_lit25:
-            case DW_OP_lit26:
-            case DW_OP_lit27:
-            case DW_OP_lit28:
-            case DW_OP_lit29:
-            case DW_OP_lit30:
-            case DW_OP_lit31:
-            {
-            }
-            break;
-
-            case DW_OP_reg0:
-            case DW_OP_reg1:
-            case DW_OP_reg2:
-            case DW_OP_reg3:
-            case DW_OP_reg4:
-            case DW_OP_reg5:
-            case DW_OP_reg6:
-            case DW_OP_reg7:
-            case DW_OP_reg8:
-            case DW_OP_reg9:
-            case DW_OP_reg10:
-            case DW_OP_reg11:
-            case DW_OP_reg12:
-            case DW_OP_reg13:
-            case DW_OP_reg14:
-            case DW_OP_reg15:
-            case DW_OP_reg16:
-            case DW_OP_reg17:
-            case DW_OP_reg18:
-            case DW_OP_reg19:
-            case DW_OP_reg20:
-            case DW_OP_reg21:
-            case DW_OP_reg22:
-            case DW_OP_reg23:
-            case DW_OP_reg24:
-            case DW_OP_reg25:
-            case DW_OP_reg26:
-            case DW_OP_reg27:
-            case DW_OP_reg28:
-            case DW_OP_reg29:
-            case DW_OP_reg30:
-            case DW_OP_reg31:
-            {
-            }
-            break;
-
-            case DW_OP_breg0:
-            case DW_OP_breg1:
-            case DW_OP_breg2:
-            case DW_OP_breg3:
-            case DW_OP_breg4:
-            case DW_OP_breg5:
-            case DW_OP_breg6:
-            case DW_OP_breg7:
-            case DW_OP_breg8:
-            case DW_OP_breg9:
-            case DW_OP_breg10:
-            case DW_OP_breg11:
-            case DW_OP_breg12:
-            case DW_OP_breg13:
-            case DW_OP_breg14:
-            case DW_OP_breg15:
-            case DW_OP_breg16:
-            case DW_OP_breg17:
-            case DW_OP_breg18:
-            case DW_OP_breg19:
-            case DW_OP_breg20:
-            case DW_OP_breg21:
-            case DW_OP_breg22:
-            case DW_OP_breg23:
-            case DW_OP_breg24:
-            case DW_OP_breg25:
-            case DW_OP_breg26:
-            case DW_OP_breg27:
-            case DW_OP_breg28:
-            case DW_OP_breg29:
-            case DW_OP_breg30:
-            case DW_OP_breg31:
-            {
-                i64 opd = wa_read_leb128_i64(&reader);
-            }
-            break;
-
-            case DW_OP_regx:
-            {
-                u64 opd = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_fbreg:
-            {
-                i64 opd = wa_read_leb128_i64(&reader);
-            }
-            break;
-            case DW_OP_bregx:
-            {
-                u64 reg = wa_read_leb128_u64(&reader);
-                i64 offset = wa_read_leb128_i64(&reader);
-            }
-            break;
-            case DW_OP_piece:
-            {
-                u64 opd = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_deref_size:
-            {
-                wa_reader_skip(&reader, 1);
-            }
-            break;
-            case DW_OP_xderef_size:
-            {
-                wa_reader_skip(&reader, 1);
-            }
-            break;
-            case DW_OP_nop:
-            {
-            }
-            break;
-            case DW_OP_push_object_address:
-            {
-            }
-            break;
-            case DW_OP_call2:
-            {
-                wa_reader_skip(&reader, 2);
-            }
-            break;
-            case DW_OP_call4:
-            {
-                wa_reader_skip(&reader, 4);
-            }
-            break;
-            case DW_OP_call_ref:
-            {
-                wa_reader_skip(&reader, (unit->format == DW_DWARF32) ? 4 : 8);
-            }
-            break;
-            case DW_OP_form_tls_address:
-            {
-            }
-            break;
-            case DW_OP_call_frame_cfa:
-            {
-            }
-            break;
-            case DW_OP_bit_piece:
-            {
-                u64 size = wa_read_leb128_u64(&reader);
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_implicit_value:
-            {
-                u64 size = wa_read_leb128_u64(&reader);
-                wa_reader_skip(&reader, size);
-            }
-            break;
-            case DW_OP_stack_value:
-            {
-            }
-            break;
-            case DW_OP_implicit_pointer:
-            {
-                wa_reader_skip(&reader, (unit->format == DW_DWARF32) ? 4 : 8);
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_addrx:
-            {
-                u64 opd = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_constx:
-            {
-                u64 opd = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_entry_value:
-            {
-                u64 size = wa_read_leb128_u64(&reader);
-                wa_reader_skip(&reader, size);
-            }
-            break;
-            case DW_OP_const_type:
-            {
-                u64 offset = wa_read_leb128_u64(&reader);
-                u8 size = wa_read_u8(&reader);
-
-                wa_reader_skip(&reader, size);
-            }
-            break;
-            case DW_OP_regval_type:
-            {
-                u64 reg = wa_read_leb128_u64(&reader);
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_deref_type:
-            {
-                wa_reader_skip(&reader, 1);
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_xderef_type:
-            {
-                wa_reader_skip(&reader, 1);
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_convert:
-            {
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-            case DW_OP_reinterpret:
-            {
-                u64 offset = wa_read_leb128_u64(&reader);
-            }
-            break;
-
-            case DW_OP_WASM_location:
-            {
-                u8 code = wa_read_u8(&reader);
-                if(code == 3)
+            for(u64 i = 0; i < instr->operands[1].string.len; i++)
+            {
+                printf("0x%0hhx ", instr->operands[1].string.ptr[i]);
+            }
+        }
+        else if(instr->op == DW_OP_WASM_location)
+        {
+            printf("0x%0hhx ", instr->operands[0].valU8);
+            printf("0x%0x ", instr->operands[1].valU32);
+        }
+        else
+        {
+            for(u32 opdIndex = 0; opdIndex < info->count; opdIndex++)
+            {
+                dw_val* val = &instr->operands[opdIndex];
+                switch(info->opd[opdIndex])
                 {
-                    wa_reader_skip(&reader, 4);
-                }
-                else
-                {
-                    i64 i = wa_read_leb128_i64(&reader);
+                    case DW_OPD_U8:
+                    case DW_OPD_I8:
+                        printf("0x%0hhx ", val->valU8);
+                        break;
+                    case DW_OPD_U16:
+                    case DW_OPD_I16:
+                        printf("0x%0hx ", val->valU16);
+                        break;
+                    case DW_OPD_U32:
+                    case DW_OPD_I32:
+                    case DW_OPD_ADDR:
+                        printf("0x%0x ", val->valU32);
+                        break;
+                    case DW_OPD_U64:
+                    case DW_OPD_I64:
+                    case DW_OPD_ULEB:
+                    case DW_OPD_SLEB:
+                    case DW_OPD_REF:
+                        printf("0x%0llx ", val->valU64);
+                        break;
                 }
             }
-            break;
-
-            default:
-            {
-            }
-            break;
         }
     }
 }
@@ -2363,7 +1951,7 @@ void dw_print_loc(dw_unit* unit, dw_loc loc, int indent)
 {
     if(loc.single)
     {
-        dw_print_expr(unit, loc.entries[0].desc);
+        dw_print_expr(unit, loc.entries[0].expr);
     }
     else
     {
@@ -2384,7 +1972,7 @@ void dw_print_loc(dw_unit* unit, dw_loc loc, int indent)
             else
             {
                 printf("[0x%08llx, 0x%08llx): ", entry->start + baseOffset, entry->end + baseOffset);
-                dw_print_expr(unit, entry->desc);
+                dw_print_expr(unit, entry->expr);
             }
             if(i < loc.entryCount - 1)
             {
