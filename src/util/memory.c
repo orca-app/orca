@@ -83,6 +83,21 @@ void* oc_arena_push(oc_arena* arena, u64 size)
 
 void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment)
 {
+    void* p = oc_arena_push_aligned_uninitialized(arena, size, alignment);
+    if(size && p)
+    {
+        memset(p, 0, size);
+    }
+    return p;
+}
+
+void* oc_arena_push_uninitialized(oc_arena* arena, u64 size)
+{
+    return oc_arena_push_aligned_uninitialized(arena, size, 1);
+}
+
+void* oc_arena_push_aligned_uninitialized(oc_arena* arena, u64 size, u32 alignment)
+{
     if(!size)
     {
         return (0);

@@ -221,9 +221,8 @@ oc_ui_context* oc_ui_context_create(oc_font defaultFont)
     ui->defaultFont = defaultFont;
 
     ui->styleVariables.mask = (4 << 10) - 1;
+    //TODO: we could avoid zero-init with a framecounter for each bucket
     ui->styleVariables.buckets = oc_arena_push_array(ui->frameArena, oc_list, 4 << 10);
-    //TODO: we could avoid this with a framecounter for each bucket
-    memset(ui->styleVariables.buckets, 0, sizeof(oc_list) * (4 << 10));
 
     ui->init = true;
 
@@ -263,7 +262,6 @@ void oc_ui_set_context(oc_ui_context* context)
 oc_ui_stack_elt* oc_ui_stack_push(oc_ui_context* ui, oc_ui_stack_elt** stack)
 {
     oc_ui_stack_elt* elt = oc_arena_push_type(ui->frameArena, oc_ui_stack_elt);
-    memset(elt, 0, sizeof(oc_ui_stack_elt));
     elt->parent = *stack;
     *stack = elt;
     return (elt);
@@ -570,7 +568,6 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
 
             //NOTE: create the rule and put it on the workbench
             oc_ui_style_rule* rule = oc_arena_push_type(ui->frameArena, oc_ui_style_rule);
-            memset(rule, 0, sizeof(oc_ui_style_rule));
             rule->pattern = pattern;
 
             ui->workingRule = rule;
@@ -929,7 +926,6 @@ void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* sc
     if(!stack)
     {
         stack = oc_arena_push_type(ui->frameArena, oc_ui_var_stack);
-        memset(stack, 0, sizeof(oc_ui_var_stack));
 
         stack->name = oc_str8_push_copy(ui->frameArena, name);
         stack->hash = hash;
@@ -1660,7 +1656,6 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     //NOTE: create style
     box->targetStyle = oc_arena_push_type(ui->frameArena, oc_ui_style);
-    memset(box->targetStyle, 0, sizeof(oc_ui_style));
 
     //NOTE: set tags, rules and variables
     box->rules = (oc_list){ 0 };
@@ -2313,7 +2308,6 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTRIBUTE_COUNT);
-    memset(specArray, 0, sizeof(oc_ui_pattern_specificity) * OC_UI_ATTRIBUTE_COUNT);
 
     oc_list derivedRules = { 0 };
     oc_list_for(*ruleset, rule, oc_ui_style_rule, rulesetElt)

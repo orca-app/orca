@@ -516,7 +516,6 @@ void wa_instance_destroy(wa_instance* instance)
 wa_interpreter* wa_interpreter_create(oc_arena* arena)
 {
     wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
-    memset(interpreter, 0, sizeof(wa_interpreter));
     return (interpreter);
 }
 

@@ -85,7 +85,6 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
             }
 
             oc_file_open_with_dialog_elt* resElt = oc_arena_push_type(arena, oc_file_open_with_dialog_elt);
-            memset(resElt, 0, sizeof(*resElt));
             resElt->file = file;
             oc_list_push_back(&result.selection, &resElt->listElt);
 
