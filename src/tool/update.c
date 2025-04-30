@@ -16,13 +16,16 @@
 
 #if OC_PLATFORM_WINDOWS
     #define RELEASE_FILENAME OC_STR8("orca-windows")
+    #define DEV_DEPENDENCIES_FILENAME OC_STR8("dev-dependencies-windows")
     #define TOOL_NAME OC_STR8("orca.exe")
 #elif OC_PLATFORM_MACOS
     #if OC_ARCH_ARM64
         #define RELEASE_FILENAME OC_STR8("orca-mac-arm64")
+        #define DEV_DEPENDENCIES_FILENAME OC_STR8("dev-dependencies-mac-arm64")
         #define TOOL_NAME OC_STR8("orca")
     #else
         #define RELEASE_FILENAME OC_STR8("orca-mac-x64")
+        #define DEV_DEPENDENCIES_FILENAME OC_STR8("dev-dependencies-mac-x64")
         #define TOOL_NAME OC_STR8("orca")
     #endif
 #else
@@ -45,7 +48,9 @@ int update(int argc, char** argv)
     Flag_Context c;
     flag_init_context(&c);
     flag_help(&c, "Downloads and installs the latest version of Orca.");
-    char** tarball = flag_str(&c, NULL, "tarball", NULL, "update the Orca SDK from a tarball");
+    char** tarball = flag_str(&c, NULL, "tarball", NULL, "update from a tarball");
+    char** path = flag_str(&c, NULL, "path", NULL, "extract the update to a specified path");
+    bool* dev_dependencies = flag_bool(&c, NULL, "dev-deps", false, "Download the dev dependencies package instead of the normal release");
 
     if(!flag_parse(&c, argc, argv))
     {
@@ -58,6 +63,21 @@ int update(int argc, char** argv)
         return 1;
     }
 
+    if (*dev_dependencies)
+    {
+        if (!(path && *path))
+        {
+            fprintf(stderr, "error: --path must be specified if downloading dev dependencies.\n");
+            return 1;
+        }
+        if (tarball && *tarball)
+        {
+            fprintf(stderr, "error: --tarball option not supported for dev dependencies");
+        }
+    }
+
+    oc_str8 package_name = *dev_dependencies ? OC_STR8("Orca dev dependencies") : OC_STR8("Orca SDK");
+
     CURL* curl = curl_easy_init();
     if(!curl)
     {
@@ -65,11 +85,11 @@ int update(int argc, char** argv)
         return 1;
     }
 
-    oc_str8 orca_dir = system_orca_dir(&arena);
+    oc_str8 dest_dir = (path && *path) ? OC_STR8(*path) : system_orca_dir(&arena);
     oc_str8 version = { 0 };
     oc_str8 version_dir = { 0 };
 
-    oc_str8 temp_dir = oc_path_append(&arena, orca_dir, OC_STR8("temporary"));
+    oc_str8 temp_dir = oc_path_append(&arena, dest_dir, OC_STR8("temporary"));
     if(oc_sys_exists(temp_dir))
     {
         TRY(oc_sys_rmdir(temp_dir));
@@ -101,7 +121,7 @@ int update(int argc, char** argv)
         oc_str8 final_url = oc_str8_push_cstring(&arena, final_url_cstr);
 
         version = oc_path_slice_filename(final_url);
-        version_dir = oc_path_append(&arena, orca_dir, version);
+        version_dir = oc_path_append(&arena, dest_dir, version);
 
         if(oc_sys_exists(version_dir))
         {
@@ -116,7 +136,7 @@ int update(int argc, char** argv)
         oc_str8 current_tool_version = OC_STR8(TOSTRING(ORCA_TOOL_VERSION));
         if(oc_str8_cmp(current_tool_version, version) != 0)
         {
-            return replace_yourself_and_update(curl, repo_url_base, orca_dir, current_tool_version, version);
+            return replace_yourself_and_update(curl, repo_url_base, dest_dir, current_tool_version, version);
         }
         */
 
@@ -124,16 +144,17 @@ int update(int argc, char** argv)
         // download and extract latest version
         //-----------------------------------------------------------------------------
         {
-            printf("Downloading Orca SDK version %.*s...\n", oc_str8_ip(version));
+            printf("Downloading %.*s version %.*s...\n", oc_str8_ip(package_name), oc_str8_ip(version));
 
-            oc_str8 release_tarname = oc_str8_pushf(&arena, "%.*s.tar.gz",
-                                                    oc_str8_ip(RELEASE_FILENAME));
+            oc_str8 filename = *dev_dependencies ? DEV_DEPENDENCIES_FILENAME : RELEASE_FILENAME;
+            oc_str8 package_tarname = oc_str8_pushf(&arena, "%.*s.tar.gz",
+                                                    oc_str8_ip(filename));
 
             oc_str8 release_url = oc_str8_pushf(&arena, "/releases/latest/download/%.*s",
-                                                oc_str8_ip(release_tarname));
+                                                oc_str8_ip(package_tarname));
 
             release_url = oc_path_append(&arena, repo_url_base, release_url);
-            oc_str8 release_filepath = oc_path_append(&arena, temp_dir, release_tarname);
+            oc_str8 release_filepath = oc_path_append(&arena, temp_dir, package_tarname);
 
             curl_code = download_file(curl, release_url, release_filepath);
             if(curl_code != CURLE_OK)
@@ -143,7 +164,7 @@ int update(int argc, char** argv)
                 return 1;
             }
 
-            printf("Extracting Orca SDK...\n");
+            printf("Extracting %.*s...\n", oc_str8_ip(package_name));
             if(!tarball_extract(release_filepath, temp_dir))
             {
                 fprintf(stderr, "error: failed to extract files from %s\n", release_filepath.ptr);
@@ -155,7 +176,7 @@ int update(int argc, char** argv)
     {
         oc_str8 tarballPath = OC_STR8(*tarball);
 
-        printf("Extracting Orca SDK...\n");
+        printf("Extracting %.*s...\n", oc_str8_ip(package_name));
         if(!tarball_extract(tarballPath, temp_dir))
         {
             fprintf(stderr, "error: failed to extract files from %s\n", *tarball);
@@ -176,7 +197,7 @@ int update(int argc, char** argv)
         oc_file_read(versionFile, version.len, version.ptr);
         version.ptr[version.len] = '\0';
 
-        version_dir = oc_path_append(&arena, orca_dir, version);
+        version_dir = oc_path_append(&arena, dest_dir, version);
         if(oc_sys_exists(version_dir))
         {
             printf("Already up to date with version %.*s\n", oc_str8_ip(version));
@@ -187,6 +208,18 @@ int update(int argc, char** argv)
     //-----------------------------------------------------------------------------
     // move files to the install dir
     //-----------------------------------------------------------------------------
+    if (*dev_dependencies)
+    {
+        oc_str8 extracted = oc_path_append(&arena, temp_dir, OC_STR8("dev-dependencies"));
+
+        if(!oc_sys_move(extracted, dest_dir))
+        {
+            fprintf(stderr, "error: failed to move %s to %s\n",
+                    extracted.ptr, dest_dir.ptr);
+            return 1;
+        }
+    }
+    else
     {
         oc_str8 extracted_release = oc_path_append(&arena, temp_dir, OC_STR8("orca"));
         oc_str8 release_sdk = oc_path_append(&arena, extracted_release, version);
@@ -206,9 +239,11 @@ int update(int argc, char** argv)
             return 1;
         }
     }
+
     //-----------------------------------------------------------------------------
-    // record checksum and update current_version file
+    // record checksum and update current_version file if installing to orca system directory
     //-----------------------------------------------------------------------------
+    if (path == NULL || *path == NULL)
     {
         /*
         oc_str8 checksum = { 0 };
@@ -229,7 +264,7 @@ int update(int argc, char** argv)
         if(checksum.len)
         */
         {
-            oc_str8 all_versions = oc_path_append(&arena, orca_dir, OC_STR8("all_versions"));
+            oc_str8 all_versions = oc_path_append(&arena, dest_dir, OC_STR8("all_versions"));
             oc_file_open_flags open_flags = oc_sys_exists(all_versions)
                                               ? OC_FILE_OPEN_APPEND
                                               : OC_FILE_OPEN_CREATE;
@@ -250,11 +285,11 @@ int update(int argc, char** argv)
             }
             oc_file_close(file);
         }
-    }
 
-    if(!overwrite_current_version(version))
-    {
-        fprintf(stderr, "error: failed to update current version file\n");
+        if(!overwrite_current_version(version))
+        {
+            fprintf(stderr, "error: failed to update current version file\n");
+        }
     }
 
 end:
@@ -263,7 +298,14 @@ end:
     // NOTE(shaw): assuming that the cli tool will always just call update and
     // exit so no cleanup is done, i.e. curl_easy_cleanup(curl)
 
-    printf("Successfully updated Orca SDK to version %.*s.\n", oc_str8_ip(version));
+    if (path && *path)
+    {
+        printf("Successfully extracted %.*s version %.*s to path %s.\n", oc_str8_ip(package_name), oc_str8_ip(version), *path);
+    }
+    else
+    {
+        printf("Successfully updated %.*s to version %.*s.\n", oc_str8_ip(package_name), oc_str8_ip(version));
+    }
     return 0;
 }
 

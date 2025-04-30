@@ -2,7 +2,17 @@ name: build-angle-win
 
 on:
   workflow_dispatch:
+    inputs:
+      ignore-cache:
+        required: false
+        type: string
+        default: false
   workflow_call:
+    inputs:
+      ignore-cache:
+        required: false
+        type: string
+        default: false
 
 jobs:
   build-win:
@@ -14,26 +24,32 @@ jobs:
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - name: Angle version
         id: angle-version
         shell: cmd
         run: |
           @chcp 65001>nul
-          set /p ANGLE_COMMIT=<deps/angle-commit.txt
+          zig build print-sha-angle > angle-commit.txt
+          set /p ANGLE_COMMIT=<angle-commit.txt
           echo ANGLE_COMMIT=%ANGLE_COMMIT% >> %GITHUB_OUTPUT%
 
       - name: Cache
         id: cache-angle
         uses: actions/cache@v3
+        if: inputs.ignore-cache != 'true'
         with:
           path: build/angle.out
           key: angle-${{ runner.os }}-${{ runner.arch }}-${{ steps.angle-version.outputs.ANGLE_COMMIT }}
 
       - name: Build Angle
-        if: steps.cache-angle.outputs.cache-hit != 'true'
+        if: steps.cache-angle.outputs.cache-hit != 'true' || inputs.ignore-cache == 'true'
         shell: cmd
         run: |
-          orcadev build-angle --release
+          zig build angle -Doptimize=ReleaseFast
 
       - uses: actions/upload-artifact@v4
         with:
