@@ -54,7 +54,7 @@ void wa_reader_error(wa_reader* reader, wa_reader_status status, const char* fmt
     oc_scratch_end(scratch);
 }
 
-bool wa_reader_out_of_bounds(wa_reader* reader, u64 size)
+bool wa_reader_size_out_of_bounds(wa_reader* reader, u64 size)
 {
     return (reader->offset + size > reader->contents.len || reader->offset + size < reader->offset);
 }
@@ -88,7 +88,7 @@ void wa_reader_seek(wa_reader* reader, u64 offset)
 
 void wa_reader_skip(wa_reader* reader, u64 n)
 {
-    if(wa_reader_out_of_bounds(reader, n))
+    if(wa_reader_size_out_of_bounds(reader, n))
     {
         wa_reader_error(reader, WA_READER_FATAL, "Skip out of bounds.");
     }
@@ -106,7 +106,7 @@ wa_reader wa_reader_subreader(wa_reader* reader, u64 start, u64 len)
     };
 
     u64 end = start + len;
-    if(end < start || wa_reader_out_of_bounds(reader, end))
+    if(end < start || end > reader->contents.len)
     {
         //NOTE: if end wrap or is out of bounds, error and restrict it to contents length
         wa_reader_error(reader, WA_READER_ERROR, "Couldn't create subreader, size out of range.");
@@ -139,7 +139,7 @@ u64 wa_read_leb128(wa_reader* reader, u32 bitWidth, bool isSigned)
 
     do
     {
-        if(wa_reader_out_of_bounds(reader, sizeof(char)))
+        if(wa_reader_size_out_of_bounds(reader, sizeof(char)))
         {
             wa_reader_error(reader, WA_READER_FATAL, "Couldn't read leb128: read out of bounds.");
             goto end;
@@ -228,55 +228,10 @@ i64 wa_read_leb128_i64(wa_reader* reader)
     return (i64)wa_read_leb128(reader, 64, true);
 }
 
-u64 wa_read_u64(wa_reader* reader)
-{
-    u64 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(u64)))
-    {
-        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u64: read out of bounds.");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u64));
-        reader->offset += sizeof(u64);
-    }
-    return res;
-}
-
-u32 wa_read_u32(wa_reader* reader)
-{
-    u32 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(u32)))
-    {
-        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u32: read out of bounds.");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u32));
-        reader->offset += sizeof(u32);
-    }
-    return res;
-}
-
-u16 wa_read_u16(wa_reader* reader)
-{
-    u16 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(u16)))
-    {
-        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u16: read out of bounds.");
-    }
-    else
-    {
-        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u16));
-        reader->offset += sizeof(u16);
-    }
-    return res;
-}
-
 u8 wa_read_u8(wa_reader* reader)
 {
     u8 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(u8)))
+    if(wa_reader_size_out_of_bounds(reader, sizeof(u8)))
     {
         wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u8: read out of bounds.");
     }
@@ -288,10 +243,115 @@ u8 wa_read_u8(wa_reader* reader)
     return res;
 }
 
+u16 wa_read_u16(wa_reader* reader)
+{
+    u16 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(u16)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u16: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u16));
+        reader->offset += sizeof(u16);
+    }
+    return res;
+}
+
+u32 wa_read_u32(wa_reader* reader)
+{
+    u32 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(u32)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u32: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u32));
+        reader->offset += sizeof(u32);
+    }
+    return res;
+}
+
+u64 wa_read_u64(wa_reader* reader)
+{
+    u64 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(u64)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u64: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(u64));
+        reader->offset += sizeof(u64);
+    }
+    return res;
+}
+
+i8 wa_read_i8(wa_reader* reader)
+{
+    i8 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(i8)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read u8: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(i8));
+        reader->offset += sizeof(i8);
+    }
+    return res;
+}
+
+i16 wa_read_i16(wa_reader* reader)
+{
+    i16 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(i16)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read i16: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(i16));
+        reader->offset += sizeof(i16);
+    }
+    return res;
+}
+
+i32 wa_read_i32(wa_reader* reader)
+{
+    i32 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(i32)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read i32: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(i32));
+        reader->offset += sizeof(i32);
+    }
+    return res;
+}
+
+i64 wa_read_i64(wa_reader* reader)
+{
+    i64 res = 0;
+    if(wa_reader_size_out_of_bounds(reader, sizeof(i64)))
+    {
+        wa_reader_error(reader, WA_READER_FATAL, "Couldn't read i64: read out of bounds.");
+    }
+    else
+    {
+        memcpy(&res, reader->contents.ptr + reader->offset, sizeof(i64));
+        reader->offset += sizeof(i64);
+    }
+    return res;
+}
+
 f32 wa_read_f32(wa_reader* reader)
 {
     f32 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(f32)))
+    if(wa_reader_size_out_of_bounds(reader, sizeof(f32)))
     {
         wa_reader_error(reader, WA_READER_FATAL, "Couldn't read f32: read out of bounds.");
     }
@@ -306,7 +366,7 @@ f32 wa_read_f32(wa_reader* reader)
 f64 wa_read_f64(wa_reader* reader)
 {
     f64 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(f64)))
+    if(wa_reader_size_out_of_bounds(reader, sizeof(f64)))
     {
         wa_reader_error(reader, WA_READER_FATAL, "Couldn't read f64: read out of bounds.");
     }
@@ -321,7 +381,7 @@ f64 wa_read_f64(wa_reader* reader)
 u8 wa_reader_peek_u8(wa_reader* reader)
 {
     u8 res = 0;
-    if(wa_reader_out_of_bounds(reader, sizeof(u8)))
+    if(wa_reader_size_out_of_bounds(reader, sizeof(u8)))
     {
         wa_reader_error(reader, WA_READER_FATAL, "Couldn't peek u8: read out of bounds.");
     }
@@ -335,7 +395,7 @@ u8 wa_reader_peek_u8(wa_reader* reader)
 oc_str8 wa_read_bytes(wa_reader* reader, u64 len)
 {
     oc_str8 res = { 0 };
-    if(wa_reader_out_of_bounds(reader, len))
+    if(wa_reader_size_out_of_bounds(reader, len))
     {
         wa_reader_error(reader, WA_READER_FATAL, "Couldn't read bytes: read out of bounds.");
     }
@@ -362,7 +422,7 @@ oc_str8 wa_read_cstring(wa_reader* reader)
         size_t len = strnlen(reader->contents.ptr + reader->offset,
                              reader->contents.len - reader->offset);
 
-        if(wa_reader_out_of_bounds(reader, len + 1))
+        if(wa_reader_size_out_of_bounds(reader, len + 1))
         {
             //NOTE len+1 since we also need to fit a null byte
             wa_reader_error(reader, WA_READER_FATAL, "Couldn't read null-terminated string: read out of bounds.");

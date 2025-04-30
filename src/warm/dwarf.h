@@ -10,10 +10,14 @@
 #include "util/typedefs.h"
 #include "util/strings.h"
 
-#define X_ENUM(name, code) name = code,
-#define X_NAME_CASE(name, code) \
-    case name:                  \
-        res = #name;            \
+//------------------------------------------------------------------------
+// Dwarf enums
+//------------------------------------------------------------------------
+
+#define X_ENUM(name, code, ...) name = code,
+#define X_NAME_CASE(name, code, ...) \
+    case name:                       \
+        res = #name;                 \
         break;
 
 #define X_NAME_CASE_STR8(name, ...) \
@@ -444,174 +448,174 @@ static inline const char* dw_get_line_header_entry_format_string(u32 format)
     return res;
 }
 
-#define DW_OP_LIST(_)                  \
-    _(DW_OP_addr, 0x03)                \
-    _(DW_OP_deref, 0x06)               \
-    _(DW_OP_const1u, 0x08)             \
-    _(DW_OP_const1s, 0x09)             \
-    _(DW_OP_const2u, 0x0a)             \
-    _(DW_OP_const2s, 0x0b)             \
-    _(DW_OP_const4u, 0x0c)             \
-    _(DW_OP_const4s, 0x0d)             \
-    _(DW_OP_const8u, 0x0e)             \
-    _(DW_OP_const8s, 0x0f)             \
-    _(DW_OP_constu, 0x10)              \
-    _(DW_OP_consts, 0x11)              \
-    _(DW_OP_dup, 0x12)                 \
-    _(DW_OP_drop, 0x13)                \
-    _(DW_OP_over, 0x14)                \
-    _(DW_OP_pick, 0x15)                \
-    _(DW_OP_swap, 0x16)                \
-    _(DW_OP_rot, 0x17)                 \
-    _(DW_OP_xderef, 0x18)              \
-    _(DW_OP_abs, 0x19)                 \
-    _(DW_OP_and, 0x1a)                 \
-    _(DW_OP_div, 0x1b)                 \
-    _(DW_OP_minus, 0x1c)               \
-    _(DW_OP_mod, 0x1d)                 \
-    _(DW_OP_mul, 0x1e)                 \
-    _(DW_OP_neg, 0x1f)                 \
-    _(DW_OP_not, 0x20)                 \
-    _(DW_OP_or, 0x21)                  \
-    _(DW_OP_plus, 0x22)                \
-    _(DW_OP_plus_uconst, 0x23)         \
-    _(DW_OP_shl, 0x24)                 \
-    _(DW_OP_shr, 0x25)                 \
-    _(DW_OP_shra, 0x26)                \
-    _(DW_OP_xor, 0x27)                 \
-    _(DW_OP_bra, 0x28)                 \
-    _(DW_OP_eq, 0x29)                  \
-    _(DW_OP_ge, 0x2a)                  \
-    _(DW_OP_gt, 0x2b)                  \
-    _(DW_OP_le, 0x2c)                  \
-    _(DW_OP_lt, 0x2d)                  \
-    _(DW_OP_ne, 0x2e)                  \
-    _(DW_OP_skip, 0x2f)                \
-    _(DW_OP_lit0, 0x30)                \
-    _(DW_OP_lit1, 0x31)                \
-    _(DW_OP_lit2, 0x32)                \
-    _(DW_OP_lit3, 0x33)                \
-    _(DW_OP_lit4, 0x34)                \
-    _(DW_OP_lit5, 0x35)                \
-    _(DW_OP_lit6, 0x36)                \
-    _(DW_OP_lit7, 0x37)                \
-    _(DW_OP_lit8, 0x38)                \
-    _(DW_OP_lit9, 0x39)                \
-    _(DW_OP_lit10, 0x3a)               \
-    _(DW_OP_lit11, 0x3b)               \
-    _(DW_OP_lit12, 0x3c)               \
-    _(DW_OP_lit13, 0x3d)               \
-    _(DW_OP_lit14, 0x3e)               \
-    _(DW_OP_lit15, 0x3f)               \
-    _(DW_OP_lit16, 0x40)               \
-    _(DW_OP_lit17, 0x41)               \
-    _(DW_OP_lit18, 0x42)               \
-    _(DW_OP_lit19, 0x43)               \
-    _(DW_OP_lit20, 0x44)               \
-    _(DW_OP_lit21, 0x45)               \
-    _(DW_OP_lit22, 0x46)               \
-    _(DW_OP_lit23, 0x47)               \
-    _(DW_OP_lit24, 0x48)               \
-    _(DW_OP_lit25, 0x49)               \
-    _(DW_OP_lit26, 0x4a)               \
-    _(DW_OP_lit27, 0x4b)               \
-    _(DW_OP_lit28, 0x4c)               \
-    _(DW_OP_lit29, 0x4d)               \
-    _(DW_OP_lit30, 0x4e)               \
-    _(DW_OP_lit31, 0x4f)               \
-    _(DW_OP_reg0, 0x50)                \
-    _(DW_OP_reg1, 0x51)                \
-    _(DW_OP_reg2, 0x52)                \
-    _(DW_OP_reg3, 0x53)                \
-    _(DW_OP_reg4, 0x54)                \
-    _(DW_OP_reg5, 0x55)                \
-    _(DW_OP_reg6, 0x56)                \
-    _(DW_OP_reg7, 0x57)                \
-    _(DW_OP_reg8, 0x58)                \
-    _(DW_OP_reg9, 0x59)                \
-    _(DW_OP_reg10, 0x5a)               \
-    _(DW_OP_reg11, 0x5b)               \
-    _(DW_OP_reg12, 0x5c)               \
-    _(DW_OP_reg13, 0x5d)               \
-    _(DW_OP_reg14, 0x5e)               \
-    _(DW_OP_reg15, 0x5f)               \
-    _(DW_OP_reg16, 0x60)               \
-    _(DW_OP_reg17, 0x61)               \
-    _(DW_OP_reg18, 0x62)               \
-    _(DW_OP_reg19, 0x63)               \
-    _(DW_OP_reg20, 0x64)               \
-    _(DW_OP_reg21, 0x65)               \
-    _(DW_OP_reg22, 0x66)               \
-    _(DW_OP_reg23, 0x67)               \
-    _(DW_OP_reg24, 0x68)               \
-    _(DW_OP_reg25, 0x69)               \
-    _(DW_OP_reg26, 0x6a)               \
-    _(DW_OP_reg27, 0x6b)               \
-    _(DW_OP_reg28, 0x6c)               \
-    _(DW_OP_reg29, 0x6d)               \
-    _(DW_OP_reg30, 0x6e)               \
-    _(DW_OP_reg31, 0x6f)               \
-    _(DW_OP_breg0, 0x70)               \
-    _(DW_OP_breg1, 0x71)               \
-    _(DW_OP_breg2, 0x72)               \
-    _(DW_OP_breg3, 0x73)               \
-    _(DW_OP_breg4, 0x74)               \
-    _(DW_OP_breg5, 0x75)               \
-    _(DW_OP_breg6, 0x76)               \
-    _(DW_OP_breg7, 0x77)               \
-    _(DW_OP_breg8, 0x78)               \
-    _(DW_OP_breg9, 0x79)               \
-    _(DW_OP_breg10, 0x7a)              \
-    _(DW_OP_breg11, 0x7b)              \
-    _(DW_OP_breg12, 0x7c)              \
-    _(DW_OP_breg13, 0x7d)              \
-    _(DW_OP_breg14, 0x7e)              \
-    _(DW_OP_breg15, 0x7f)              \
-    _(DW_OP_breg16, 0x80)              \
-    _(DW_OP_breg17, 0x81)              \
-    _(DW_OP_breg18, 0x82)              \
-    _(DW_OP_breg19, 0x83)              \
-    _(DW_OP_breg20, 0x84)              \
-    _(DW_OP_breg21, 0x85)              \
-    _(DW_OP_breg22, 0x86)              \
-    _(DW_OP_breg23, 0x87)              \
-    _(DW_OP_breg24, 0x88)              \
-    _(DW_OP_breg25, 0x89)              \
-    _(DW_OP_breg26, 0x8a)              \
-    _(DW_OP_breg27, 0x8b)              \
-    _(DW_OP_breg28, 0x8c)              \
-    _(DW_OP_breg29, 0x8d)              \
-    _(DW_OP_breg30, 0x8e)              \
-    _(DW_OP_breg31, 0x8f)              \
-    _(DW_OP_regx, 0x90)                \
-    _(DW_OP_fbreg, 0x91)               \
-    _(DW_OP_bregx, 0x92)               \
-    _(DW_OP_piece, 0x93)               \
-    _(DW_OP_deref_size, 0x94)          \
-    _(DW_OP_xderef_size, 0x95)         \
-    _(DW_OP_nop, 0x96)                 \
-    _(DW_OP_push_object_address, 0x97) \
-    _(DW_OP_call2, 0x98)               \
-    _(DW_OP_call4, 0x99)               \
-    _(DW_OP_call_ref, 0x9a)            \
-    _(DW_OP_form_tls_address, 0x9b)    \
-    _(DW_OP_call_frame_cfa, 0x9c)      \
-    _(DW_OP_bit_piece, 0x9d)           \
-    _(DW_OP_implicit_value, 0x9e)      \
-    _(DW_OP_stack_value, 0x9f)         \
-    _(DW_OP_implicit_pointer, 0xa0)    \
-    _(DW_OP_addrx, 0xa1)               \
-    _(DW_OP_constx, 0xa2)              \
-    _(DW_OP_entry_value, 0xa3)         \
-    _(DW_OP_const_type, 0xa4)          \
-    _(DW_OP_regval_type, 0xa5)         \
-    _(DW_OP_deref_type, 0xa6)          \
-    _(DW_OP_xderef_type, 0xa7)         \
-    _(DW_OP_convert, 0xa8)             \
-    _(DW_OP_reinterpret, 0xa9)         \
-    _(DW_OP_lo_user, 0xe0)             \
-    _(DW_OP_hi_user, 0xff)             \
-    _(DW_OP_WASM_location, 0xed)
+#define DW_OP_LIST(_)                                           \
+    _(DW_OP_addr, 0x03, 1, DW_OPD_ADDR)                         \
+    _(DW_OP_deref, 0x06, 0)                                     \
+    _(DW_OP_const1u, 0x08, 1, DW_OPD_U8)                        \
+    _(DW_OP_const1s, 0x09, 1, DW_OPD_I8)                        \
+    _(DW_OP_const2u, 0x0a, 1, DW_OPD_U16)                       \
+    _(DW_OP_const2s, 0x0b, 1, DW_OPD_I16)                       \
+    _(DW_OP_const4u, 0x0c, 1, DW_OPD_U32)                       \
+    _(DW_OP_const4s, 0x0d, 1, DW_OPD_I32)                       \
+    _(DW_OP_const8u, 0x0e, 1, DW_OPD_U64)                       \
+    _(DW_OP_const8s, 0x0f, 1, DW_OPD_I64)                       \
+    _(DW_OP_constu, 0x10, 1, DW_OPD_ULEB)                       \
+    _(DW_OP_consts, 0x11, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_dup, 0x12, 0)                                       \
+    _(DW_OP_drop, 0x13, 0)                                      \
+    _(DW_OP_over, 0x14, 0)                                      \
+    _(DW_OP_pick, 0x15, DW_OPD_U8)                              \
+    _(DW_OP_swap, 0x16, 0)                                      \
+    _(DW_OP_rot, 0x17, 0)                                       \
+    _(DW_OP_xderef, 0x18, 0)                                    \
+    _(DW_OP_abs, 0x19, 0)                                       \
+    _(DW_OP_and, 0x1a, 0)                                       \
+    _(DW_OP_div, 0x1b, 0)                                       \
+    _(DW_OP_minus, 0x1c, 0)                                     \
+    _(DW_OP_mod, 0x1d, 0)                                       \
+    _(DW_OP_mul, 0x1e, 0)                                       \
+    _(DW_OP_neg, 0x1f, 0)                                       \
+    _(DW_OP_not, 0x20, 0)                                       \
+    _(DW_OP_or, 0x21, 0)                                        \
+    _(DW_OP_plus, 0x22, 0)                                      \
+    _(DW_OP_plus_uconst, 0x23, 1, DW_OPD_ULEB)                  \
+    _(DW_OP_shl, 0x24, 0)                                       \
+    _(DW_OP_shr, 0x25, 0)                                       \
+    _(DW_OP_shra, 0x26, 0)                                      \
+    _(DW_OP_xor, 0x27, 0)                                       \
+    _(DW_OP_bra, 0x28, 1, DW_OPD_I16)                           \
+    _(DW_OP_eq, 0x29, 0)                                        \
+    _(DW_OP_ge, 0x2a, 0)                                        \
+    _(DW_OP_gt, 0x2b, 0)                                        \
+    _(DW_OP_le, 0x2c, 0)                                        \
+    _(DW_OP_lt, 0x2d, 0)                                        \
+    _(DW_OP_ne, 0x2e, 0)                                        \
+    _(DW_OP_skip, 0x2f, 0)                                      \
+    _(DW_OP_lit0, 0x30, 0)                                      \
+    _(DW_OP_lit1, 0x31, 0)                                      \
+    _(DW_OP_lit2, 0x32, 0)                                      \
+    _(DW_OP_lit3, 0x33, 0)                                      \
+    _(DW_OP_lit4, 0x34, 0)                                      \
+    _(DW_OP_lit5, 0x35, 0)                                      \
+    _(DW_OP_lit6, 0x36, 0)                                      \
+    _(DW_OP_lit7, 0x37, 0)                                      \
+    _(DW_OP_lit8, 0x38, 0)                                      \
+    _(DW_OP_lit9, 0x39, 0)                                      \
+    _(DW_OP_lit10, 0x3a, 0)                                     \
+    _(DW_OP_lit11, 0x3b, 0)                                     \
+    _(DW_OP_lit12, 0x3c, 0)                                     \
+    _(DW_OP_lit13, 0x3d, 0)                                     \
+    _(DW_OP_lit14, 0x3e, 0)                                     \
+    _(DW_OP_lit15, 0x3f, 0)                                     \
+    _(DW_OP_lit16, 0x40, 0)                                     \
+    _(DW_OP_lit17, 0x41, 0)                                     \
+    _(DW_OP_lit18, 0x42, 0)                                     \
+    _(DW_OP_lit19, 0x43, 0)                                     \
+    _(DW_OP_lit20, 0x44, 0)                                     \
+    _(DW_OP_lit21, 0x45, 0)                                     \
+    _(DW_OP_lit22, 0x46, 0)                                     \
+    _(DW_OP_lit23, 0x47, 0)                                     \
+    _(DW_OP_lit24, 0x48, 0)                                     \
+    _(DW_OP_lit25, 0x49, 0)                                     \
+    _(DW_OP_lit26, 0x4a, 0)                                     \
+    _(DW_OP_lit27, 0x4b, 0)                                     \
+    _(DW_OP_lit28, 0x4c, 0)                                     \
+    _(DW_OP_lit29, 0x4d, 0)                                     \
+    _(DW_OP_lit30, 0x4e, 0)                                     \
+    _(DW_OP_lit31, 0x4f, 0)                                     \
+    _(DW_OP_reg0, 0x50, 0)                                      \
+    _(DW_OP_reg1, 0x51, 0)                                      \
+    _(DW_OP_reg2, 0x52, 0)                                      \
+    _(DW_OP_reg3, 0x53, 0)                                      \
+    _(DW_OP_reg4, 0x54, 0)                                      \
+    _(DW_OP_reg5, 0x55, 0)                                      \
+    _(DW_OP_reg6, 0x56, 0)                                      \
+    _(DW_OP_reg7, 0x57, 0)                                      \
+    _(DW_OP_reg8, 0x58, 0)                                      \
+    _(DW_OP_reg9, 0x59, 0)                                      \
+    _(DW_OP_reg10, 0x5a, 0)                                     \
+    _(DW_OP_reg11, 0x5b, 0)                                     \
+    _(DW_OP_reg12, 0x5c, 0)                                     \
+    _(DW_OP_reg13, 0x5d, 0)                                     \
+    _(DW_OP_reg14, 0x5e, 0)                                     \
+    _(DW_OP_reg15, 0x5f, 0)                                     \
+    _(DW_OP_reg16, 0x60, 0)                                     \
+    _(DW_OP_reg17, 0x61, 0)                                     \
+    _(DW_OP_reg18, 0x62, 0)                                     \
+    _(DW_OP_reg19, 0x63, 0)                                     \
+    _(DW_OP_reg20, 0x64, 0)                                     \
+    _(DW_OP_reg21, 0x65, 0)                                     \
+    _(DW_OP_reg22, 0x66, 0)                                     \
+    _(DW_OP_reg23, 0x67, 0)                                     \
+    _(DW_OP_reg24, 0x68, 0)                                     \
+    _(DW_OP_reg25, 0x69, 0)                                     \
+    _(DW_OP_reg26, 0x6a, 0)                                     \
+    _(DW_OP_reg27, 0x6b, 0)                                     \
+    _(DW_OP_reg28, 0x6c, 0)                                     \
+    _(DW_OP_reg29, 0x6d, 0)                                     \
+    _(DW_OP_reg30, 0x6e, 0)                                     \
+    _(DW_OP_reg31, 0x6f, 0)                                     \
+    _(DW_OP_breg0, 0x70, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg1, 0x71, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg2, 0x72, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg3, 0x73, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg4, 0x74, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg5, 0x75, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg6, 0x76, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg7, 0x77, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg8, 0x78, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg9, 0x79, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_breg10, 0x7a, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg11, 0x7b, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg12, 0x7c, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg13, 0x7d, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg14, 0x7e, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg15, 0x7f, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg16, 0x80, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg17, 0x81, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg18, 0x82, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg19, 0x83, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg20, 0x84, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg21, 0x85, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg22, 0x86, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg23, 0x87, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg24, 0x88, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg25, 0x89, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg26, 0x8a, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg27, 0x8b, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg28, 0x8c, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg29, 0x8d, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg30, 0x8e, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_breg31, 0x8f, 1, DW_OPD_SLEB)                       \
+    _(DW_OP_regx, 0x90, 1, DW_OPD_ULEB)                         \
+    _(DW_OP_fbreg, 0x91, 1, DW_OPD_SLEB)                        \
+    _(DW_OP_bregx, 0x92, 2, DW_OPD_ULEB, DW_OPD_SLEB)           \
+    _(DW_OP_piece, 0x93, 1, DW_OPD_ULEB)                        \
+    _(DW_OP_deref_size, 0x94, 1, DW_OPD_U8)                     \
+    _(DW_OP_xderef_size, 0x95, DW_OPD_U8)                       \
+    _(DW_OP_nop, 0x96, 0)                                       \
+    _(DW_OP_push_object_address, 0x97, 0)                       \
+    _(DW_OP_call2, 0x98, 1, DW_OPD_U16)                         \
+    _(DW_OP_call4, 0x99, 1, DW_OPD_U32)                         \
+    _(DW_OP_call_ref, 0x9a, 1, DW_OPD_REF)                      \
+    _(DW_OP_form_tls_address, 0x9b, 0)                          \
+    _(DW_OP_call_frame_cfa, 0x9c, 0)                            \
+    _(DW_OP_bit_piece, 0x9d, 2, DW_OPD_ULEB, DW_OPD_ULEB)       \
+    _(DW_OP_implicit_value, 0x9e, 1, DW_OPD_ULEB)               \
+    _(DW_OP_stack_value, 0x9f, 0)                               \
+    _(DW_OP_implicit_pointer, 0xa0, 2, DW_OPD_REF, DW_OPD_ULEB) \
+    _(DW_OP_addrx, 0xa1, 1, DW_OPD_ULEB)                        \
+    _(DW_OP_constx, 0xa2, 1, DW_OPD_ULEB)                       \
+    _(DW_OP_entry_value, 0xa3, 1, DW_OPD_ULEB)                  \
+    _(DW_OP_const_type, 0xa4, 2, DW_OPD_ULEB, DW_OPD_U8)        \
+    _(DW_OP_regval_type, 0xa5, 2, DW_OPD_ULEB, DW_OPD_ULEB)     \
+    _(DW_OP_deref_type, 0xa6, 2, DW_OPD_U8, DW_OPD_ULEB)        \
+    _(DW_OP_xderef_type, 0xa7, 2, DW_OPD_U8, DW_OPD_ULEB)       \
+    _(DW_OP_convert, 0xa8, DW_OPD_ULEB)                         \
+    _(DW_OP_reinterpret, 0xa9, DW_OPD_ULEB)                     \
+    _(DW_OP_lo_user, 0xe0, 0)                                   \
+    _(DW_OP_hi_user, 0xff, 0)                                   \
+    _(DW_OP_WASM_location, 0xed, 2, DW_OPD_U8, DW_OPD_ULEB)
 
 typedef enum dw_op
 {
@@ -627,6 +631,35 @@ static inline oc_str8 dw_op_get_string(u32 opcode)
     }
     return res;
 }
+
+enum
+{
+    DW_MAX_OPD_COUNT = 4,
+};
+
+typedef enum dw_opd_kind
+{
+    DW_OPD_U8,
+    DW_OPD_I8,
+    DW_OPD_U16,
+    DW_OPD_I16,
+    DW_OPD_U32,
+    DW_OPD_I32,
+    DW_OPD_U64,
+    DW_OPD_I64,
+    DW_OPD_ULEB,
+    DW_OPD_SLEB,
+    DW_OPD_ADDR, //NOTE: operand size depends on address size
+    DW_OPD_REF,  //NOTE: operand size depends on dwarf format
+} dw_opd_kind;
+
+typedef struct dw_op_info
+{
+    u32 count;
+    dw_opd_kind opd[DW_MAX_OPD_COUNT];
+} dw_op_info;
+
+extern const dw_op_info DW_OP_INFO[];
 
 #define DW_LLE_LIST(_)               \
     _(DW_LLE_end_of_list, 0x00)      \
@@ -713,11 +746,15 @@ static inline const char* dw_get_cu_type_string(u8 unitType)
     return res;
 }
 
-enum
+//------------------------------------------------------------------------
+// DIEs
+//------------------------------------------------------------------------
+
+typedef enum dw_dwarf_format
 {
     DW_DWARF32,
     DW_DWARF64,
-};
+} dw_dwarf_format;
 
 typedef struct dw_abbrev_attr
 {
@@ -741,11 +778,42 @@ typedef struct dw_abbrev_table
     dw_abbrev_entry* entries;
 } dw_abbrev_table;
 
+typedef struct dw_val
+{
+    union
+    {
+        oc_str8 string;
+        u8 valU8;
+        i8 valI8;
+        u16 valU16;
+        i16 valI16;
+        u32 valU32;
+        i32 valI32;
+        u64 valU64;
+        i64 valI64;
+    };
+} dw_val;
+
+typedef struct dw_expr_instr
+{
+    dw_op op;
+    dw_val* operands;
+} dw_expr_instr;
+
+typedef struct dw_expr
+{
+    u64 codeLen;
+    dw_expr_instr* code;
+} dw_expr;
+
 typedef struct dw_loc_entry
 {
     u64 start;
     u64 end;
     oc_str8 desc;
+
+    dw_expr expr;
+
 } dw_loc_entry;
 
 typedef struct dw_loc
@@ -810,6 +878,10 @@ typedef struct dw_unit
     dw_die* rootDie;
 
 } dw_unit;
+
+//------------------------------------------------------------------------
+// Line info
+//------------------------------------------------------------------------
 
 typedef struct dw_file_entry
 {
@@ -890,6 +962,10 @@ typedef struct dw_line_info
     u64 tableCount;
     dw_line_table* tables;
 } dw_line_info;
+
+//------------------------------------------------------------------------
+// dwarf info
+//------------------------------------------------------------------------
 
 typedef struct dw_info
 {

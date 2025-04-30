@@ -15,6 +15,19 @@
 #include "reader.h"
 
 //------------------------------------------------------------------------
+// op info array
+//------------------------------------------------------------------------
+
+#define X_OP_INFO(name, val, opdCount, ...) \
+    [name] = { .count = opdCount, .opd = { __VA_ARGS__ } },
+
+const dw_op_info DW_OP_INFO[] = {
+    DW_OP_LIST(X_OP_INFO)
+};
+
+#undef X_OP_INFO
+
+//------------------------------------------------------------------------
 // structs
 //------------------------------------------------------------------------
 
@@ -955,6 +968,143 @@ dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, dw_section section, u64
     return table;
 }
 
+dw_expr dw_parse_expr(dw_parser* parser, wa_reader* reader, dw_dwarf_format format)
+{
+    u64 cap = 0;
+    dw_expr expr = { 0 };
+    bool quit = false;
+
+    while(!quit && wa_reader_has_more(reader))
+    {
+        if(expr.codeLen >= cap)
+        {
+            //NOTE: grow code array if needed
+            cap = (u32)((f32)cap * 1.5 + 8);
+            dw_expr_instr* newCode = oc_malloc_array(dw_expr_instr, cap);
+            if(expr.code)
+            {
+                memcpy(newCode, expr.code, expr.codeLen * sizeof(dw_expr_instr));
+                free(expr.code);
+            }
+            expr.code = newCode;
+        }
+
+        dw_expr_instr* instr = &expr.code[expr.codeLen];
+        expr.codeLen++;
+
+        instr->op = wa_read_u8(reader);
+
+        if(instr->op > DW_OP_hi_user)
+        {
+            dw_parse_error(parser, wa_reader_absolute_loc(reader), "Out of bounds dwarp opcode 0x%02hhu", instr->op);
+            break;
+        }
+        const dw_op_info* info = &DW_OP_INFO[instr->op];
+
+        instr->operands = oc_arena_push_array(parser->arena, dw_val, info->count);
+
+        //NOTE: special-case the opcodes whose encoding depend on the first opcode (sigh)
+        if(instr->op == DW_OP_implicit_value)
+        {
+            instr->operands = oc_arena_push_array(parser->arena, dw_val, 2);
+            u64 len = wa_read_leb128_u64(reader);
+            instr->operands[0].valU64 = len;
+            instr->operands[1].string = wa_read_bytes(reader, len);
+        }
+        else if(instr->op == DW_OP_WASM_location)
+        {
+            instr->operands = oc_arena_push_array(parser->arena, dw_val, 2);
+            u8 kind = instr->operands[0].valU8 = wa_read_u8(reader);
+
+            switch(kind)
+            {
+                case 0x00:
+                case 0x01:
+                case 0x02:
+                {
+                    //NOTE: wasm local
+                    instr->operands[1].valU32 = wa_read_leb128_u32(reader);
+                }
+                break;
+
+                case 0x03:
+                {
+                    //NOTE: wasm global, u32
+                    instr->operands[1].valU32 = wa_read_u32(reader);
+                }
+                break;
+                default:
+                    dw_parse_error(parser, wa_reader_absolute_loc(reader), "unrecognized WASM location kind %hhu\n", kind);
+                    quit = true;
+            }
+        }
+        else
+        {
+            for(u32 opdIndex = 0; opdIndex < info->count; opdIndex++)
+            {
+                switch(info->opd[opdIndex])
+                {
+                    case DW_OPD_U8:
+                        instr->operands[opdIndex].valU8 = wa_read_u8(reader);
+                        break;
+                    case DW_OPD_I8:
+                        instr->operands[opdIndex].valI8 = wa_read_i8(reader);
+                        break;
+                    case DW_OPD_U16:
+                        instr->operands[opdIndex].valU16 = wa_read_u16(reader);
+                        break;
+                    case DW_OPD_I16:
+                        instr->operands[opdIndex].valI16 = wa_read_i16(reader);
+                        break;
+                    case DW_OPD_U32:
+                        instr->operands[opdIndex].valU32 = wa_read_u32(reader);
+                        break;
+                    case DW_OPD_I32:
+                        instr->operands[opdIndex].valI32 = wa_read_i32(reader);
+                        break;
+                    case DW_OPD_U64:
+                        instr->operands[opdIndex].valU64 = wa_read_u64(reader);
+                        break;
+                    case DW_OPD_I64:
+                        instr->operands[opdIndex].valI64 = wa_read_i64(reader);
+                        break;
+                    case DW_OPD_ULEB:
+                        instr->operands[opdIndex].valU64 = wa_read_leb128_u64(reader);
+                        break;
+                    case DW_OPD_SLEB:
+                        instr->operands[opdIndex].valI64 = wa_read_leb128_i64(reader);
+                        break;
+                    case DW_OPD_ADDR:
+                        //TODO: always 32bit for wasm, but we should depend on dwarf info for that...
+                        instr->operands[opdIndex].valU32 = wa_read_u32(reader);
+                        break;
+                    case DW_OPD_REF:
+                        if(format == DW_DWARF32)
+                        {
+                            instr->operands[opdIndex].valU32 = wa_read_u32(reader);
+                        }
+                        else
+                        {
+                            instr->operands[opdIndex].valU64 = wa_read_u64(reader);
+                        }
+                        break;
+                }
+            }
+        }
+    }
+
+    //NOTE: copy expr code to arena and free temp code
+    dw_expr_instr* code = oc_arena_push_array(parser->arena, dw_expr_instr, expr.codeLen);
+    if(expr.code)
+    {
+        memcpy(code, expr.code, expr.codeLen * sizeof(dw_expr_instr));
+        free(expr.code);
+    }
+    expr.code = code;
+
+    return expr;
+}
+
 dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u64 offset)
 {
     //TODO: parse from debug loclist.
@@ -982,6 +1132,7 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
             u64 start = 0;
             u64 end = 0;
             oc_str8 desc = { 0 };
+            dw_expr expr = { 0 };
 
             if(unit->addressSize == 4)
             {
@@ -1011,6 +1162,11 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
             {
                 //NOTE normal entry
                 u16 length = wa_read_u16(&reader);
+
+                wa_reader exprReader = wa_reader_subreader(&reader, wa_reader_offset(&reader), length);
+                expr = dw_parse_expr(parser, &exprReader, unit->format);
+
+                //TODO: skip and remove string desc
                 desc = wa_read_bytes(&reader, length);
             }
 
@@ -1020,6 +1176,7 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
                 .end = end,
                 .desc = desc,
             };
+
             oc_list_push_back(&list, &elt->listElt);
             loc.entryCount++;
         }
