@@ -20,7 +20,9 @@ oc_str8 oc_str8_from_buffer(u64 len, char* buffer)
 
 oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end)
 {
-    OC_ASSERT(start <= end && start <= s.len && end <= s.len);
+    end = oc_max(start, end);
+    start = oc_min(start, s.len);
+    end = oc_min(end, s.len);
     return ((oc_str8){ .ptr = s.ptr + start, .len = end - start });
 }
 
@@ -225,7 +227,9 @@ oc_str16 oc_str16_from_buffer(u64 len, u16* buffer)
 
 oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end)
 {
-    OC_ASSERT(start <= end && start <= s.len && end <= s.len);
+    end = oc_max(start, end);
+    start = oc_min(start, s.len);
+    end = oc_min(end, s.len);
     return ((oc_str16){ .ptr = s.ptr + start, .len = end - start });
 }
 
@@ -311,7 +315,9 @@ oc_str32 oc_str32_from_buffer(u64 len, u32* buffer)
 
 oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end)
 {
-    OC_ASSERT(start <= end && start <= s.len && end <= s.len);
+    end = oc_max(start, end);
+    start = oc_min(start, s.len);
+    end = oc_min(end, s.len);
     return ((oc_str32){ .ptr = s.ptr + start, .len = end - start });
 }
 

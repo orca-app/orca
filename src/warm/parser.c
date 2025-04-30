@@ -15,6 +15,7 @@ typedef struct wa_parser
 {
     oc_arena* arena;
     wa_module* module;
+    wa_reader rootReader;
     wa_reader reader;
 } wa_parser;
 
@@ -235,11 +236,9 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
         return;
     }
 
-    //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.names.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.names.offset, module->toc.names.len);
 
-    while(wa_reader_offset(&parser->reader) - startOffset < module->toc.names.len)
+    while(wa_reader_has_more(&parser->reader))
     {
         u8 id = wa_read_u8(&parser->reader);
         u32 size = wa_read_leb128_u32(&parser->reader);
@@ -284,12 +283,12 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
         wa_reader_seek(&parser->reader, subStartOffset + size);
     }
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.names.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.names.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -314,9 +313,7 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
         return;
     }
 
-    //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.types.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.types.offset, module->toc.types.len);
 
     module->typeCount = wa_read_leb128_u32(&parser->reader);
     module->types = oc_arena_push_array(parser->arena, wa_func_type, module->typeCount);
@@ -353,12 +350,12 @@ void wa_parse_types(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.types.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.types.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -394,9 +391,7 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
         return;
     }
 
-    //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.imports.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.imports.offset, module->toc.imports.len);
 
     module->importCount = wa_read_leb128_u32(&parser->reader);
     module->imports = oc_arena_push_array(parser->arena, wa_import, module->importCount);
@@ -481,12 +476,12 @@ void wa_parse_imports(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.imports.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.imports.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -494,8 +489,7 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse function section
     //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.functions.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.functions.offset, module->toc.functions.len);
 
     if(module->toc.functions.len)
     {
@@ -542,12 +536,12 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     module->functionCount += module->functionImportCount;
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.functions.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.functions.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -557,8 +551,7 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse global section
     //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.globals.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.globals.offset, module->toc.globals.len);
 
     if(module->toc.globals.len)
     {
@@ -610,12 +603,12 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
     module->globalCount += module->globalImportCount;
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.globals.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.globals.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -623,8 +616,7 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse table section
     //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.tables.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.tables.offset, module->toc.tables.len);
 
     if(module->toc.tables.len)
     {
@@ -669,12 +661,12 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
     module->tableCount += module->tableImportCount;
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.tables.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.tables.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -682,8 +674,7 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
 {
     //NOTE: parse table section
     //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.memory.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.memory.offset, module->toc.memory.len);
 
     if(module->toc.memory.len)
     {
@@ -715,12 +706,12 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
     module->memoryCount += module->memoryImportCount;
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.memory.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.memory.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -733,8 +724,7 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
     }
 
     //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.exports.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.exports.offset, module->toc.exports.len);
 
     module->exportCount = wa_read_leb128_u32(&parser->reader);
     module->exports = oc_arena_push_array(parser->arena, wa_export, module->exportCount);
@@ -786,12 +776,12 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.exports.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.exports.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -804,19 +794,18 @@ void wa_parse_start(wa_parser* parser, wa_module* module)
     }
 
     //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.start.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.start.offset, module->toc.start.len);
 
     module->hasStart = true;
     module->startIndex = wa_read_leb128_u32(&parser->reader);
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.start.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.start.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -1090,9 +1079,7 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
         return;
     }
 
-    //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.elements.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.elements.offset, module->toc.elements.len);
 
     module->elementCount = wa_read_leb128_u32(&parser->reader);
     module->elements = oc_arena_push_array(parser->arena, wa_element, module->elementCount);
@@ -1192,12 +1179,12 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.elements.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.elements.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -1208,19 +1195,17 @@ void wa_parse_data_count(wa_parser* parser, wa_module* module)
         return;
     }
 
-    //TODO: use subreader
-    wa_reader_seek(&parser->reader, module->toc.dataCount.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.dataCount.offset, module->toc.dataCount.len);
 
     module->dataCount = wa_read_leb128_u32(&parser->reader);
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.dataCount.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.dataCount.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -1232,8 +1217,7 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
     }
 
     //TODO use subreader
-    wa_reader_seek(&parser->reader, module->toc.data.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.data.offset, module->toc.data.len);
 
     u32 dataCount = wa_read_leb128_u32(&parser->reader);
 
@@ -1281,12 +1265,12 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.data.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.data.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -1303,8 +1287,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
         return;
     }
 
-    wa_reader_seek(&parser->reader, module->toc.code.offset);
-    u64 startOffset = wa_reader_offset(&parser->reader);
+    parser->reader = wa_reader_subreader(&parser->rootReader, module->toc.code.offset, module->toc.code.len);
 
     u32 functionCount = wa_read_leb128_u32(&parser->reader);
 
@@ -1394,12 +1377,12 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     }
 
     //NOTE: check section size
-    if(wa_reader_offset(&parser->reader) - startOffset != module->toc.code.len)
+    if(wa_reader_has_more(&parser->reader))
     {
         wa_parse_error(parser,
                        "Size of section does not match declared size (declared = %llu, actual = %llu)\n",
                        module->toc.code.len,
-                       wa_reader_offset(&parser->reader) - startOffset);
+                       wa_reader_offset(&parser->reader));
     }
 }
 
@@ -1414,9 +1397,10 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
     wa_parser parser = {
         .module = module,
         .arena = module->arena,
-        .reader = wa_reader_from_str8(contents),
     };
-    wa_reader_set_error_callback(&parser.reader, wa_parser_read_error_callback, &parser);
+    parser.rootReader = wa_reader_from_str8(contents),
+    wa_reader_set_error_callback(&parser.rootReader, wa_parser_read_error_callback, &parser);
+    parser.reader = parser.rootReader;
 
     u32 magic = wa_read_u32(&parser.reader);
 

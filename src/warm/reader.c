@@ -93,18 +93,34 @@ void wa_reader_skip(wa_reader* reader, u64 n)
     }
 }
 
-wa_reader wa_reader_subreader(wa_reader* reader, u64 size)
+wa_reader wa_reader_subreader(wa_reader* reader, u64 start, u64 len)
 {
-    if(wa_reader_out_of_bounds(reader, size))
+    wa_reader sub = {
+        .errorCallback = reader->errorCallback,
+        .errorData = reader->errorData,
+    };
+
+    u64 end = start + len;
+    if(end < start || wa_reader_out_of_bounds(reader, end))
     {
+        //NOTE: if end wrap or is out of bounds, error and restrict it to contents length
         wa_reader_error(reader, WA_READER_ERROR, "Couldn't create subreader, size out of range.");
-        //TODO: see if/how we want to propagate errors to/from subreader
+        end = reader->contents.len;
+    }
+    start = oc_min(start, reader->contents.len);
+
+    sub.contents = oc_str8_slice(reader->contents, start, end);
+
+    //NOTE: saturate add baseloc to start
+    if(reader->baseLoc + start < reader->baseLoc)
+    {
+        reader->baseLoc = UINT64_MAX;
+    }
+    else
+    {
+        sub.baseLoc = reader->baseLoc + start;
     }
 
-    wa_reader sub = {
-        .contents = oc_str8_slice(reader->contents, reader->offset, reader->offset + size),
-        .offset = 0,
-    };
     return sub;
 }
 

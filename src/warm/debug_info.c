@@ -63,7 +63,7 @@ wa_wasm_loc wa_wasm_loc_from_warm_loc(wa_warm_loc loc)
     if(instr)
     {
         result.module = loc.module;
-        result.offset = instr->loc.start - loc.module->toc.code.offset;
+        result.offset = instr->loc.start;
     }
     return (result);
 }
@@ -79,7 +79,7 @@ wa_warm_loc wa_warm_loc_from_wasm_loc(wa_wasm_loc loc)
     wa_instr* instr = 0;
     oc_list_for(loc.module->debugInfo->wasmToWarmMap[index], mapping, wa_bytecode_mapping, listElt)
     {
-        if((mapping->instr->loc.start - loc.module->toc.code.offset) == loc.offset)
+        if(mapping->instr->loc.start == loc.offset)
         {
             result.module = loc.module;
             result.funcIndex = mapping->funcIndex;
