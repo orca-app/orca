@@ -304,15 +304,16 @@ pub fn build(b: *Build) !void {
     } else {
         curl_lib.root_module.addCMacro("CURL_EXTERN_SYMBOL", "__attribute__ ((__visibility__ (\"default\"))");
 
-        if (target.result.os.tag.isDarwin() == false) {
+        if (target.result.os.tag == .windows) {
+            curl_lib.root_module.addCMacro("OS", "\"win32\"");
             curl_lib.root_module.addCMacro("ENABLE_IPV6", "1");
             curl_lib.root_module.addCMacro("HAVE_GETHOSTBYNAME_R", "1");
             curl_lib.root_module.addCMacro("HAVE_MSG_NOSIGNAL", "1");
-        }
-
-        if (target.result.os.tag == .linux) {
-            curl_lib.root_module.addCMacro("HAVE_LINUX_TCP_H", "1");
+        } else if (target.result.os.tag.isDarwin()) {
+            curl_lib.root_module.addCMacro("OS", "\"mac\"");
+        } else if (target.result.os.tag == .linux) {
             curl_lib.root_module.addCMacro("OS", "\"Linux\"");
+            curl_lib.root_module.addCMacro("HAVE_LINUX_TCP_H", "1");
         }
 
         curl_lib.root_module.addCMacro("HAVE_ALARM", "1");
@@ -514,10 +515,10 @@ pub fn build(b: *Build) !void {
     orca_tool_exe.step.dependOn(&z_lib.step);
     orca_tool_exe.linkLibC();
 
-    const orca_tool_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
+    const build_orca_tool: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
 
     var run_orca_tool: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
-    run_orca_tool.step.dependOn(&orca_tool_install.step);
+    run_orca_tool.step.dependOn(&build_orca_tool.step);
     if (b.args) |args| {
         run_orca_tool.addArgs(args); // forwards args afer -- to orca cli, ex: zig build orca-tool -- update
     }
@@ -1133,7 +1134,7 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(build_runtime_step);
     build_orca.dependOn(build_libc_step);
     build_orca.dependOn(build_wasm_sdk_step);
-    build_orca.dependOn(&orca_tool_exe.step);
+    build_orca.dependOn(&build_orca_tool.step);
 
     const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "package_sdk",
