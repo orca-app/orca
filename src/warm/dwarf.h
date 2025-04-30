@@ -810,3 +810,115 @@ typedef struct dw_unit
     dw_die* rootDie;
 
 } dw_unit;
+
+typedef struct dw_file_entry
+{
+    oc_str8 path;
+    u64 dirIndex;
+    u64 timestamp;
+    u64 size;
+    u8 md5[16];
+
+} dw_file_entry;
+
+typedef struct dw_line_program_header
+{
+    u64 offset;
+    u64 unitLength;
+    uint16_t version;
+    u8 addressSize;
+    u8 segmentSelectorSize;
+    u64 headerLength;
+    u8 minInstructionLength;
+    u8 maxOperationsPerInstruction;
+    u8 defaultIsStmt;
+    int8_t lineBase;
+    u8 lineRange;
+    u8 opcodeBase;
+    u8 standardOpcodeLength[12]; //TODO not always 12, should point to allocated array
+
+    dw_lnct_flags dirFlags;
+    u64 dirEntryCount;
+    dw_file_entry* dirEntries;
+
+    dw_lnct_flags fileFlags;
+    u64 fileEntryCount;
+    dw_file_entry* fileEntries;
+
+} dw_line_program_header;
+
+typedef struct dw_file_entry_format_elt
+{
+    u64 content;
+    u64 form;
+} dw_file_entry_format_elt;
+
+typedef u32 dw_line_entry_flags;
+
+enum dw_line_entry_flags
+{
+    DW_LINE_NONE = 0,
+    DW_LINE_STMT = 1 << 0,
+    DW_LINE_BASIC_BLOCK = 1 << 1,
+    DW_LINE_PROLOGUE_END = 1 << 2,
+    DW_LINE_EPILOGUE_BEGIN = 1 << 3,
+    DW_LINE_SEQUENCE_END = 1 << 4,
+};
+
+typedef struct dw_line_entry
+{
+    u64 address;
+    dw_file_entry* fileEntry;
+    u64 file;
+    u64 line;
+    u64 column;
+    u64 discriminator;
+    u64 isa;
+    u64 opIndex;
+    dw_line_entry_flags flags;
+} dw_line_entry;
+
+typedef struct dw_line_table
+{
+    dw_line_program_header header;
+    u64 entryCount;
+    dw_line_entry* entries;
+} dw_line_table;
+
+typedef struct dw_line_info
+{
+    u64 tableCount;
+    dw_line_table* tables;
+} dw_line_info;
+
+typedef struct dw_info
+{
+    u64 unitCount;
+    dw_unit* units;
+
+    dw_line_info line;
+
+} dw_info;
+
+typedef struct dw_sections
+{
+    oc_str8 abbrev;
+    oc_str8 info;
+    oc_str8 strOffsets;
+    oc_str8 str;
+    oc_str8 addr;
+    oc_str8 line;
+    oc_str8 lineStr;
+    oc_str8 loc;
+} dw_sections;
+
+typedef struct dw_parser dw_parser;
+typedef void (*dw_error_callback)(dw_parser* parser, oc_str8 message, void* user);
+
+typedef struct dw_parser
+{
+    oc_arena* arena;
+    dw_sections sections;
+    dw_error_callback errorCallback;
+    void* userData;
+} dw_parser;

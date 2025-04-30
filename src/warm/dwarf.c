@@ -18,30 +18,6 @@
 // structs
 //------------------------------------------------------------------------
 
-typedef struct dw_sections
-{
-    oc_str8 abbrev;
-    oc_str8 info;
-    oc_str8 strOffsets;
-    oc_str8 str;
-    oc_str8 addr;
-    oc_str8 line;
-    oc_str8 lineStr;
-    oc_str8 loc;
-} dw_sections;
-
-typedef struct dw_parser dw_parser;
-typedef void (*dw_error_callback)(dw_parser* parser, oc_str8 message, void* user);
-
-typedef struct dw_parser
-{
-    oc_arena* arena;
-    dw_sections sections;
-    wa_reader reader;
-    dw_error_callback errorCallback;
-    void* userData;
-} dw_parser;
-
 typedef struct dw_line_machine
 {
     u64 address;
@@ -70,95 +46,6 @@ typedef struct dw_line_machine
     bool tombstone;
 
 } dw_line_machine;
-
-typedef struct dw_file_entry
-{
-    oc_str8 path;
-    u64 dirIndex;
-    u64 timestamp;
-    u64 size;
-    u8 md5[16];
-
-} dw_file_entry;
-
-typedef struct dw_line_program_header
-{
-    u64 offset;
-    u64 unitLength;
-    uint16_t version;
-    u8 addressSize;
-    u8 segmentSelectorSize;
-    u64 headerLength;
-    u8 minInstructionLength;
-    u8 maxOperationsPerInstruction;
-    u8 defaultIsStmt;
-    int8_t lineBase;
-    u8 lineRange;
-    u8 opcodeBase;
-    u8 standardOpcodeLength[12]; //TODO not always 12, should point to allocated array
-
-    dw_lnct_flags dirFlags;
-    u64 dirEntryCount;
-    dw_file_entry* dirEntries;
-
-    dw_lnct_flags fileFlags;
-    u64 fileEntryCount;
-    dw_file_entry* fileEntries;
-
-} dw_line_program_header;
-
-typedef struct dw_file_entry_format_elt
-{
-    u64 content;
-    u64 form;
-} dw_file_entry_format_elt;
-
-typedef u32 dw_line_entry_flags;
-
-enum dw_line_entry_flags
-{
-    DW_LINE_NONE = 0,
-    DW_LINE_STMT = 1 << 0,
-    DW_LINE_BASIC_BLOCK = 1 << 1,
-    DW_LINE_PROLOGUE_END = 1 << 2,
-    DW_LINE_EPILOGUE_BEGIN = 1 << 3,
-    DW_LINE_SEQUENCE_END = 1 << 4,
-};
-
-typedef struct dw_line_entry
-{
-    u64 address;
-    dw_file_entry* fileEntry;
-    u64 file;
-    u64 line;
-    u64 column;
-    u64 discriminator;
-    u64 isa;
-    u64 opIndex;
-    dw_line_entry_flags flags;
-} dw_line_entry;
-
-typedef struct dw_line_table
-{
-    dw_line_program_header header;
-    u64 entryCount;
-    dw_line_entry* entries;
-} dw_line_table;
-
-typedef struct dw_line_info
-{
-    u64 tableCount;
-    dw_line_table* tables;
-} dw_line_info;
-
-typedef struct dw_info
-{
-    u64 unitCount;
-    dw_unit* units;
-
-    dw_line_info* line;
-
-} dw_info;
 
 typedef struct dw_file_entry_elt
 {
@@ -195,7 +82,7 @@ void dw_parse_error(dw_parser* parser, const char* fmt, ...)
     oc_scratch_end(scratch);
 }
 
-void dw_parser_read_callback(wa_reader* reader, oc_str8 message, void* user)
+void dw_parser_read_error_callback(wa_reader* reader, oc_str8 message, void* user)
 {
     dw_parser* parser = (dw_parser*)parser;
     dw_parse_error_str8(parser, message);
@@ -221,7 +108,7 @@ void wa_read_inital_length(wa_reader* reader, u64* length, u8* format)
 // Line info
 //------------------------------------------------------------------------
 
-void wa_read_file_entries(oc_arena* arena,
+void wa_read_file_entries(dw_parser* parser,
                           wa_reader* reader,
                           u64* entryCount,
                           dw_file_entry** entries,
@@ -248,7 +135,7 @@ void wa_read_file_entries(oc_arena* arena,
         }
     }
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
     format = oc_arena_push_array(scratch.arena, dw_file_entry_format_elt, formatCount);
 
     if(header->version == 5)
@@ -366,6 +253,7 @@ void wa_read_file_entries(oc_arena* arena,
                             }
 
                             wa_reader strReader = wa_reader_from_str8(section);
+                            wa_reader_set_error_callback(&strReader, dw_parser_read_error_callback, parser);
                             wa_reader_seek(&strReader, strp);
                             entry->path = wa_read_cstring(&strReader);
                         }
@@ -533,7 +421,7 @@ void wa_read_file_entries(oc_arena* arena,
 
     *entryCount = entryIndex;
 
-    *entries = oc_arena_push_array(arena, dw_file_entry, *entryCount);
+    *entries = oc_arena_push_array(parser->arena, dw_file_entry, *entryCount);
     {
         oc_list_for_indexed(entryList, it, dw_file_entry_elt, listElt)
         {
@@ -544,7 +432,7 @@ void wa_read_file_entries(oc_arena* arena,
     oc_scratch_end(scratch);
 }
 
-int wa_read_line_program_header(oc_arena* arena, wa_reader* reader, dw_line_program_header* header, dw_sections* sections)
+int wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_line_program_header* header, dw_sections* sections)
 {
     header->offset = wa_reader_offset(reader);
 
@@ -602,10 +490,10 @@ int wa_read_line_program_header(oc_arena* arena, wa_reader* reader, dw_line_prog
     }
 
     // directories
-    wa_read_file_entries(arena, reader, &header->dirEntryCount, &header->dirEntries, sections, header, true);
+    wa_read_file_entries(parser, reader, &header->dirEntryCount, &header->dirEntries, sections, header, true);
 
     // files
-    wa_read_file_entries(arena, reader, &header->fileEntryCount, &header->fileEntries, sections, header, false);
+    wa_read_file_entries(parser, reader, &header->fileEntryCount, &header->fileEntries, sections, header, false);
 
     //NOTE: return offset from start to beginning of line program code
     return (headerLengthBase + header->headerLength - header->offset);
@@ -673,13 +561,14 @@ void dw_line_machine_emit_row(oc_arena* arena, dw_line_machine* m, oc_list* rowL
     }
 }
 
-dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
+dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
 {
     dw_line_info lineInfo = { 0 };
 
     wa_reader reader = wa_reader_from_str8(sections->line);
+    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
     oc_list tablesList = { 0 };
     u64 tableCount = 0;
 
@@ -688,7 +577,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
         u64 unitStart = wa_reader_offset(&reader);
         dw_line_program_header header = { 0 };
 
-        wa_read_line_program_header(arena, &reader, &header, sections);
+        wa_read_line_program_header(parser, &reader, &header, sections);
 
         u64 unitLineInfoEnd = unitStart + header.addressSize + header.unitLength;
 
@@ -886,7 +775,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
         }
 
         table->table.entryCount = rowCount;
-        table->table.entries = oc_arena_push_array(arena, dw_line_entry, rowCount);
+        table->table.entries = oc_arena_push_array(parser->arena, dw_line_entry, rowCount);
 
         oc_list_for_indexed(rowsList, rowIt, dw_line_entry_elt, listElt)
         {
@@ -897,7 +786,7 @@ dw_line_info dw_load_line_info(oc_arena* arena, dw_sections* sections)
     }
 
     lineInfo.tableCount = tableCount;
-    lineInfo.tables = oc_arena_push_array(arena, dw_line_table, tableCount);
+    lineInfo.tables = oc_arena_push_array(parser->arena, dw_line_table, tableCount);
 
     oc_list_for_indexed(tablesList, tableIt, dw_line_table_elt, listElt)
     {
@@ -981,6 +870,7 @@ dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, oc_str8 section, u64 of
     oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
 
     wa_reader reader = wa_reader_from_str8(section);
+    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
 
     wa_reader_seek(&reader, offset);
 
@@ -1067,6 +957,7 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, oc_str8 section, u64 o
     oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
 
     wa_reader reader = wa_reader_from_str8(section);
+    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
     wa_reader_seek(&reader, offset);
 
     if(unit->version == 4)
@@ -1443,6 +1334,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
             if(strSection)
             {
                 wa_reader strReader = wa_reader_from_str8(*strSection);
+                wa_reader_set_error_callback(&strReader, dw_parser_read_error_callback, parser);
                 wa_reader_seek(&strReader, strOffset);
                 res->string = wa_read_cstring(&strReader);
             }
@@ -1497,6 +1389,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
             //TODO: take into account string offset base...
 
             wa_reader strOffsetReader = wa_reader_from_str8(sections->strOffsets);
+            wa_reader_set_error_callback(&strOffsetReader, dw_parser_read_error_callback, parser);
 
             u8 strOffsetFormat = DW_DWARF32;
             u64 strOffsetLength = 0;
@@ -1518,6 +1411,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
             }
 
             wa_reader strReader = wa_reader_from_str8(sections->str);
+            wa_reader_set_error_callback(&strReader, dw_parser_read_error_callback, parser);
             wa_reader_seek(&strReader, strOffset);
             res->string = wa_read_cstring(&strReader);
         }
@@ -1616,7 +1510,7 @@ end:
 void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
 {
     wa_reader reader = wa_reader_from_str8(sections->info);
-    wa_reader_set_error_callback(&reader, dw_parser_read_callback, parser);
+    wa_reader_set_error_callback(&reader, dw_parser_read_error_callback, parser);
 
     typedef struct dw_unit_elt
     {
@@ -1745,12 +1639,7 @@ dw_info* dw_parse_dwarf(dw_parser* parser)
 
     dw_parse_info(parser, &parser->sections, dwarf);
 
-    //NOTE: load line info if it exists
-    if(parser->sections.line.len)
-    {
-        dwarf->line = oc_arena_push_type(parser->arena, dw_line_info);
-        *dwarf->line = dw_load_line_info(parser->arena, &parser->sections);
-    }
+    dwarf->line = dw_load_line_info(parser, &parser->sections);
 
     return dwarf;
 }
