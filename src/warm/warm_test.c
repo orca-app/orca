@@ -762,7 +762,6 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
         },
         .contents = oc_arena_push_array(env->arena, wa_value, 10),
     };
-    memset(env->testspecTable.contents, 0, 10 * sizeof(wa_value));
 
     env->testspecGlobal_i32 = (wa_global){
         .type = WA_TYPE_I32,
@@ -797,7 +796,6 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
         if(!oc_str8_cmp(type->string, OC_STR8("module")))
         {
             wa_test_instance* testInstance = oc_arena_push_type(env->arena, wa_test_instance);
-            memset(testInstance, 0, sizeof(wa_test_instance));
 
             json_node* name = json_find(command, OC_STR8("name"));
             if(name)

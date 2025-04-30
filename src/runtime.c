@@ -1190,7 +1190,6 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
         if(!root)
         {
             root = oc_arena_push_type(arena, wa_source_node);
-            memset(root, 0, sizeof(wa_source_node));
 
             root->name = file->rootPath;
             root->id = nodeCount;

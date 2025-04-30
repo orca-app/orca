@@ -170,7 +170,7 @@ typedef struct dw_file_entry_elt
 // errors
 //------------------------------------------------------------------------
 
-void dw_parser_error_str8(dw_parser* parser, oc_str8 message)
+void dw_parse_error_str8(dw_parser* parser, oc_str8 message)
 {
     if(parser->errorCallback)
     {
@@ -316,7 +316,6 @@ void wa_read_file_entries(oc_arena* arena,
         }
 
         dw_file_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_file_entry_elt);
-        memset(elt, 0, sizeof(dw_file_entry_elt));
         oc_list_push_back(&entryList, &elt->listElt);
 
         dw_file_entry* entry = &elt->entry;
@@ -639,7 +638,6 @@ void dw_line_machine_emit_row(oc_arena* arena, dw_line_machine* m, oc_list* rowL
     if(!m->tombstone)
     {
         dw_line_entry_elt* elt = oc_arena_push_type(arena, dw_line_entry_elt);
-        memset(elt, 0, sizeof(dw_line_entry_elt));
 
         elt->entry.address = m->address;
         elt->entry.line = m->line;
@@ -933,7 +931,6 @@ typedef struct dw_loclist_table
 dw_loclist_table* dw_parse_loclist_table(oc_arean* arena, oc_str8 section)
 {
     dw_loclist_table* table = oc_arena_push_type(arena, dw_loclist_table);
-    memset(table, 0, sizeof(dw_loclist_table));
 
     u64 offset = 0;
     u32 length32 = 0;
@@ -962,7 +959,6 @@ dw_abbrev_table* dw_load_abbrev_table(dw_parser* parser, oc_str8 section, u64 of
     //TODO: check if we already loaded this table
 
     dw_abbrev_table* table = oc_arena_push_type(parser->arena, dw_abbrev_table);
-    memset(table, 0, sizeof(dw_abbrev_table));
 
     //NOTE: we don't know the number of entries or the number of attributes for
     //      each entry before we parse them, so we first push parsed struct to
@@ -1601,7 +1597,6 @@ void dw_parse_die(dw_parser* parser, wa_reader* reader, dw_die* die, dw_sections
     }
 
     die->attributes = oc_arena_push_array(parser->arena, dw_attr, die->abbrev->attrCount);
-    memset(die->attributes, 0, sizeof(dw_attr) * die->abbrev->attrCount);
 
     for(u32 attrIndex = 0; attrIndex < die->abbrev->attrCount; attrIndex++)
     {
@@ -1637,7 +1632,6 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
     while(wa_reader_has_more(&reader))
     {
         dw_unit_elt* unitElt = oc_arena_push_type(scratch.arena, dw_unit_elt);
-        memset(unitElt, 0, sizeof(dw_unit_elt));
         dw_unit* unit = &unitElt->unit;
 
         unit->start = wa_reader_offset(&reader);
@@ -1748,7 +1742,6 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
 dw_info* dw_parse_dwarf(dw_parser* parser)
 {
     dw_info* dwarf = oc_arena_push_type(parser->arena, dw_info);
-    memset(dwarf, 0, sizeof(dw_info));
 
     dw_parse_info(parser, &parser->sections, dwarf);
 

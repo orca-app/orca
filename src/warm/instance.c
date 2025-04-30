@@ -397,7 +397,6 @@ wa_status wa_instance_initialize(wa_instance* instance)
 wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_options* options)
 {
     wa_instance* instance = oc_arena_push_type(arena, wa_instance);
-    memset(instance, 0, sizeof(wa_instance));
 
     instance->arena = arena;
     instance->module = module;
@@ -408,19 +407,16 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
 
     //NOTE: allocate globals
     instance->globals = oc_arena_push_array(arena, wa_global*, module->globalCount);
-    memset(instance->globals, 0, module->globalImportCount * sizeof(wa_global*));
 
     for(u32 globalIndex = module->globalImportCount; globalIndex < module->globalCount; globalIndex++)
     {
         instance->globals[globalIndex] = oc_arena_push_type(arena, wa_global);
         instance->globals[globalIndex]->type = module->globals[globalIndex].type;
         instance->globals[globalIndex]->mut = module->globals[globalIndex].mut;
-        memset(&instance->globals[globalIndex]->value, 0, sizeof(wa_value));
     }
 
     //NOTE: allocate tables
     instance->tables = oc_arena_push_array(arena, wa_table*, module->tableCount);
-    memset(instance->tables, 0, module->tableImportCount * sizeof(wa_table*));
 
     for(u32 tableIndex = module->tableImportCount; tableIndex < module->tableCount; tableIndex++)
     {
@@ -430,7 +426,6 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
         table->type = desc->type;
         table->limits = desc->limits;
         table->contents = oc_arena_push_array(arena, wa_value, table->limits.min);
-        memset(table->contents, 0, table->limits.min * sizeof(wa_value));
 
         instance->tables[tableIndex] = table;
     }
@@ -443,14 +438,12 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
     {
         wa_element* elt = &instance->elements[eltIndex];
         elt->refs = oc_arena_push_array(arena, wa_value, elt->initCount);
-        memset(elt->refs, 0, elt->initCount * sizeof(wa_element));
     }
 
     //NOTE: allocate memories
     oc_base_allocator* allocator = oc_base_allocator_default();
 
     instance->memories = oc_arena_push_array(arena, wa_memory*, module->memoryCount);
-    memset(instance->memories, 0, module->memoryImportCount * sizeof(wa_memory*));
 
     for(u32 memIndex = module->memoryImportCount; memIndex < module->memoryCount; memIndex++)
     {

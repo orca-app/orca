@@ -107,7 +107,6 @@ void wa_register_mapping_push(wa_build_context* context, u32 regIndex, u64 start
 void wa_compile_error(wa_build_context* context, wa_instr* instr, const char* fmt, ...)
 {
     wa_module_error* error = oc_arena_push_type(context->arena, wa_module_error);
-    memset(error, 0, sizeof(wa_module_error));
 
     if(instr)
     {
@@ -1613,7 +1612,6 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 void wa_compile_code(oc_arena* arena, wa_module* module)
 {
     module->debugInfo->registerMaps = oc_arena_push_array(module->arena, wa_register_map*, module->functionCount);
-    memset(module->debugInfo->registerMaps, 0, sizeof(wa_register_map) * module->functionCount);
 
     wa_build_context context = {
         .arena = arena,

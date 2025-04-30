@@ -16,7 +16,6 @@
 wa_source_node* wa_source_node_alloc(wa_module* module)
 {
     wa_source_node* node = oc_arena_push_type(module->arena, wa_source_node);
-    memset(node, 0, sizeof(wa_source_node));
     return node;
 }
 
@@ -42,7 +41,6 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     if(!file)
     {
         file = oc_arena_push_type(scratchArena, wa_source_file_elt);
-        memset(file, 0, sizeof(wa_source_file_elt));
         file->file.fullPath = oc_str8_push_copy(pathArena, fullPath);
         file->file.rootPath = oc_str8_slice(file->file.fullPath, 0, rootPath.len);
         file->index = *fileCount;
@@ -307,7 +305,6 @@ void wa_import_dwarf(wa_module* module, oc_str8 contents)
         //NOTE: now copy all wa_source_file entries to the module's global file array, and finally clear the scratch
         //      the first element of the array is a zeroed wa_source_file (index 0 is used as an invalid fileIndex)
         sourceInfo->files = oc_arena_push_array(module->arena, wa_source_file, sourceInfo->fileCount);
-        memset(&sourceInfo->files[0], 0, sizeof(wa_source_file));
         oc_list_for_indexed(files, it, wa_source_file_elt, listElt)
         {
             sourceInfo->files[it.index + 1] = it.elt->file;
@@ -324,7 +321,6 @@ void wa_import_dwarf(wa_module* module, oc_str8 contents)
 wa_debug_type* wa_debug_type_alloc(oc_arena* arena, u64 typeRef, wa_debug_type_kind kind, oc_list* types)
 {
     wa_debug_type* type = oc_arena_push_type(arena, wa_debug_type);
-    memset(type, 0, sizeof(wa_debug_type));
     type->kind = kind;
     type->dwarfRef = typeRef;
     oc_list_push_back(types, &type->listElt);
@@ -518,7 +514,6 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
                     if(child->abbrev && child->abbrev->tag == DW_TAG_member)
                     {
                         wa_debug_type_field* member = oc_arena_push_type(arena, wa_debug_type_field);
-                        memset(member, 0, sizeof(wa_debug_type_field));
 
                         dw_attr* memberName = dw_die_get_attr(child, DW_AT_name);
                         if(memberName)
@@ -593,7 +588,6 @@ void wa_import_debug_locals(wa_module* module)
 {
     //NOTE: extract per-function local variables
     module->debugInfo->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
-    memset(module->debugInfo->functionLocals, 0, module->functionCount * sizeof(wa_debug_function));
 
     //NOTE: list of all types to deduplicate types
     oc_list types = { 0 };

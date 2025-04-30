@@ -20,7 +20,6 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents);
 wa_module* wa_module_create(oc_arena* arena, oc_str8 contents)
 {
     wa_module* module = oc_arena_push_type(arena, wa_module);
-    memset(module, 0, sizeof(wa_module));
 
     module->arena = arena;
 

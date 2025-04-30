@@ -2243,7 +2243,6 @@ wa_status wa_instance_invoke(wa_instance* instance,
 wa_interpreter* wa_interpreter_create(oc_arena* arena)
 {
     wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
-    memset(interpreter, 0, sizeof(wa_interpreter));
 
     oc_base_allocator* alloc = oc_base_allocator_default();
 

@@ -384,7 +384,6 @@ void json_lex_error(json_parser* parser, json_lex* lex)
 json_node* json_node_alloc(json_parser* parser, json_node_kind kind)
 {
     json_node* node = oc_arena_push_type(parser->arena, json_node);
-    memset(node, 0, sizeof(json_node));
     node->kind = kind;
     return (node);
 }
@@ -556,7 +555,6 @@ json_node* json_parse_list(json_parser* parser)
 json_node* json_make_from_lex(json_parser* parser, json_lex* lex)
 {
     json_node* node = oc_arena_push_type(parser->arena, json_node);
-    memset(node, 0, sizeof(json_node));
 
     switch(lex->kind)
     {

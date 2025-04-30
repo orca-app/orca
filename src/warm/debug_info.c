@@ -14,17 +14,14 @@
 wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
 {
     wa_debug_info* info = oc_arena_push_type(module->arena, wa_debug_info);
-    memset(info, 0, sizeof(wa_debug_info));
 
     //NOTE: alloc warm to wasm maps
     //TODO: tune size
     info->warmToWasmMapLen = 4096;
     info->warmToWasmMap = oc_arena_push_array(module->arena, oc_list, 4096);
-    memset(info->warmToWasmMap, 0, 4096 * sizeof(oc_list));
 
     info->wasmToWarmMapLen = 4096;
     info->wasmToWarmMap = oc_arena_push_array(module->arena, oc_list, 4096);
-    memset(info->wasmToWarmMap, 0, 4096 * sizeof(oc_list));
 
     //NOTE: parse and process dwarf info from contents
 
@@ -309,7 +306,6 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
         .len = type->size,
         .ptr = oc_arena_push_aligned(arena, type->size, 8),
     };
-    memset(res.ptr, 0, res.len);
 
     dw_loc* loc = var->loc;
 

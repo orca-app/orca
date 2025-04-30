@@ -131,7 +131,6 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
                 else
                 {
                     entry = oc_arena_push_type(parser->arena, wa_section);
-                    memset(entry, 0, sizeof(wa_section));
                 }
                 entry->name = name;
 
@@ -504,7 +503,6 @@ void wa_parse_functions(wa_parser* parser, wa_module* module)
     }
 
     module->functions = oc_arena_push_array(parser->arena, wa_func, module->functionImportCount + module->functionCount);
-    memset(module->functions, 0, (module->functionImportCount + module->functionCount) * sizeof(wa_func));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the function section
     u32 funcImportIndex = 0;
@@ -568,7 +566,6 @@ void wa_parse_globals(wa_parser* parser, wa_module* module)
     }
 
     module->globals = oc_arena_push_array(parser->arena, wa_global_desc, module->globalCount + module->globalImportCount);
-    memset(module->globals, 0, (module->globalCount + module->globalImportCount) * sizeof(wa_global_desc));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the global section
     u32 globalImportIndex = 0;
@@ -635,7 +632,6 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
     }
 
     module->tables = oc_arena_push_array(parser->arena, wa_table_type, module->tableImportCount + module->tableCount);
-    memset(module->tables, 0, (module->tableImportCount + module->tableCount) * sizeof(wa_table_type));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the tables section
     u32 tableImportIndex = 0;
@@ -695,7 +691,6 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
     }
 
     module->memories = oc_arena_push_array(parser->arena, wa_limits, module->memoryImportCount + module->memoryCount);
-    memset(module->memories, 0, (module->memoryImportCount + module->memoryCount) * sizeof(wa_limits));
 
     //NOTE: re-read imports, because the format is kinda stupid -- they should have included imports in the memories section
     u32 memoryImportIndex = 0;
@@ -837,7 +832,6 @@ void wa_parse_expression(wa_parser* parser, u32 localCount, oc_list* list, bool 
     while(wa_reader_has_more(&parser->reader) && blockDepth >= 0)
     {
         instr = oc_arena_push_type(parser->arena, wa_instr);
-        memset(instr, 0, sizeof(wa_instr));
         oc_list_push_back(list, &instr->listElt);
 
         instr->loc.start = wa_reader_offset(&parser->reader);
@@ -1102,7 +1096,6 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
 
     module->elementCount = wa_read_leb128_u32(&parser->reader);
     module->elements = oc_arena_push_array(parser->arena, wa_element, module->elementCount);
-    memset(module->elements, 0, module->elementCount * sizeof(wa_element));
 
     for(u32 eltIndex = 0; eltIndex < module->elementCount; eltIndex++)
     {
@@ -1157,7 +1150,6 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
 
             element->initCount = wa_read_leb128_u32(&parser->reader);
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
-            memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
 
             for(u32 i = 0; i < element->initCount; i++)
             {
@@ -1179,7 +1171,6 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
 
             element->initCount = wa_read_leb128_u32(&parser->reader);
             element->initInstr = oc_arena_push_array(parser->arena, oc_list, element->initCount);
-            memset(element->initInstr, 0, element->initCount * sizeof(oc_list));
 
             for(u32 i = 0; i < element->initCount; i++)
             {
@@ -1187,7 +1178,6 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
                 u32 funcIndex = wa_read_leb128_u32(&parser->reader);
 
                 wa_instr* init = oc_arena_push_array(parser->arena, wa_instr, 2);
-                memset(init, 0, 2 * sizeof(wa_instr));
 
                 init[0].op = WA_INSTR_ref_func;
                 init[0].immCount = 1;
@@ -1257,7 +1247,6 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
     module->dataCount = dataCount;
 
     module->data = oc_arena_push_array(parser->arena, wa_data_segment, module->dataCount);
-    memset(module->data, 0, module->dataCount * sizeof(wa_data_segment));
 
     for(u32 segIndex = 0; segIndex < module->dataCount; segIndex++)
     {
