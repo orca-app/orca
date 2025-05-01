@@ -2608,6 +2608,7 @@ void debugger_ui_update(oc_runtime* app)
                         wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
                         u32 funcIndex = execFunc - interpreter->instance->functions;
                         wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
+                        wa_debug_unit* unit = funcInfo->unit;
 
                         u32 varUID = 0;
 
@@ -2620,76 +2621,18 @@ void debugger_ui_update(oc_runtime* app)
 
                             oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
                             debugger_ui_value(var->name, var->type, data, 0, &varUID, true);
+                        }
 
-                            /*
-                            oc_str8 varId = oc_str8_pushf(scratch.arena, "var-%llu", varIndex);
+                        oc_ui_label("spacer2", " ");
+                        oc_ui_label("title2", "Globals:");
+                        oc_ui_label("spacer3", " ");
 
-                            oc_ui_box_str8(varId)
-                            {
-                                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
-                                oc_ui_style_set_f32(OC_UI_SPACING, 10);
+                        for(u64 globalIndex = 0; globalIndex < unit->globalCount; globalIndex++)
+                        {
+                            wa_debug_variable* var = &unit->globals[globalIndex];
 
-                                oc_ui_label_str8(OC_STR8("name"), var->name);
-
-                                //TODO: extract var value
-                                //TODO: haul that to when we pause & cache vars values
-
-                                if(var->type->name.len)
-                                {
-                                    oc_ui_label_str8(OC_STR8("type"), var->type->name);
-                                }
-
-                                wa_debug_type* type = wa_debug_type_strip(var->type);
-
-                                if(type)
-                                {
-                                    oc_str8 buff = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
-                                    if(type->kind == WA_DEBUG_TYPE_BASIC)
-                                    {
-                                        switch(type->encoding)
-                                        {
-                                            case WA_DEBUG_TYPE_BOOL:
-                                            {
-                                                //TODO
-                                            }
-                                            break;
-
-                                            case WA_DEBUG_TYPE_UNSIGNED:
-                                            {
-                                                //TODO
-                                            }
-                                            break;
-
-                                            case WA_DEBUG_TYPE_SIGNED:
-                                            {
-                                                //TODO
-                                            }
-                                            break;
-
-                                            case WA_DEBUG_TYPE_FLOAT:
-                                            {
-                                                oc_str8 valStr = { 0 };
-                                                if(type->size == 4)
-                                                {
-                                                    f32 f = 0;
-                                                    memcpy(&f, buff.ptr, type->size);
-                                                    valStr = oc_str8_pushf(scratch.arena, "%f", f);
-                                                }
-                                                else if(type->size == 8)
-                                                {
-                                                    f64 f = 0;
-                                                    memcpy(&f, buff.ptr, type->size);
-                                                    valStr = oc_str8_pushf(scratch.arena, "%f", f);
-                                                }
-
-                                                oc_ui_label_str8(OC_STR8("value"), valStr);
-                                            }
-                                            break;
-                                        }
-                                    }
-                                }
-                            }
-                            */
+                            oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, 0, var);
+                            debugger_ui_value(var->name, var->type, data, 0, &varUID, true);
                         }
                     }
                 }

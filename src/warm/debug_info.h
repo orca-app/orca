@@ -82,6 +82,13 @@ typedef struct wa_debug_type_field
     u64 offset;
 } wa_debug_type_field;
 
+typedef struct wa_debug_type_enumerator
+{
+    oc_list_elt listElt;
+    oc_str8 name;
+    //TODO value
+} wa_debug_type_enumerator;
+
 typedef struct wa_debug_type
 {
     oc_list_elt listElt;
@@ -102,6 +109,12 @@ typedef struct wa_debug_type
             u64 count;
         } array;
 
+        struct
+        {
+            wa_debug_type* type;
+            oc_list enumerators;
+        } enumType;
+
         //TODO enum, etc...
     };
 } wa_debug_type;
@@ -120,10 +133,17 @@ typedef struct wa_debug_variable
     wa_debug_type* type;
 } wa_debug_variable;
 
+typedef struct wa_debug_unit
+{
+    u64 globalCount;
+    wa_debug_variable* globals;
+} wa_debug_unit;
+
 typedef struct wa_debug_function
 {
+    wa_debug_unit* unit;
     dw_loc* frameBase;
-    u32 count;
+    u64 count;
     wa_debug_variable* vars;
 } wa_debug_function;
 
@@ -148,8 +168,8 @@ typedef struct wa_debug_info
 
     wa_register_map** registerMaps;
 
+    wa_debug_unit* units;
     wa_debug_function* functionLocals;
-
 } wa_debug_info;
 
 //------------------------------------------------------------------------

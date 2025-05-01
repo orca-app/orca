@@ -1833,15 +1833,21 @@ dw_die* dw_die_next(dw_die* root, dw_die* die)
     return die;
 }
 
-dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
+dw_die* dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags)
 {
     dw_die* die = start;
 
     while(die)
     {
-        if(die != start && die->abbrev && die->abbrev->tag == tag)
+        if(die != start && die->abbrev)
         {
-            return die;
+            for(u64 i = 0; i < count; i++)
+            {
+                if(die->abbrev->tag == tags[i])
+                {
+                    return die;
+                }
+            }
         }
 
         if(!oc_list_empty(die->children))
@@ -1862,6 +1868,11 @@ dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
         }
     }
     return 0;
+}
+
+dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
+{
+    return dw_die_find_next_with_tags(root, start, 1, &tag);
 }
 
 dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name)

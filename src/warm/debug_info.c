@@ -196,6 +196,7 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
                 i64 offset = instr->operands[0].valI64;
 
                 OC_ASSERT(funcInfo->frameBase->single && funcInfo->frameBase->entryCount == 1);
+
                 dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, funcInfo->frameBase->entries[0].expr);
 
                 /*NOTE: what the spec says and what clang does seem to differ:

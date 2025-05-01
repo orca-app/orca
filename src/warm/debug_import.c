@@ -552,7 +552,30 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             case DW_TAG_enumeration_type:
             {
-                //TODO
+                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_ENUM, types);
+
+                dw_attr* valType = dw_die_get_attr(die, DW_AT_type);
+                if(valType)
+                {
+                    type->enumType.type = wa_build_debug_type_from_dwarf(arena, dwarf, valType->valU64, types);
+                    type->size = wa_debug_type_strip(type->enumType.type)->size;
+                }
+
+                oc_list_for(die->children, child, dw_die, parentElt)
+                {
+                    if(child->abbrev && child->abbrev->tag == DW_TAG_enumerator)
+                    {
+                        wa_debug_type_enumerator* enumerator = oc_arena_push_type(arena, wa_debug_type_enumerator);
+                        dw_attr* name = dw_die_get_attr(child, DW_AT_name);
+                        if(name)
+                        {
+                            enumerator->name = name->string;
+                        }
+                        //TODO: extract const values
+
+                        oc_list_push_back(&type->enumType.enumerators, &enumerator->listElt);
+                    }
+                }
             }
             break;
 
@@ -591,21 +614,82 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
     return type;
 }
 
+wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_info* dwarf, oc_list* types)
+{
+    wa_debug_variable var = { 0 };
+
+    dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
+    if(name)
+    {
+        var.name = oc_str8_push_copy(arena, name->string);
+    }
+
+    dw_attr* loc = dw_die_get_attr(varDie, DW_AT_location);
+    if(loc)
+    {
+        var.loc = &loc->loc;
+        //TODO: compile the expr to wasm
+    }
+
+    dw_attr* type = dw_die_get_attr(varDie, DW_AT_type);
+    if(type)
+    {
+        var.type = wa_build_debug_type_from_dwarf(arena, dwarf, type->valU64, types);
+    }
+    return var;
+}
+
 void wa_import_debug_locals(wa_module* module)
 {
-    //NOTE: extract per-function local variables
-    module->debugInfo->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
+    wa_debug_info* info = module->debugInfo;
+    //NOTE: allocate arrays for units and function infos
+    info->units = oc_arena_push_array(module->arena, wa_debug_unit, info->dwarf->unitCount);
+    info->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
 
     //NOTE: list of all types to deduplicate types
     oc_list types = { 0 };
 
-    for(u64 unitIndex = 0; unitIndex < module->debugInfo->dwarf->unitCount; unitIndex++)
+    for(u64 unitIndex = 0; unitIndex < info->dwarf->unitCount; unitIndex++)
     {
-        dw_unit* unit = &module->debugInfo->dwarf->units[unitIndex];
-        dw_die* die = dw_die_find_next_with_tag(unit->rootDie, unit->rootDie, DW_TAG_subprogram);
-        while(die)
+        dw_die* rootDie = info->dwarf->units[unitIndex].rootDie;
+        wa_debug_unit* unit = &info->units[unitIndex];
+
+        //NOTE: count globals
+        oc_list_for(rootDie->children, varDie, dw_die, parentElt)
         {
-            dw_attr* funcNameAttr = dw_die_get_attr(die, DW_AT_name);
+            if(varDie->abbrev && varDie->abbrev->tag == DW_TAG_variable)
+            {
+                dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
+                if(name)
+                {
+                    unit->globalCount++;
+                }
+            }
+        }
+
+        //NOTE: extract named globals
+        unit->globals = oc_arena_push_array(module->arena, wa_debug_variable, unit->globalCount);
+
+        u64 globalIndex = 0;
+        oc_list_for(rootDie->children, varDie, dw_die, parentElt)
+        {
+            if(varDie->abbrev && varDie->abbrev->tag == DW_TAG_variable)
+            {
+                dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
+                if(name)
+                {
+                    unit->globals[globalIndex] = wa_debug_import_variable(module->arena, varDie, info->dwarf, &types);
+                    globalIndex++;
+                }
+            }
+        }
+
+        //NOTE: extract per-function locals
+        for(dw_die* funcDie = dw_die_find_next_with_tag(rootDie, rootDie, DW_TAG_subprogram);
+            funcDie != 0;
+            funcDie = dw_die_find_next_with_tag(rootDie, funcDie, DW_TAG_subprogram))
+        {
+            dw_attr* funcNameAttr = dw_die_get_attr(funcDie, DW_AT_name);
             if(funcNameAttr)
             {
                 //TODO: better way of finding function
@@ -623,62 +707,42 @@ void wa_import_debug_locals(wa_module* module)
 
                 if(found)
                 {
-                    wa_debug_function* funcInfo = &module->debugInfo->functionLocals[funcIndex];
+                    wa_debug_function* funcInfo = &info->functionLocals[funcIndex];
+                    funcInfo->unit = unit;
                     funcInfo->count = 0;
 
                     //NOTE: get frame base expr loc
-                    dw_attr* frameBase = dw_die_get_attr(die, DW_AT_frame_base);
+                    dw_attr* frameBase = dw_die_get_attr(funcDie, DW_AT_frame_base);
                     if(frameBase)
                     {
                         OC_DEBUG_ASSERT(frameBase->abbrev->form == DW_FORM_exprloc);
                         funcInfo->frameBase = &frameBase->loc;
                     }
 
-                    //NOTE: get variables
+                    u32 varTagCount = 2;
+                    dw_tag varTags[2] = { DW_TAG_variable, DW_TAG_formal_parameter };
+
+                    //NOTE: count local variables
+                    for(dw_die* varDie = dw_die_find_next_with_tags(funcDie, funcDie, varTagCount, varTags);
+                        varDie != 0;
+                        varDie = dw_die_find_next_with_tags(funcDie, varDie, varTagCount, varTags))
                     {
-                        //TODO: get with multiple tags, eg here we also need formal_parameter
-                        dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
-                        while(var)
-                        {
-                            funcInfo->count++;
-                            var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
-                        }
+                        funcInfo->count++;
                     }
+
+                    //NOTE: extract local variables
 
                     funcInfo->vars = oc_arena_push_array(module->arena, wa_debug_variable, funcInfo->count);
 
+                    u64 varIndex = 0;
+                    for(dw_die* varDie = dw_die_find_next_with_tags(funcDie, funcDie, varTagCount, varTags);
+                        varDie != 0;
+                        varDie = dw_die_find_next_with_tags(funcDie, varDie, varTagCount, varTags), varIndex++)
                     {
-                        dw_die* var = dw_die_find_next_with_tag(die, die, DW_TAG_variable);
-                        u64 varIndex = 0;
-                        while(var)
-                        {
-                            dw_attr* name = dw_die_get_attr(var, DW_AT_name);
-                            if(name)
-                            {
-                                funcInfo->vars[varIndex].name = oc_str8_push_copy(module->arena, name->string);
-                            }
-
-                            dw_attr* loc = dw_die_get_attr(var, DW_AT_location);
-                            if(loc)
-                            {
-                                funcInfo->vars[varIndex].loc = &loc->loc;
-                                //TODO: compile the expr to wasm
-                            }
-
-                            dw_attr* type = dw_die_get_attr(var, DW_AT_type);
-                            if(type)
-                            {
-                                funcInfo->vars[varIndex].type = wa_build_debug_type_from_dwarf(module->arena, module->debugInfo->dwarf, type->valU64, &types);
-                            }
-
-                            var = dw_die_find_next_with_tag(die, var, DW_TAG_variable);
-                            varIndex++;
-                        }
+                        funcInfo->vars[varIndex] = wa_debug_import_variable(module->arena, varDie, info->dwarf, &types);
                     }
                 }
             }
-
-            die = dw_die_find_next_with_tag(unit->rootDie, die, DW_TAG_subprogram);
         }
     }
 }
