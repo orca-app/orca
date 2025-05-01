@@ -1658,7 +1658,9 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
             {
                 oc_list_for(strippedType->fields, field, wa_debug_type_field, listElt)
                 {
-                    debugger_ui_value(field->name, field->type, oc_str8_slice(data, field->offset, data.len - field->offset), indent + 1, uid, true);
+                    wa_debug_type* fieldStrippedType = wa_debug_type_strip(field->type);
+                    u64 fieldSize = fieldStrippedType->size;
+                    debugger_ui_value(field->name, field->type, oc_str8_slice(data, field->offset, field->offset + fieldSize), indent + 1, uid, true);
                 }
             }
             else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
