@@ -15,7 +15,7 @@
 #include "reader.h"
 
 //------------------------------------------------------------------------
-// op info array
+// dwarf tables array
 //------------------------------------------------------------------------
 
 #define X_OP_INFO(name, val, opdCount, ...) \
@@ -26,6 +26,39 @@ const dw_op_info DW_OP_INFO[] = {
 };
 
 #undef X_OP_INFO
+
+enum
+{
+    DW_ATTR_MAX_CLASS = 4,
+};
+
+typedef struct dw_attr_info
+{
+    u32 count;
+    dw_attr_class classes[DW_ATTR_MAX_CLASS];
+} dw_attr_info;
+
+#define X_AT_CLASS_NAME(name) OC_CAT2(DW_AT_CLASS_, name)
+#define X_AT_CLASS_NAME_1(name, ...) X_AT_CLASS_NAME(name)
+#define X_AT_CLASS_NAME_2(name, ...) X_AT_CLASS_NAME(name), X_AT_CLASS_NAME_1(__VA_ARGS__)
+#define X_AT_CLASS_NAME_3(name, ...) X_AT_CLASS_NAME(name), X_AT_CLASS_NAME_2(__VA_ARGS__)
+#define X_AT_CLASS_NAME_4(name, ...) X_AT_CLASS_NAME(name), X_AT_CLASS_NAME_3(__VA_ARGS__)
+#define X_AT_CLASS_NAME_APPLY(count, ...) X_AT_CLASS_NAME_##count(__VA_ARGS__)
+
+#define X_AT_INFO(name, val, classCount, ...) \
+    [name] = { .count = classCount, .classes = { X_AT_CLASS_NAME_APPLY(classCount, __VA_ARGS__) } },
+
+const dw_attr_info DW_AT_INFO[] = {
+    DW_ATTR_LIST(X_AT_INFO)
+};
+
+#undef X_AT_CLASS_NAME
+#undef X_AT_CLASS_NAME_1
+#undef X_AT_CLASS_NAME_2
+#undef X_AT_CLASS_NAME_3
+#undef X_AT_CLASS_NAME_4
+#undef X_AT_CLASS_NAME_APPLY
+#undef X_AT_INFO
 
 //------------------------------------------------------------------------
 // structs

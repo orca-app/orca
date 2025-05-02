@@ -151,10 +151,10 @@ enum
     X(DW_AT_producer, 0x25, 1, string)                                    \
     X(DW_AT_prototyped, 0x27, 1, flag)                                    \
     X(DW_AT_return_addr, 0x2a, 2, exprloc, loclistptr)                    \
-    X(DW_AT_start_scope, 0x2c, 2, constant, rangelistptr)                 \
+    X(DW_AT_start_scope, 0x2c, 2, constant, rnglistptr)                   \
     X(DW_AT_bit_stride, 0x2e, 3, constant, exprloc, reference)            \
     X(DW_AT_upper_bound, 0x2f, 3, constant, exprloc, reference)           \
-    X(DW_AT_abstract_origin, 0x31, 1, refernece)                          \
+    X(DW_AT_abstract_origin, 0x31, 1, reference)                          \
     X(DW_AT_accessibility, 0x32, 1, constant)                             \
     X(DW_AT_address_class, 0x33, 1, constant)                             \
     X(DW_AT_artificial, 0x34, 1, flag)                                    \
@@ -177,7 +177,7 @@ enum
     X(DW_AT_priority, 0x45, 1, reference)                                 \
     X(DW_AT_segment, 0x46, 2, exprloc, loclistptr)                        \
     X(DW_AT_specification, 0x47, 1, reference)                            \
-    X(DW_AT_static_link, 0x48, 2, exprloc, loclisptr)                     \
+    X(DW_AT_static_link, 0x48, 2, exprloc, loclistptr)                    \
     X(DW_AT_type, 0x49, 1, reference)                                     \
     X(DW_AT_use_location, 0x4a, 2, exprloc, loclistptr)                   \
     X(DW_AT_variable_parameter, 0x4b, 1, flag)                            \
@@ -190,7 +190,7 @@ enum
     X(DW_AT_entry_pc, 0x52, 1, address)                                   \
     X(DW_AT_use_UTF8, 0x53, 1, flag)                                      \
     X(DW_AT_extension, 0x54, 1, reference)                                \
-    X(DW_AT_ranges, 0x55, 1, rangelistptr)                                \
+    X(DW_AT_ranges, 0x55, 1, rnglistptr)                                  \
     X(DW_AT_trampoline, 0x56, 3, address, flag, reference, string)        \
     X(DW_AT_call_column, 0x57, 1, constant)                               \
     X(DW_AT_call_file, 0x58, 1, constant)                                 \
@@ -226,7 +226,7 @@ enum
     X(DW_AT_reference, 0x77, 1, flag)                                     \
     X(DW_AT_rvalue_reference, 0x78, 1, flag)                              \
     X(DW_AT_macros, 0x79, 1, macptr)                                      \
-    X(DW_AT_call_all_calls, 0x7a, 1, flags)                               \
+    X(DW_AT_call_all_calls, 0x7a, 1, flag)                                \
     X(DW_AT_call_all_source_calls, 0x7b, 1, flag)                         \
     X(DW_AT_call_all_tail_calls, 0x7c, 1, flag)                           \
     X(DW_AT_call_return_pc, 0x7d, 1, address)                             \
