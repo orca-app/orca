@@ -139,12 +139,25 @@ typedef struct wa_debug_unit
     wa_debug_variable* globals;
 } wa_debug_unit;
 
+typedef struct wa_debug_scope wa_debug_scope;
+
+typedef struct wa_debug_scope
+{
+    oc_list_elt listElt;
+    oc_list children;
+    wa_debug_scope* parent;
+
+    u64 count;
+    wa_debug_variable* vars;
+} wa_debug_scope;
+
 typedef struct wa_debug_function
 {
     wa_debug_unit* unit;
     dw_loc* frameBase;
-    u64 count;
-    wa_debug_variable* vars;
+
+    wa_debug_scope body;
+
 } wa_debug_function;
 
 //------------------------------------------------------------------------

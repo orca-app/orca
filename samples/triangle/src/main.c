@@ -113,7 +113,11 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                          -sinf(alpha) / aspect, cosf(alpha), 0, 0,
                          0, 0, 1, 0,
                          0, 0, 0, 1 };
-    alpha += 2 * M_PI / 120;
+
+    {
+        f32 scaling = 1;
+        alpha += 2 * M_PI / 120 * scaling;
+    }
 
     glUniformMatrix4fv(0, 1, false, matrix);
 

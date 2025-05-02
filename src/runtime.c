@@ -1463,7 +1463,7 @@ wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
     return 0;
 }
 
-void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 indent, u32* uid, bool showType)
+void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 indent, u64* uid, bool showType)
 {
     wa_debug_type* strippedType = wa_debug_type_strip(type);
     OC_ASSERT(strippedType);
@@ -1479,7 +1479,7 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
     }
     */
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 uidStr = oc_str8_pushf(scratch.arena, "%u", *uid);
+    oc_str8 uidStr = oc_str8_pushf(scratch.arena, "%llu", *uid);
     (*uid)++;
 
     oc_ui_box_str8(uidStr)
@@ -1676,6 +1676,30 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
     }
 
     oc_scratch_end(scratch);
+}
+
+void debugger_display_vars_in_scope(wa_debug_scope* scope, wa_debug_function* funcInfo, wa_interpreter* interpreter, u64* varUID)
+{
+    //TODO: this display all variables in all scopes
+    //      we should display only scope we're currently in
+    //      we should also mark shadowed variables as such
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    for(u64 varIndex = 0; varIndex < scope->count; varIndex++)
+    {
+        wa_debug_variable* var = &scope->vars[varIndex];
+
+        oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
+        debugger_ui_value(var->name, var->type, data, 0, varUID, true);
+    }
+
+    oc_scratch_end(scratch);
+
+    oc_list_for(scope->children, child, wa_debug_scope, listElt)
+    {
+        debugger_display_vars_in_scope(child, funcInfo, interpreter, varUID);
+    }
 }
 
 void debugger_ui_update(oc_runtime* app)
@@ -2610,18 +2634,9 @@ void debugger_ui_update(oc_runtime* app)
                         wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
                         wa_debug_unit* unit = funcInfo->unit;
 
-                        u32 varUID = 0;
+                        u64 varUID = 0;
 
-                        for(u64 varIndex = 0; varIndex < funcInfo->count; varIndex++)
-                        {
-                            wa_debug_variable* var = &funcInfo->vars[varIndex];
-
-                            //TODO: var can be unnamed... maybe filter that beforehand
-                            //TODO: we also have double vars, beware of shadowing
-
-                            oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
-                            debugger_ui_value(var->name, var->type, data, 0, &varUID, true);
-                        }
+                        debugger_display_vars_in_scope(&funcInfo->body, funcInfo, interpreter, &varUID);
 
                         oc_ui_label("spacer2", " ");
                         oc_ui_label("title2", "Globals:");

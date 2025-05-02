@@ -639,6 +639,47 @@ wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_i
     return var;
 }
 
+void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_scope* scope, dw_die* scopeDie, dw_info* dwarf, oc_list* types)
+{
+    u32 varTagCount = 2;
+    dw_tag varTags[2] = { DW_TAG_variable, DW_TAG_formal_parameter };
+
+    //NOTE: count scope vars
+    oc_list_for(scopeDie->children, varDie, dw_die, parentElt)
+    {
+        if(varDie->abbrev && (varDie->abbrev->tag == DW_TAG_variable || varDie->abbrev->tag == DW_TAG_formal_parameter))
+        {
+            scope->count++;
+        }
+    }
+
+    //NOTE: extract scope vars
+    scope->vars = oc_arena_push_array(arena, wa_debug_variable, scope->count);
+
+    u64 varIndex = 0;
+    oc_list_for(scopeDie->children, varDie, dw_die, parentElt)
+    {
+        if(varDie->abbrev && (varDie->abbrev->tag == DW_TAG_variable || varDie->abbrev->tag == DW_TAG_formal_parameter))
+        {
+            scope->vars[varIndex] = wa_debug_import_variable(arena, varDie, dwarf, types);
+        }
+        varIndex++;
+    }
+
+    //NOTE: create children scopes
+    oc_list_for(scopeDie->children, childDie, dw_die, parentElt)
+    {
+        if(childDie->abbrev && childDie->abbrev->tag == DW_TAG_lexical_block)
+        {
+            wa_debug_scope* childScope = oc_arena_push_type(arena, wa_debug_scope);
+            childScope->parent = scope;
+            oc_list_push_back(&scope->children, &childScope->listElt);
+
+            wa_debug_extract_vars_from_scope(arena, childScope, childDie, dwarf, types);
+        }
+    }
+}
+
 void wa_import_debug_locals(wa_module* module)
 {
     wa_debug_info* info = module->debugInfo;
@@ -709,7 +750,6 @@ void wa_import_debug_locals(wa_module* module)
                 {
                     wa_debug_function* funcInfo = &info->functionLocals[funcIndex];
                     funcInfo->unit = unit;
-                    funcInfo->count = 0;
 
                     //NOTE: get frame base expr loc
                     dw_attr* frameBase = dw_die_get_attr(funcDie, DW_AT_frame_base);
@@ -719,28 +759,7 @@ void wa_import_debug_locals(wa_module* module)
                         funcInfo->frameBase = &frameBase->loc;
                     }
 
-                    u32 varTagCount = 2;
-                    dw_tag varTags[2] = { DW_TAG_variable, DW_TAG_formal_parameter };
-
-                    //NOTE: count local variables
-                    for(dw_die* varDie = dw_die_find_next_with_tags(funcDie, funcDie, varTagCount, varTags);
-                        varDie != 0;
-                        varDie = dw_die_find_next_with_tags(funcDie, varDie, varTagCount, varTags))
-                    {
-                        funcInfo->count++;
-                    }
-
-                    //NOTE: extract local variables
-
-                    funcInfo->vars = oc_arena_push_array(module->arena, wa_debug_variable, funcInfo->count);
-
-                    u64 varIndex = 0;
-                    for(dw_die* varDie = dw_die_find_next_with_tags(funcDie, funcDie, varTagCount, varTags);
-                        varDie != 0;
-                        varDie = dw_die_find_next_with_tags(funcDie, varDie, varTagCount, varTags), varIndex++)
-                    {
-                        funcInfo->vars[varIndex] = wa_debug_import_variable(module->arena, varDie, info->dwarf, &types);
-                    }
+                    wa_debug_extract_vars_from_scope(module->arena, &funcInfo->body, funcDie, info->dwarf, &types);
                 }
             }
         }
