@@ -641,10 +641,49 @@ wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_i
 
 void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_scope* scope, dw_die* scopeDie, dw_info* dwarf, oc_list* types)
 {
+    //NOTE: set scope's extents
+    dw_attr* lowPC = dw_die_get_attr(scopeDie, DW_AT_low_pc);
+    if(lowPC)
+    {
+        dw_attr* lowPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
+        if(!lowPC)
+        {
+            //TODO: process error
+        }
+        else
+        {
+            scope->rangeCount = 1;
+            scope->ranges = oc_arena_push_type(arena, wa_debug_range);
+
+            scope->ranges[0].low = lowPC->valU64;
+
+            //TODO: we need to check if higPC is of class address or constant
+            /*
+            dw_attr_class attrClass = dw_attr_get_class(highPC);
+            if(attrClass == DW_ATTR_CLASS_address)
+            {}
+            else if(attrClass == DW_ATTR_CLASS_constant)
+            {}
+            else
+            {
+                //TODO: process error? or should have detected it earlier?
+            }
+            */
+        }
+    }
+    else
+    {
+        dw_attr* ranges = dw_die_get_attr(scopeDie, DW_AT_ranges);
+        if(ranges)
+        {
+            //...
+        }
+    }
+
+    //NOTE: count scope vars
     u32 varTagCount = 2;
     dw_tag varTags[2] = { DW_TAG_variable, DW_TAG_formal_parameter };
 
-    //NOTE: count scope vars
     oc_list_for(scopeDie->children, varDie, dw_die, parentElt)
     {
         if(varDie->abbrev && (varDie->abbrev->tag == DW_TAG_variable || varDie->abbrev->tag == DW_TAG_formal_parameter))

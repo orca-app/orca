@@ -1196,6 +1196,11 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
     return loc;
 }
 
+void dw_attr_get_class(dw_attr_name name, dw_form form)
+{
+    //TODO
+}
+
 void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_unit* unit, dw_sections* sections, dw_attr_name name, dw_form form)
 {
     switch(form)

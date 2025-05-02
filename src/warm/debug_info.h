@@ -139,6 +139,12 @@ typedef struct wa_debug_unit
     wa_debug_variable* globals;
 } wa_debug_unit;
 
+typedef struct wa_debug_range
+{
+    u64 low;
+    u64 high;
+} wa_debug_range;
+
 typedef struct wa_debug_scope wa_debug_scope;
 
 typedef struct wa_debug_scope
@@ -146,6 +152,9 @@ typedef struct wa_debug_scope
     oc_list_elt listElt;
     oc_list children;
     wa_debug_scope* parent;
+
+    u64 rangeCount;
+    wa_debug_range* ranges;
 
     u64 count;
     wa_debug_variable* vars;
