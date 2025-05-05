@@ -105,6 +105,10 @@ void wa_import_dwarf(wa_module* module, oc_str8 contents)
         {
             dwarfSections.loc = sectionContents;
         }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_ranges")))
+        {
+            dwarfSections.ranges = sectionContents;
+        }
     }
 
     //TODO: We don't really need to keep dwarf struct around after processing, so we could just have
@@ -639,16 +643,19 @@ wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_i
     return var;
 }
 
-void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_scope* scope, dw_die* scopeDie, dw_info* dwarf, oc_list* types)
+void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcInfo, wa_debug_scope* scope, dw_die* scopeDie, dw_info* dwarf, oc_list* types)
 {
     //NOTE: set scope's extents
     dw_attr* lowPC = dw_die_get_attr(scopeDie, DW_AT_low_pc);
     if(lowPC)
     {
-        dw_attr* lowPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
-        if(!lowPC)
+        dw_attr* highPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
+        if(!highPC)
         {
+            ////////////////////////////////////////////////////////////////////
             //TODO: process error
+            ////////////////////////////////////////////////////////////////////
+            OC_ASSERT(0, "TODO: dwarf error");
         }
         else
         {
@@ -657,26 +664,38 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_scope* scope, dw
 
             scope->ranges[0].low = lowPC->valU64;
 
-            //TODO: we need to check if higPC is of class address or constant
-            /*
-            dw_attr_class attrClass = dw_attr_get_class(highPC);
-            if(attrClass == DW_ATTR_CLASS_address)
-            {}
-            else if(attrClass == DW_ATTR_CLASS_constant)
-            {}
+            dw_attr_class attrClass = dw_attr_get_class(DW_AT_high_pc, highPC->abbrev->form);
+
+            if(attrClass == DW_AT_CLASS_address)
+            {
+                scope->ranges[0].high = highPC->valU64;
+            }
+            else if(attrClass == DW_AT_CLASS_constant)
+            {
+                scope->ranges[0].high = scope->ranges[0].low + highPC->valU64;
+            }
             else
             {
+                ////////////////////////////////////////////////////////////////////
                 //TODO: process error? or should have detected it earlier?
+                ////////////////////////////////////////////////////////////////////
+                OC_ASSERT(0, "TODO: dwarf error");
             }
-            */
         }
     }
     else
     {
-        dw_attr* ranges = dw_die_get_attr(scopeDie, DW_AT_ranges);
-        if(ranges)
+        dw_attr* rangesAttr = dw_die_get_attr(scopeDie, DW_AT_ranges);
+        if(rangesAttr)
         {
-            //...
+            scope->rangeCount = rangesAttr->ranges.entryCount;
+            scope->ranges = oc_arena_push_type(arena, wa_debug_range);
+
+            for(u64 i = 0; i < scope->rangeCount; i++)
+            {
+                scope->ranges[i].low = rangesAttr->ranges.entries[i].start;
+                scope->ranges[i].high = rangesAttr->ranges.entries[i].end;
+            }
         }
     }
 
@@ -701,9 +720,12 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_scope* scope, dw
         if(varDie->abbrev && (varDie->abbrev->tag == DW_TAG_variable || varDie->abbrev->tag == DW_TAG_formal_parameter))
         {
             scope->vars[varIndex] = wa_debug_import_variable(arena, varDie, dwarf, types);
+            scope->vars[varIndex].uid = funcInfo->totalVarDecl + varIndex;
         }
         varIndex++;
     }
+
+    funcInfo->totalVarDecl += scope->count;
 
     //NOTE: create children scopes
     oc_list_for(scopeDie->children, childDie, dw_die, parentElt)
@@ -714,7 +736,7 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_scope* scope, dw
             childScope->parent = scope;
             oc_list_push_back(&scope->children, &childScope->listElt);
 
-            wa_debug_extract_vars_from_scope(arena, childScope, childDie, dwarf, types);
+            wa_debug_extract_vars_from_scope(arena, funcInfo, childScope, childDie, dwarf, types);
         }
     }
 }
@@ -798,7 +820,7 @@ void wa_import_debug_locals(wa_module* module)
                         funcInfo->frameBase = &frameBase->loc;
                     }
 
-                    wa_debug_extract_vars_from_scope(module->arena, &funcInfo->body, funcDie, info->dwarf, &types);
+                    wa_debug_extract_vars_from_scope(module->arena, funcInfo, &funcInfo->body, funcDie, info->dwarf, &types);
                 }
             }
         }

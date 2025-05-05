@@ -123,128 +123,128 @@ enum
     DW_CHILDREN_yes = 0x01,
 };
 
-#define DW_ATTR_LIST(X)                                                   \
-    X(DW_AT_sibling, 0x01, 1, reference)                                  \
-    X(DW_AT_location, 0x02, 2, exprloc, loclistptr)                       \
-    X(DW_AT_name, 0x03, 1, string)                                        \
-    X(DW_AT_ordering, 0x09, 1, constant)                                  \
-    X(DW_AT_byte_size, 0x0b, 3, constant, exprloc, reference)             \
-    X(DW_AT_bit_offset, 0x0c, 3, constant, exprloc, reference)            \
-    X(DW_AT_bit_size, 0x0d, 3, constant, exprloc, reference)              \
-    X(DW_AT_stmt_list, 0x10, 1, lineptr)                                  \
-    X(DW_AT_low_pc, 0x11, 1, address)                                     \
-    X(DW_AT_high_pc, 0x12, 2, address, constant)                          \
-    X(DW_AT_language, 0x13, 1, constant)                                  \
-    X(DW_AT_discr, 0x15, 1, reference)                                    \
-    X(DW_AT_discr_value, 0x16, 1, constant)                               \
-    X(DW_AT_visibility, 0x17, 1, constant)                                \
-    X(DW_AT_import, 0x18, 1, reference)                                   \
-    X(DW_AT_string_length, 0x19, 2, exprloc, loclistptr)                  \
-    X(DW_AT_common_reference, 0x1a, 1, reference)                         \
-    X(DW_AT_comp_dir, 0x1b, 1, string)                                    \
-    X(DW_AT_const_value, 0x1c, 3, block, constant, string)                \
-    X(DW_AT_containing_type, 0x1d, 1, reference)                          \
-    X(DW_AT_default_value, 0x1e, 1, reference)                            \
-    X(DW_AT_inline, 0x20, 1, constant)                                    \
-    X(DW_AT_is_optional, 0x21, 1, flag)                                   \
-    X(DW_AT_lower_bound, 0x22, 3, constant, exprloc, reference)           \
-    X(DW_AT_producer, 0x25, 1, string)                                    \
-    X(DW_AT_prototyped, 0x27, 1, flag)                                    \
-    X(DW_AT_return_addr, 0x2a, 2, exprloc, loclistptr)                    \
-    X(DW_AT_start_scope, 0x2c, 2, constant, rnglistptr)                   \
-    X(DW_AT_bit_stride, 0x2e, 3, constant, exprloc, reference)            \
-    X(DW_AT_upper_bound, 0x2f, 3, constant, exprloc, reference)           \
-    X(DW_AT_abstract_origin, 0x31, 1, reference)                          \
-    X(DW_AT_accessibility, 0x32, 1, constant)                             \
-    X(DW_AT_address_class, 0x33, 1, constant)                             \
-    X(DW_AT_artificial, 0x34, 1, flag)                                    \
-    X(DW_AT_base_types, 0x35, 1, reference)                               \
-    X(DW_AT_calling_convention, 0x36, 1, constant)                        \
-    X(DW_AT_count, 0x37, 3, constant, exprloc, reference)                 \
-    X(DW_AT_data_member_location, 0x38, 3, constant, exprloc, loclistptr) \
-    X(DW_AT_decl_column, 0x39, 1, constant)                               \
-    X(DW_AT_decl_file, 0x3a, 1, constant)                                 \
-    X(DW_AT_decl_line, 0x3b, 1, constant)                                 \
-    X(DW_AT_declaration, 0x3c, 1, flag)                                   \
-    X(DW_AT_discr_list, 0x3d, 1, block)                                   \
-    X(DW_AT_encoding, 0x3e, 1, constant)                                  \
-    X(DW_AT_external, 0x3f, 1, flag)                                      \
-    X(DW_AT_frame_base, 0x40, 2, exprloc, loclistptr)                     \
-    X(DW_AT_friend, 0x41, 1, reference)                                   \
-    X(DW_AT_identifier_case, 0x42, 1, constant)                           \
-    X(DW_AT_macro_info, 0x43, 1, macptr)                                  \
-    X(DW_AT_namelist_item, 0x44, 1, reference)                            \
-    X(DW_AT_priority, 0x45, 1, reference)                                 \
-    X(DW_AT_segment, 0x46, 2, exprloc, loclistptr)                        \
-    X(DW_AT_specification, 0x47, 1, reference)                            \
-    X(DW_AT_static_link, 0x48, 2, exprloc, loclistptr)                    \
-    X(DW_AT_type, 0x49, 1, reference)                                     \
-    X(DW_AT_use_location, 0x4a, 2, exprloc, loclistptr)                   \
-    X(DW_AT_variable_parameter, 0x4b, 1, flag)                            \
-    X(DW_AT_virtuality, 0x4c, 1, constant)                                \
-    X(DW_AT_vtable_elem_location, 0x4d, 2, exprloc, loclistptr)           \
-    X(DW_AT_allocated, 0x4e, 3, constant, exprloc, reference)             \
-    X(DW_AT_associated, 0x4f, 3, constant, exprloc, reference)            \
-    X(DW_AT_data_location, 0x50, 1, exprloc)                              \
-    X(DW_AT_byte_stride, 0x51, 3, constant, exprloc, reference)           \
-    X(DW_AT_entry_pc, 0x52, 1, address)                                   \
-    X(DW_AT_use_UTF8, 0x53, 1, flag)                                      \
-    X(DW_AT_extension, 0x54, 1, reference)                                \
-    X(DW_AT_ranges, 0x55, 1, rnglistptr)                                  \
-    X(DW_AT_trampoline, 0x56, 3, address, flag, reference, string)        \
-    X(DW_AT_call_column, 0x57, 1, constant)                               \
-    X(DW_AT_call_file, 0x58, 1, constant)                                 \
-    X(DW_AT_call_line, 0x59, 1, constant)                                 \
-    X(DW_AT_description, 0x5a, 1, string)                                 \
-    X(DW_AT_binary_scale, 0x5b, 1, constant)                              \
-    X(DW_AT_decimal_scale, 0x5c, 1, constant)                             \
-    X(DW_AT_small, 0x5d, 1, reference)                                    \
-    X(DW_AT_decimal_sign, 0x5e, 1, constant)                              \
-    X(DW_AT_digit_count, 0x5f, 1, constant)                               \
-    X(DW_AT_picture_string, 0x60, 1, string)                              \
-    X(DW_AT_mutable, 0x61, 1, flag)                                       \
-    X(DW_AT_threads_scaled, 0x62, 1, flag)                                \
-    X(DW_AT_explicit, 0x63, 1, flag)                                      \
-    X(DW_AT_object_pointer, 0x64, 1, reference)                           \
-    X(DW_AT_endianity, 0x65, 1, constant)                                 \
-    X(DW_AT_elemental, 0x66, 1, flag)                                     \
-    X(DW_AT_pure, 0x67, 1, flag)                                          \
-    X(DW_AT_recursive, 0x68, 1, flag)                                     \
-    X(DW_AT_signature, 0x69, 1, reference)                                \
-    X(DW_AT_main_subprogram, 0x6a, 1, flag)                               \
-    X(DW_AT_data_bit_offset, 0x6b, 1, constant)                           \
-    X(DW_AT_const_expr, 0x6c, 1, flag)                                    \
-    X(DW_AT_enum_class, 0x6d, 1, flag)                                    \
-    X(DW_AT_linkage_name, 0x6e, 1, string)                                \
-    X(DW_AT_string_length_bit_size, 0x6f, 1, constant)                    \
-    X(DW_AT_string_length_byte_size, 0x70, 1, constant)                   \
-    X(DW_AT_rank, 0x71, 2, constant, exprloc)                             \
-    X(DW_AT_str_offsets_base, 0x72, 1, stroffsetsptr)                     \
-    X(DW_AT_addr_base, 0x73, 1, addrptr)                                  \
-    X(DW_AT_rnglists_base, 0x74, 1, rnglistptr)                           \
-    X(DW_AT_dwo_name, 0x76, 1, string)                                    \
-    X(DW_AT_reference, 0x77, 1, flag)                                     \
-    X(DW_AT_rvalue_reference, 0x78, 1, flag)                              \
-    X(DW_AT_macros, 0x79, 1, macptr)                                      \
-    X(DW_AT_call_all_calls, 0x7a, 1, flag)                                \
-    X(DW_AT_call_all_source_calls, 0x7b, 1, flag)                         \
-    X(DW_AT_call_all_tail_calls, 0x7c, 1, flag)                           \
-    X(DW_AT_call_return_pc, 0x7d, 1, address)                             \
-    X(DW_AT_call_value, 0x7e, 1, exprloc)                                 \
-    X(DW_AT_call_origin, 0x7f, 1, exprloc)                                \
-    X(DW_AT_call_parameter, 0x80, 1, reference)                           \
-    X(DW_AT_call_pc, 0x81, 1, address)                                    \
-    X(DW_AT_call_tail_call, 0x82, 1, flag)                                \
-    X(DW_AT_call_target, 0x83, 1, exprloc)                                \
-    X(DW_AT_call_target_clobbered, 0x84, 1, exprloc)                      \
-    X(DW_AT_call_data_location, 0x85, 1, exprloc)                         \
-    X(DW_AT_call_data_value, 0x86, 1, exprloc)                            \
-    X(DW_AT_noreturn, 0x87, 1, flag)                                      \
-    X(DW_AT_alignment, 0x88, 1, constant)                                 \
-    X(DW_AT_export_symbols, 0x89, 1, flag)                                \
-    X(DW_AT_deleted, 0x8a, 1, flag)                                       \
-    X(DW_AT_defaulted, 0x8b, 1, constant)                                 \
-    X(DW_AT_loclists_base, 0x8c, 1, loclistptr)
+#define DW_ATTR_LIST(X)                                                \
+    X(DW_AT_sibling, 0x01, reference)                                  \
+    X(DW_AT_location, 0x02, exprloc, loclistptr)                       \
+    X(DW_AT_name, 0x03, string)                                        \
+    X(DW_AT_ordering, 0x09, constant)                                  \
+    X(DW_AT_byte_size, 0x0b, constant, exprloc, reference)             \
+    X(DW_AT_bit_offset, 0x0c, constant, exprloc, reference)            \
+    X(DW_AT_bit_size, 0x0d, constant, exprloc, reference)              \
+    X(DW_AT_stmt_list, 0x10, lineptr)                                  \
+    X(DW_AT_low_pc, 0x11, address)                                     \
+    X(DW_AT_high_pc, 0x12, address, constant)                          \
+    X(DW_AT_language, 0x13, constant)                                  \
+    X(DW_AT_discr, 0x15, reference)                                    \
+    X(DW_AT_discr_value, 0x16, constant)                               \
+    X(DW_AT_visibility, 0x17, constant)                                \
+    X(DW_AT_import, 0x18, reference)                                   \
+    X(DW_AT_string_length, 0x19, exprloc, loclistptr)                  \
+    X(DW_AT_common_reference, 0x1a, reference)                         \
+    X(DW_AT_comp_dir, 0x1b, string)                                    \
+    X(DW_AT_const_value, 0x1c, block, constant, string)                \
+    X(DW_AT_containing_type, 0x1d, reference)                          \
+    X(DW_AT_default_value, 0x1e, reference)                            \
+    X(DW_AT_inline, 0x20, constant)                                    \
+    X(DW_AT_is_optional, 0x21, flag)                                   \
+    X(DW_AT_lower_bound, 0x22, constant, exprloc, reference)           \
+    X(DW_AT_producer, 0x25, string)                                    \
+    X(DW_AT_prototyped, 0x27, flag)                                    \
+    X(DW_AT_return_addr, 0x2a, exprloc, loclistptr)                    \
+    X(DW_AT_start_scope, 0x2c, constant, rnglistptr)                   \
+    X(DW_AT_bit_stride, 0x2e, constant, exprloc, reference)            \
+    X(DW_AT_upper_bound, 0x2f, constant, exprloc, reference)           \
+    X(DW_AT_abstract_origin, 0x31, reference)                          \
+    X(DW_AT_accessibility, 0x32, constant)                             \
+    X(DW_AT_address_class, 0x33, constant)                             \
+    X(DW_AT_artificial, 0x34, flag)                                    \
+    X(DW_AT_base_types, 0x35, reference)                               \
+    X(DW_AT_calling_convention, 0x36, constant)                        \
+    X(DW_AT_count, 0x37, constant, exprloc, reference)                 \
+    X(DW_AT_data_member_location, 0x38, constant, exprloc, loclistptr) \
+    X(DW_AT_decl_column, 0x39, constant)                               \
+    X(DW_AT_decl_file, 0x3a, constant)                                 \
+    X(DW_AT_decl_line, 0x3b, constant)                                 \
+    X(DW_AT_declaration, 0x3c, flag)                                   \
+    X(DW_AT_discr_list, 0x3d, block)                                   \
+    X(DW_AT_encoding, 0x3e, constant)                                  \
+    X(DW_AT_external, 0x3f, flag)                                      \
+    X(DW_AT_frame_base, 0x40, exprloc, loclistptr)                     \
+    X(DW_AT_friend, 0x41, reference)                                   \
+    X(DW_AT_identifier_case, 0x42, constant)                           \
+    X(DW_AT_macro_info, 0x43, macptr)                                  \
+    X(DW_AT_namelist_item, 0x44, reference)                            \
+    X(DW_AT_priority, 0x45, reference)                                 \
+    X(DW_AT_segment, 0x46, exprloc, loclistptr)                        \
+    X(DW_AT_specification, 0x47, reference)                            \
+    X(DW_AT_static_link, 0x48, exprloc, loclistptr)                    \
+    X(DW_AT_type, 0x49, reference)                                     \
+    X(DW_AT_use_location, 0x4a, exprloc, loclistptr)                   \
+    X(DW_AT_variable_parameter, 0x4b, flag)                            \
+    X(DW_AT_virtuality, 0x4c, constant)                                \
+    X(DW_AT_vtable_elem_location, 0x4d, exprloc, loclistptr)           \
+    X(DW_AT_allocated, 0x4e, constant, exprloc, reference)             \
+    X(DW_AT_associated, 0x4f, constant, exprloc, reference)            \
+    X(DW_AT_data_location, 0x50, exprloc)                              \
+    X(DW_AT_byte_stride, 0x51, constant, exprloc, reference)           \
+    X(DW_AT_entry_pc, 0x52, address)                                   \
+    X(DW_AT_use_UTF8, 0x53, flag)                                      \
+    X(DW_AT_extension, 0x54, reference)                                \
+    X(DW_AT_ranges, 0x55, rnglist)                                     \
+    X(DW_AT_trampoline, 0x56, address, flag, reference, string)        \
+    X(DW_AT_call_column, 0x57, constant)                               \
+    X(DW_AT_call_file, 0x58, constant)                                 \
+    X(DW_AT_call_line, 0x59, constant)                                 \
+    X(DW_AT_description, 0x5a, string)                                 \
+    X(DW_AT_binary_scale, 0x5b, constant)                              \
+    X(DW_AT_decimal_scale, 0x5c, constant)                             \
+    X(DW_AT_small, 0x5d, reference)                                    \
+    X(DW_AT_decimal_sign, 0x5e, constant)                              \
+    X(DW_AT_digit_count, 0x5f, constant)                               \
+    X(DW_AT_picture_string, 0x60, string)                              \
+    X(DW_AT_mutable, 0x61, flag)                                       \
+    X(DW_AT_threads_scaled, 0x62, flag)                                \
+    X(DW_AT_explicit, 0x63, flag)                                      \
+    X(DW_AT_object_pointer, 0x64, reference)                           \
+    X(DW_AT_endianity, 0x65, constant)                                 \
+    X(DW_AT_elemental, 0x66, flag)                                     \
+    X(DW_AT_pure, 0x67, flag)                                          \
+    X(DW_AT_recursive, 0x68, flag)                                     \
+    X(DW_AT_signature, 0x69, reference)                                \
+    X(DW_AT_main_subprogram, 0x6a, flag)                               \
+    X(DW_AT_data_bit_offset, 0x6b, constant)                           \
+    X(DW_AT_const_expr, 0x6c, flag)                                    \
+    X(DW_AT_enum_class, 0x6d, flag)                                    \
+    X(DW_AT_linkage_name, 0x6e, string)                                \
+    X(DW_AT_string_length_bit_size, 0x6f, constant)                    \
+    X(DW_AT_string_length_byte_size, 0x70, constant)                   \
+    X(DW_AT_rank, 0x71, constant, exprloc)                             \
+    X(DW_AT_str_offsets_base, 0x72, stroffsetsptr)                     \
+    X(DW_AT_addr_base, 0x73, addrptr)                                  \
+    X(DW_AT_rnglists_base, 0x74, rnglistptr)                           \
+    X(DW_AT_dwo_name, 0x76, string)                                    \
+    X(DW_AT_reference, 0x77, flag)                                     \
+    X(DW_AT_rvalue_reference, 0x78, flag)                              \
+    X(DW_AT_macros, 0x79, macptr)                                      \
+    X(DW_AT_call_all_calls, 0x7a, flag)                                \
+    X(DW_AT_call_all_source_calls, 0x7b, flag)                         \
+    X(DW_AT_call_all_tail_calls, 0x7c, flag)                           \
+    X(DW_AT_call_return_pc, 0x7d, address)                             \
+    X(DW_AT_call_value, 0x7e, exprloc)                                 \
+    X(DW_AT_call_origin, 0x7f, exprloc)                                \
+    X(DW_AT_call_parameter, 0x80, reference)                           \
+    X(DW_AT_call_pc, 0x81, address)                                    \
+    X(DW_AT_call_tail_call, 0x82, flag)                                \
+    X(DW_AT_call_target, 0x83, exprloc)                                \
+    X(DW_AT_call_target_clobbered, 0x84, exprloc)                      \
+    X(DW_AT_call_data_location, 0x85, exprloc)                         \
+    X(DW_AT_call_data_value, 0x86, exprloc)                            \
+    X(DW_AT_noreturn, 0x87, flag)                                      \
+    X(DW_AT_alignment, 0x88, constant)                                 \
+    X(DW_AT_export_symbols, 0x89, flag)                                \
+    X(DW_AT_deleted, 0x8a, flag)                                       \
+    X(DW_AT_defaulted, 0x8b, constant)                                 \
+    X(DW_AT_loclists_base, 0x8c, loclistptr)
 
 typedef enum dw_attr_name
 {
@@ -268,6 +268,23 @@ static inline const char* dw_get_attr_name_string(u32 name)
     }
     return (res);
 }
+
+#define DW_ATTR_CLASS_LIST(X)                                                                                                                                       \
+    X(address, DW_FORM_addr, DW_FORM_addrx, DW_FORM_addrx1, DW_FORM_addrx2, DW_FORM_addrx3, DW_FORM_addrx4)                                                         \
+    X(addrptr, DW_FORM_sec_offset)                                                                                                                                  \
+    X(block, DW_FORM_block1, DW_FORM_block2, DW_FORM_block4, DW_FORM_block)                                                                                         \
+    X(constant, DW_FORM_data1, DW_FORM_data2, DW_FORM_data4, DW_FORM_data8, DW_FORM_data16, DW_FORM_sdata, DW_FORM_udata, DW_FORM_implicit_const)                   \
+    X(exprloc, DW_FORM_exprloc)                                                                                                                                     \
+    X(flag, DW_FORM_flag, DW_FORM_flag_present)                                                                                                                     \
+    X(lineptr, DW_FORM_sec_offset)                                                                                                                                  \
+    X(loclist, DW_FORM_loclistx, DW_FORM_sec_offset)                                                                                                                \
+    X(loclistptr, DW_FORM_sec_offset)                                                                                                                               \
+    X(macptr, DW_FORM_sec_offset)                                                                                                                                   \
+    X(rnglist, DW_FORM_rnglistx, DW_FORM_sec_offset)                                                                                                                \
+    X(rnglistptr, DW_FORM_sec_offset)                                                                                                                               \
+    X(reference, DW_FORM_ref1, DW_FORM_ref2, DW_FORM_ref4, DW_FORM_ref8, DW_FORM_ref_udata, DW_FORM_ref_addr, DW_FORM_ref_sig8, DW_FORM_ref_sup4, DW_FORM_ref_sup8) \
+    X(string, DW_FORM_string, DW_FORM_strp, DW_FORM_line_strp, DW_FORM_strp_sup, DW_FORM_strx, DW_FORM_strx1, DW_FORM_strx2, DW_FORM_strx3, DW_FORM_strx4)          \
+    X(stroffsetsptr, DW_FORM_sec_offset)
 
 typedef enum dw_attr_class
 {
@@ -843,6 +860,18 @@ typedef struct dw_loc
     dw_loc_entry* entries;
 } dw_loc;
 
+typedef struct dw_range_entry
+{
+    u64 start;
+    u64 end;
+} dw_range_entry;
+
+typedef struct dw_range_list
+{
+    u64 entryCount;
+    dw_range_entry* entries;
+} dw_range_list;
+
 typedef struct dw_attr
 {
     dw_abbrev_attr* abbrev;
@@ -850,6 +879,7 @@ typedef struct dw_attr
     union
     {
         dw_loc loc;
+        dw_range_list ranges;
         oc_str8 string;
         u8 valU8;
         u16 valU16;
@@ -1012,4 +1042,5 @@ typedef struct dw_sections
     dw_section line;
     dw_section lineStr;
     dw_section loc;
+    dw_section ranges;
 } dw_sections;

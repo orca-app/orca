@@ -20,6 +20,17 @@
 #define OC_EXPAND(...) __VA_ARGS__
 #define OC_EXPAND_NIL(...)
 
+// Counting var args, up to 10 args
+#define OC_COUNT10_UTIL(a, b, c, d, e, f, g, h, i, j, k, l, count, ...) count
+
+#if OC_COMPILER_CL
+    // on MSVC, there is no VA_OPT but ##__VA_ARGS__ consumes the previous token if there is no argument
+    #define OC_COUNT10(...) OC_COUNT10_UTIL(, , ##__VA_ARGS__, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#else
+    // on clang, ##__VA_ARGS__ does not consume previous token if there is no argument, so we use __VA_OPT__
+    #define OC_COUNT10(...) OC_COUNT10_UTIL(, __VA_OPT__(, )##__VA_ARGS__, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0)
+#endif
+
 //----------------------------------------------------------------------------------------
 // Variadic macros helpers and portable replacement for __VA_OPT__ extension
 //----------------------------------------------------------------------------------------

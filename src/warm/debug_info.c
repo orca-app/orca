@@ -339,3 +339,43 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
 
     return res;
 }
+
+wa_debug_scope* wa_debug_get_current_scope(wa_interpreter* interpreter)
+{
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
+
+    wa_warm_loc warmLoc = {
+        interpreter->instance->module,
+        funcIndex,
+        interpreter->pc - func->code,
+    };
+
+    wa_wasm_loc loc = wa_wasm_loc_from_warm_loc(warmLoc);
+
+    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
+    wa_debug_scope* scope = &funcInfo->body;
+
+    while(!oc_list_empty(scope->children))
+    {
+        wa_debug_scope* next = 0;
+        oc_list_for(scope->children, child, wa_debug_scope, listElt)
+        {
+            for(u64 rangeIndex = 0; rangeIndex < child->rangeCount; rangeIndex++)
+            {
+                if(loc.offset >= child->ranges[rangeIndex].low && loc.offset < child->ranges[rangeIndex].high)
+                {
+                    next = child;
+                    break;
+                }
+            }
+        }
+        if(!next)
+        {
+            break;
+        }
+        scope = next;
+    }
+
+    return scope;
+}

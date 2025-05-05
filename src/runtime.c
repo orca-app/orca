@@ -1678,28 +1678,46 @@ void debugger_ui_value(oc_str8 name, wa_debug_type* type, oc_str8 data, u32 inde
     oc_scratch_end(scratch);
 }
 
-void debugger_display_vars_in_scope(wa_debug_scope* scope, wa_debug_function* funcInfo, wa_interpreter* interpreter, u64* varUID)
+void debugger_display_vars_in_current_scope(wa_debug_function* funcInfo, wa_interpreter* interpreter, u64* varUID)
 {
-    //TODO: this display all variables in all scopes
-    //      we should display only scope we're currently in
-    //      we should also mark shadowed variables as such
-
     oc_arena_scope scratch = oc_scratch_begin();
+    wa_debug_variable** shadow = oc_arena_push_array(scratch.arena, wa_debug_variable*, funcInfo->totalVarDecl);
+    u64 shadowCount = 0;
 
-    for(u64 varIndex = 0; varIndex < scope->count; varIndex++)
+    wa_debug_scope* scope = wa_debug_get_current_scope(interpreter);
+
+    while(scope)
     {
-        wa_debug_variable* var = &scope->vars[varIndex];
+        //NOTE: display vars in scope
 
-        oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
-        debugger_ui_value(var->name, var->type, data, 0, varUID, true);
+        for(u64 varIndex = 0; varIndex < scope->count; varIndex++)
+        {
+            wa_debug_variable* var = &scope->vars[varIndex];
+
+            //NOTE: dumb n^2 shadow check
+            bool shadowed = false;
+            for(u64 shadowIndex = 0; shadowIndex < shadowCount; shadowIndex++)
+            {
+                if(!oc_str8_cmp(shadow[shadowIndex]->name, var->name))
+                {
+                    shadowed = true;
+                }
+            }
+
+            if(!shadowed)
+            {
+                oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, funcInfo, var);
+                debugger_ui_value(var->name, var->type, data, 0, varUID, true);
+
+                shadow[shadowCount] = var;
+                shadowCount++;
+            }
+        }
+
+        scope = scope->parent;
     }
 
     oc_scratch_end(scratch);
-
-    oc_list_for(scope->children, child, wa_debug_scope, listElt)
-    {
-        debugger_display_vars_in_scope(child, funcInfo, interpreter, varUID);
-    }
 }
 
 void debugger_ui_update(oc_runtime* app)
@@ -2636,7 +2654,7 @@ void debugger_ui_update(oc_runtime* app)
 
                         u64 varUID = 0;
 
-                        debugger_display_vars_in_scope(&funcInfo->body, funcInfo, interpreter, &varUID);
+                        debugger_display_vars_in_current_scope(funcInfo, interpreter, &varUID);
 
                         oc_ui_label("spacer2", " ");
                         oc_ui_label("title2", "Globals:");

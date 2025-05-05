@@ -15,9 +15,10 @@
 #include "reader.h"
 
 //------------------------------------------------------------------------
-// dwarf tables array
+// dwarf tables
 //------------------------------------------------------------------------
 
+//NOTE: generate an array that maps each dwarf opcode to its operand types
 #define X_OP_INFO(name, val, opdCount, ...) \
     [name] = { .count = opdCount, .opd = { __VA_ARGS__ } },
 
@@ -27,6 +28,7 @@ const dw_op_info DW_OP_INFO[] = {
 
 #undef X_OP_INFO
 
+//NOTE: generate an array that maps each attr to its classes
 enum
 {
     DW_ATTR_MAX_CLASS = 4,
@@ -43,10 +45,15 @@ typedef struct dw_attr_info
 #define X_AT_CLASS_NAME_2(name, ...) X_AT_CLASS_NAME(name), X_AT_CLASS_NAME_1(__VA_ARGS__)
 #define X_AT_CLASS_NAME_3(name, ...) X_AT_CLASS_NAME(name), X_AT_CLASS_NAME_2(__VA_ARGS__)
 #define X_AT_CLASS_NAME_4(name, ...) X_AT_CLASS_NAME(name), X_AT_CLASS_NAME_3(__VA_ARGS__)
-#define X_AT_CLASS_NAME_APPLY(count, ...) X_AT_CLASS_NAME_##count(__VA_ARGS__)
 
-#define X_AT_INFO(name, val, classCount, ...) \
-    [name] = { .count = classCount, .classes = { X_AT_CLASS_NAME_APPLY(classCount, __VA_ARGS__) } },
+#define X_AT_CLASS_NAME_APPLY(count, ...) X_AT_CLASS_NAME_##count(__VA_ARGS__)
+#define X_AT_INFO_CLASS_NAMES(count, ...) X_AT_CLASS_NAME_APPLY(count, __VA_ARGS__)
+
+#define X_AT_INFO(name, val, ...)                                                  \
+    [name] = {                                                                     \
+        .count = OC_COUNT10(__VA_ARGS__),                                          \
+        .classes = { X_AT_INFO_CLASS_NAMES(OC_COUNT10(__VA_ARGS__), __VA_ARGS__) } \
+    },
 
 const dw_attr_info DW_AT_INFO[] = {
     DW_ATTR_LIST(X_AT_INFO)
@@ -58,7 +65,32 @@ const dw_attr_info DW_AT_INFO[] = {
 #undef X_AT_CLASS_NAME_3
 #undef X_AT_CLASS_NAME_4
 #undef X_AT_CLASS_NAME_APPLY
+#undef X_AT_INFO_CLASS_NAMES
 #undef X_AT_INFO
+
+//NOTE: generate an array that maps each class to its forms
+enum
+{
+    DW_ATTR_CLASS_MAX_FORMS = 10,
+};
+
+typedef struct dw_attr_class_info
+{
+    u32 count;
+    dw_form forms[DW_ATTR_CLASS_MAX_FORMS];
+} dw_attr_class_info;
+
+#define X_AT_CLASS_INFO(name, ...)        \
+    [DW_AT_CLASS_##name] = {              \
+        .count = OC_COUNT10(__VA_ARGS__), \
+        .forms = { __VA_ARGS__ },         \
+    },
+
+const dw_attr_class_info DW_AT_CLASS_INFO[] = {
+    DW_ATTR_CLASS_LIST(X_AT_CLASS_INFO)
+};
+
+#undef X_AT_CLASS_INFO
 
 //------------------------------------------------------------------------
 // structs
@@ -1160,7 +1192,7 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
 
         oc_list list = { 0 };
 
-        while(offset < section.len)
+        while(wa_reader_has_more(&reader))
         {
             u64 start = 0;
             u64 end = 0;
@@ -1229,9 +1261,121 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
     return loc;
 }
 
-void dw_attr_get_class(dw_attr_name name, dw_form form)
+dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
 {
-    //TODO
+    const dw_attr_info* attrInfo = &DW_AT_INFO[name];
+    for(u32 classIndex = 0; classIndex < attrInfo->count; classIndex++)
+    {
+        const dw_attr_class_info* classInfo = &DW_AT_CLASS_INFO[attrInfo->classes[classIndex]];
+        for(u32 formIndex = 0; formIndex < classInfo->count; formIndex++)
+        {
+            if(classInfo->forms[formIndex] == form)
+            {
+                return attrInfo->classes[classIndex];
+            }
+        }
+    }
+    OC_ASSERT(0, "unreachable");
+    return 0;
+}
+
+dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
+
+dw_range_list dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw_sections* sections, u64 offset)
+{
+    dw_range_list rangeList = { 0 };
+
+    if(unit->version == 4)
+    {
+        dw_section section = sections->ranges;
+        wa_reader reader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
+
+        typedef struct dw_range_entry_elt
+        {
+            oc_list_elt listElt;
+            dw_range_entry entry;
+        } dw_range_entry_elt;
+
+        oc_list list = { 0 };
+
+        oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+
+        //NOTE: get base address of unit
+        u64 baseAddress = 0;
+
+        dw_die* unitDie = unit->rootDie;
+        OC_ASSERT(unitDie->abbrev && unitDie->abbrev->tag == DW_TAG_compile_unit);
+        dw_attr* lowPC = dw_die_get_attr(unitDie, DW_AT_low_pc);
+
+        if(lowPC)
+        {
+            baseAddress = lowPC->valU64;
+        }
+
+        while(wa_reader_has_more(&reader))
+        {
+            u64 start = 0;
+            u64 end = 0;
+
+            if(unit->addressSize == 4)
+            {
+                start = wa_read_u32(&reader);
+                end = wa_read_u32(&reader);
+                if(start == 0xffffffff)
+                {
+                    start = 0xffffffffffffffff;
+                }
+            }
+            else if(unit->addressSize == 8)
+            {
+                start = wa_read_u64(&reader);
+                end = wa_read_u64(&reader);
+            }
+            else
+            {
+                OC_ASSERT(0);
+            }
+
+            if(start == 0 && end == 0)
+            {
+                //NOTE end of list entry
+                break;
+            }
+            else if(start == 0xffffffffffffffff)
+            {
+                //NOTE: base address selection entry
+                baseAddress = end;
+            }
+            else
+            {
+                //NOTE normal entry
+                dw_range_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_range_entry_elt);
+
+                elt->entry.start = baseAddress + start;
+                elt->entry.end = baseAddress + end;
+
+                oc_list_push_back(&list, &elt->listElt);
+                rangeList.entryCount++;
+            }
+        }
+
+        rangeList.entries = oc_arena_push_array(parser->arena, dw_range_entry, rangeList.entryCount);
+        oc_list_for_indexed(list, it, dw_range_entry_elt, listElt)
+        {
+            rangeList.entries[it.index] = it.elt->entry;
+        }
+
+        oc_scratch_end(scratch);
+    }
+    else
+    {
+        //////////////////////////////////////////////////////////////////
+        //TODO
+        //////////////////////////////////////////////////////////////////
+        OC_ASSERT(0, "rangelist version 5 is unsupported yet");
+    }
+
+    return rangeList;
 }
 
 void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_unit* unit, dw_sections* sections, dw_attr_name name, dw_form form)
@@ -1429,6 +1573,7 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
         case DW_FORM_rnglistx:
         {
             u64 rngListIndex = wa_read_leb128_u64(reader);
+
             //TODO: extract rnglist of entries form debug_rnglists section
         }
         break;
@@ -1642,6 +1787,11 @@ void dw_parse_form_value(dw_parser* parser, wa_reader* reader, dw_attr* res, dw_
                 }
                 break;
 
+                case DW_AT_ranges:
+                {
+                    res->ranges = dw_parse_range_list_at_offset(parser, unit, sections, addrOffset);
+                }
+                break;
                 default:
                     //TODO
                     break;

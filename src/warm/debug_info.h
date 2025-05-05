@@ -129,6 +129,7 @@ typedef struct dw_loc dw_loc;
 typedef struct wa_debug_variable
 {
     oc_str8 name;
+    u64 uid;
     dw_loc* loc;
     wa_debug_type* type;
 } wa_debug_variable;
@@ -165,6 +166,7 @@ typedef struct wa_debug_function
     wa_debug_unit* unit;
     dw_loc* frameBase;
 
+    u64 totalVarDecl;
     wa_debug_scope body;
 
 } wa_debug_function;
@@ -213,3 +215,5 @@ void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, w
 wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
 wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var);
+
+wa_debug_scope* wa_debug_get_current_scope(wa_interpreter* interpreter);
