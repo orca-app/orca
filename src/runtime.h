@@ -118,6 +118,19 @@ typedef struct oc_debug_overlay
 
 } oc_debug_overlay;
 
+typedef struct wa_debug_type wa_debug_type;
+
+typedef struct oc_debugger_value
+{
+    oc_list_elt listElt;
+    oc_list children;
+
+    oc_str8 name;
+    wa_debug_type* type;
+    oc_str8 data;
+
+} oc_debugger_value;
+
 typedef struct oc_debugger_ui
 {
     bool init;
@@ -134,6 +147,10 @@ typedef struct oc_debugger_ui
     f32 lastScroll;
 
     wa_source_node sourceTree;
+
+    oc_arena valuesArena;
+    oc_list locals;
+    oc_list globals;
 
 } oc_debugger_ui;
 
