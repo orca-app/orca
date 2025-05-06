@@ -129,6 +129,8 @@ typedef struct oc_debugger_value
     wa_debug_type* type;
     oc_str8 data;
 
+    bool expanded;
+
 } oc_debugger_value;
 
 typedef struct oc_debugger_ui
