@@ -1550,6 +1550,22 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_debug_function* funcInfo,
     return (list);
 }
 
+oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_interpreter* interpreter)
+{
+    oc_list list = { 0 };
+
+    for(u64 globalIndex = 0; globalIndex < unit->globalCount; globalIndex++)
+    {
+        wa_debug_variable* var = &unit->globals[globalIndex];
+
+        oc_str8 data = wa_debug_variable_get_value(arena, interpreter, 0, var);
+        oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
+        oc_list_push_back(&list, &value->listElt);
+    }
+
+    return list;
+}
+
 void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64* uid, bool showType)
 {
     wa_debug_type* strippedType = wa_debug_type_strip(value->type);
@@ -2088,9 +2104,12 @@ void debugger_ui_update(oc_runtime* app)
                 }
 
                 //NOTE: build value locals value tree
+
                 oc_arena_clear(&app->debuggerUI.valuesArena);
                 wa_debug_function* debugFunc = &app->env.module->debugInfo->functionLocals[selectedFunction];
                 app->debuggerUI.locals = debugger_build_locals_tree(&app->debuggerUI.valuesArena, debugFunc, interpreter);
+
+                app->debuggerUI.globals = debugger_build_globals_tree(&app->debuggerUI.valuesArena, debugFunc->unit, interpreter);
             }
             app->env.prevPaused = paused;
         }
@@ -2941,29 +2960,20 @@ void debugger_ui_update(oc_runtime* app)
                             oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
                         }
 
-                        wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-                        u32 funcIndex = execFunc - interpreter->instance->functions;
-                        wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
-                        wa_debug_unit* unit = funcInfo->unit;
-
                         u64 varUID = 0;
 
                         oc_list_for(app->debuggerUI.locals, val, oc_debugger_value, listElt)
                         {
                             debugger_show_value(val->name, val, 0, &varUID, true);
                         }
-                        //                        debugger_display_vars_in_current_scope(funcInfo, interpreter, &varUID);
 
                         oc_ui_label("spacer2", " ");
                         oc_ui_label("title2", "Globals:");
                         oc_ui_label("spacer3", " ");
 
-                        for(u64 globalIndex = 0; globalIndex < unit->globalCount; globalIndex++)
+                        oc_list_for(app->debuggerUI.globals, val, oc_debugger_value, listElt)
                         {
-                            wa_debug_variable* var = &unit->globals[globalIndex];
-
-                            oc_str8 data = wa_debug_variable_get_value(scratch.arena, interpreter, 0, var);
-                            debugger_ui_value(var->name, var->type, data, 0, &varUID, true);
+                            debugger_show_value(val->name, val, 0, &varUID, true);
                         }
                     }
                 }
