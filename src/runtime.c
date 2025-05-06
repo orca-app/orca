@@ -1268,7 +1268,10 @@ void oc_debugger_ui_open(oc_runtime* app)
         wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
         oc_debugger_build_source_tree(&app->env.arena, &app->debuggerUI.sourceTree, sourceInfo->fileCount, sourceInfo->files);
 
-        oc_arena_init(&debuggerUI->valuesArena);
+        for(u32 i = 0; i < 2; i++)
+        {
+            oc_arena_init(&debuggerUI->valuesArena[i]);
+        }
 
         debuggerUI->init = true;
     }
@@ -1285,8 +1288,10 @@ void oc_debugger_ui_close(oc_runtime* app)
         oc_canvas_renderer_destroy(debuggerUI->renderer);
         oc_window_destroy(debuggerUI->window);
 
-        oc_arena_cleanup(&debuggerUI->valuesArena);
-
+        for(u32 i = 0; i < 2; i++)
+        {
+            oc_arena_cleanup(&debuggerUI->valuesArena[i]);
+        }
         memset(debuggerUI, 0, sizeof(oc_debugger_ui));
     }
 }
@@ -1467,7 +1472,7 @@ wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
     return 0;
 }
 
-oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_debug_type* type, oc_str8 data)
+oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_debug_type* type, oc_str8 data, oc_list oldValues)
 {
     oc_debugger_value* value = oc_arena_push_type(arena, oc_debugger_value);
     value->name = name;
@@ -1476,6 +1481,27 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_d
 
     wa_debug_type* strippedType = wa_debug_type_strip(type);
 
+    //NOTE: by defaut, expand struct, union, and small arrays
+    if(strippedType->kind == WA_DEBUG_TYPE_STRUCT
+       || strippedType->kind == WA_DEBUG_TYPE_UNION
+       || (strippedType->kind == WA_DEBUG_TYPE_ARRAY && strippedType->array.count <= 6))
+    {
+        value->expanded = true;
+    }
+
+    oc_list oldChildren = { 0 };
+    oc_list_for(oldValues, oldValue, oc_debugger_value, listElt)
+    {
+        if(!oc_str8_cmp(oldValue->name, value->name)
+           && oldValue->type == value->type)
+        {
+            //NOTE: if value was present in previous value tree, carry over its persistant state
+            value->expanded = oldValue->expanded;
+            oldChildren = oldValue->children;
+            break;
+        }
+    }
+
     if(strippedType->kind == WA_DEBUG_TYPE_STRUCT || strippedType->kind == WA_DEBUG_TYPE_UNION)
     {
         oc_list_for(strippedType->fields, field, wa_debug_type_field, listElt)
@@ -1483,7 +1509,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_d
             wa_debug_type* fieldStrippedType = wa_debug_type_strip(field->type);
             u64 fieldSize = fieldStrippedType->size;
             oc_str8 fieldData = oc_str8_slice(data, field->offset, field->offset + fieldSize);
-            oc_debugger_value* fieldVal = debugger_build_value_tree(arena, field->name, field->type, fieldData);
+            oc_debugger_value* fieldVal = debugger_build_value_tree(arena, field->name, field->type, fieldData, oldChildren);
 
             oc_list_push_back(&value->children, &fieldVal->listElt);
         }
@@ -1495,7 +1521,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_d
         for(u64 i = 0; i < strippedType->array.count; i++)
         {
             oc_str8 eltData = oc_str8_slice(data, i * eltType->size, (i + 1) * eltType->size);
-            oc_debugger_value* eltVal = debugger_build_value_tree(arena, (oc_str8){ 0 }, eltType, eltData);
+            oc_debugger_value* eltVal = debugger_build_value_tree(arena, (oc_str8){ 0 }, eltType, eltData, oldChildren);
 
             oc_list_push_back(&value->children, &eltVal->listElt);
         }
@@ -1504,7 +1530,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_d
     return value;
 }
 
-oc_list debugger_build_locals_tree(oc_arena* arena, wa_debug_function* funcInfo, wa_interpreter* interpreter)
+oc_list debugger_build_locals_tree(oc_arena* arena, wa_debug_function* funcInfo, wa_interpreter* interpreter, oc_list oldValues)
 {
     oc_list list = { 0 };
 
@@ -1535,7 +1561,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_debug_function* funcInfo,
             {
                 oc_str8 data = wa_debug_variable_get_value(arena, interpreter, funcInfo, var);
 
-                oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
+                oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data, oldValues);
                 oc_list_push_back(&list, &value->listElt);
 
                 shadow[shadowCount] = var;
@@ -1550,7 +1576,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_debug_function* funcInfo,
     return (list);
 }
 
-oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_interpreter* interpreter)
+oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_interpreter* interpreter, oc_list oldValues)
 {
     oc_list list = { 0 };
 
@@ -1559,14 +1585,14 @@ oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_int
         wa_debug_variable* var = &unit->globals[globalIndex];
 
         oc_str8 data = wa_debug_variable_get_value(arena, interpreter, 0, var);
-        oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
+        oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data, oldValues);
         oc_list_push_back(&list, &value->listElt);
     }
 
     return list;
 }
 
-void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64* uid, bool showType)
+void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64* uid, bool showType, wa_interpreter* interpreter, oc_debugger_ui* debuggerUI)
 {
     wa_debug_type* strippedType = wa_debug_type_strip(value->type);
     OC_ASSERT(strippedType);
@@ -1596,7 +1622,8 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
 
             if(strippedType->kind == WA_DEBUG_TYPE_STRUCT
                || strippedType->kind == WA_DEBUG_TYPE_UNION
-               || strippedType->kind == WA_DEBUG_TYPE_ARRAY)
+               || strippedType->kind == WA_DEBUG_TYPE_ARRAY
+               || strippedType->kind == WA_DEBUG_TYPE_POINTER)
             {
                 if(oc_ui_box_get_sig(oc_ui_box_top()).pressed)
                 {
@@ -1767,6 +1794,13 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     break;
                 }
             }
+            else if(strippedType->kind == WA_DEBUG_TYPE_POINTER)
+            {
+                u32 addr = 0;
+                memcpy(&addr, value->data.ptr, sizeof(u32));
+                oc_str8 valStr = oc_str8_pushf(scratch.arena, "0x%08x", addr);
+                oc_ui_label_str8(OC_STR8("value"), valStr);
+            }
         }
 
         if(value->data.len && value->expanded)
@@ -1775,7 +1809,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 oc_list_for(value->children, child, oc_debugger_value, listElt)
                 {
-                    debugger_show_value(child->name, child, indent + 1, uid, true);
+                    debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debuggerUI);
                 }
             }
             else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
@@ -1783,7 +1817,35 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                 oc_list_for_indexed(value->children, it, oc_debugger_value, listElt)
                 {
                     oc_str8 indexStr = oc_str8_pushf(scratch.arena, "[%llu]", it.index);
-                    debugger_show_value(indexStr, it.elt, indent + 1, uid, false);
+                    debugger_show_value(indexStr, it.elt, indent + 1, uid, false, interpreter, debuggerUI);
+                }
+            }
+            else if(strippedType->kind == WA_DEBUG_TYPE_POINTER)
+            {
+                if(oc_list_empty(value->children))
+                {
+                    //TODO: load pointee
+                    wa_debug_type* pointeeType = wa_debug_type_strip(strippedType->type);
+
+                    //TODO: check bounds
+                    u32 addr = 0;
+                    memcpy(&addr, value->data.ptr, sizeof(addr));
+
+                    oc_arena* valuesArena = &debuggerUI->valuesArena[debuggerUI->valuesArenaIndex];
+                    oc_str8 data = oc_str8_push_copy(valuesArena,
+                                                     (oc_str8){
+                                                         .ptr = interpreter->instance->memories[0]->ptr + addr,
+                                                         .len = pointeeType->size,
+                                                     });
+
+                    oc_debugger_value* pointee = debugger_build_value_tree(valuesArena, (oc_str8){ 0 }, strippedType->type, data, (oc_list){ 0 });
+
+                    oc_list_push_back(&value->children, &pointee->listElt);
+                }
+
+                oc_list_for(value->children, child, oc_debugger_value, listElt)
+                {
+                    debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debuggerUI);
                 }
             }
         }
@@ -1835,7 +1897,7 @@ void debugger_ui_update(oc_runtime* app)
                 app->debuggerUI.autoScroll = true;
 
                 wa_source_node* oldSelectedFile = app->debuggerUI.selectedFile;
-
+                u64 oldSelectedFunction = selectedFunction;
                 //NOTE: select new function and file
 
                 selectedFrame = 0;
@@ -1871,12 +1933,20 @@ void debugger_ui_update(oc_runtime* app)
                 }
 
                 //NOTE: build value locals value tree
-
-                oc_arena_clear(&app->debuggerUI.valuesArena);
                 wa_debug_function* debugFunc = &app->env.module->debugInfo->functionLocals[selectedFunction];
-                app->debuggerUI.locals = debugger_build_locals_tree(&app->debuggerUI.valuesArena, debugFunc, interpreter);
 
-                app->debuggerUI.globals = debugger_build_globals_tree(&app->debuggerUI.valuesArena, debugFunc->unit, interpreter);
+                app->debuggerUI.valuesArenaIndex ^= 1;
+                oc_arena* valuesArena = &app->debuggerUI.valuesArena[app->debuggerUI.valuesArenaIndex];
+                oc_arena_clear(valuesArena);
+
+                oc_list oldLocals = { 0 };
+                if(selectedFunction == oldSelectedFunction)
+                {
+                    oldLocals = app->debuggerUI.locals;
+                }
+
+                app->debuggerUI.locals = debugger_build_locals_tree(valuesArena, debugFunc, interpreter, oldLocals);
+                app->debuggerUI.globals = debugger_build_globals_tree(valuesArena, debugFunc->unit, interpreter, app->debuggerUI.globals);
             }
             app->env.prevPaused = paused;
         }
@@ -2731,7 +2801,7 @@ void debugger_ui_update(oc_runtime* app)
 
                         oc_list_for(app->debuggerUI.locals, val, oc_debugger_value, listElt)
                         {
-                            debugger_show_value(val->name, val, 0, &varUID, true);
+                            debugger_show_value(val->name, val, 0, &varUID, true, app->env.interpreter, &app->debuggerUI);
                         }
 
                         oc_ui_label("spacer2", " ");
@@ -2740,7 +2810,7 @@ void debugger_ui_update(oc_runtime* app)
 
                         oc_list_for(app->debuggerUI.globals, val, oc_debugger_value, listElt)
                         {
-                            debugger_show_value(val->name, val, 0, &varUID, true);
+                            debugger_show_value(val->name, val, 0, &varUID, true, app->env.interpreter, &app->debuggerUI);
                         }
                     }
                 }

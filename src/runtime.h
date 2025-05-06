@@ -150,7 +150,9 @@ typedef struct oc_debugger_ui
 
     wa_source_node sourceTree;
 
-    oc_arena valuesArena;
+    oc_arena valuesArena[2];
+    u8 valuesArenaIndex;
+
     oc_list locals;
     oc_list globals;
 

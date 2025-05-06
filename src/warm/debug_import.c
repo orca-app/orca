@@ -361,6 +361,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
     wa_debug_type* type = 0;
 
     //NOTE: find die corresponding to typeRef
+    u64 addressSize = 4;
     dw_die* die = 0;
     for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
@@ -377,6 +378,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             if(die)
             {
+                addressSize = unit->addressSize;
                 break;
             }
         }
@@ -443,11 +445,17 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
             case DW_TAG_pointer_type:
             {
                 type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_POINTER, types);
+                type->size = addressSize;
 
                 dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(typeAttr)
                 {
                     type->type = wa_build_debug_type_from_dwarf(arena, dwarf, typeAttr->valU64, types);
+                    //TODO: should we assert that type->type is always non null?
+                    if(type->type)
+                    {
+                        type->name = oc_str8_pushf(arena, "%.*s*", oc_str8_ip(type->type->name));
+                    }
                 }
             }
             break;
