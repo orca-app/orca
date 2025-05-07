@@ -1824,23 +1824,31 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 if(oc_list_empty(value->children))
                 {
-                    //TODO: load pointee
                     wa_debug_type* pointeeType = wa_debug_type_strip(strippedType->type);
-
-                    //TODO: check bounds
+                    u32 size = pointeeType->size;
                     u32 addr = 0;
                     memcpy(&addr, value->data.ptr, sizeof(addr));
 
-                    oc_arena* valuesArena = &debuggerUI->valuesArena[debuggerUI->valuesArenaIndex];
-                    oc_str8 data = oc_str8_push_copy(valuesArena,
-                                                     (oc_str8){
-                                                         .ptr = interpreter->instance->memories[0]->ptr + addr,
-                                                         .len = pointeeType->size,
-                                                     });
+                    wa_memory* memory = interpreter->instance->memories[0];
 
-                    oc_debugger_value* pointee = debugger_build_value_tree(valuesArena, (oc_str8){ 0 }, strippedType->type, data, (oc_list){ 0 });
+                    if(addr + size >= memory->limits.min * WA_PAGE_SIZE || addr + size < addr)
+                    {
+                        //NOTE: bogus address, don't load.
+                        //TODO: maybe later create a special error node?
+                    }
+                    else
+                    {
+                        oc_arena* valuesArena = &debuggerUI->valuesArena[debuggerUI->valuesArenaIndex];
+                        oc_str8 data = oc_str8_push_copy(valuesArena,
+                                                         (oc_str8){
+                                                             .ptr = memory->ptr + addr,
+                                                             .len = pointeeType->size,
+                                                         });
 
-                    oc_list_push_back(&value->children, &pointee->listElt);
+                        oc_debugger_value* pointee = debugger_build_value_tree(valuesArena, (oc_str8){ 0 }, strippedType->type, data, (oc_list){ 0 });
+
+                        oc_list_push_back(&value->children, &pointee->listElt);
+                    }
                 }
 
                 oc_list_for(value->children, child, oc_debugger_value, listElt)
