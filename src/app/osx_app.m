@@ -1822,7 +1822,7 @@ void oc_pump_events(f64 timeout)
     }
 }
 
-i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc, void* user)
+i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 {
     __block i32 result = 0;
     dispatch_block_t block = ^{

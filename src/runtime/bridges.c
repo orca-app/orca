@@ -203,57 +203,15 @@ void oc_bridge_request_quit(void)
     __orcaApp.quit = true;
 }
 
-typedef struct orca_surface_create_data
-{
-    oc_window window;
-    oc_surface_api api;
-    oc_surface surface;
-
-} orca_surface_create_data;
-
-i32 orca_surface_callback(void* user)
-{
-    orca_surface_create_data* data = (orca_surface_create_data*)user;
-
-    switch(data->api)
-    {
-        case OC_SURFACE_CANVAS:
-            data->surface = oc_canvas_surface_create_for_window(__orcaApp.canvasRenderer, data->window);
-            break;
-        case OC_SURFACE_GLES:
-        default:
-            data->surface = oc_gles_surface_create_for_window(data->window);
-            break;
-    }
-
-    if(data->api == OC_SURFACE_GLES)
-    {
-#if OC_PLATFORM_WINDOWS
-        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-        oc_gles_surface_swap_interval(data->surface, 0);
-#endif
-
-        //NOTE: this will be called on main thread, so we need to deselect the surface here,
-        //      and reselect it on the orca thread
-        oc_gles_surface_make_current(oc_surface_nil());
-    }
-    //TODO: wgpu-renderer: set canvas surface swap?
-
-    return (0);
-}
-
 oc_surface oc_bridge_gles_surface_create(void)
 {
-    orca_surface_create_data data = {
-        .surface = oc_surface_nil(),
-        .window = __orcaApp.window,
-        .api = OC_SURFACE_GLES
-    };
-
-    oc_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
-    oc_gles_surface_make_current(data.surface);
-    return (data.surface);
+    oc_surface surface = oc_gles_surface_create_for_window(__orcaApp.window);
+#if OC_PLATFORM_WINDOWS
+    //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait.
+    //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
+    oc_gles_surface_swap_interval(data->surface, 0);
+#endif
+    return (surface);
 }
 
 oc_canvas_renderer oc_bridge_canvas_renderer_create(void)
@@ -263,15 +221,9 @@ oc_canvas_renderer oc_bridge_canvas_renderer_create(void)
 
 oc_surface oc_bridge_canvas_surface_create(oc_canvas_renderer renderer)
 {
-    orca_surface_create_data data = {
-        .surface = oc_surface_nil(),
-        .window = __orcaApp.window,
-        .api = OC_SURFACE_CANVAS
-    };
     //TODO: check renderer
-
-    oc_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
-    return (data.surface);
+    oc_surface surface = oc_canvas_surface_create_for_window(__orcaApp.canvasRenderer, __orcaApp.window);
+    return (surface);
 }
 
 void oc_bridge_canvas_renderer_submit(oc_canvas_renderer renderer,

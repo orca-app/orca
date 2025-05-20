@@ -703,8 +703,12 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
         case OC_WM_USER_DISPATCH_PROC:
         {
             oc_dispatch_proc proc = (oc_dispatch_proc)wParam;
+            oc_dispatch_data data = (oc_dispatch_data*)lParam;
             void* user = (void*)lParam;
-            result = proc(user);
+
+            data->result = proc(data->user);
+
+            SetEvent(data->syncObject);
         }
         break;
 
@@ -763,13 +767,26 @@ void oc_pump_events(f64 timeout)
     }
 }
 
-i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc, void* user)
+typedef struct oc_dispatch_data
 {
-    oc_window_data* window_data = oc_window_ptr_from_handle(main_window);
-    OC_DEBUG_ASSERT(window_data != NULL);
+    HANDLE syncObject;
+    void* user;
+    i32 result;
+} oc_dispatch_data;
 
-    LRESULT result = SendMessage(window_data->win32.hWnd, OC_WM_USER_DISPATCH_PROC, (WPARAM)proc, (LPARAM)user);
-    return result;
+i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
+{
+    oc_dispatch_data data = { 0 };
+
+    data.syncObject = CreateEvent(NULL, FALSE, FALSE, NULL);
+
+    PostThreadMessage(oc_appData.win32.mainThreadID, OC_WM_USER_DISPATCH_PROC, (WPARAM)proc, (LPARAM)&data);
+
+    WaitForSingleObject(data.syncObject, INFINITE);
+
+    CloseHandle(data.syncObject);
+
+    return data.result;
 }
 
 //--------------------------------------------------------------------

@@ -22,6 +22,19 @@
 #include "runtime.h"
 
 //------------------------------------------------------------------------
+// Debugger
+//------------------------------------------------------------------------
+#if OC_WASM_BACKEND_WARM
+    #define OC_WASM_DEBUGGER
+#endif
+
+#ifdef OC_WASM_DEBUGGER
+
+    #include "debugger.c"
+
+#endif // OC_WASM_DEBUGGER
+
+//------------------------------------------------------------------------
 // runtime struct
 //------------------------------------------------------------------------
 oc_runtime __orcaApp = { 0 };
@@ -626,19 +639,6 @@ i32 vm_runloop(void* user)
 
     return (0);
 }
-
-//------------------------------------------------------------------------
-// Debugger
-//------------------------------------------------------------------------
-#if OC_WASM_BACKEND_WARM
-    #define OC_WASM_DEBUGGER
-#endif
-
-#ifdef OC_WASM_DEBUGGER
-
-    #include "debugger.c"
-
-#endif // OC_WASM_DEBUGGER
 
 //------------------------------------------------------------------------
 // Control runloop

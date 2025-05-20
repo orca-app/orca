@@ -384,7 +384,7 @@ ORCA_API void oc_vsync_wait(oc_window window);
 
 typedef i32 (*oc_dispatch_proc)(void* user);
 
-ORCA_API i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc, void* user);
+ORCA_API i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user);
 
 //--------------------------------------------------------------------
 // Clipboard

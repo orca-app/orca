@@ -44,8 +44,10 @@ typedef struct oc_gles_surface
 
 } oc_gles_surface;
 
-void oc_gles_surface_destroy(oc_surface_base* base)
+i32 oc_gles_surface_destroy_callback(void* user)
 {
+    oc_surface_base* base = (oc_surface_base*)user;
+
     oc_gles_surface* surface = (oc_gles_surface*)base;
 
     if(&surface->api == oc_gl_get_api())
@@ -61,6 +63,13 @@ void oc_gles_surface_destroy(oc_surface_base* base)
 
     oc_surface_base_cleanup((oc_surface_base*)surface);
     free(surface);
+
+    return 0;
+}
+
+void oc_gles_surface_destroy(oc_surface_base* base)
+{
+    oc_dispatch_on_main_thread_sync(oc_gles_surface_destroy_callback, base);
 }
 
 void oc_gles_surface_make_current(oc_surface handle)
@@ -171,10 +180,18 @@ void oc_gles_surface_init(oc_gles_surface* surface)
     eglSwapInterval(surface->eglDisplay, 1);
 }
 
-oc_surface oc_gles_surface_create_for_window(oc_window window)
+typedef struct oc_gles_surface_create_data
 {
+    oc_surface surface;
+    oc_window window;
+} oc_gles_surface_create_data;
+
+i32 oc_gles_surface_create_callback(void* user)
+{
+    oc_gles_surface_create_data* data = (oc_gles_surface_create_data*)user;
+
     oc_gles_surface* surface = 0;
-    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    oc_window_data* windowData = oc_window_ptr_from_handle(data->window);
     if(windowData)
     {
         surface = oc_malloc_type(oc_gles_surface);
@@ -192,5 +209,16 @@ oc_surface oc_gles_surface_create_for_window(oc_window window)
     {
         handle = oc_surface_handle_alloc((oc_surface_base*)surface);
     }
-    return (handle);
+    data->surface = handle;
+    return 0;
+}
+
+oc_surface oc_gles_surface_create_for_window(oc_window window)
+{
+    oc_gles_surface_create_data data = {
+        .window = window,
+    };
+    oc_dispatch_on_main_thread_sync(oc_gles_surface_create_callback, &data);
+
+    return (data.surface);
 }

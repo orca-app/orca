@@ -6,6 +6,8 @@
 *
 **************************************************************************/
 
+#include "warm/debug_info.h"
+
 //------------------------------------------------------------------------
 // Debug Overlay UI
 //------------------------------------------------------------------------
@@ -309,21 +311,10 @@ void oc_debugger_ui_open(oc_runtime* app)
     if(!debuggerUI->init)
     {
         //NOTE: window needs to be created on main thread
-        oc_dispatch_on_main_thread_sync(app->window, create_debug_window_callback, app);
+        oc_dispatch_on_main_thread_sync(create_debug_window_callback, app);
 
         debuggerUI->renderer = oc_canvas_renderer_create();
-
-        {
-            //NOTE: surface also needs to be created on main thread
-            orca_surface_create_data data = {
-                .surface = oc_surface_nil(),
-                .window = app->debuggerUI.window,
-                .api = OC_SURFACE_CANVAS,
-            };
-
-            oc_dispatch_on_main_thread_sync(app->debuggerUI.window, orca_surface_callback, (void*)&data);
-            debuggerUI->surface = data.surface;
-        }
+        debuggerUI->surface = oc_canvas_surface_create_for_window(debuggerUI->renderer, debuggerUI->window);
 
         debuggerUI->canvas = oc_canvas_context_create();
         debuggerUI->ui = oc_ui_context_create(app->debugOverlay.fontReg);
