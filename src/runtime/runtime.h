@@ -177,6 +177,8 @@ typedef struct oc_runtime
     oc_ringbuffer eventBuffer;
 } oc_runtime;
 
+extern oc_runtime __orcaApp;
+
 oc_runtime* oc_runtime_get(void);
 oc_wasm_env* oc_runtime_get_env(void);
 oc_str8 oc_runtime_get_wasm_memory(void);

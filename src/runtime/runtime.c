@@ -5,6 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
+
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
@@ -19,62 +20,10 @@
 #include "graphics/gles_surface.h"
 
 #include "runtime.h"
-#include "runtime_clipboard.c"
-#include "runtime_io.c"
-#include "runtime_memory.c"
 
-#include "wasm/wasm.c"
-#if OC_WASM_BACKEND_WASM3
-    #include "wasm/backend_wasm3.c"
-#elif OC_WASM_BACKEND_BYTEBOX
-    #include "wasm/backend_bytebox.c"
-#elif OC_WASM_BACKEND_WARM
-    #include "warm/warm_adapter.c"
-    #include "warm/warm.h"
-    #include "warm/debug_info.h"
-#else
-    #error "Unknown wasm backend"
-#endif
-
-static const char* s_test_wasm_module_path = NULL;
-
-oc_font orca_font_create(const char* resourcePath)
-{
-    //NOTE(martin): create default fonts
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
-
-    oc_font font = oc_font_nil();
-
-    FILE* fontFile = fopen(fontPath.ptr, "r");
-    if(!fontFile)
-    {
-        oc_log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
-    }
-    else
-    {
-        char* fontData = 0;
-        fseek(fontFile, 0, SEEK_END);
-        u32 fontDataSize = ftell(fontFile);
-        rewind(fontFile);
-        fontData = malloc(fontDataSize);
-        fread(fontData, 1, fontDataSize, fontFile);
-        fclose(fontFile);
-
-        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
-                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
-                                       OC_UNICODE_LATIN_EXTENDED_A,
-                                       OC_UNICODE_LATIN_EXTENDED_B,
-                                       OC_UNICODE_SPECIALS };
-
-        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
-
-        free(fontData);
-    }
-    oc_scratch_end(scratch);
-    return (font);
-}
-
+//------------------------------------------------------------------------
+// runtime struct
+//------------------------------------------------------------------------
 oc_runtime __orcaApp = { 0 };
 
 oc_runtime* oc_runtime_get()
@@ -92,398 +41,18 @@ oc_str8 oc_runtime_get_wasm_memory()
     return wa_instance_get_memory_str8(__orcaApp.env.instance);
 }
 
-u64 orca_check_cstring(wa_instance* instance, const char* ptr)
-{
-    oc_str8 memory = wa_instance_get_memory_str8(instance);
-
-    //NOTE: Here we are guaranteed that ptr is in [ memory ; memory + memorySize [
-    //      hence (memory + memorySize) - ptr is representable by size_t and <= memorySize
-    size_t maxLen = (memory.ptr + memory.len) - ptr;
-
-    u64 len = strnlen(ptr, maxLen);
-
-    if(len == maxLen)
-    {
-        //NOTE: string overflows wasm memory, return a length that will trigger the bounds check
-        len = maxLen + 1;
-    }
-    return (len + 1); //include null-terminator
-}
-
-void oc_bridge_window_set_title(oc_wasm_str8 title)
-{
-    oc_str8 nativeTitle = oc_wasm_str8_to_native(title);
-    if(nativeTitle.ptr)
-    {
-        oc_window_set_title(__orcaApp.window, nativeTitle);
-    }
-}
-
-void oc_bridge_window_set_size(oc_vec2 size)
-{
-    oc_window_set_content_size(__orcaApp.window, size);
-}
-
-oc_wasm_str8 oc_bridge_clipboard_get_string(oc_wasm_addr wasmArena)
-{
-    return oc_runtime_clipboard_get_string(&__orcaApp.clipboard, wasmArena);
-}
-
-void oc_bridge_clipboard_set_string(oc_wasm_str8 value)
-{
-    oc_runtime_clipboard_set_string(&__orcaApp.clipboard, value);
-}
-
-void oc_assert_fail_dialog(const char* file,
-                           const char* function,
-                           int line,
-                           const char* test,
-                           const char* fmt,
-                           ...)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    va_list ap;
-    va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
-    va_end(ap);
-
-    oc_str8 msg = oc_str8_pushf(scratch.arena,
-                                "Assertion failed in function %s() in file \"%s\", line %i:\n%s\nNote: %.*s\n",
-                                function,
-                                file,
-                                line,
-                                test,
-                                oc_str8_ip(note));
-
-    oc_log_error(msg.ptr);
-
-    oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
-
-    oc_alert_popup(OC_STR8("Assertion Failed"), msg, options);
-    exit(-1);
-
-    oc_scratch_end(scratch);
-}
-
-void oc_abort_ext_dialog(const char* file, const char* function, int line, const char* fmt, ...)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    va_list ap;
-    va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
-    va_end(ap);
-
-    oc_str8 msg = oc_str8_pushf(scratch.arena,
-                                "Fatal error in function %s() in file \"%s\", line %i:\n%.*s\n",
-                                function,
-                                file,
-                                line,
-                                oc_str8_ip(note));
-
-    oc_log_error(msg.ptr);
-
-    oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
-
-    oc_alert_popup(OC_STR8("Fatal Error"), msg, options);
-    exit(-1);
-
-    oc_scratch_end(scratch);
-}
-
-void oc_bridge_log(oc_log_level level,
-                   int functionLen,
-                   char* function,
-                   int fileLen,
-                   char* file,
-                   int line,
-                   int msgLen,
-                   char* msg)
-{
-    oc_debug_overlay* debug = &__orcaApp.debugOverlay;
-
-    //NOTE: recycle first entry if we exceeded the max entry count
-    debug->entryCount++;
-    if(debug->entryCount > debug->maxEntries)
-    {
-        log_entry* e = oc_list_pop_front_entry(&debug->logEntries, log_entry, listElt);
-        if(e)
-        {
-            oc_list_push_front(&debug->logFreeList, &e->listElt);
-            debug->entryCount--;
-        }
-    }
-
-    u64 cap = sizeof(log_entry) + fileLen + functionLen + msgLen;
-
-    //NOTE: allocate a new entry
-    //TODO: should probably use a buddy allocator over the arena or something
-    log_entry* entry = 0;
-    oc_list_for(debug->logFreeList, elt, log_entry, listElt)
-    {
-        if(elt->cap >= cap)
-        {
-            oc_list_remove(&debug->logFreeList, &elt->listElt);
-            entry = elt;
-            break;
-        }
-    }
-
-    if(!entry)
-    {
-        char* mem = oc_arena_push(&debug->logArena, cap);
-        entry = (log_entry*)mem;
-        entry->cap = cap;
-    }
-    char* payload = (char*)entry + sizeof(log_entry);
-
-    entry->function.len = functionLen;
-    entry->function.ptr = payload;
-    payload += entry->function.len;
-
-    entry->file.len = fileLen;
-    entry->file.ptr = payload;
-    payload += entry->file.len;
-
-    entry->msg.len = msgLen;
-    entry->msg.ptr = payload;
-    payload += entry->msg.len;
-
-    memcpy(entry->file.ptr, file, fileLen);
-    memcpy(entry->function.ptr, function, functionLen);
-    memcpy(entry->msg.ptr, msg, msgLen);
-
-    entry->level = level;
-    entry->line = line;
-    entry->recordIndex = debug->logEntryTotalCount;
-    debug->logEntryTotalCount++;
-
-    oc_list_push_back(&debug->logEntries, &entry->listElt);
-
-    oc_log_ext(level,
-               function,
-               file,
-               line,
-               "%.*s\n",
-               msgLen,
-               msg);
-}
-
-void oc_bridge_exit(int ec)
-{
-    //TODO: send a trap exit to oc_wasm to stop interpreter,
-    // then when we return from the trap, quit app
-    // temporarily, we just exit here
-    exit(ec);
-}
-
-void oc_bridge_request_quit(void)
-{
-    __orcaApp.quit = true;
-}
-
-typedef struct orca_surface_create_data
-{
-    oc_window window;
-    oc_surface_api api;
-    oc_surface surface;
-
-} orca_surface_create_data;
-
-i32 orca_surface_callback(void* user)
-{
-    orca_surface_create_data* data = (orca_surface_create_data*)user;
-
-    switch(data->api)
-    {
-        case OC_SURFACE_CANVAS:
-            data->surface = oc_canvas_surface_create_for_window(__orcaApp.canvasRenderer, data->window);
-            break;
-        case OC_SURFACE_GLES:
-        default:
-            data->surface = oc_gles_surface_create_for_window(data->window);
-            break;
-    }
-
-    if(data->api == OC_SURFACE_GLES)
-    {
-#if OC_PLATFORM_WINDOWS
-        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-        oc_gles_surface_swap_interval(data->surface, 0);
-#endif
-
-        //NOTE: this will be called on main thread, so we need to deselect the surface here,
-        //      and reselect it on the orca thread
-        oc_gles_surface_make_current(oc_surface_nil());
-    }
-    //TODO: wgpu-renderer: set canvas surface swap?
-
-    return (0);
-}
-
-oc_surface oc_bridge_gles_surface_create(void)
-{
-    orca_surface_create_data data = {
-        .surface = oc_surface_nil(),
-        .window = __orcaApp.window,
-        .api = OC_SURFACE_GLES
-    };
-
-    oc_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
-    oc_gles_surface_make_current(data.surface);
-    return (data.surface);
-}
-
-oc_canvas_renderer oc_bridge_canvas_renderer_create(void)
-{
-    return (__orcaApp.canvasRenderer);
-}
-
-oc_surface oc_bridge_canvas_surface_create(oc_canvas_renderer renderer)
-{
-    orca_surface_create_data data = {
-        .surface = oc_surface_nil(),
-        .window = __orcaApp.window,
-        .api = OC_SURFACE_CANVAS
-    };
-    //TODO: check renderer
-
-    oc_dispatch_on_main_thread_sync(__orcaApp.window, orca_surface_callback, (void*)&data);
-    return (data.surface);
-}
-
-void oc_bridge_canvas_renderer_submit(oc_canvas_renderer renderer,
-                                      oc_surface surface,
-                                      u32 msaaSampleCount,
-                                      bool clear,
-                                      oc_color clearColor,
-                                      u32 primitiveCount,
-                                      oc_primitive* primitives,
-                                      u32 eltCount,
-                                      oc_path_elt* elements)
-{
-    oc_runtime* app = &__orcaApp;
-
-    oc_str8 mem = wa_instance_get_memory_str8(app->env.instance);
-    char* memBase = mem.ptr;
-    u32 memSize = mem.len;
-
-    oc_rect window_content_rect = oc_window_get_content_rect(app->window);
-
-    if(((char*)primitives > memBase)
-       && ((char*)primitives + primitiveCount * sizeof(oc_primitive) - memBase <= memSize)
-       && ((char*)elements > memBase)
-       && ((char*)elements + eltCount * sizeof(oc_path_elt) - memBase <= memSize)
-       && window_content_rect.w > 0
-       && window_content_rect.h > 0
-       && oc_window_is_minimized(app->window) == false)
-    {
-        oc_canvas_renderer_submit(renderer,
-                                  surface,
-                                  msaaSampleCount,
-                                  clear,
-                                  clearColor,
-                                  primitiveCount,
-                                  primitives,
-                                  eltCount,
-                                  elements);
-    }
-}
-
-void debug_overlay_toggle(oc_debug_overlay* overlay)
-{
-    overlay->show = !overlay->show;
-
-    if(overlay->show)
-    {
-        overlay->logScrollToLast = true;
-    }
-}
-
-void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    static const char* levelNames[] = { "Error: ", "Warning: ", "Info: " };
-    static const oc_color levelColors[] = { { 0.8, 0, 0, 1 },
-                                            { 1, 0.5, 0, 1 },
-                                            { 0, 0.8, 0, 1 } };
-
-    static const oc_color bgColors[3][2] = { //errors
-                                             { { 0.6, 0, 0, 0.5 }, { 0.8, 0, 0, 0.5 } },
-                                             //warning
-                                             { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } },
-                                             //info
-                                             { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } }
-    };
-
-    oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
-
-    oc_ui_box_str8(key)
-    {
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-        oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
-        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-        oc_ui_style_set_color(OC_UI_BG_COLOR, bgColors[entry->level][entry->recordIndex & 1]);
-
-        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-        oc_ui_box("header")
-        {
-            oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
-
-            oc_ui_style_rule("level")
-            {
-                oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-                oc_ui_style_set_color(OC_UI_COLOR, levelColors[entry->level]);
-                oc_ui_style_set_font(OC_UI_FONT, overlay->fontBold);
-            }
-            oc_ui_label("level", levelNames[entry->level]);
-
-            oc_str8 loc = oc_str8_pushf(scratch.arena,
-                                        "%.*s() in %.*s:%i:",
-                                        oc_str8_ip(entry->function),
-                                        oc_str8_ip(entry->file),
-                                        entry->line);
-            oc_ui_label_str8(OC_STR8("loc"), loc);
-        }
-        oc_ui_label_str8(OC_STR8("msg"), entry->msg);
-    }
-    oc_scratch_end(scratch);
-}
-
-char valtype_to_tag(wa_value_type type)
-{
-    switch(type)
-    {
-        case WA_TYPE_I32:
-            return ('i');
-        case WA_TYPE_I64:
-            return ('I');
-        case WA_TYPE_F32:
-            return ('f');
-        case WA_TYPE_F64:
-            return ('F');
-        default:
-            return ('!');
-    }
-}
+//------------------------------------------------------------------------
+// env init
+//------------------------------------------------------------------------
 
 void oc_wasm_env_init(oc_wasm_env* runtime)
 {
     memset(runtime, 0, sizeof(oc_wasm_env));
 }
+
+//------------------------------------------------------------------------
+// event queue
+//------------------------------------------------------------------------
 
 ///////////////////////////////////////////////////////////////
 //TODO: fold this with app's queuing helpers
@@ -570,6 +139,30 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
     return (event);
 }
 
+//------------------------------------------------------------------------
+// VM runloop
+//------------------------------------------------------------------------
+
+#include "wasm/wasm.c"
+#if OC_WASM_BACKEND_WASM3
+    #include "wasm/backend_wasm3.c"
+#elif OC_WASM_BACKEND_BYTEBOX
+    #include "wasm/backend_bytebox.c"
+#elif OC_WASM_BACKEND_WARM
+    #include "warm/warm_adapter.c"
+    #include "warm/warm.h"
+    #include "warm/debug_info.h"
+#else
+    #error "Unknown wasm backend"
+#endif
+
+static const char* s_test_wasm_module_path = NULL;
+
+#include "runtime_bridges.c"
+#include "runtime_clipboard.c"
+#include "runtime_io.c"
+#include "runtime_memory.c"
+
 #include "wasmbind/clock_api_bind_gen.c"
 #include "wasmbind/core_api_bind_gen.c"
 #include "wasmbind/gles_api_bind_manual.c"
@@ -638,6 +231,23 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
 #else // OC_WASM_DEBUGGER
     #define orca_invoke wa_interpreter_invoke
 #endif // OC_WASM_DEBUGGER
+
+char valtype_to_tag(wa_value_type type)
+{
+    switch(type)
+    {
+        case WA_TYPE_I32:
+            return ('i');
+        case WA_TYPE_I64:
+            return ('I');
+        case WA_TYPE_F32:
+            return ('f');
+        case WA_TYPE_F64:
+            return ('F');
+        default:
+            return ('!');
+    }
+}
 
 i32 vm_runloop(void* user)
 {
@@ -1018,6 +628,79 @@ i32 vm_runloop(void* user)
     return (0);
 }
 
+//------------------------------------------------------------------------
+// Debug Overlay UI
+//------------------------------------------------------------------------
+
+void debug_overlay_toggle(oc_debug_overlay* overlay)
+{
+    overlay->show = !overlay->show;
+
+    if(overlay->show)
+    {
+        overlay->logScrollToLast = true;
+    }
+}
+
+void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    static const char* levelNames[] = { "Error: ", "Warning: ", "Info: " };
+    static const oc_color levelColors[] = { { 0.8, 0, 0, 1 },
+                                            { 1, 0.5, 0, 1 },
+                                            { 0, 0.8, 0, 1 } };
+
+    static const oc_color bgColors[3][2] = { //errors
+                                             { { 0.6, 0, 0, 0.5 }, { 0.8, 0, 0, 0.5 } },
+                                             //warning
+                                             { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } },
+                                             //info
+                                             { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } }
+    };
+
+    oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
+
+    oc_ui_box_str8(key)
+    {
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+        oc_ui_style_set_color(OC_UI_BG_COLOR, bgColors[entry->level][entry->recordIndex & 1]);
+
+        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+        oc_ui_box("header")
+        {
+            oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+
+            oc_ui_style_rule("level")
+            {
+                oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+                oc_ui_style_set_color(OC_UI_COLOR, levelColors[entry->level]);
+                oc_ui_style_set_font(OC_UI_FONT, overlay->fontBold);
+            }
+            oc_ui_label("level", levelNames[entry->level]);
+
+            oc_str8 loc = oc_str8_pushf(scratch.arena,
+                                        "%.*s() in %.*s:%i:",
+                                        oc_str8_ip(entry->function),
+                                        oc_str8_ip(entry->file),
+                                        entry->line);
+            oc_ui_label_str8(OC_STR8("loc"), loc);
+        }
+        oc_ui_label_str8(OC_STR8("msg"), entry->msg);
+    }
+    oc_scratch_end(scratch);
+}
+
 void overlay_ui(oc_runtime* app)
 {
     //////////////////////////////////////////////////////////////////////////////
@@ -1133,6 +816,9 @@ void overlay_ui(oc_runtime* app)
     oc_scratch_end(scratch);
 }
 
+//------------------------------------------------------------------------
+// Debugger UI
+//------------------------------------------------------------------------
 #ifdef OC_WASM_DEBUGGER
 
 i32 create_debug_window_callback(void* user)
@@ -2836,6 +2522,10 @@ void debugger_ui_update(oc_runtime* app)
 
 #endif // OC_WASM_DEBUGGER
 
+//------------------------------------------------------------------------
+// Control runloop
+//------------------------------------------------------------------------
+
 void vm_thread_resume(oc_wasm_env* env)
 {
     oc_mutex_lock(env->suspendMutex);
@@ -3003,6 +2693,47 @@ i32 control_runloop(void* user)
     oc_thread_join(vmThread, &exitCode);
 
     return exitCode;
+}
+
+//------------------------------------------------------------------------
+// Main runloop
+//------------------------------------------------------------------------
+
+oc_font orca_font_create(const char* resourcePath)
+{
+    //NOTE(martin): create default fonts
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
+
+    oc_font font = oc_font_nil();
+
+    FILE* fontFile = fopen(fontPath.ptr, "r");
+    if(!fontFile)
+    {
+        oc_log_error("Could not load font file '%s': %s\n", fontPath.ptr, strerror(errno));
+    }
+    else
+    {
+        char* fontData = 0;
+        fseek(fontFile, 0, SEEK_END);
+        u32 fontDataSize = ftell(fontFile);
+        rewind(fontFile);
+        fontData = malloc(fontDataSize);
+        fread(fontData, 1, fontDataSize, fontFile);
+        fclose(fontFile);
+
+        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                       OC_UNICODE_LATIN_EXTENDED_A,
+                                       OC_UNICODE_LATIN_EXTENDED_B,
+                                       OC_UNICODE_SPECIALS };
+
+        font = oc_font_create_from_memory(oc_str8_from_buffer(fontDataSize, fontData), 5, ranges);
+
+        free(fontData);
+    }
+    oc_scratch_end(scratch);
+    return (font);
 }
 
 int main(int argc, char** argv)
