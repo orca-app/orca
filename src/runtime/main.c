@@ -140,9 +140,8 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 }
 
 //------------------------------------------------------------------------
-// VM runloop
+// Wasm backends
 //------------------------------------------------------------------------
-
 #include "wasm/wasm.c"
 #if OC_WASM_BACKEND_WASM3
     #include "wasm/backend_wasm3.c"
@@ -155,6 +154,10 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 #else
     #error "Unknown wasm backend"
 #endif
+
+//------------------------------------------------------------------------
+// VM runloop
+//------------------------------------------------------------------------
 
 static const char* s_test_wasm_module_path = NULL;
 
@@ -170,10 +173,6 @@ static const char* s_test_wasm_module_path = NULL;
 #include "wasmbind/io_api_bind_gen.c"
 #include "wasmbind/surface_api_bind_manual.c"
 #include "wasmbind/surface_api_bind_gen.c"
-
-#if OC_WASM_BACKEND_WARM
-    #define OC_WASM_DEBUGGER
-#endif
 
 #ifdef OC_WASM_DEBUGGER
 wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_func* function, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
@@ -629,196 +628,12 @@ i32 vm_runloop(void* user)
 }
 
 //------------------------------------------------------------------------
-// Debug Overlay UI
-//------------------------------------------------------------------------
-
-void debug_overlay_toggle(oc_debug_overlay* overlay)
-{
-    overlay->show = !overlay->show;
-
-    if(overlay->show)
-    {
-        overlay->logScrollToLast = true;
-    }
-}
-
-void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    static const char* levelNames[] = { "Error: ", "Warning: ", "Info: " };
-    static const oc_color levelColors[] = { { 0.8, 0, 0, 1 },
-                                            { 1, 0.5, 0, 1 },
-                                            { 0, 0.8, 0, 1 } };
-
-    static const oc_color bgColors[3][2] = { //errors
-                                             { { 0.6, 0, 0, 0.5 }, { 0.8, 0, 0, 0.5 } },
-                                             //warning
-                                             { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } },
-                                             //info
-                                             { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } }
-    };
-
-    oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
-
-    oc_ui_box_str8(key)
-    {
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-        oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
-        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-        oc_ui_style_set_color(OC_UI_BG_COLOR, bgColors[entry->level][entry->recordIndex & 1]);
-
-        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-        oc_ui_box("header")
-        {
-            oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
-
-            oc_ui_style_rule("level")
-            {
-                oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
-
-                oc_ui_style_set_color(OC_UI_COLOR, levelColors[entry->level]);
-                oc_ui_style_set_font(OC_UI_FONT, overlay->fontBold);
-            }
-            oc_ui_label("level", levelNames[entry->level]);
-
-            oc_str8 loc = oc_str8_pushf(scratch.arena,
-                                        "%.*s() in %.*s:%i:",
-                                        oc_str8_ip(entry->function),
-                                        oc_str8_ip(entry->file),
-                                        entry->line);
-            oc_ui_label_str8(OC_STR8("loc"), loc);
-        }
-        oc_ui_label_str8(OC_STR8("msg"), entry->msg);
-    }
-    oc_scratch_end(scratch);
-}
-
-void overlay_ui(oc_runtime* app)
-{
-    //////////////////////////////////////////////////////////////////////////////
-    //TODO: we should probably pump new log entries from a ring buffer here
-    //////////////////////////////////////////////////////////////////////////////
-
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    oc_ui_set_context(app->debugOverlay.ui);
-    oc_canvas_context_select(app->debugOverlay.context);
-
-    if(app->debugOverlay.show)
-    {
-        //TODO: only move if it's not already on the front?
-        oc_surface_bring_to_front(app->debugOverlay.surface);
-
-        oc_vec2 frameSize = oc_surface_get_size(app->debugOverlay.surface);
-
-        oc_ui_frame(frameSize)
-        {
-            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0 });
-            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-
-            oc_ui_box("overlay-area")
-            {
-                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.6, 1 });
-            }
-
-            oc_ui_box("log console")
-            {
-                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.4 });
-                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
-                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 0.5 });
-
-                oc_ui_box("log toolbar")
-                {
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
-                    oc_ui_style_set_f32(OC_UI_SPACING, 10);
-                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
-                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
-
-                    if(oc_ui_button("clear", "Clear").clicked)
-                    {
-                        oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
-                        {
-                            oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
-                            oc_list_push_front(&app->debugOverlay.logFreeList, &entry->listElt);
-                            app->debugOverlay.entryCount--;
-                        }
-                    }
-                }
-
-                f32 scrollY = 0;
-
-                oc_ui_box* panel = oc_ui_box("log-view")
-                {
-                    scrollY = panel->scroll.y;
-
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                    oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
-
-                    oc_ui_box("contents")
-                    {
-                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-                        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-
-                        oc_list_for(app->debugOverlay.logEntries, entry, log_entry, listElt)
-                        {
-                            log_entry_ui(&app->debugOverlay, entry);
-                        }
-                    }
-                }
-
-                if(app->debugOverlay.logScrollToLast)
-                {
-                    if(panel->scroll.y >= scrollY)
-                    {
-                        panel->scroll.y = oc_clamp_low(panel->childrenSum[1] - panel->rect.h, 0);
-                    }
-                    else
-                    {
-                        app->debugOverlay.logScrollToLast = false;
-                    }
-                }
-                else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
-                {
-                    app->debugOverlay.logScrollToLast = true;
-                }
-            }
-        }
-
-        oc_ui_draw();
-    }
-    else
-    {
-        //TODO: only move if it's not already on the back?
-        oc_surface_send_to_back(app->debugOverlay.surface);
-        oc_set_color_rgba(0, 0, 0, 0);
-        oc_clear();
-    }
-
-    oc_canvas_render(app->debugOverlay.renderer, app->debugOverlay.context, app->debugOverlay.surface);
-    oc_canvas_present(app->debugOverlay.renderer, app->debugOverlay.surface);
-
-    oc_scratch_end(scratch);
-}
-
-//------------------------------------------------------------------------
 // Debugger
 //------------------------------------------------------------------------
+#if OC_WASM_BACKEND_WARM
+    #define OC_WASM_DEBUGGER
+#endif
+
 #ifdef OC_WASM_DEBUGGER
 
     #include "debugger.c"

@@ -661,7 +661,7 @@ def build_runtime_win(release, wasm_backend):
         "/std:c11", "/experimental:c11atomics",
         *defines,
         *includes,
-        "src/runtime/runtime.c",
+        "src/runtime/main.c",
         "/Fe:build/bin/orca_runtime.exe",
         "/link",
         *link_commands
@@ -710,7 +710,7 @@ def build_runtime_mac(release, wasm_backend):
     subprocess.run([
         "clang", *flags, *defines, *includes, *libs,
         "-o", "build/bin/orca_runtime",
-        "src/runtime/runtime.c",
+        "src/runtime/main.c",
     ], check=True)
 
     # fix libs imports
