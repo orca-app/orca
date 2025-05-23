@@ -939,9 +939,9 @@ void oc_debugger_update(oc_debugger* debugger, oc_wasm_env* env)
     debugger->selectedFunction = func - env->instance->functions;
 
     wa_warm_loc warmLoc = {
-        env->module,
-        debugger->selectedFunction,
-        interpreter->pc - func->code,
+        .module = env->module,
+        .funcIndex = debugger->selectedFunction,
+        .codeIndex = interpreter->pc - func->code,
     };
     wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
 
@@ -977,6 +977,8 @@ void oc_debugger_update(oc_debugger* debugger, oc_wasm_env* env)
 
     //NOTE: after pausing, set autoscroll mode
     debugger->autoScroll = true;
+    debugger->autoScrollIndex = warmLoc.codeIndex;
+    debugger->autoScrollLine = lineLoc.line;
 
     if((debugger->showSymbols == true && debugger->selectedFunction != oldSelectedFunction)
        || (debugger->showSymbols == false && debugger->selectedFile != oldSelectedFile))
@@ -1262,11 +1264,43 @@ void oc_debugger_variables_view(oc_debugger* debugger, wa_interpreter* interpret
     }
 }
 
+void oc_debugger_code_view_autoscroll(oc_debugger* debugger, f32 scrollToY, f32 lineH)
+{
+    oc_ui_box* codeView = oc_ui_box_top();
+    f32 targetScroll = codeView->scroll.y;
+
+    if(debugger->autoScroll)
+    {
+        f32 scrollMargin = 80;
+
+        if(debugger->scrollSpeed == 1)
+        {
+            scrollMargin = codeView->rect.h / 2;
+        }
+
+        if(scrollToY - targetScroll < scrollMargin)
+        {
+            targetScroll = scrollToY - scrollMargin;
+        }
+        else if(scrollToY + lineH - targetScroll > codeView->rect.h - scrollMargin)
+        {
+            targetScroll = scrollToY + lineH - codeView->rect.h + scrollMargin;
+        }
+    }
+    if(fabsf(targetScroll - codeView->scroll.y) > 300)
+    {
+        f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -300, 300);
+        codeView->scroll.y = targetScroll - delta;
+    }
+    codeView->scroll.y += debugger->scrollSpeed * (targetScroll - codeView->scroll.y);
+}
+
 void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interpreter)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_box* codeView = oc_ui_box_top();
+    f32 scrollToY = 0;
+    f32 scrollLineH = 0;
 
     if(debugger->selectedFunction >= 0)
     {
@@ -1451,37 +1485,13 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                                 oc_ui_label_str8(opdKey, s);
                             }
                         }
+                    }
 
-                        //NOTE: auto-scroll
-                        if(makeExecCursor)
-                        {
-                            f32 targetScroll = codeView->scroll.y;
-
-                            if(debugger->autoScroll)
-                            {
-                                f32 scrollMargin = 80;
-
-                                if(debugger->scrollSpeed == 1)
-                                {
-                                    scrollMargin = codeView->rect.h / 2;
-                                }
-
-                                if(lineY - targetScroll < scrollMargin)
-                                {
-                                    targetScroll = lineY - scrollMargin;
-                                }
-                                else if(lineY + lineH - targetScroll > codeView->rect.h - scrollMargin)
-                                {
-                                    targetScroll = lineY + lineH - codeView->rect.h + scrollMargin;
-                                }
-                            }
-                            if(fabsf(targetScroll - codeView->scroll.y) > 300)
-                            {
-                                f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -300, 300);
-                                codeView->scroll.y = targetScroll - delta;
-                            }
-                            codeView->scroll.y += debugger->scrollSpeed * (targetScroll - codeView->scroll.y);
-                        }
+                    //NOTE: auto-scroll
+                    if(codeIndex == debugger->autoScrollIndex)
+                    {
+                        scrollToY = lineY;
+                        scrollLineH = lineH;
                     }
 
                     lineY += lineH;
@@ -1512,6 +1522,8 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
         }
     }
 
+    oc_debugger_code_view_autoscroll(debugger, scrollToY, scrollLineH);
+
     oc_scratch_end(scratch);
 }
 
@@ -1519,7 +1531,9 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_box* codeView = oc_ui_box_top();
+    f32 scrollToY = 0;
+    f32 scrollLineH = 0;
+
     wa_source_node* node = debugger->selectedFile;
 
     if(!node->contents.len)
@@ -1631,42 +1645,6 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
 
                     oc_ui_label_str8(OC_STR8("label"), lineNumStr);
                 }
-
-                if(makeExecCursor)
-                {
-                    //NOTE: we compute auto-scroll on label box instead of cursor box, because the cursor box is not permanent,
-                    //      so its rect might not be set every frame, resulting in brief jumps.
-                    //      Maybe the cursor box shouldnt be parented to the function UI namespace and be floating to begin with...
-
-                    f32 targetScroll = codeView->scroll.y;
-
-                    if(debugger->autoScroll)
-                    {
-                        f32 scrollMargin = 80;
-
-                        if(debugger->scrollSpeed == 1)
-                        {
-                            scrollMargin = codeView->rect.h / 2;
-                        }
-
-                        if(lineY - targetScroll < scrollMargin)
-                        {
-                            targetScroll = lineY - scrollMargin;
-                        }
-                        else if(lineY + lineH - targetScroll > codeView->rect.h - scrollMargin)
-                        {
-                            targetScroll = lineY + lineH - codeView->rect.h + scrollMargin;
-                        }
-                    }
-                    if(fabsf(targetScroll - codeView->scroll.y) > 200)
-                    {
-                        f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -200, 200);
-                        codeView->scroll.y = targetScroll - delta;
-                    }
-
-                    codeView->scroll.y += debugger->scrollSpeed * (targetScroll - codeView->scroll.y);
-                }
-
                 wa_breakpoint* breakpoint = wa_interpreter_find_breakpoint_line(interpreter,
                                                                                 &(wa_line_loc){
                                                                                     .fileIndex = node->index,
@@ -1708,10 +1686,19 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
 
                 oc_ui_label_str8(OC_STR8("line"), line);
             }
+
+            if(lineNum == debugger->autoScrollLine)
+            {
+                scrollToY = lineY;
+                scrollLineH = lineH;
+            }
+
             lineY += lineH;
             lineNum++;
         }
     }
+
+    oc_debugger_code_view_autoscroll(debugger, scrollToY, scrollLineH);
 
     oc_scratch_end(scratch);
 }

@@ -84,6 +84,9 @@ typedef struct oc_debugger
     bool showSymbols;
     bool freshScroll;
     bool autoScroll;
+    u64 autoScrollLine;
+    u64 autoScrollIndex;
+
     f32 scrollSpeed;
     f32 lastScroll;
 
