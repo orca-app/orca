@@ -87,9 +87,9 @@ def build_all(args):
     ensure_programs()
 
     build_runtime_internal(args.release) # this also builds the platform layer
-#    build_libc_internal(args.release)
-#    build_sdk_internal(args.release)
-#    build_tool(args)
+    build_libc_internal(args.release)
+    build_sdk_internal(args.release)
+    build_tool(args)
 
     with open("build/orcaruntime.sum", "w") as f:
         f.write(runtime_checksum())

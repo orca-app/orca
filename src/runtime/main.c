@@ -220,23 +220,6 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
     return status;
 }
 
-char valtype_to_tag(wa_value_type type)
-{
-    switch(type)
-    {
-        case WA_TYPE_I32:
-            return ('i');
-        case WA_TYPE_I64:
-            return ('I');
-        case WA_TYPE_F32:
-            return ('f');
-        case WA_TYPE_F64:
-            return ('F');
-        default:
-            return ('!');
-    }
-}
-
 i32 vm_runloop(void* user)
 {
     oc_runtime* app = &__orcaApp;
@@ -326,28 +309,27 @@ i32 vm_runloop(void* user)
             {
                 wa_func_type info = wa_func_get_type(scratch.arena, app->env.instance, handle);
 
-                bool checked = false;
+                bool checked = (info.paramCount == desc->paramCount)
+                            && (info.returnCount == desc->returnCount);
 
                 //NOTE: check function signature
-                if(info.returnCount == desc->retTags.len && info.paramCount == desc->argTags.len)
+                if(checked)
                 {
-                    checked = true;
-
-                    for(int retIndex = 0; retIndex < info.returnCount && checked; retIndex++)
+                    for(int paramIndex = 0; paramIndex < info.paramCount; paramIndex++)
                     {
-                        char tag = valtype_to_tag(info.returns[retIndex]);
-                        if(tag != desc->retTags.ptr[retIndex])
+                        if(info.params[paramIndex] != desc->params[paramIndex])
                         {
                             checked = false;
+                            break;
                         }
                     }
 
-                    for(int argIndex = 0; argIndex < info.paramCount && checked; argIndex++)
+                    for(int retIndex = 0; retIndex < info.returnCount; retIndex++)
                     {
-                        char tag = valtype_to_tag(info.params[argIndex]);
-                        if(tag != desc->argTags.ptr[argIndex])
+                        if(info.returns[retIndex] != desc->returns[retIndex])
                         {
                             checked = false;
+                            break;
                         }
                     }
                 }

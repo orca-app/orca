@@ -7,6 +7,7 @@
 **************************************************************************/
 #pragma once
 
+#include "util/macros.h"
 #include "platform/platform_io_internal.h"
 #include "runtime_memory.h"
 #include "runtime_clipboard.h"
@@ -97,40 +98,57 @@ typedef struct oc_debugger
 //------------------------------------------------------------------------
 
 // Note oc_on_test() is a special handler only called for --test modules
-#define OC_EXPORTS(X)                                         \
-    X(OC_EXPORT_ON_TEST, "oc_on_test", "i", "")               \
-    X(OC_EXPORT_ON_INIT, "oc_on_init", "", "")                \
-    X(OC_EXPORT_MOUSE_DOWN, "oc_on_mouse_down", "", "i")      \
-    X(OC_EXPORT_MOUSE_UP, "oc_on_mouse_up", "", "i")          \
-    X(OC_EXPORT_MOUSE_ENTER, "oc_on_mouse_enter", "", "")     \
-    X(OC_EXPORT_MOUSE_LEAVE, "oc_on_mouse_leave", "", "")     \
-    X(OC_EXPORT_MOUSE_MOVE, "oc_on_mouse_move", "", "ffff")   \
-    X(OC_EXPORT_MOUSE_WHEEL, "oc_on_mouse_wheel", "", "ff")   \
-    X(OC_EXPORT_KEY_DOWN, "oc_on_key_down", "", "ii")         \
-    X(OC_EXPORT_KEY_UP, "oc_on_key_up", "", "ii")             \
-    X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", "", "") \
-    X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", "", "ii")       \
-    X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i")        \
-    X(OC_EXPORT_TERMINATE, "oc_on_terminate", "", "")         \
-    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_stub", "i", "iI")
 
-typedef enum
+#define OC_EXPORTS(X)                                                                                     \
+    X(OC_EXPORT_ON_TEST, "oc_on_test", (WA_TYPE_I32), ())                                                 \
+    X(OC_EXPORT_ON_INIT, "oc_on_init", (), ())                                                            \
+    X(OC_EXPORT_MOUSE_DOWN, "oc_on_mouse_down", (WA_TYPE_I32), ())                                        \
+    X(OC_EXPORT_MOUSE_UP, "oc_on_mouse_up", (WA_TYPE_I32), ())                                            \
+    X(OC_EXPORT_MOUSE_ENTER, "oc_on_mouse_enter", (), ())                                                 \
+    X(OC_EXPORT_MOUSE_LEAVE, "oc_on_mouse_leave", (), ())                                                 \
+    X(OC_EXPORT_MOUSE_MOVE, "oc_on_mouse_move", (WA_TYPE_F32, WA_TYPE_F32, WA_TYPE_F32, WA_TYPE_F32), ()) \
+    X(OC_EXPORT_MOUSE_WHEEL, "oc_on_mouse_wheel", (WA_TYPE_F32, WA_TYPE_F32), ())                         \
+    X(OC_EXPORT_KEY_DOWN, "oc_on_key_down", (WA_TYPE_F32, WA_TYPE_F32), ())                               \
+    X(OC_EXPORT_KEY_UP, "oc_on_key_up", (WA_TYPE_F32, WA_TYPE_F32), ())                                   \
+    X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", (), ())                                             \
+    X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", (WA_TYPE_F32, WA_TYPE_F32), ())                             \
+    X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", (WA_TYPE_F32), ())                                          \
+    X(OC_EXPORT_TERMINATE, "oc_on_terminate", (), ())                                                     \
+    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_stub", (WA_TYPE_I32, WA_TYPE_I64), (WA_TYPE_I32))
+
+typedef enum oc_export_kind
 {
 
 #define OC_EXPORT_KIND(kind, ...) kind,
     OC_EXPORTS(OC_EXPORT_KIND)
         OC_EXPORT_COUNT
-} guest_export_kind;
+#undef OC_EXPORT_KIND
+} oc_export_kind;
+
+enum
+{
+    OC_EXPORT_DESC_MAX_PARAMS = 6,
+    OC_EXPORT_DESC_MAX_RETURNS = 1,
+};
 
 typedef struct oc_export_desc
 {
     oc_str8 name;
-    oc_str8 retTags;
-    oc_str8 argTags;
+    u32 paramCount;
+    wa_value_type params[OC_EXPORT_DESC_MAX_PARAMS];
+    u32 returnCount;
+    wa_value_type returns[OC_EXPORT_DESC_MAX_RETURNS];
 } oc_export_desc;
 
 const oc_export_desc OC_EXPORT_DESC[] = {
-#define OC_EXPORT_DESC_ENTRY(kind, name, rets, args) { OC_STR8_LIT(name), OC_STR8_LIT(rets), OC_STR8_LIT(args) },
+#define OC_EXPORT_DESC_ENTRY(kind, n, p, r)                      \
+    {                                                            \
+        .name = OC_STR8_LIT(n),                                  \
+        .paramCount = sizeof((wa_value_type[]){ OC_EXPAND p }),  \
+        .params = { OC_EXPAND p },                               \
+        .returnCount = sizeof((wa_value_type[]){ OC_EXPAND r }), \
+        .returns = { OC_EXPAND r },                              \
+    },
 
     OC_EXPORTS(OC_EXPORT_DESC_ENTRY)
 
