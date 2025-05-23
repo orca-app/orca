@@ -78,9 +78,13 @@ typedef struct oc_debugger
     oc_ui_context* ui;
 
     wa_source_node* selectedFile;
+    i64 selectedFunction;
+    i64 selectedFrame;
+
     bool showSymbols;
     bool freshScroll;
     bool autoScroll;
+    f32 scrollSpeed;
     f32 lastScroll;
 
     wa_source_node sourceTree;
