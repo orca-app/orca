@@ -7,18 +7,6 @@
 **************************************************************************/
 #pragma once
 
-#ifndef OC_WASM_BACKEND_WASM3
-    #define OC_WASM_BACKEND_WASM3 0
-#endif
-
-#ifndef OC_WASM_BACKEND_BYTEBOX
-    #define OC_WASM_BACKEND_BYTEBOX 0
-#endif
-
-#ifndef OC_WASM_BACKEND_WARM
-    #define OC_WASM_BACKEND_WARM 0
-#endif
-
 #define WA_STATUS(_)                                                              \
     _(WA_OK, "success")                                                           \
     /* parse/validation errors */                                                 \

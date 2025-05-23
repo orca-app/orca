@@ -9,7 +9,7 @@
 
 #define OC_NO_APP_LAYER 1
 #include "orca.h"
-#include "wasm/wasm.h"
+#include "wasm.h"
 
 #include "instructions.h"
 

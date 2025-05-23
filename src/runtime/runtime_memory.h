@@ -7,7 +7,7 @@
 **************************************************************************/
 #pragma once
 
-#include "wasm/wasm.h"
+#include "warm/wasm.h"
 
 void* oc_wasm_address_to_ptr(oc_wasm_addr addr, oc_wasm_size size);
 oc_wasm_addr oc_wasm_address_from_ptr(void* ptr, oc_wasm_size size);

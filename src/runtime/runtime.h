@@ -10,7 +10,91 @@
 #include "platform/platform_io_internal.h"
 #include "runtime_memory.h"
 #include "runtime_clipboard.h"
-#include "wasm/wasm.h"
+#include "warm/wasm.h"
+
+//------------------------------------------------------------------------
+// Debugger / overlay structs
+//------------------------------------------------------------------------
+
+typedef struct log_entry
+{
+    oc_list_elt listElt;
+    u64 cap;
+
+    oc_log_level level;
+    oc_str8 file;
+    oc_str8 function;
+    int line;
+    oc_str8 msg;
+
+    u64 recordIndex;
+
+} log_entry;
+
+typedef struct oc_debug_overlay
+{
+    bool show;
+    oc_canvas_renderer renderer;
+    oc_surface surface;
+    oc_canvas_context context;
+
+    oc_font fontReg;
+    oc_font fontBold;
+    oc_ui_context* ui;
+
+    oc_arena logArena;
+    oc_list logEntries;
+    oc_list logFreeList;
+    u32 entryCount;
+    u32 maxEntries;
+    u64 logEntryTotalCount;
+    bool logScrollToLast;
+
+} oc_debug_overlay;
+
+typedef struct wa_debug_type wa_debug_type;
+
+typedef struct oc_debugger_value
+{
+    oc_list_elt listElt;
+    oc_list children;
+
+    oc_str8 name;
+    wa_debug_type* type;
+    oc_str8 data;
+
+    bool expanded;
+
+} oc_debugger_value;
+
+typedef struct oc_debugger
+{
+    bool init;
+    oc_window window;
+    oc_canvas_renderer renderer;
+    oc_surface surface;
+    oc_canvas_context canvas;
+    oc_ui_context* ui;
+
+    wa_source_node* selectedFile;
+    bool showSymbols;
+    bool freshScroll;
+    bool autoScroll;
+    f32 lastScroll;
+
+    wa_source_node sourceTree;
+
+    oc_arena valuesArena[2];
+    u8 valuesArenaIndex;
+
+    oc_list locals;
+    oc_list globals;
+
+} oc_debugger;
+
+//------------------------------------------------------------------------
+// Wasm environment
+//------------------------------------------------------------------------
 
 // Note oc_on_test() is a special handler only called for --test modules
 #define OC_EXPORTS(X)                                         \
@@ -82,81 +166,9 @@ typedef struct oc_wasm_env
 
 } oc_wasm_env;
 
-typedef struct log_entry
-{
-    oc_list_elt listElt;
-    u64 cap;
-
-    oc_log_level level;
-    oc_str8 file;
-    oc_str8 function;
-    int line;
-    oc_str8 msg;
-
-    u64 recordIndex;
-
-} log_entry;
-
-typedef struct oc_debug_overlay
-{
-    bool show;
-    oc_canvas_renderer renderer;
-    oc_surface surface;
-    oc_canvas_context context;
-
-    oc_font fontReg;
-    oc_font fontBold;
-    oc_ui_context* ui;
-
-    oc_arena logArena;
-    oc_list logEntries;
-    oc_list logFreeList;
-    u32 entryCount;
-    u32 maxEntries;
-    u64 logEntryTotalCount;
-    bool logScrollToLast;
-
-} oc_debug_overlay;
-
-typedef struct wa_debug_type wa_debug_type;
-
-typedef struct oc_debugger_value
-{
-    oc_list_elt listElt;
-    oc_list children;
-
-    oc_str8 name;
-    wa_debug_type* type;
-    oc_str8 data;
-
-    bool expanded;
-
-} oc_debugger_value;
-
-typedef struct oc_debugger_ui
-{
-    bool init;
-    oc_window window;
-    oc_canvas_renderer renderer;
-    oc_surface surface;
-    oc_canvas_context canvas;
-    oc_ui_context* ui;
-
-    wa_source_node* selectedFile;
-    bool showSymbols;
-    bool freshScroll;
-    bool autoScroll;
-    f32 lastScroll;
-
-    wa_source_node sourceTree;
-
-    oc_arena valuesArena[2];
-    u8 valuesArenaIndex;
-
-    oc_list locals;
-    oc_list globals;
-
-} oc_debugger_ui;
+//------------------------------------------------------------------------
+// Orca runtime
+//------------------------------------------------------------------------
 
 typedef struct oc_runtime
 {
@@ -164,7 +176,7 @@ typedef struct oc_runtime
     oc_window window;
     oc_canvas_renderer canvasRenderer;
 
-    oc_debugger_ui debuggerUI;
+    oc_debugger debugger;
     oc_debug_overlay debugOverlay;
 
     oc_file_table fileTable;

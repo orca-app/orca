@@ -9,7 +9,7 @@
 #include <assert.h>
 #include "runtime.h"
 #include "runtime_memory.h"
-#include "wasm/wasm.h"
+#include "warm/wasm.h"
 
 void* oc_runtime_wasm_memory_resize_callback(void* p, unsigned long newSize, void* userData)
 {

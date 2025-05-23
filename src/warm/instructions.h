@@ -9,7 +9,7 @@
 
 #include "util/typedefs.h"
 #include "util/strings.h"
-#include "wasm/wasm.h"
+#include "wasm.h"
 
 typedef enum wa_instr_op
 {

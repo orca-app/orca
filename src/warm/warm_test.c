@@ -1,6 +1,6 @@
 
 #include "warm.h"
-#include "wasm/wasm.h"
+#include "wasm.h"
 #include "wasm/wasm.c"
 
 //-------------------------------------------------------------------------

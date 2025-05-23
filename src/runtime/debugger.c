@@ -81,7 +81,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
     oc_scratch_end(scratch);
 }
 
-void overlay_ui(oc_runtime* app)
+void overlay_ui(oc_debug_overlay* overlay)
 {
     //////////////////////////////////////////////////////////////////////////////
     //TODO: we should probably pump new log entries from a ring buffer here
@@ -89,15 +89,15 @@ void overlay_ui(oc_runtime* app)
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_set_context(app->debugOverlay.ui);
-    oc_canvas_context_select(app->debugOverlay.context);
+    oc_ui_set_context(overlay->ui);
+    oc_canvas_context_select(overlay->context);
 
-    if(app->debugOverlay.show)
+    if(overlay->show)
     {
         //TODO: only move if it's not already on the front?
-        oc_surface_bring_to_front(app->debugOverlay.surface);
+        oc_surface_bring_to_front(overlay->surface);
 
-        oc_vec2 frameSize = oc_surface_get_size(app->debugOverlay.surface);
+        oc_vec2 frameSize = oc_surface_get_size(overlay->surface);
 
         oc_ui_frame(frameSize)
         {
@@ -129,11 +129,11 @@ void overlay_ui(oc_runtime* app)
 
                     if(oc_ui_button("clear", "Clear").clicked)
                     {
-                        oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
+                        oc_list_for_safe(overlay->logEntries, entry, log_entry, listElt)
                         {
-                            oc_list_remove(&app->debugOverlay.logEntries, &entry->listElt);
-                            oc_list_push_front(&app->debugOverlay.logFreeList, &entry->listElt);
-                            app->debugOverlay.entryCount--;
+                            oc_list_remove(&overlay->logEntries, &entry->listElt);
+                            oc_list_push_front(&overlay->logFreeList, &entry->listElt);
+                            overlay->entryCount--;
                         }
                     }
                 }
@@ -155,14 +155,14 @@ void overlay_ui(oc_runtime* app)
                         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                         oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                        oc_list_for(app->debugOverlay.logEntries, entry, log_entry, listElt)
+                        oc_list_for(overlay->logEntries, entry, log_entry, listElt)
                         {
-                            log_entry_ui(&app->debugOverlay, entry);
+                            log_entry_ui(overlay, entry);
                         }
                     }
                 }
 
-                if(app->debugOverlay.logScrollToLast)
+                if(overlay->logScrollToLast)
                 {
                     if(panel->scroll.y >= scrollY)
                     {
@@ -170,12 +170,12 @@ void overlay_ui(oc_runtime* app)
                     }
                     else
                     {
-                        app->debugOverlay.logScrollToLast = false;
+                        overlay->logScrollToLast = false;
                     }
                 }
                 else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
                 {
-                    app->debugOverlay.logScrollToLast = true;
+                    overlay->logScrollToLast = true;
                 }
             }
         }
@@ -185,37 +185,20 @@ void overlay_ui(oc_runtime* app)
     else
     {
         //TODO: only move if it's not already on the back?
-        oc_surface_send_to_back(app->debugOverlay.surface);
+        oc_surface_send_to_back(overlay->surface);
         oc_set_color_rgba(0, 0, 0, 0);
         oc_clear();
     }
 
-    oc_canvas_render(app->debugOverlay.renderer, app->debugOverlay.context, app->debugOverlay.surface);
-    oc_canvas_present(app->debugOverlay.renderer, app->debugOverlay.surface);
+    oc_canvas_render(overlay->renderer, overlay->context, overlay->surface);
+    oc_canvas_present(overlay->renderer, overlay->surface);
 
     oc_scratch_end(scratch);
 }
 
 //------------------------------------------------------------------------
-// Debugger frontend
+// Source tree
 //------------------------------------------------------------------------
-
-i32 create_debug_window_callback(void* user)
-{
-    oc_runtime* app = (oc_runtime*)user;
-
-    oc_rect rect = oc_window_get_frame_rect(app->window);
-    rect.x += 100;
-    rect.y += 100;
-    rect.w = 1100;
-    rect.h = 800;
-
-    app->debuggerUI.window = oc_window_create(rect, OC_STR8("Orca Debugger"), 0);
-    oc_window_bring_to_front(app->debuggerUI.window);
-    oc_window_focus(app->debuggerUI.window);
-
-    return (0);
-}
 
 void oc_debugger_print_source_tree(wa_source_node* node, int indent)
 {
@@ -302,210 +285,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
         oc_scratch_end(scratch);
     }
 
-    oc_debugger_print_source_tree(sourceTree, 0);
-}
-
-void oc_debugger_ui_open(oc_runtime* app)
-{
-    oc_debugger_ui* debuggerUI = &app->debuggerUI;
-    if(!debuggerUI->init)
-    {
-        //NOTE: window needs to be created on main thread
-        oc_dispatch_on_main_thread_sync(create_debug_window_callback, app);
-
-        debuggerUI->renderer = oc_canvas_renderer_create();
-        debuggerUI->surface = oc_canvas_surface_create_for_window(debuggerUI->renderer, debuggerUI->window);
-
-        debuggerUI->canvas = oc_canvas_context_create();
-        debuggerUI->ui = oc_ui_context_create(app->debugOverlay.fontReg);
-
-        wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
-        oc_debugger_build_source_tree(&app->env.arena, &app->debuggerUI.sourceTree, sourceInfo->fileCount, sourceInfo->files);
-
-        for(u32 i = 0; i < 2; i++)
-        {
-            oc_arena_init(&debuggerUI->valuesArena[i]);
-        }
-
-        debuggerUI->init = true;
-    }
-}
-
-void oc_debugger_ui_close(oc_runtime* app)
-{
-    oc_debugger_ui* debuggerUI = &app->debuggerUI;
-    if(debuggerUI->init)
-    {
-        oc_ui_context_destroy(debuggerUI->ui);
-        oc_canvas_context_destroy(debuggerUI->canvas);
-        oc_surface_destroy(debuggerUI->surface);
-        oc_canvas_renderer_destroy(debuggerUI->renderer);
-        oc_window_destroy(debuggerUI->window);
-
-        for(u32 i = 0; i < 2; i++)
-        {
-            oc_arena_cleanup(&debuggerUI->valuesArena[i]);
-        }
-        memset(debuggerUI, 0, sizeof(oc_debugger_ui));
-    }
-}
-
-void draw_breakpoint_cursor_path(oc_rect rect)
-{
-    oc_vec2 center = { rect.x + rect.w / 2, rect.y + rect.h / 2 };
-    f32 dx = 12;
-    f32 dy = 7;
-    f32 r = 3;
-
-    f32 h = sqrt(dy * dy + dx * dx / 4);
-    f32 px = dx * (1 - (h - r) / (2 * h));
-    f32 py = dy * (h - r) / h;
-
-    // top left corner
-    oc_move_to(center.x - dx, center.y - dy + r);
-    oc_quadratic_to(center.x - dx, center.y - dy, center.x - dx + r, center.y - dy);
-
-    //top
-    oc_line_to(center.x + dx / 2 - r, center.y - dy);
-
-    // tip top corner
-    oc_quadratic_to(center.x + dx / 2, center.y - dy, center.x + px, center.y - py);
-
-    // arrow tip
-    f32 tx = dx * (1 - r / (2 * h));
-    f32 ty = dy * r / h;
-
-    oc_line_to(center.x + tx, center.y - ty);
-    oc_quadratic_to(center.x + dx, center.y, center.x + tx, center.y + ty);
-    oc_line_to(center.x + px, center.y + py);
-
-    // tip bottom corner
-    oc_quadratic_to(center.x + dx / 2, center.y + dy, center.x + dx / 2 - r, center.y + dy);
-
-    // bottom
-    oc_line_to(center.x - dx + r, center.y + dy);
-
-    // bottom left corner
-    oc_quadratic_to(center.x - dx, center.y + dy, center.x - dx, center.y + dy - r);
-
-    oc_close_path();
-}
-
-void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
-{
-    /*
-    oc_set_color_rgba(1, 0, 0, 1);
-    oc_set_width(2);
-    oc_rectangle_stroke(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
-    */
-
-    draw_breakpoint_cursor_path(box->rect);
-    oc_set_color_rgba(1, 0.2, 0.2, 1);
-    oc_fill();
-
-    draw_breakpoint_cursor_path(box->rect);
-    oc_set_color_rgba(1, 0, 0, 1);
-    oc_set_width(2);
-    oc_stroke();
-}
-
-////////////////////////////////////////////////////////////////////////////:
-//TODO: declare this guy somewhere more appropriate
-wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
-
-/////////////////////////////////////////////////////////////////////////////
-
-void source_tree_ui(oc_runtime* app, oc_ui_box* panel, wa_source_node* node, int indent)
-{
-    //TODO: use full path to disambiguate similarly named root dirs
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 id = oc_str8_pushf(scratch.arena, "path-%llu", node->id);
-
-    oc_ui_box_str8(id)
-    {
-        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
-        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-
-        oc_ui_box("indent")
-        {
-            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 10 * indent });
-            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-        }
-
-        if(!oc_list_empty(node->children))
-        {
-            if(node->expanded)
-            {
-                oc_ui_label("expand-icon", "- ");
-            }
-            else
-            {
-                oc_ui_label("expand-icon", "+ ");
-            }
-        }
-        else
-        {
-            oc_ui_label("expand-icon", "  ");
-        }
-        oc_ui_label_str8(OC_STR8("label"), oc_path_slice_filename(node->name));
-
-        oc_ui_sig sig = oc_ui_get_sig();
-        if(sig.hover)
-        {
-            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
-        }
-        if(sig.pressed)
-        {
-            if(oc_list_empty(node->children))
-            {
-                app->debuggerUI.selectedFile = node;
-                app->debuggerUI.autoScroll = false;
-                app->debuggerUI.freshScroll = true;
-            }
-            else
-            {
-                node->expanded = !node->expanded;
-            }
-        }
-        if(node == app->debuggerUI.selectedFile)
-        {
-            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
-
-            //NOTE: auto-scroll
-            f32 lineY = oc_ui_box_top()->rect.y + panel->scroll.y;
-            f32 lineH = oc_ui_box_top()->rect.h;
-
-            f32 targetScroll = panel->scroll.y;
-
-            if(app->debuggerUI.autoScroll)
-            {
-                f32 scrollMargin = panel->rect.h * 0.3;
-
-                if(lineY - targetScroll < scrollMargin)
-                {
-                    targetScroll = lineY - scrollMargin;
-                }
-                else if(lineY + lineH - targetScroll > panel->rect.h - scrollMargin)
-                {
-                    targetScroll = lineY + lineH - panel->rect.h + scrollMargin;
-                }
-            }
-            panel->scroll.y += 0.3 * (targetScroll - panel->scroll.y);
-        }
-    }
-
-    oc_scratch_end(scratch);
-
-    if(node->expanded)
-    {
-        oc_list_for(node->children, child, wa_source_node, listElt)
-        {
-            source_tree_ui(app, panel, child, indent + 1);
-        }
-    }
+    //DEBUG: oc_debugger_print_source_tree(sourceTree, 0);
 }
 
 wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
@@ -646,7 +426,235 @@ oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_int
     return list;
 }
 
-void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64* uid, bool showType, wa_interpreter* interpreter, oc_debugger_ui* debuggerUI)
+//------------------------------------------------------------------------
+// Debugger Window
+//------------------------------------------------------------------------
+
+i32 create_debug_window_callback(void* user)
+{
+    oc_runtime* app = (oc_runtime*)user;
+
+    oc_rect rect = oc_window_get_frame_rect(app->window);
+    rect.x += 100;
+    rect.y += 100;
+    rect.w = 1100;
+    rect.h = 800;
+
+    app->debugger.window = oc_window_create(rect, OC_STR8("Orca Debugger"), 0);
+    oc_window_bring_to_front(app->debugger.window);
+    oc_window_focus(app->debugger.window);
+
+    return (0);
+}
+
+void oc_debugger_open(oc_runtime* app)
+{
+    oc_debugger* debugger = &app->debugger;
+    if(!debugger->init)
+    {
+        //NOTE: window needs to be created on main thread
+        oc_dispatch_on_main_thread_sync(create_debug_window_callback, app);
+
+        debugger->renderer = oc_canvas_renderer_create();
+        debugger->surface = oc_canvas_surface_create_for_window(debugger->renderer, debugger->window);
+
+        debugger->canvas = oc_canvas_context_create();
+        debugger->ui = oc_ui_context_create(app->debugOverlay.fontReg);
+
+        wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
+        oc_debugger_build_source_tree(&app->env.arena, &app->debugger.sourceTree, sourceInfo->fileCount, sourceInfo->files);
+
+        for(u32 i = 0; i < 2; i++)
+        {
+            oc_arena_init(&debugger->valuesArena[i]);
+        }
+
+        debugger->init = true;
+    }
+}
+
+void oc_debugger_close(oc_runtime* app)
+{
+    oc_debugger* debugger = &app->debugger;
+    if(debugger->init)
+    {
+        oc_ui_context_destroy(debugger->ui);
+        oc_canvas_context_destroy(debugger->canvas);
+        oc_surface_destroy(debugger->surface);
+        oc_canvas_renderer_destroy(debugger->renderer);
+        oc_window_destroy(debugger->window);
+
+        for(u32 i = 0; i < 2; i++)
+        {
+            oc_arena_cleanup(&debugger->valuesArena[i]);
+        }
+        memset(debugger, 0, sizeof(oc_debugger));
+    }
+}
+
+//------------------------------------------------------------------------
+// Debugger UI
+//------------------------------------------------------------------------
+
+void draw_breakpoint_cursor_path(oc_rect rect)
+{
+    oc_vec2 center = { rect.x + rect.w / 2, rect.y + rect.h / 2 };
+    f32 dx = 12;
+    f32 dy = 7;
+    f32 r = 3;
+
+    f32 h = sqrt(dy * dy + dx * dx / 4);
+    f32 px = dx * (1 - (h - r) / (2 * h));
+    f32 py = dy * (h - r) / h;
+
+    // top left corner
+    oc_move_to(center.x - dx, center.y - dy + r);
+    oc_quadratic_to(center.x - dx, center.y - dy, center.x - dx + r, center.y - dy);
+
+    //top
+    oc_line_to(center.x + dx / 2 - r, center.y - dy);
+
+    // tip top corner
+    oc_quadratic_to(center.x + dx / 2, center.y - dy, center.x + px, center.y - py);
+
+    // arrow tip
+    f32 tx = dx * (1 - r / (2 * h));
+    f32 ty = dy * r / h;
+
+    oc_line_to(center.x + tx, center.y - ty);
+    oc_quadratic_to(center.x + dx, center.y, center.x + tx, center.y + ty);
+    oc_line_to(center.x + px, center.y + py);
+
+    // tip bottom corner
+    oc_quadratic_to(center.x + dx / 2, center.y + dy, center.x + dx / 2 - r, center.y + dy);
+
+    // bottom
+    oc_line_to(center.x - dx + r, center.y + dy);
+
+    // bottom left corner
+    oc_quadratic_to(center.x - dx, center.y + dy, center.x - dx, center.y + dy - r);
+
+    oc_close_path();
+}
+
+void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
+{
+    /*
+    oc_set_color_rgba(1, 0, 0, 1);
+    oc_set_width(2);
+    oc_rectangle_stroke(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+    */
+
+    draw_breakpoint_cursor_path(box->rect);
+    oc_set_color_rgba(1, 0.2, 0.2, 1);
+    oc_fill();
+
+    draw_breakpoint_cursor_path(box->rect);
+    oc_set_color_rgba(1, 0, 0, 1);
+    oc_set_width(2);
+    oc_stroke();
+}
+
+////////////////////////////////////////////////////////////////////////////:
+//TODO: declare this guy somewhere more appropriate
+wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
+
+/////////////////////////////////////////////////////////////////////////////
+
+void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* node, int indent)
+{
+    //TODO: use full path to disambiguate similarly named root dirs
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 id = oc_str8_pushf(scratch.arena, "path-%llu", node->id);
+
+    oc_ui_box_str8(id)
+    {
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
+        oc_ui_box("indent")
+        {
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 10 * indent });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        }
+
+        if(!oc_list_empty(node->children))
+        {
+            if(node->expanded)
+            {
+                oc_ui_label("expand-icon", "- ");
+            }
+            else
+            {
+                oc_ui_label("expand-icon", "+ ");
+            }
+        }
+        else
+        {
+            oc_ui_label("expand-icon", "  ");
+        }
+        oc_ui_label_str8(OC_STR8("label"), oc_path_slice_filename(node->name));
+
+        oc_ui_sig sig = oc_ui_get_sig();
+        if(sig.hover)
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+        }
+        if(sig.pressed)
+        {
+            if(oc_list_empty(node->children))
+            {
+                debugger->selectedFile = node;
+                debugger->autoScroll = false;
+                debugger->freshScroll = true;
+            }
+            else
+            {
+                node->expanded = !node->expanded;
+            }
+        }
+        if(node == debugger->selectedFile)
+        {
+            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+
+            //NOTE: auto-scroll
+            f32 lineY = oc_ui_box_top()->rect.y + panel->scroll.y;
+            f32 lineH = oc_ui_box_top()->rect.h;
+
+            f32 targetScroll = panel->scroll.y;
+
+            if(debugger->autoScroll)
+            {
+                f32 scrollMargin = panel->rect.h * 0.3;
+
+                if(lineY - targetScroll < scrollMargin)
+                {
+                    targetScroll = lineY - scrollMargin;
+                }
+                else if(lineY + lineH - targetScroll > panel->rect.h - scrollMargin)
+                {
+                    targetScroll = lineY + lineH - panel->rect.h + scrollMargin;
+                }
+            }
+            panel->scroll.y += 0.3 * (targetScroll - panel->scroll.y);
+        }
+    }
+
+    oc_scratch_end(scratch);
+
+    if(node->expanded)
+    {
+        oc_list_for(node->children, child, wa_source_node, listElt)
+        {
+            source_tree_ui(debugger, panel, child, indent + 1);
+        }
+    }
+}
+
+void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64* uid, bool showType, wa_interpreter* interpreter, oc_debugger* debugger)
 {
     wa_debug_type* strippedType = wa_debug_type_strip(value->type);
     OC_ASSERT(strippedType);
@@ -863,7 +871,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 oc_list_for(value->children, child, oc_debugger_value, listElt)
                 {
-                    debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debuggerUI);
+                    debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debugger);
                 }
             }
             else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
@@ -871,7 +879,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                 oc_list_for_indexed(value->children, it, oc_debugger_value, listElt)
                 {
                     oc_str8 indexStr = oc_str8_pushf(scratch.arena, "[%llu]", it.index);
-                    debugger_show_value(indexStr, it.elt, indent + 1, uid, false, interpreter, debuggerUI);
+                    debugger_show_value(indexStr, it.elt, indent + 1, uid, false, interpreter, debugger);
                 }
             }
             else if(strippedType->kind == WA_DEBUG_TYPE_POINTER)
@@ -892,7 +900,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     }
                     else
                     {
-                        oc_arena* valuesArena = &debuggerUI->valuesArena[debuggerUI->valuesArenaIndex];
+                        oc_arena* valuesArena = &debugger->valuesArena[debugger->valuesArenaIndex];
                         oc_str8 data = oc_str8_push_copy(valuesArena,
                                                          (oc_str8){
                                                              .ptr = memory->ptr + addr,
@@ -907,7 +915,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
 
                 oc_list_for(value->children, child, oc_debugger_value, listElt)
                 {
-                    debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debuggerUI);
+                    debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debugger);
                 }
             }
         }
@@ -916,16 +924,17 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
     oc_scratch_end(scratch);
 }
 
-void debugger_ui_update(oc_runtime* app)
+void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
 {
-    wa_interpreter* interpreter = app->env.interpreter;
+
+    wa_interpreter* interpreter = env->interpreter;
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_ui_set_context(app->debuggerUI.ui);
-    oc_canvas_context_select(app->debuggerUI.canvas);
+    oc_ui_set_context(debugger->ui);
+    oc_canvas_context_select(debugger->canvas);
 
-    oc_vec2 frameSize = oc_surface_get_size(app->debuggerUI.surface);
+    oc_vec2 frameSize = oc_surface_get_size(debugger->surface);
 
     oc_ui_frame(frameSize)
     {
@@ -940,46 +949,46 @@ void debugger_ui_update(oc_runtime* app)
         static i64 selectedFrame = 0;
 
         f32 scrollSpeed = 0.5;
-        app->debuggerUI.freshScroll = false;
+        debugger->freshScroll = false;
 
-        wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
+        wa_source_info* sourceInfo = &env->module->debugInfo->sourceInfo;
 
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
         //      if paused == false, vm thread can become paused during the frame, but we
         //      don't really care (we render cached state for this frame and will update next frame)
-        bool paused = atomic_load(&app->env.paused);
+        bool paused = atomic_load(&env->paused);
 
         u32 oldSelectedFunction = selectedFunction;
 
-        if(paused != app->env.prevPaused)
+        if(paused != env->prevPaused)
         {
             if(paused == true)
             {
                 //NOTE: vm thread has become paused since last frame. We set autoscroll and autoselect the function
-                app->debuggerUI.autoScroll = true;
+                debugger->autoScroll = true;
 
-                wa_source_node* oldSelectedFile = app->debuggerUI.selectedFile;
+                wa_source_node* oldSelectedFile = debugger->selectedFile;
                 u64 oldSelectedFunction = selectedFunction;
                 //NOTE: select new function and file
 
                 selectedFrame = 0;
 
                 wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-                selectedFunction = execFunc - app->env.instance->functions;
+                selectedFunction = execFunc - env->instance->functions;
 
                 wa_warm_loc warmLoc = {
-                    app->env.instance->module,
+                    env->instance->module,
                     selectedFunction,
                     interpreter->pc - execFunc->code,
                 };
-                wa_line_loc lineLoc = wa_line_loc_from_warm_loc(app->env.module, warmLoc);
+                wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
                 if(lineLoc.fileIndex)
                 {
                     //TODO: faster lookup
-                    app->debuggerUI.selectedFile = find_source_node(&app->debuggerUI.sourceTree, lineLoc.fileIndex);
+                    debugger->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
 
                     //NOTE: expand all parents of selected file
-                    wa_source_node* parent = app->debuggerUI.selectedFile->parent;
+                    wa_source_node* parent = debugger->selectedFile->parent;
                     while(parent)
                     {
                         parent->expanded = true;
@@ -987,30 +996,30 @@ void debugger_ui_update(oc_runtime* app)
                     }
                 }
 
-                if((app->debuggerUI.showSymbols == true && selectedFunction != oldSelectedFunction)
-                   || (app->debuggerUI.showSymbols == false && app->debuggerUI.selectedFile != oldSelectedFile))
+                if((debugger->showSymbols == true && selectedFunction != oldSelectedFunction)
+                   || (debugger->showSymbols == false && debugger->selectedFile != oldSelectedFile))
                 {
                     scrollSpeed = 1;
-                    app->debuggerUI.freshScroll = true;
+                    debugger->freshScroll = true;
                 }
 
                 //NOTE: build value locals value tree
-                wa_debug_function* debugFunc = &app->env.module->debugInfo->functionLocals[selectedFunction];
+                wa_debug_function* debugFunc = &env->module->debugInfo->functionLocals[selectedFunction];
 
-                app->debuggerUI.valuesArenaIndex ^= 1;
-                oc_arena* valuesArena = &app->debuggerUI.valuesArena[app->debuggerUI.valuesArenaIndex];
+                debugger->valuesArenaIndex ^= 1;
+                oc_arena* valuesArena = &debugger->valuesArena[debugger->valuesArenaIndex];
                 oc_arena_clear(valuesArena);
 
                 oc_list oldLocals = { 0 };
                 if(selectedFunction == oldSelectedFunction)
                 {
-                    oldLocals = app->debuggerUI.locals;
+                    oldLocals = debugger->locals;
                 }
 
-                app->debuggerUI.locals = debugger_build_locals_tree(valuesArena, debugFunc, interpreter, oldLocals);
-                app->debuggerUI.globals = debugger_build_globals_tree(valuesArena, debugFunc->unit, interpreter, app->debuggerUI.globals);
+                debugger->locals = debugger_build_locals_tree(valuesArena, debugFunc, interpreter, oldLocals);
+                debugger->globals = debugger_build_globals_tree(valuesArena, debugFunc->unit, interpreter, debugger->globals);
             }
-            app->env.prevPaused = paused;
+            env->prevPaused = paused;
         }
 
         //TODO: make these adjustable
@@ -1058,7 +1067,7 @@ void debugger_ui_update(oc_runtime* app)
 
                         if(oc_ui_get_sig().pressed)
                         {
-                            app->debuggerUI.showSymbols = false;
+                            debugger->showSymbols = false;
                         }
                     }
 
@@ -1079,11 +1088,11 @@ void debugger_ui_update(oc_runtime* app)
 
                         if(oc_ui_get_sig().pressed)
                         {
-                            app->debuggerUI.showSymbols = true;
+                            debugger->showSymbols = true;
                         }
                     }
 
-                    oc_ui_style_rule(app->debuggerUI.showSymbols ? "option-symbols" : "option-files")
+                    oc_ui_style_rule(debugger->showSymbols ? "option-symbols" : "option-files")
                     {
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
                     }
@@ -1099,14 +1108,14 @@ void debugger_ui_update(oc_runtime* app)
                     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                    if(app->debuggerUI.showSymbols)
+                    if(debugger->showSymbols)
                     {
-                        for(u32 funcIndex = 0; funcIndex < app->env.module->functionCount; funcIndex++)
+                        for(u32 funcIndex = 0; funcIndex < env->module->functionCount; funcIndex++)
                         {
-                            wa_func* func = &app->env.instance->functions[funcIndex];
+                            wa_func* func = &env->instance->functions[funcIndex];
                             if(func->codeLen)
                             {
-                                oc_str8 name = wa_module_get_function_name(app->env.module, funcIndex);
+                                oc_str8 name = wa_module_get_function_name(env->module, funcIndex);
 
                                 oc_ui_box* box = oc_ui_box_str8(name)
                                 {
@@ -1137,8 +1146,8 @@ void debugger_ui_update(oc_runtime* app)
                                     if(sig.pressed)
                                     {
                                         selectedFunction = funcIndex;
-                                        app->debuggerUI.autoScroll = false;
-                                        app->debuggerUI.freshScroll = true;
+                                        debugger->autoScroll = false;
+                                        debugger->freshScroll = true;
                                     }
                                 }
                             }
@@ -1146,9 +1155,9 @@ void debugger_ui_update(oc_runtime* app)
                     }
                     else
                     {
-                        oc_list_for(app->debuggerUI.sourceTree.children, child, wa_source_node, listElt)
+                        oc_list_for(debugger->sourceTree.children, child, wa_source_node, listElt)
                         {
-                            source_tree_ui(app, oc_ui_box_top(), child, 0);
+                            source_tree_ui(debugger, oc_ui_box_top(), child, 0);
                         }
                     }
                 }
@@ -1168,7 +1177,7 @@ void debugger_ui_update(oc_runtime* app)
 
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
-                if(app->env.paused)
+                if(env->paused)
                 {
 
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
@@ -1274,18 +1283,18 @@ void debugger_ui_update(oc_runtime* app)
                 const i32 BOX_MARGIN_H = 2;
                 const i32 BOX_MARGIN_W = 2;
 
-                if(app->debuggerUI.freshScroll)
+                if(debugger->freshScroll)
                 {
                     oc_log_info("[%f] freshScroll, set scroll to 0\n", oc_ui_frame_time());
                     codeView->scroll.y = 0;
                 }
 
-                if(app->debuggerUI.showSymbols)
+                if(debugger->showSymbols)
                 {
                     if(selectedFunction >= 0)
                     {
-                        wa_func* func = &app->env.instance->functions[selectedFunction];
-                        oc_str8 funcName = wa_module_get_function_name(app->env.module, selectedFunction);
+                        wa_func* func = &env->instance->functions[selectedFunction];
+                        oc_str8 funcName = wa_module_get_function_name(env->module, selectedFunction);
                         /*
                     if(funcName.len)
                     {
@@ -1367,7 +1376,7 @@ void debugger_ui_update(oc_runtime* app)
                                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
                                         bool makeExecCursor = false;
-                                        if(app->env.instance)
+                                        if(env->instance)
                                         {
                                             u32 index = interpreter->pc - func->code;
                                             wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
@@ -1394,7 +1403,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                             f32 targetScroll = codeView->scroll.y;
 
-                                            if(app->debuggerUI.autoScroll)
+                                            if(debugger->autoScroll)
                                             {
                                                 f32 scrollMargin = 80;
 
@@ -1494,7 +1503,7 @@ void debugger_ui_update(oc_runtime* app)
                                                         break;
 
                                                     case WA_OPD_FUNC_INDEX:
-                                                        s = wa_module_get_function_name(app->env.module, opd->valU32);
+                                                        s = wa_module_get_function_name(env->module, opd->valU32);
                                                         if(s.len == 0)
                                                         {
                                                             s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
@@ -1547,11 +1556,11 @@ void debugger_ui_update(oc_runtime* app)
                         }
                     }
                 }
-                else if(app->debuggerUI.selectedFile)
+                else if(debugger->selectedFile)
                 {
                     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-                    wa_source_node* node = app->debuggerUI.selectedFile;
+                    wa_source_node* node = debugger->selectedFile;
 
                     if(!node->contents.len)
                     {
@@ -1598,7 +1607,7 @@ void debugger_ui_update(oc_runtime* app)
                                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
                                 bool makeExecCursor = false;
-                                if(app->env.instance)
+                                if(env->instance)
                                 {
                                     ////////////////////////////////////////////////:
                                     //TODO: haul that up
@@ -1607,7 +1616,7 @@ void debugger_ui_update(oc_runtime* app)
                                     u64 funcIndex = execFunc - interpreter->instance->functions;
                                     u32 codeIndex = interpreter->pc - execFunc->code;
 
-                                    wa_line_loc loc = wa_line_loc_from_warm_loc(app->env.instance->module,
+                                    wa_line_loc loc = wa_line_loc_from_warm_loc(env->instance->module,
                                                                                 (wa_warm_loc){
                                                                                     .module = interpreter->instance->module,
                                                                                     .funcIndex = funcIndex,
@@ -1643,7 +1652,7 @@ void debugger_ui_update(oc_runtime* app)
 
                                     f32 targetScroll = codeView->scroll.y;
 
-                                    if(app->debuggerUI.autoScroll)
+                                    if(debugger->autoScroll)
                                     {
                                         f32 scrollMargin = 80;
 
@@ -1716,15 +1725,15 @@ void debugger_ui_update(oc_runtime* app)
                         }
                     }
                 }
-                app->debuggerUI.lastScroll = codeView->scroll.y;
+                debugger->lastScroll = codeView->scroll.y;
                 //NOTE: scroll might change (as a result of user action) at the end of the block
             }
 
-            if(!app->debuggerUI.freshScroll && fabs(app->debuggerUI.lastScroll - codeView->scroll.y) > 1)
+            if(!debugger->freshScroll && fabs(debugger->lastScroll - codeView->scroll.y) > 1)
             {
                 //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
                 OC_ASSERT(oc_ui_box_get_sig(codeView).wheel.y != 0);
-                app->debuggerUI.autoScroll = false;
+                debugger->autoScroll = false;
             }
 
             oc_ui_box* inspector = oc_ui_box("inspector-view")
@@ -1736,9 +1745,9 @@ void debugger_ui_update(oc_runtime* app)
 
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
-                if(app->env.paused)
+                if(env->paused)
                 {
-                    if(app->debuggerUI.showSymbols)
+                    if(debugger->showSymbols)
                     {
                         oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
                         oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
@@ -1765,7 +1774,7 @@ void debugger_ui_update(oc_runtime* app)
 
                             oc_str8 regText = { 0 };
 
-                            wa_register_map* map = &app->env.module->debugInfo->registerMaps[funcIndex][regIndex];
+                            wa_register_map* map = &env->module->debugInfo->registerMaps[funcIndex][regIndex];
 
                             wa_value_type type = WA_TYPE_UNKNOWN;
                             for(u32 rangeIndex = 0; rangeIndex < map->count; rangeIndex++)
@@ -1861,18 +1870,18 @@ void debugger_ui_update(oc_runtime* app)
 
                         u64 varUID = 0;
 
-                        oc_list_for(app->debuggerUI.locals, val, oc_debugger_value, listElt)
+                        oc_list_for(debugger->locals, val, oc_debugger_value, listElt)
                         {
-                            debugger_show_value(val->name, val, 0, &varUID, true, app->env.interpreter, &app->debuggerUI);
+                            debugger_show_value(val->name, val, 0, &varUID, true, env->interpreter, debugger);
                         }
 
                         oc_ui_label("spacer2", " ");
                         oc_ui_label("title2", "Globals:");
                         oc_ui_label("spacer3", " ");
 
-                        oc_list_for(app->debuggerUI.globals, val, oc_debugger_value, listElt)
+                        oc_list_for(debugger->globals, val, oc_debugger_value, listElt)
                         {
-                            debugger_show_value(val->name, val, 0, &varUID, true, app->env.interpreter, &app->debuggerUI);
+                            debugger_show_value(val->name, val, 0, &varUID, true, env->interpreter, debugger);
                         }
                     }
                 }
@@ -1882,8 +1891,8 @@ void debugger_ui_update(oc_runtime* app)
 
     oc_ui_draw();
 
-    oc_canvas_render(app->debuggerUI.renderer, app->debuggerUI.canvas, app->debuggerUI.surface);
-    oc_canvas_present(app->debuggerUI.renderer, app->debuggerUI.surface);
+    oc_canvas_render(debugger->renderer, debugger->canvas, debugger->surface);
+    oc_canvas_present(debugger->renderer, debugger->surface);
 
     oc_scratch_end(scratch);
 }

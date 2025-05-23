@@ -21,18 +21,7 @@
 
 #include "runtime.h"
 
-//------------------------------------------------------------------------
-// Debugger
-//------------------------------------------------------------------------
-#if OC_WASM_BACKEND_WARM
-    #define OC_WASM_DEBUGGER
-#endif
-
-#ifdef OC_WASM_DEBUGGER
-
-    #include "debugger.c"
-
-#endif // OC_WASM_DEBUGGER
+#include "debugger.c"
 
 //------------------------------------------------------------------------
 // runtime struct
@@ -68,7 +57,7 @@ void oc_wasm_env_init(oc_wasm_env* runtime)
 //------------------------------------------------------------------------
 
 ///////////////////////////////////////////////////////////////
-//TODO: fold this with app's queuing helpers
+//TODO: fold this with app's queuing helpers?
 
 void queue_event(oc_ringbuffer* queue, oc_event* event)
 {
@@ -155,18 +144,10 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 //------------------------------------------------------------------------
 // Wasm backends
 //------------------------------------------------------------------------
-#include "wasm/wasm.c"
-#if OC_WASM_BACKEND_WASM3
-    #include "wasm/backend_wasm3.c"
-#elif OC_WASM_BACKEND_BYTEBOX
-    #include "wasm/backend_bytebox.c"
-#elif OC_WASM_BACKEND_WARM
-    #include "warm/warm_adapter.c"
-    #include "warm/warm.h"
-    #include "warm/debug_info.h"
-#else
-    #error "Unknown wasm backend"
-#endif
+#include "warm/wasm.c"
+#include "warm/warm_adapter.c"
+#include "warm/warm.h"
+#include "warm/debug_info.h"
 
 //------------------------------------------------------------------------
 // VM runloop
@@ -187,7 +168,6 @@ static const char* s_test_wasm_module_path = NULL;
 #include "wasmbind/surface_api_bind_manual.c"
 #include "wasmbind/surface_api_bind_gen.c"
 
-#ifdef OC_WASM_DEBUGGER
 wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_func* function, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
 {
     oc_wasm_env* env = oc_runtime_get_env();
@@ -240,10 +220,6 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
     return status;
 }
 
-#else // OC_WASM_DEBUGGER
-    #define orca_invoke wa_interpreter_invoke
-#endif // OC_WASM_DEBUGGER
-
 char valtype_to_tag(wa_value_type type)
 {
     switch(type)
@@ -275,6 +251,7 @@ i32 vm_runloop(void* user)
             modulePath = oc_str8_push_copy(scratch.arena, OC_STR8(s_test_wasm_module_path));
         }
 
+        //TODO: change for platform layer file IO functions
         FILE* file = fopen(modulePath.ptr, "rb");
         if(!file)
         {
@@ -303,12 +280,12 @@ i32 vm_runloop(void* user)
     OC_WASM_TRAP(wa_module_status(app->env.module));
 
     //NOTE: bind orca APIs
-    wa_import_package package = {
-        .name = OC_STR8("env"),
-    };
-
     {
         oc_arena_scope scratch = oc_scratch_begin();
+
+        wa_import_package package = {
+            .name = OC_STR8("env"),
+        };
 
         int err = 0;
         err |= bindgen_link_core_api(scratch.arena, &package);
@@ -318,15 +295,11 @@ i32 vm_runloop(void* user)
         err |= bindgen_link_gles_api(scratch.arena, &package);
         err |= manual_link_gles_api(scratch.arena, &package);
 
-        oc_scratch_end(scratch);
-
         if(err)
         {
             OC_ABORT("The application couldn't link one or more functions to its web assembly module (see console log for more information)");
         }
-    }
 
-    {
         wa_instance_options options = {
             .packageCount = 1,
             .importPackages = &package,
@@ -334,6 +307,8 @@ i32 vm_runloop(void* user)
         app->env.instance = wa_instance_create(&app->env.arena, app->env.module, &options);
 
         OC_WASM_TRAP(wa_instance_status(app->env.instance));
+
+        oc_scratch_end(scratch);
     }
 
     app->env.interpreter = wa_interpreter_create(&app->env.arena);
@@ -419,6 +394,7 @@ i32 vm_runloop(void* user)
 
     wa_func** exports = app->env.exports;
 
+    //NOTE: tests
     if(s_test_wasm_module_path)
     {
         wa_value returnCode = { 0 };
@@ -441,7 +417,10 @@ i32 vm_runloop(void* user)
         return returnCode.valI32;
     }
 
-    //NOTE: call init handler
+    //--------------------------------------------------------------------------------------------------------------------
+    //NOTE: here the module was successfully loaded/initialized and all export functions and handlers are correctly bound.
+
+    //NOTE: call init handler and frame resize
     if(exports[OC_EXPORT_ON_INIT])
     {
         wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_ON_INIT], 0, NULL, 0, NULL);
@@ -459,6 +438,8 @@ i32 vm_runloop(void* user)
         wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_FRAME_RESIZE], oc_array_size(params), params, 0, NULL);
         OC_WASM_TRAP(status);
     }
+
+    //NOTE: app event loop: get events and call appropriate handlers
 
     while(!app->quit)
     {
@@ -626,6 +607,8 @@ i32 vm_runloop(void* user)
 #endif
     }
 
+    //NOTE: we exited the event loop, call the terminate handler and cleanup module/instance then quit
+
     if(exports[OC_EXPORT_TERMINATE])
     {
         wa_status status = orca_invoke(app->env.interpreter, app->env.instance, exports[OC_EXPORT_TERMINATE], 0, NULL, 0, NULL);
@@ -681,18 +664,17 @@ i32 control_runloop(void* user)
 
         while((event = oc_next_event(scratch.arena)) != 0)
         {
-#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
             if(!oc_window_is_nil(event->window)
-               && event->window.h == app->debuggerUI.window.h)
+               && event->window.h == app->debugger.window.h)
             {
-                oc_ui_set_context(app->debuggerUI.ui);
+                oc_ui_set_context(app->debugger.ui);
                 oc_ui_process_event(event);
 
                 switch(event->type)
                 {
                     case OC_EVENT_WINDOW_CLOSE:
                     {
-                        oc_debugger_ui_close(app);
+                        oc_debugger_close(app);
                     }
                     break;
 
@@ -716,7 +698,7 @@ i32 control_runloop(void* user)
                             else if(event->key.keyCode == OC_KEY_N)
                             {
                                 //NOTE: signal vm thread to step
-                                if(app->debuggerUI.showSymbols)
+                                if(app->debugger.showSymbols)
                                 {
                                     debugger_resume_with_command(app, OC_DEBUGGER_STEP);
                                 }
@@ -740,7 +722,6 @@ i32 control_runloop(void* user)
                 }
             }
             else
-#endif // OC_WASM_DEBUGGER
             {
                 if(app->debugOverlay.show)
                 {
@@ -767,9 +748,7 @@ i32 control_runloop(void* user)
                             {
                                 if(event->key.mods & OC_KEYMOD_SHIFT)
                                 {
-#ifdef OC_WASM_DEBUGGER //---------------------------------------------------------------------------------------------
-                                    oc_debugger_ui_open(app);
-#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
+                                    oc_debugger_open(app);
                                 }
                                 else
                                 {
@@ -792,16 +771,14 @@ i32 control_runloop(void* user)
 
         //TODO: if vm has suspended, drain queue here
 
-#ifdef OC_WASM_DEBUGGER //----------------------------------------------------------------------------------------------
-        if(app->debuggerUI.init)
+        if(app->debugger.init)
         {
-            debugger_ui_update(app);
+            debugger_ui_update(&app->debugger, &app->env);
         }
-#endif // OC_WASM_DEBUGGER ---------------------------------------------------------------------------------------------
 
         if(!app->quit)
         {
-            overlay_ui(app);
+            overlay_ui(&app->debugOverlay);
         }
 
         oc_scratch_end(scratch);
@@ -889,24 +866,15 @@ int main(int argc, char** argv)
         app->debugOverlay.fontReg = orca_font_create("../resources/Menlo.ttf");
         app->debugOverlay.fontBold = orca_font_create("../resources/Menlo Bold.ttf");
 
-        /*TODO: wgpu-renderer: set swap interval?
-
-#if OC_PLATFORM_WINDOWS
-        //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait here.
-        //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-        oc_surface_swap_interval(app->debugOverlay.surface, 0);
-#else
-        oc_surface_swap_interval(app->debugOverlay.surface, 1);
-#endif
-    */
         app->debugOverlay.ui = oc_ui_context_create(app->debugOverlay.fontReg);
 
-        //NOTE: show window and start runloop
+        //NOTE: show window
         oc_window_bring_to_front(app->window);
         oc_window_focus(app->window);
         oc_window_center(app->window);
     }
 
+    //NOTE: start runloop
     oc_thread* controlThread = oc_thread_create(control_runloop, app);
 
     while(!oc_should_quit())
@@ -914,6 +882,7 @@ int main(int argc, char** argv)
         oc_pump_events(-1);
     }
 
+    //NOTE: collect threads and wind down
     i64 exitCode = 0;
     oc_thread_join(controlThread, &exitCode);
 
