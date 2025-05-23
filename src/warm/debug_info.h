@@ -51,73 +51,73 @@ typedef struct wa_register_map
 // Debug type info
 //------------------------------------------------------------------------
 
-typedef enum wa_debug_type_kind
+typedef enum wa_type_kind
 {
-    WA_DEBUG_TYPE_VOID,
-    WA_DEBUG_TYPE_BASIC,
-    WA_DEBUG_TYPE_POINTER,
-    WA_DEBUG_TYPE_STRUCT,
-    WA_DEBUG_TYPE_UNION,
-    WA_DEBUG_TYPE_ENUM,
-    WA_DEBUG_TYPE_ARRAY,
-    WA_DEBUG_TYPE_NAMED,
+    WA_TYPE_VOID,
+    WA_TYPE_BASIC,
+    WA_TYPE_POINTER,
+    WA_TYPE_STRUCT,
+    WA_TYPE_UNION,
+    WA_TYPE_ENUM,
+    WA_TYPE_ARRAY,
+    WA_TYPE_NAMED,
     //...
-} wa_debug_type_kind;
+} wa_type_kind;
 
-typedef enum wa_debug_type_encoding
+typedef enum wa_type_encoding
 {
-    WA_DEBUG_TYPE_SIGNED,
-    WA_DEBUG_TYPE_UNSIGNED,
-    WA_DEBUG_TYPE_FLOAT,
-    WA_DEBUG_TYPE_BOOL,
-} wa_debug_type_encoding;
+    WA_TYPE_SIGNED,
+    WA_TYPE_UNSIGNED,
+    WA_TYPE_FLOAT,
+    WA_TYPE_BOOL,
+} wa_type_encoding;
 
-typedef struct wa_debug_type wa_debug_type;
+typedef struct wa_type wa_type;
 
-typedef struct wa_debug_type_field
+typedef struct wa_type_field
 {
     oc_list_elt listElt;
     oc_str8 name;
-    wa_debug_type* type;
+    wa_type* type;
     u64 offset;
-} wa_debug_type_field;
+} wa_type_field;
 
-typedef struct wa_debug_type_enumerator
+typedef struct wa_type_enumerator
 {
     oc_list_elt listElt;
     oc_str8 name;
     //TODO value
-} wa_debug_type_enumerator;
+} wa_type_enumerator;
 
-typedef struct wa_debug_type
+typedef struct wa_type
 {
     oc_list_elt listElt;
     u64 dwarfRef;
     oc_str8 name;
-    wa_debug_type_kind kind;
+    wa_type_kind kind;
     u64 size;
 
     union
     {
-        wa_debug_type_encoding encoding;
-        wa_debug_type* type;
+        wa_type_encoding encoding;
+        wa_type* type;
         oc_list fields;
 
         struct
         {
-            wa_debug_type* type;
+            wa_type* type;
             u64 count;
         } array;
 
         struct
         {
-            wa_debug_type* type;
+            wa_type* type;
             oc_list enumerators;
         } enumType;
 
         //TODO enum, etc...
     };
-} wa_debug_type;
+} wa_type;
 
 //------------------------------------------------------------------------
 // Variables debug info
@@ -131,7 +131,7 @@ typedef struct wa_debug_variable
     oc_str8 name;
     u64 uid;
     dw_loc* loc;
-    wa_debug_type* type;
+    wa_type* type;
 } wa_debug_variable;
 
 typedef struct wa_debug_unit
@@ -199,7 +199,7 @@ typedef struct wa_debug_info
 //------------------------------------------------------------------------
 // helpers
 //------------------------------------------------------------------------
-wa_debug_type* wa_debug_type_strip(wa_debug_type* t);
+wa_type* wa_type_strip(wa_type* t);
 
 //------------------------------------------------------------------------
 // building debug info

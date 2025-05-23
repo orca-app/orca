@@ -53,7 +53,7 @@ typedef struct oc_debug_overlay
 
 } oc_debug_overlay;
 
-typedef struct wa_debug_type wa_debug_type;
+typedef struct wa_type wa_type;
 
 typedef struct oc_debugger_value
 {
@@ -61,7 +61,7 @@ typedef struct oc_debugger_value
     oc_list children;
 
     oc_str8 name;
-    wa_debug_type* type;
+    wa_type* type;
     oc_str8 data;
 
     bool expanded;
@@ -111,7 +111,7 @@ typedef struct oc_debugger
     X(OC_EXPORT_KEY_DOWN, "oc_on_key_down", (WA_TYPE_F32, WA_TYPE_F32), ())                               \
     X(OC_EXPORT_KEY_UP, "oc_on_key_up", (WA_TYPE_F32, WA_TYPE_F32), ())                                   \
     X(OC_EXPORT_FRAME_REFRESH, "oc_on_frame_refresh", (), ())                                             \
-    X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", (WA_TYPE_F32, WA_TYPE_F32), ())                             \
+    X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", (WA_TYPE_I32, WA_TYPE_I32), ())                             \
     X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", (WA_TYPE_F32), ())                                          \
     X(OC_EXPORT_TERMINATE, "oc_on_terminate", (), ())                                                     \
     X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_stub", (WA_TYPE_I32, WA_TYPE_I64), (WA_TYPE_I32))
@@ -141,13 +141,13 @@ typedef struct oc_export_desc
 } oc_export_desc;
 
 const oc_export_desc OC_EXPORT_DESC[] = {
-#define OC_EXPORT_DESC_ENTRY(kind, n, p, r)                      \
-    {                                                            \
-        .name = OC_STR8_LIT(n),                                  \
-        .paramCount = sizeof((wa_value_type[]){ OC_EXPAND p }),  \
-        .params = { OC_EXPAND p },                               \
-        .returnCount = sizeof((wa_value_type[]){ OC_EXPAND r }), \
-        .returns = { OC_EXPAND r },                              \
+#define OC_EXPORT_DESC_ENTRY(kind, n, p, r) \
+    {                                       \
+        .name = OC_STR8_LIT(n),             \
+        .paramCount = OC_COUNT10 p,         \
+        .params = { OC_EXPAND p },          \
+        .returnCount = OC_COUNT10 r,        \
+        .returns = { OC_EXPAND r },         \
     },
 
     OC_EXPORTS(OC_EXPORT_DESC_ENTRY)

@@ -329,28 +329,28 @@ void wa_import_dwarf(wa_module* module, oc_str8 contents)
 // Debug type processing
 //-------------------------------------------------------------------------
 
-wa_debug_type* wa_debug_type_alloc(oc_arena* arena, u64 typeRef, wa_debug_type_kind kind, oc_list* types)
+wa_type* wa_type_alloc(oc_arena* arena, u64 typeRef, wa_type_kind kind, oc_list* types)
 {
-    wa_debug_type* type = oc_arena_push_type(arena, wa_debug_type);
+    wa_type* type = oc_arena_push_type(arena, wa_type);
     type->kind = kind;
     type->dwarfRef = typeRef;
     oc_list_push_back(types, &type->listElt);
     return type;
 }
 
-wa_debug_type* wa_debug_type_strip(wa_debug_type* type)
+wa_type* wa_type_strip(wa_type* type)
 {
-    while(type && type->kind == WA_DEBUG_TYPE_NAMED)
+    while(type && type->kind == WA_TYPE_NAMED)
     {
         type = type->type;
     }
     return type;
 }
 
-wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typeRef, oc_list* types)
+wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typeRef, oc_list* types)
 {
     //NOTE: if we already parsed that type, return it
-    oc_list_for(*types, t, wa_debug_type, listElt)
+    oc_list_for(*types, t, wa_type, listElt)
     {
         if(t->dwarfRef == typeRef)
         {
@@ -358,7 +358,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
         }
     }
 
-    wa_debug_type* type = 0;
+    wa_type* type = 0;
 
     //NOTE: find die corresponding to typeRef
     u64 addressSize = 4;
@@ -391,7 +391,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
         {
             case DW_TAG_base_type:
             {
-                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_BASIC, types);
+                type = wa_type_alloc(arena, typeRef, WA_TYPE_BASIC, types);
 
                 //TODO: endianity
 
@@ -401,19 +401,19 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
                     switch(encoding->valU64)
                     {
                         case DW_ATE_boolean:
-                            type->encoding = WA_DEBUG_TYPE_BOOL;
+                            type->encoding = WA_TYPE_BOOL;
                             break;
                         case DW_ATE_address:
                         case DW_ATE_unsigned:
                         case DW_ATE_unsigned_char:
-                            type->encoding = WA_DEBUG_TYPE_UNSIGNED;
+                            type->encoding = WA_TYPE_UNSIGNED;
                             break;
                         case DW_ATE_signed:
                         case DW_ATE_signed_char:
-                            type->encoding = WA_DEBUG_TYPE_SIGNED;
+                            type->encoding = WA_TYPE_SIGNED;
                             break;
                         case DW_ATE_float:
-                            type->encoding = WA_DEBUG_TYPE_FLOAT;
+                            type->encoding = WA_TYPE_FLOAT;
                             break;
                         default:
                             oc_log_error("unrecognized type encoding %s\n", dw_get_encoding_string(encoding->valU64));
@@ -425,7 +425,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             case DW_TAG_unspecified_type:
             {
-                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_VOID, types);
+                type = wa_type_alloc(arena, typeRef, WA_TYPE_VOID, types);
             }
             break;
 
@@ -444,7 +444,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             case DW_TAG_pointer_type:
             {
-                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_POINTER, types);
+                type = wa_type_alloc(arena, typeRef, WA_TYPE_POINTER, types);
                 type->size = addressSize;
 
                 dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
@@ -462,7 +462,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             case DW_TAG_typedef:
             {
-                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_NAMED, types);
+                type = wa_type_alloc(arena, typeRef, WA_TYPE_NAMED, types);
 
                 dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(typeAttr)
@@ -474,7 +474,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             case DW_TAG_array_type:
             {
-                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_ARRAY, types);
+                type = wa_type_alloc(arena, typeRef, WA_TYPE_ARRAY, types);
 
                 dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(typeAttr)
@@ -487,7 +487,7 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
                 ///////////////////////////////////////
                 //TODO: multi dim arrays...
                 ///////////////////////////////////////
-                u64 size = wa_debug_type_strip(type->array.type)->size;
+                u64 size = wa_type_strip(type->array.type)->size;
 
                 oc_list_for(die->children, child, dw_die, parentElt)
                 {
@@ -524,15 +524,15 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
             case DW_TAG_structure_type:
             case DW_TAG_union_type:
             {
-                wa_debug_type_kind kind = (die->abbrev->tag == DW_TAG_structure_type) ? WA_DEBUG_TYPE_STRUCT
-                                                                                      : WA_DEBUG_TYPE_UNION;
-                type = wa_debug_type_alloc(arena, typeRef, kind, types);
+                wa_type_kind kind = (die->abbrev->tag == DW_TAG_structure_type) ? WA_TYPE_STRUCT
+                                                                                : WA_TYPE_UNION;
+                type = wa_type_alloc(arena, typeRef, kind, types);
 
                 oc_list_for(die->children, child, dw_die, parentElt)
                 {
                     if(child->abbrev && child->abbrev->tag == DW_TAG_member)
                     {
-                        wa_debug_type_field* member = oc_arena_push_type(arena, wa_debug_type_field);
+                        wa_type_field* member = oc_arena_push_type(arena, wa_type_field);
 
                         dw_attr* memberName = dw_die_get_attr(child, DW_AT_name);
                         if(memberName)
@@ -564,20 +564,20 @@ wa_debug_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u
 
             case DW_TAG_enumeration_type:
             {
-                type = wa_debug_type_alloc(arena, typeRef, WA_DEBUG_TYPE_ENUM, types);
+                type = wa_type_alloc(arena, typeRef, WA_TYPE_ENUM, types);
 
                 dw_attr* valType = dw_die_get_attr(die, DW_AT_type);
                 if(valType)
                 {
                     type->enumType.type = wa_build_debug_type_from_dwarf(arena, dwarf, valType->valU64, types);
-                    type->size = wa_debug_type_strip(type->enumType.type)->size;
+                    type->size = wa_type_strip(type->enumType.type)->size;
                 }
 
                 oc_list_for(die->children, child, dw_die, parentElt)
                 {
                     if(child->abbrev && child->abbrev->tag == DW_TAG_enumerator)
                     {
-                        wa_debug_type_enumerator* enumerator = oc_arena_push_type(arena, wa_debug_type_enumerator);
+                        wa_type_enumerator* enumerator = oc_arena_push_type(arena, wa_type_enumerator);
                         dw_attr* name = dw_die_get_attr(child, DW_AT_name);
                         if(name)
                         {

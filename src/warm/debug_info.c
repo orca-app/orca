@@ -299,7 +299,7 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     {
         return (oc_str8){ 0 };
     }
-    wa_debug_type* type = wa_debug_type_strip(var->type);
+    wa_type* type = wa_type_strip(var->type);
 
     oc_str8 res = {
         .len = type->size,

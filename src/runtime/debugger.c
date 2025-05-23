@@ -306,19 +306,19 @@ wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
     return 0;
 }
 
-oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_debug_type* type, oc_str8 data, oc_list oldValues)
+oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_type* type, oc_str8 data, oc_list oldValues)
 {
     oc_debugger_value* value = oc_arena_push_type(arena, oc_debugger_value);
     value->name = name;
     value->type = type;
     value->data = data;
 
-    wa_debug_type* strippedType = wa_debug_type_strip(type);
+    wa_type* strippedType = wa_type_strip(type);
 
     //NOTE: by defaut, expand struct, union, and small arrays
-    if(strippedType->kind == WA_DEBUG_TYPE_STRUCT
-       || strippedType->kind == WA_DEBUG_TYPE_UNION
-       || (strippedType->kind == WA_DEBUG_TYPE_ARRAY && strippedType->array.count <= 6))
+    if(strippedType->kind == WA_TYPE_STRUCT
+       || strippedType->kind == WA_TYPE_UNION
+       || (strippedType->kind == WA_TYPE_ARRAY && strippedType->array.count <= 6))
     {
         value->expanded = true;
     }
@@ -336,11 +336,11 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_d
         }
     }
 
-    if(strippedType->kind == WA_DEBUG_TYPE_STRUCT || strippedType->kind == WA_DEBUG_TYPE_UNION)
+    if(strippedType->kind == WA_TYPE_STRUCT || strippedType->kind == WA_TYPE_UNION)
     {
-        oc_list_for(strippedType->fields, field, wa_debug_type_field, listElt)
+        oc_list_for(strippedType->fields, field, wa_type_field, listElt)
         {
-            wa_debug_type* fieldStrippedType = wa_debug_type_strip(field->type);
+            wa_type* fieldStrippedType = wa_type_strip(field->type);
             u64 fieldSize = fieldStrippedType->size;
             oc_str8 fieldData = oc_str8_slice(data, field->offset, field->offset + fieldSize);
             oc_debugger_value* fieldVal = debugger_build_value_tree(arena, field->name, field->type, fieldData, oldChildren);
@@ -348,9 +348,9 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_d
             oc_list_push_back(&value->children, &fieldVal->listElt);
         }
     }
-    else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
+    else if(strippedType->kind == WA_TYPE_ARRAY)
     {
-        wa_debug_type* eltType = wa_debug_type_strip(strippedType->array.type);
+        wa_type* eltType = wa_type_strip(strippedType->array.type);
 
         for(u64 i = 0; i < strippedType->array.count; i++)
         {
@@ -656,7 +656,7 @@ void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* nod
 
 void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64* uid, bool showType, wa_interpreter* interpreter, oc_debugger* debugger)
 {
-    wa_debug_type* strippedType = wa_debug_type_strip(value->type);
+    wa_type* strippedType = wa_type_strip(value->type);
     OC_ASSERT(strippedType);
 
     oc_arena_scope scratch = oc_scratch_begin();
@@ -682,10 +682,10 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 20 * indent });
             }
 
-            if(strippedType->kind == WA_DEBUG_TYPE_STRUCT
-               || strippedType->kind == WA_DEBUG_TYPE_UNION
-               || strippedType->kind == WA_DEBUG_TYPE_ARRAY
-               || strippedType->kind == WA_DEBUG_TYPE_POINTER)
+            if(strippedType->kind == WA_TYPE_STRUCT
+               || strippedType->kind == WA_TYPE_UNION
+               || strippedType->kind == WA_TYPE_ARRAY
+               || strippedType->kind == WA_TYPE_POINTER)
             {
                 if(oc_ui_box_get_sig(oc_ui_box_top()).pressed)
                 {
@@ -719,17 +719,17 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     oc_str8 typeStr = oc_str8_pushf(scratch.arena, "(%.*s) ", oc_str8_ip(value->type->name));
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
-                else if(strippedType->kind == WA_DEBUG_TYPE_UNION)
+                else if(strippedType->kind == WA_TYPE_UNION)
                 {
                     oc_ui_label("type", "(anonymous union) ");
                 }
-                else if(strippedType->kind == WA_DEBUG_TYPE_STRUCT)
+                else if(strippedType->kind == WA_TYPE_STRUCT)
                 {
                     oc_ui_label("type", "(anonymous struct) ");
                 }
-                else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
+                else if(strippedType->kind == WA_TYPE_ARRAY)
                 {
-                    wa_debug_type* eltType = strippedType->array.type;
+                    wa_type* eltType = strippedType->array.type;
                     oc_str8 typeStr = oc_str8_pushf(scratch.arena, "((%.*s)[%llu]) ", oc_str8_ip(eltType->name), strippedType->array.count);
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
@@ -739,17 +739,17 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 oc_ui_label("unavailable", "unavailable");
             }
-            else if(strippedType->kind == WA_DEBUG_TYPE_BASIC)
+            else if(strippedType->kind == WA_TYPE_BASIC)
             {
                 switch(strippedType->encoding)
                 {
-                    case WA_DEBUG_TYPE_BOOL:
+                    case WA_TYPE_BOOL:
                     {
                         //TODO
                     }
                     break;
 
-                    case WA_DEBUG_TYPE_UNSIGNED:
+                    case WA_TYPE_UNSIGNED:
                     {
                         oc_str8 valStr = { 0 };
                         switch(strippedType->size)
@@ -792,7 +792,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     }
                     break;
 
-                    case WA_DEBUG_TYPE_SIGNED:
+                    case WA_TYPE_SIGNED:
                     {
                         oc_str8 valStr = { 0 };
                         switch(strippedType->size)
@@ -835,7 +835,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     }
                     break;
 
-                    case WA_DEBUG_TYPE_FLOAT:
+                    case WA_TYPE_FLOAT:
                     {
                         oc_str8 valStr = { 0 };
                         if(strippedType->size == 4)
@@ -856,7 +856,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     break;
                 }
             }
-            else if(strippedType->kind == WA_DEBUG_TYPE_POINTER)
+            else if(strippedType->kind == WA_TYPE_POINTER)
             {
                 u32 addr = 0;
                 memcpy(&addr, value->data.ptr, sizeof(u32));
@@ -867,14 +867,14 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
 
         if(value->data.len && value->expanded)
         {
-            if(strippedType->kind == WA_DEBUG_TYPE_STRUCT || strippedType->kind == WA_DEBUG_TYPE_UNION)
+            if(strippedType->kind == WA_TYPE_STRUCT || strippedType->kind == WA_TYPE_UNION)
             {
                 oc_list_for(value->children, child, oc_debugger_value, listElt)
                 {
                     debugger_show_value(child->name, child, indent + 1, uid, true, interpreter, debugger);
                 }
             }
-            else if(strippedType->kind == WA_DEBUG_TYPE_ARRAY)
+            else if(strippedType->kind == WA_TYPE_ARRAY)
             {
                 oc_list_for_indexed(value->children, it, oc_debugger_value, listElt)
                 {
@@ -882,11 +882,11 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     debugger_show_value(indexStr, it.elt, indent + 1, uid, false, interpreter, debugger);
                 }
             }
-            else if(strippedType->kind == WA_DEBUG_TYPE_POINTER)
+            else if(strippedType->kind == WA_TYPE_POINTER)
             {
                 if(oc_list_empty(value->children))
                 {
-                    wa_debug_type* pointeeType = wa_debug_type_strip(strippedType->type);
+                    wa_type* pointeeType = wa_type_strip(strippedType->type);
                     u32 size = pointeeType->size;
                     u32 addr = 0;
                     memcpy(&addr, value->data.ptr, sizeof(addr));
@@ -1003,7 +1003,7 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
                     debugger->freshScroll = true;
                 }
 
-                //NOTE: build value locals value tree
+                //NOTE: build locals value tree
                 wa_debug_function* debugFunc = &env->module->debugInfo->functionLocals[selectedFunction];
 
                 debugger->valuesArenaIndex ^= 1;
@@ -1222,7 +1222,7 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
                                 }
                                 else
                                 {
-                                    addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
+                                    addr = interpreter->controlStack[level + 1].returnPC - 3 - func->code;
                                 }
                                 u32 functionIndex = func - interpreter->instance->functions;
                                 oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
@@ -1254,7 +1254,35 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
 
                                 if(oc_ui_label_str8(label, text).pressed)
                                 {
+                                    //TODO: select frame and move to callsite
+
                                     selectedFrame = interpreter->controlStackTop - level;
+                                    wa_func* func = interpreter->controlStack[level].func;
+                                    wa_code* pc = 0;
+                                    if(level == interpreter->controlStackTop)
+                                    {
+                                        pc = interpreter->pc;
+                                    }
+                                    else
+                                    {
+                                        pc = interpreter->controlStack[level + 1].returnPC - 3;
+                                    }
+
+                                    wa_warm_loc warmLoc = {
+                                        env->instance->module,
+                                        func - interpreter->instance->functions,
+                                        pc - func->code,
+                                    };
+                                    wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
+
+                                    wa_source_node* oldFile = debugger->selectedFile;
+                                    debugger->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+
+                                    debugger->autoScroll = true;
+                                    if(oldFile != debugger->selectedFile)
+                                    {
+                                        debugger->freshScroll = true;
+                                    }
                                 }
                             }
                         }
@@ -1607,31 +1635,58 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
                                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
                                 bool makeExecCursor = false;
+                                bool topCursor = false;
                                 if(env->instance)
                                 {
                                     ////////////////////////////////////////////////:
                                     //TODO: haul that up
                                     ////////////////////////////////////////////////
-                                    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-                                    u64 funcIndex = execFunc - interpreter->instance->functions;
-                                    u32 codeIndex = interpreter->pc - execFunc->code;
-
-                                    wa_line_loc loc = wa_line_loc_from_warm_loc(env->instance->module,
-                                                                                (wa_warm_loc){
-                                                                                    .module = interpreter->instance->module,
-                                                                                    .funcIndex = funcIndex,
-                                                                                    .codeIndex = codeIndex,
-                                                                                });
-
-                                    if(node->index == loc.fileIndex && loc.line == lineNum)
+                                    for(u32 i = 0; i <= interpreter->controlStackTop; i++)
                                     {
-                                        makeExecCursor = true;
+                                        u32 frameIndex = interpreter->controlStackTop - i;
+
+                                        wa_func* func = interpreter->controlStack[frameIndex].func;
+                                        u64 funcIndex = func - interpreter->instance->functions;
+                                        u32 codeIndex = 0;
+
+                                        if(frameIndex == interpreter->controlStackTop)
+                                        {
+                                            codeIndex = interpreter->pc - func->code;
+                                        }
+                                        else
+                                        {
+                                            codeIndex = interpreter->controlStack[frameIndex + 1].returnPC - 3 - func->code;
+                                        }
+
+                                        wa_line_loc loc = wa_line_loc_from_warm_loc(env->instance->module,
+                                                                                    (wa_warm_loc){
+                                                                                        .module = interpreter->instance->module,
+                                                                                        .funcIndex = funcIndex,
+                                                                                        .codeIndex = codeIndex,
+                                                                                    });
+
+                                        if(node->index == loc.fileIndex && loc.line == lineNum)
+                                        {
+                                            makeExecCursor = true;
+                                            if(frameIndex == interpreter->controlStackTop)
+                                            {
+                                                topCursor = true;
+                                            }
+                                            break;
+                                        }
                                     }
                                 }
 
                                 if(makeExecCursor)
                                 {
-                                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                                    if(topCursor)
+                                    {
+                                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                                    }
+                                    else
+                                    {
+                                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.4, 0.4, 1, OC_COLOR_SPACE_SRGB });
+                                    }
                                 }
 
                                 oc_ui_box* numLabel = oc_ui_box("num")
