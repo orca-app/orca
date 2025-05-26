@@ -340,20 +340,11 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     return res;
 }
 
-wa_debug_scope* wa_debug_get_current_scope(wa_interpreter* interpreter)
+wa_debug_scope* wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc)
 {
-    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
-    u64 funcIndex = func - interpreter->instance->functions;
-
-    wa_warm_loc warmLoc = {
-        interpreter->instance->module,
-        funcIndex,
-        interpreter->pc - func->code,
-    };
-
     wa_wasm_loc loc = wa_wasm_loc_from_warm_loc(warmLoc);
 
-    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
+    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[warmLoc.funcIndex];
     wa_debug_scope* scope = &funcInfo->body;
 
     while(!oc_list_empty(scope->children))

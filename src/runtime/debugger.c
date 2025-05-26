@@ -364,15 +364,17 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     return value;
 }
 
-oc_list debugger_build_locals_tree(oc_arena* arena, wa_debug_function* funcInfo, wa_interpreter* interpreter, oc_list oldValues)
+oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_warm_loc warmLoc, oc_list oldValues)
 {
+    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[warmLoc.funcIndex];
+
     oc_list list = { 0 };
 
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
     wa_debug_variable** shadow = oc_arena_push_array(scratch.arena, wa_debug_variable*, funcInfo->totalVarDecl);
     u64 shadowCount = 0;
 
-    wa_debug_scope* scope = wa_debug_get_current_scope(interpreter);
+    wa_debug_scope* scope = wa_debug_get_scope_for_warm_loc(interpreter, warmLoc);
 
     while(scope)
     {
@@ -934,58 +936,79 @@ void oc_debugger_update(oc_debugger* debugger, oc_wasm_env* env)
     u64 oldSelectedFunction = debugger->selectedFunction;
 
     //NOTE: select new function and file from current PC
-    debugger->selectedFrame = interpreter->controlStackTop;
-    wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
-    debugger->selectedFunction = func - env->instance->functions;
-
-    wa_warm_loc warmLoc = {
-        .module = env->module,
-        .funcIndex = debugger->selectedFunction,
-        .codeIndex = interpreter->pc - func->code,
-    };
-    wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
-
-    if(lineLoc.fileIndex)
     {
-        //TODO: faster lookup
-        debugger->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+        debugger->selectedFrame = interpreter->controlStackTop;
+        wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
+        debugger->selectedFunction = func - env->instance->functions;
 
-        //NOTE: expand all parents of selected file
-        wa_source_node* parent = debugger->selectedFile->parent;
-        while(parent)
+        wa_warm_loc warmLoc = {
+            .module = env->module,
+            .funcIndex = debugger->selectedFunction,
+            .codeIndex = interpreter->pc - func->code,
+        };
+        wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
+
+        if(lineLoc.fileIndex)
         {
-            parent->expanded = true;
-            parent = parent->parent;
+            //TODO: faster lookup
+            debugger->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+
+            //NOTE: expand all parents of selected file
+            wa_source_node* parent = debugger->selectedFile->parent;
+            while(parent)
+            {
+                parent->expanded = true;
+                parent = parent->parent;
+            }
+        }
+
+        //NOTE: after pausing, set autoscroll mode
+        debugger->autoScroll = true;
+        debugger->autoScrollIndex = warmLoc.codeIndex;
+        debugger->autoScrollLine = lineLoc.line;
+
+        if((debugger->showSymbols == true && debugger->selectedFunction != oldSelectedFunction)
+           || (debugger->showSymbols == false && debugger->selectedFile != oldSelectedFile))
+        {
+            debugger->scrollSpeed = 1;
+            debugger->freshScroll = true;
         }
     }
 
-    //NOTE: build variables value tree
-    wa_debug_function* debugFunc = &env->module->debugInfo->functionLocals[debugger->selectedFunction];
+    //NOTE: build variables value trees
 
     debugger->valuesArenaIndex ^= 1;
     oc_arena* valuesArena = &debugger->valuesArena[debugger->valuesArenaIndex];
     oc_arena_clear(valuesArena);
 
-    oc_list oldLocals = { 0 };
-    if(debugger->selectedFunction == oldSelectedFunction)
+    debugger->locals = oc_arena_push_array(valuesArena, oc_list, env->interpreter->controlStackTop + 1);
+
+    for(u64 frameIndex = 0; frameIndex <= interpreter->controlStackTop; frameIndex++)
     {
-        oldLocals = debugger->locals;
+        wa_func* func = interpreter->controlStack[frameIndex].func;
+        u64 funcIndex = func - interpreter->instance->functions;
+        wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
+
+        oc_list oldLocals = { 0 };
+        /*
+        if(debugger->selectedFunction == oldSelectedFunction)
+        {
+            oldLocals = debugger->locals;
+        }
+        */
+        wa_warm_loc warmLoc = {
+            .module = interpreter->instance->module,
+            .funcIndex = funcIndex,
+            .codeIndex = (frameIndex == interpreter->controlStackTop) ? interpreter->pc - func->code
+                                                                      : interpreter->controlStack[frameIndex + 1].returnPC - 3 - func->code,
+        };
+        debugger->locals[frameIndex] = debugger_build_locals_tree(valuesArena, interpreter, warmLoc, oldLocals);
     }
 
-    debugger->locals = debugger_build_locals_tree(valuesArena, debugFunc, interpreter, oldLocals);
+    //WARN: here we only load globals from the top function's unit... this isn't necessarily what we want
+    //TODO: see how we want to display globals
+    wa_debug_function* debugFunc = &env->module->debugInfo->functionLocals[debugger->selectedFunction];
     debugger->globals = debugger_build_globals_tree(valuesArena, debugFunc->unit, interpreter, debugger->globals);
-
-    //NOTE: after pausing, set autoscroll mode
-    debugger->autoScroll = true;
-    debugger->autoScrollIndex = warmLoc.codeIndex;
-    debugger->autoScrollLine = lineLoc.line;
-
-    if((debugger->showSymbols == true && debugger->selectedFunction != oldSelectedFunction)
-       || (debugger->showSymbols == false && debugger->selectedFile != oldSelectedFile))
-    {
-        debugger->scrollSpeed = 1;
-        debugger->freshScroll = true;
-    }
 }
 
 void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
@@ -1122,6 +1145,9 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
                     //      symbol rather than file
 
                     debugger->autoScroll = true;
+                    debugger->autoScrollIndex = warmLoc.codeIndex;
+                    debugger->autoScrollLine = lineLoc.line;
+
                     if(oldFile != debugger->selectedFile)
                     {
                         debugger->freshScroll = true;
@@ -1249,7 +1275,7 @@ void oc_debugger_variables_view(oc_debugger* debugger, wa_interpreter* interpret
 
     u64 varUID = 0;
 
-    oc_list_for(debugger->locals, val, oc_debugger_value, listElt)
+    oc_list_for(debugger->locals[debugger->selectedFrame], val, oc_debugger_value, listElt)
     {
         debugger_show_value(val->name, val, 0, &varUID, true, interpreter, debugger);
     }

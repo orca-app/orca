@@ -95,7 +95,7 @@ typedef struct oc_debugger
     oc_arena valuesArena[2];
     u8 valuesArenaIndex;
 
-    oc_list locals;
+    oc_list* locals;
     oc_list globals;
 
 } oc_debugger;

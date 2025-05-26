@@ -216,4 +216,4 @@ wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
 wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var);
 
-wa_debug_scope* wa_debug_get_current_scope(wa_interpreter* interpreter);
+wa_debug_scope* wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc);
