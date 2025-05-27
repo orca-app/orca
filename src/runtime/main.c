@@ -755,7 +755,7 @@ i32 control_runloop(void* user)
 
         if(app->debugger.init)
         {
-            debugger_ui_update(&app->debugger, &app->env);
+            debugger_ui(&app->debugger, &app->env);
         }
 
         if(!app->quit)

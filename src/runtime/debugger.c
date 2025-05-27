@@ -306,7 +306,7 @@ wa_source_node* find_source_node(wa_source_node* node, u64 fileIndex)
     return 0;
 }
 
-oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_type* type, oc_str8 data, oc_list oldValues)
+oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_type* type, oc_str8 data)
 {
     oc_debugger_value* value = oc_arena_push_type(arena, oc_debugger_value);
     value->name = name;
@@ -323,19 +323,6 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
         value->expanded = true;
     }
 
-    oc_list oldChildren = { 0 };
-    oc_list_for(oldValues, oldValue, oc_debugger_value, listElt)
-    {
-        if(!oc_str8_cmp(oldValue->name, value->name)
-           && oldValue->type == value->type)
-        {
-            //NOTE: if value was present in previous value tree, carry over its persistant state
-            value->expanded = oldValue->expanded;
-            oldChildren = oldValue->children;
-            break;
-        }
-    }
-
     if(strippedType->kind == WA_TYPE_STRUCT || strippedType->kind == WA_TYPE_UNION)
     {
         oc_list_for(strippedType->fields, field, wa_type_field, listElt)
@@ -343,7 +330,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
             wa_type* fieldStrippedType = wa_type_strip(field->type);
             u64 fieldSize = fieldStrippedType->size;
             oc_str8 fieldData = oc_str8_slice(data, field->offset, field->offset + fieldSize);
-            oc_debugger_value* fieldVal = debugger_build_value_tree(arena, field->name, field->type, fieldData, oldChildren);
+            oc_debugger_value* fieldVal = debugger_build_value_tree(arena, field->name, field->type, fieldData);
 
             oc_list_push_back(&value->children, &fieldVal->listElt);
         }
@@ -355,7 +342,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
         for(u64 i = 0; i < strippedType->array.count; i++)
         {
             oc_str8 eltData = oc_str8_slice(data, i * eltType->size, (i + 1) * eltType->size);
-            oc_debugger_value* eltVal = debugger_build_value_tree(arena, (oc_str8){ 0 }, eltType, eltData, oldChildren);
+            oc_debugger_value* eltVal = debugger_build_value_tree(arena, (oc_str8){ 0 }, eltType, eltData);
 
             oc_list_push_back(&value->children, &eltVal->listElt);
         }
@@ -364,7 +351,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     return value;
 }
 
-oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_warm_loc warmLoc, oc_list oldValues)
+oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_warm_loc warmLoc)
 {
     wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[warmLoc.funcIndex];
 
@@ -397,7 +384,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
             {
                 oc_str8 data = wa_debug_variable_get_value(arena, interpreter, funcInfo, var);
 
-                oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data, oldValues);
+                oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
                 oc_list_push_back(&list, &value->listElt);
 
                 shadow[shadowCount] = var;
@@ -412,7 +399,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
     return (list);
 }
 
-oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_interpreter* interpreter, oc_list oldValues)
+oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_interpreter* interpreter)
 {
     oc_list list = { 0 };
 
@@ -421,7 +408,7 @@ oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_int
         wa_debug_variable* var = &unit->globals[globalIndex];
 
         oc_str8 data = wa_debug_variable_get_value(arena, interpreter, 0, var);
-        oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data, oldValues);
+        oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
         oc_list_push_back(&list, &value->listElt);
     }
 
@@ -466,13 +453,10 @@ void oc_debugger_open(oc_runtime* app)
         wa_source_info* sourceInfo = &app->env.module->debugInfo->sourceInfo;
         oc_debugger_build_source_tree(&app->env.arena, &app->debugger.sourceTree, sourceInfo->fileCount, sourceInfo->files);
 
-        for(u32 i = 0; i < 2; i++)
-        {
-            oc_arena_init(&debugger->valuesArena[i]);
-        }
+        oc_arena_init(&debugger->debugArena);
+        oc_arena_init(&debugger->tabsArena);
 
         debugger->init = true;
-        debugger->selectedFunction = -1;
         debugger->selectedFrame = 0;
     }
 }
@@ -488,10 +472,9 @@ void oc_debugger_close(oc_runtime* app)
         oc_canvas_renderer_destroy(debugger->renderer);
         oc_window_destroy(debugger->window);
 
-        for(u32 i = 0; i < 2; i++)
-        {
-            oc_arena_cleanup(&debugger->valuesArena[i]);
-        }
+        oc_arena_cleanup(&debugger->tabsArena);
+        oc_arena_cleanup(&debugger->debugArena);
+
         memset(debugger, 0, sizeof(oc_debugger));
     }
 }
@@ -565,6 +548,21 @@ wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
 
 /////////////////////////////////////////////////////////////////////////////
 
+oc_debugger_code_tab* oc_debugger_code_tab_alloc(oc_debugger* debugger)
+{
+    oc_debugger_code_tab* tab = oc_list_pop_front_entry(&debugger->tabsFreeList, oc_debugger_code_tab, listElt);
+    if(!tab)
+    {
+        tab = oc_arena_push_type(&debugger->tabsArena, oc_debugger_code_tab);
+        oc_list_push_back(&debugger->tabs, &tab->listElt);
+        tab->scrollSpeed = 0.5;
+        tab->freshScroll = false;
+
+        debugger->selectedTab = tab;
+    }
+    return tab;
+}
+
 void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* node, int indent)
 {
     //TODO: use full path to disambiguate similarly named root dirs
@@ -611,16 +609,23 @@ void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* nod
         {
             if(oc_list_empty(node->children))
             {
-                debugger->selectedFile = node;
-                debugger->autoScroll = false;
-                debugger->freshScroll = true;
+                oc_debugger_code_tab* tab = debugger->selectedTab;
+                if(!tab)
+                {
+                    //alloc tab
+                    tab = oc_debugger_code_tab_alloc(debugger);
+                }
+                tab->selectedFile = node;
+                tab->autoScroll = false;
+                tab->freshScroll = true;
             }
             else
             {
                 node->expanded = !node->expanded;
             }
         }
-        if(node == debugger->selectedFile)
+
+        if(debugger->selectedTab && node == debugger->selectedTab->selectedFile)
         {
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
 
@@ -630,7 +635,7 @@ void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* nod
 
             f32 targetScroll = panel->scroll.y;
 
-            if(debugger->autoScroll)
+            if(debugger->selectedTab->autoScroll)
             {
                 f32 scrollMargin = panel->rect.h * 0.3;
 
@@ -904,14 +909,13 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     }
                     else
                     {
-                        oc_arena* valuesArena = &debugger->valuesArena[debugger->valuesArenaIndex];
-                        oc_str8 data = oc_str8_push_copy(valuesArena,
+                        oc_str8 data = oc_str8_push_copy(&debugger->debugArena,
                                                          (oc_str8){
                                                              .ptr = memory->ptr + addr,
                                                              .len = pointeeType->size,
                                                          });
 
-                        oc_debugger_value* pointee = debugger_build_value_tree(valuesArena, (oc_str8){ 0 }, strippedType->type, data, (oc_list){ 0 });
+                        oc_debugger_value* pointee = debugger_build_value_tree(&debugger->debugArena, (oc_str8){ 0 }, strippedType->type, data);
 
                         oc_list_push_back(&value->children, &pointee->listElt);
                     }
@@ -928,33 +932,36 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
     oc_scratch_end(scratch);
 }
 
-void oc_debugger_update(oc_debugger* debugger, oc_wasm_env* env)
+void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
 {
-    wa_interpreter* interpreter = env->interpreter;
+    debugger->selectedFrame = interpreter->controlStackTop;
 
-    wa_source_node* oldSelectedFile = debugger->selectedFile;
-    u64 oldSelectedFunction = debugger->selectedFunction;
+    oc_debugger_code_tab* tab = debugger->selectedTab;
 
-    //NOTE: select new function and file from current PC
+    if(tab)
     {
-        debugger->selectedFrame = interpreter->controlStackTop;
+        wa_source_node* oldSelectedFile = tab->selectedFile;
+        u64 oldSelectedFunction = tab->selectedFunction;
+
+        //NOTE: select new function and file from current PC in the current tab
+
         wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
-        debugger->selectedFunction = func - env->instance->functions;
+        tab->selectedFunction = func - interpreter->instance->functions;
 
         wa_warm_loc warmLoc = {
-            .module = env->module,
-            .funcIndex = debugger->selectedFunction,
+            .module = interpreter->instance->module,
+            .funcIndex = tab->selectedFunction,
             .codeIndex = interpreter->pc - func->code,
         };
-        wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
+        wa_line_loc lineLoc = wa_line_loc_from_warm_loc(interpreter->instance->module, warmLoc);
 
         if(lineLoc.fileIndex)
         {
             //TODO: faster lookup
-            debugger->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+            tab->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
 
             //NOTE: expand all parents of selected file
-            wa_source_node* parent = debugger->selectedFile->parent;
+            wa_source_node* parent = tab->selectedFile->parent;
             while(parent)
             {
                 parent->expanded = true;
@@ -963,25 +970,22 @@ void oc_debugger_update(oc_debugger* debugger, oc_wasm_env* env)
         }
 
         //NOTE: after pausing, set autoscroll mode
-        debugger->autoScroll = true;
-        debugger->autoScrollIndex = warmLoc.codeIndex;
-        debugger->autoScrollLine = lineLoc.line;
+        tab->autoScroll = true;
+        tab->autoScrollIndex = warmLoc.codeIndex;
+        tab->autoScrollLine = lineLoc.line;
 
-        if((debugger->showSymbols == true && debugger->selectedFunction != oldSelectedFunction)
-           || (debugger->showSymbols == false && debugger->selectedFile != oldSelectedFile))
+        if((tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY && tab->selectedFunction != oldSelectedFunction)
+           || (tab->mode == OC_DEBUGGER_CODE_TAB_SOURCE && tab->selectedFile != oldSelectedFile))
         {
-            debugger->scrollSpeed = 1;
-            debugger->freshScroll = true;
+            tab->scrollSpeed = 1;
+            tab->freshScroll = true;
         }
     }
 
     //NOTE: build variables value trees
+    oc_arena_clear(&debugger->debugArena);
 
-    debugger->valuesArenaIndex ^= 1;
-    oc_arena* valuesArena = &debugger->valuesArena[debugger->valuesArenaIndex];
-    oc_arena_clear(valuesArena);
-
-    debugger->locals = oc_arena_push_array(valuesArena, oc_list, env->interpreter->controlStackTop + 1);
+    debugger->locals = oc_arena_push_array(&debugger->debugArena, oc_list, interpreter->controlStackTop + 1);
 
     for(u64 frameIndex = 0; frameIndex <= interpreter->controlStackTop; frameIndex++)
     {
@@ -989,26 +993,21 @@ void oc_debugger_update(oc_debugger* debugger, oc_wasm_env* env)
         u64 funcIndex = func - interpreter->instance->functions;
         wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
 
-        oc_list oldLocals = { 0 };
-        /*
-        if(debugger->selectedFunction == oldSelectedFunction)
-        {
-            oldLocals = debugger->locals;
-        }
-        */
         wa_warm_loc warmLoc = {
             .module = interpreter->instance->module,
             .funcIndex = funcIndex,
             .codeIndex = (frameIndex == interpreter->controlStackTop) ? interpreter->pc - func->code
                                                                       : interpreter->controlStack[frameIndex + 1].returnPC - 3 - func->code,
         };
-        debugger->locals[frameIndex] = debugger_build_locals_tree(valuesArena, interpreter, warmLoc, oldLocals);
+        debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, warmLoc);
     }
 
     //WARN: here we only load globals from the top function's unit... this isn't necessarily what we want
     //TODO: see how we want to display globals
-    wa_debug_function* debugFunc = &env->module->debugInfo->functionLocals[debugger->selectedFunction];
-    debugger->globals = debugger_build_globals_tree(valuesArena, debugFunc->unit, interpreter, debugger->globals);
+    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = execFunc - interpreter->instance->functions;
+    wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
+    debugger->globals = debugger_build_globals_tree(&debugger->debugArena, debugFunc->unit, interpreter);
 }
 
 void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
@@ -1033,7 +1032,7 @@ void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
                 oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
                 oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
 
-                if(debugger->selectedFunction == funcIndex)
+                if(debugger->selectedTab && debugger->selectedTab->selectedFunction == funcIndex)
                 {
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
                 }
@@ -1048,9 +1047,15 @@ void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
                 oc_ui_sig sig = oc_ui_get_sig();
                 if(sig.pressed)
                 {
-                    debugger->selectedFunction = funcIndex;
-                    debugger->autoScroll = false;
-                    debugger->freshScroll = true;
+                    oc_debugger_code_tab* tab = debugger->selectedTab;
+                    if(!tab)
+                    {
+                        tab = oc_debugger_code_tab_alloc(debugger);
+                    }
+
+                    tab->selectedFunction = funcIndex;
+                    tab->autoScroll = false;
+                    tab->freshScroll = true;
                 }
             }
         }
@@ -1138,19 +1143,25 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
                     };
                     wa_line_loc lineLoc = wa_line_loc_from_warm_loc(interpreter->instance->module, warmLoc);
 
-                    wa_source_node* oldFile = debugger->selectedFile;
-                    debugger->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+                    oc_debugger_code_tab* tab = debugger->selectedTab;
+                    if(!tab)
+                    {
+                        tab = oc_debugger_code_tab_alloc(debugger);
+                    }
 
+                    wa_source_node* oldFile = tab->selectedFile;
+                    tab->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+                    tab->selectedFunction = func - interpreter->instance->functions;
                     //TODO: if there is no source file, or if we were deliberately in assembly mode, set
                     //      symbol rather than file
 
-                    debugger->autoScroll = true;
-                    debugger->autoScrollIndex = warmLoc.codeIndex;
-                    debugger->autoScrollLine = lineLoc.line;
+                    tab->autoScroll = true;
+                    tab->autoScrollIndex = warmLoc.codeIndex;
+                    tab->autoScrollLine = lineLoc.line;
 
-                    if(oldFile != debugger->selectedFile)
+                    if(oldFile != tab->selectedFile)
                     {
-                        debugger->freshScroll = true;
+                        tab->freshScroll = true;
                     }
                 }
             }
@@ -1164,25 +1175,36 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-    u32 funcIndex = execFunc - interpreter->instance->functions;
-    u32 codeIndex = interpreter->pc - execFunc->code;
+    wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
+    u32 funcIndex = func - interpreter->instance->functions;
+    u32 codeIndex = 0;
+    wa_value* locals = 0;
 
-    for(u64 regIndex = 0; regIndex < execFunc->maxRegCount; regIndex++)
+    if(debugger->selectedFrame == interpreter->controlStackTop)
     {
-        oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
+        codeIndex = interpreter->pc - func->code;
+        locals = interpreter->locals;
+    }
+    else
+    {
+        codeIndex = interpreter->controlStack[debugger->selectedFrame + 1].returnPC - 3 - func->code;
+        locals = interpreter->controlStack[debugger->selectedFrame + 1].returnFrame;
+    }
 
-        if(fresh || interpreter->cachedRegs[regIndex].valI64 != interpreter->locals[regIndex].valI64)
+    for(u64 regIndex = 0; regIndex < func->maxRegCount; regIndex++)
+    {
+        /*
+        if(fresh || interpreter->cachedRegs[regIndex].valI64 != locals[regIndex].valI64)
         {
             oc_ui_style_rule_str8(regId)
             {
                 oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_PRIMARY);
             }
         }
-
+        */
+        oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
         oc_str8 regText = { 0 };
 
-        //TODO: get types of register in oc_debugger_update
         wa_register_map* map = &interpreter->instance->module->debugInfo->registerMaps[funcIndex][regIndex];
 
         wa_value_type type = WA_TYPE_UNKNOWN;
@@ -1203,7 +1225,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu (i32) = %i",
                                         regIndex,
-                                        interpreter->locals[regIndex].valI32);
+                                        locals[regIndex].valI32);
             }
             break;
             case WA_TYPE_I64:
@@ -1211,7 +1233,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu (i64) = %lli",
                                         regIndex,
-                                        interpreter->locals[regIndex].valI64);
+                                        locals[regIndex].valI64);
             }
             break;
             case WA_TYPE_F32:
@@ -1219,7 +1241,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu (f32) = %f",
                                         regIndex,
-                                        interpreter->locals[regIndex].valF32);
+                                        locals[regIndex].valF32);
             }
             break;
             case WA_TYPE_F64:
@@ -1227,7 +1249,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu (f64) = %f",
                                         regIndex,
-                                        interpreter->locals[regIndex].valF64);
+                                        locals[regIndex].valF64);
             }
             break;
             case WA_TYPE_FUNC_REF:
@@ -1235,7 +1257,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu (funcref) = 0x%016llx",
                                         regIndex,
-                                        interpreter->locals[regIndex].valI64);
+                                        locals[regIndex].valI64);
             }
             break;
             case WA_TYPE_EXTERN_REF:
@@ -1243,7 +1265,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu (externref) = 0x%016llx",
                                         regIndex,
-                                        interpreter->locals[regIndex].valI64);
+                                        locals[regIndex].valI64);
             }
             break;
             default:
@@ -1251,7 +1273,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
                 regText = oc_str8_pushf(scratch.arena,
                                         "r%llu = 0x%016llx",
                                         regIndex,
-                                        interpreter->locals[regIndex].valI64);
+                                        locals[regIndex].valI64);
             }
             break;
         }
@@ -1290,16 +1312,16 @@ void oc_debugger_variables_view(oc_debugger* debugger, wa_interpreter* interpret
     }
 }
 
-void oc_debugger_code_view_autoscroll(oc_debugger* debugger, f32 scrollToY, f32 lineH)
+void oc_debugger_code_view_autoscroll(oc_debugger* debugger, oc_debugger_code_tab* tab, f32 scrollToY, f32 lineH)
 {
     oc_ui_box* codeView = oc_ui_box_top();
     f32 targetScroll = codeView->scroll.y;
 
-    if(debugger->autoScroll)
+    if(tab->autoScroll)
     {
         f32 scrollMargin = 80;
 
-        if(debugger->scrollSpeed == 1)
+        if(tab->scrollSpeed == 1)
         {
             scrollMargin = codeView->rect.h / 2;
         }
@@ -1313,25 +1335,25 @@ void oc_debugger_code_view_autoscroll(oc_debugger* debugger, f32 scrollToY, f32 
             targetScroll = scrollToY + lineH - codeView->rect.h + scrollMargin;
         }
     }
-    if(fabsf(targetScroll - codeView->scroll.y) > 300)
+    if(fabsf(targetScroll - codeView->scroll.y) > 200)
     {
-        f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -300, 300);
+        f32 delta = oc_clamp(targetScroll - codeView->scroll.y, -200, 200);
         codeView->scroll.y = targetScroll - delta;
     }
-    codeView->scroll.y += debugger->scrollSpeed * (targetScroll - codeView->scroll.y);
+    codeView->scroll.y += tab->scrollSpeed * (targetScroll - codeView->scroll.y);
 }
 
-void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interpreter)
+void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interpreter, oc_debugger_code_tab* tab)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
     f32 scrollToY = 0;
     f32 scrollLineH = 0;
 
-    if(debugger->selectedFunction >= 0)
+    if(tab->selectedFunction >= 0)
     {
-        wa_func* func = &interpreter->instance->functions[debugger->selectedFunction];
-        oc_str8 funcName = wa_module_get_function_name(interpreter->instance->module, debugger->selectedFunction);
+        wa_func* func = &interpreter->instance->functions[tab->selectedFunction];
+        oc_str8 funcName = wa_module_get_function_name(interpreter->instance->module, tab->selectedFunction);
 
         oc_ui_box* funcLabel = oc_ui_label_str8(OC_STR8("func-label"), funcName).box;
 
@@ -1358,7 +1380,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                     interpreter,
                     &(wa_warm_loc){
                         .module = interpreter->instance->module,
-                        .funcIndex = debugger->selectedFunction,
+                        .funcIndex = tab->selectedFunction,
                         .codeIndex = codeIndex,
                     });
 
@@ -1368,7 +1390,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                         interpreter,
                         &(wa_warm_loc){
                             .module = interpreter->instance->module,
-                            .funcIndex = debugger->selectedFunction,
+                            .funcIndex = tab->selectedFunction,
                             .codeIndex = codeIndex,
                         });
 
@@ -1393,21 +1415,28 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                     {
                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                        bool makeExecCursor = false;
-                        if(interpreter->instance)
+                        //NOTE: highlight callstack lines
+                        for(u64 frameIndex = 0; frameIndex <= interpreter->controlStackTop; frameIndex++)
                         {
-                            u32 index = interpreter->pc - func->code;
-                            wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-
-                            if(func == execFunc && index == codeIndex)
+                            if(func == interpreter->controlStack[frameIndex].func)
                             {
-                                makeExecCursor = true;
-                            }
-                        }
+                                wa_code* pc = (frameIndex == interpreter->controlStackTop)
+                                                ? interpreter->pc
+                                                : interpreter->controlStack[frameIndex + 1].returnPC - 3;
 
-                        if(makeExecCursor)
-                        {
-                            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                                if(pc - func->code == codeIndex)
+                                {
+                                    if(frameIndex == interpreter->controlStackTop)
+                                    {
+                                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                                    }
+                                    else
+                                    {
+                                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.4, 0.4, 1, OC_COLOR_SPACE_SRGB });
+                                    }
+                                    break;
+                                }
+                            }
                         }
 
                         // address
@@ -1442,7 +1471,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                                         interpreter,
                                         &(wa_warm_loc){
                                             .module = interpreter->instance->module,
-                                            .funcIndex = debugger->selectedFunction,
+                                            .funcIndex = tab->selectedFunction,
                                             .codeIndex = codeIndex,
                                         });
                                 }
@@ -1514,7 +1543,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                     }
 
                     //NOTE: auto-scroll
-                    if(codeIndex == debugger->autoScrollIndex)
+                    if(codeIndex == tab->autoScrollIndex)
                     {
                         scrollToY = lineY;
                         scrollLineH = lineH;
@@ -1548,19 +1577,23 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
         }
     }
 
-    oc_debugger_code_view_autoscroll(debugger, scrollToY, scrollLineH);
+    oc_debugger_code_view_autoscroll(debugger, tab, scrollToY, scrollLineH);
 
     oc_scratch_end(scratch);
 }
 
-void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
+void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter, oc_debugger_code_tab* tab)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
     f32 scrollToY = 0;
     f32 scrollLineH = 0;
 
-    wa_source_node* node = debugger->selectedFile;
+    wa_source_node* node = tab->selectedFile;
+    if(!node)
+    {
+        return;
+    }
 
     if(!node->contents.len)
     {
@@ -1607,17 +1640,11 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
 
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                bool makeExecCursor = false;
-                bool topCursor = false;
                 if(interpreter->instance)
                 {
-                    ////////////////////////////////////////////////:
-                    //TODO: haul that up
-                    ////////////////////////////////////////////////
-                    for(u32 i = 0; i <= interpreter->controlStackTop; i++)
+                    //NOTE: highlight callstack lines
+                    for(u64 frameIndex = 0; frameIndex <= interpreter->controlStackTop; frameIndex++)
                     {
-                        u32 frameIndex = interpreter->controlStackTop - i;
-
                         wa_func* func = interpreter->controlStack[frameIndex].func;
                         u64 funcIndex = func - interpreter->instance->functions;
                         u32 codeIndex = 0;
@@ -1640,25 +1667,16 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
 
                         if(node->index == loc.fileIndex && loc.line == lineNum)
                         {
-                            makeExecCursor = true;
                             if(frameIndex == interpreter->controlStackTop)
                             {
-                                topCursor = true;
+                                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
+                            }
+                            else
+                            {
+                                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.4, 0.4, 1, OC_COLOR_SPACE_SRGB });
                             }
                             break;
                         }
-                    }
-                }
-
-                if(makeExecCursor)
-                {
-                    if(topCursor)
-                    {
-                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
-                    }
-                    else
-                    {
-                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.4, 0.4, 1, OC_COLOR_SPACE_SRGB });
                     }
                 }
 
@@ -1713,7 +1731,7 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
                 oc_ui_label_str8(OC_STR8("line"), line);
             }
 
-            if(lineNum == debugger->autoScrollLine)
+            if(lineNum == tab->autoScrollLine)
             {
                 scrollToY = lineY;
                 scrollLineH = lineH;
@@ -1724,12 +1742,12 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter)
         }
     }
 
-    oc_debugger_code_view_autoscroll(debugger, scrollToY, scrollLineH);
+    oc_debugger_code_view_autoscroll(debugger, tab, scrollToY, scrollLineH);
 
     oc_scratch_end(scratch);
 }
 
-void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
+void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 {
     wa_interpreter* interpreter = env->interpreter;
 
@@ -1749,22 +1767,19 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
         oc_ui_style_set_i32(OC_UI_CONSTRAIN_X, 1);
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
 
-        debugger->scrollSpeed = 0.5;
-        debugger->freshScroll = false;
-
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
         //      if paused == false, vm thread can become paused during the frame, but we
         //      don't really care (we render cached state for this frame and will update next frame)
         bool paused = atomic_load(&env->paused);
 
-        u32 oldSelectedFunction = debugger->selectedFunction;
+        //        u32 oldSelectedFunction = debugger->selectedFunction;
 
         if(paused != env->prevPaused)
         {
             if(paused == true)
             {
                 //NOTE: vm thread has become paused since last frame
-                oc_debugger_update(debugger, env);
+                oc_debugger_update(debugger, env->interpreter);
             }
             env->prevPaused = paused;
         }
@@ -1907,39 +1922,146 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
             oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
 
-            oc_ui_box* codeView = oc_ui_box("code-view")
+            oc_debugger_code_tab* tab = debugger->selectedTab;
+
+            oc_ui_box("code-panel")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
-                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                if(debugger->freshScroll)
+                oc_ui_box("tabs")
                 {
-                    codeView->scroll.y = 0;
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_2);
+
+                    oc_list_for_indexed(debugger->tabs, it, oc_debugger_code_tab, listElt)
+                    {
+                        oc_debugger_code_tab* tab = it.elt;
+
+                        oc_str8 idStr = oc_str8_pushf(scratch.arena, "tab-%i", it.index);
+                        oc_str8 name = { 0 };
+
+                        if(tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY && tab->selectedFunction >= 0)
+                        {
+                            name = interpreter->instance->module->functionNames[tab->selectedFunction].name;
+                        }
+                        else if(tab->mode == OC_DEBUGGER_CODE_TAB_SOURCE && tab->selectedFile)
+                        {
+                            name = tab->selectedFile->name;
+                        }
+                        else
+                        {
+                            name = OC_STR8("Empty Tab");
+                        }
+
+                        oc_ui_box_str8(idStr)
+                        {
+                            oc_ui_set_text(name);
+
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                            oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                            oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                            oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                            oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                            oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                            oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                            oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                            if(tab == debugger->selectedTab)
+                            {
+                                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                            }
+                            else
+                            {
+                                oc_ui_style_rule(".hover")
+                                {
+                                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                                }
+                            }
+
+                            if(oc_ui_get_sig().pressed)
+                            {
+                                debugger->selectedTab = tab;
+                            }
+                        }
+                    }
+
+                    oc_ui_box("add-tab")
+                    {
+                        oc_ui_set_text(OC_STR8("+"));
+
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                        oc_ui_style_rule(".hover")
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                        }
+
+                        if(oc_ui_get_sig().pressed)
+                        {
+                            oc_debugger_code_tab_alloc(debugger);
+                        }
+                    }
                 }
 
-                if(debugger->showSymbols)
+                oc_ui_box* codeView = oc_ui_box("code-view")
                 {
-                    oc_debugger_assembly_view(debugger, interpreter);
-                }
-                else if(debugger->selectedFile)
-                {
-                    oc_debugger_source_view(debugger, interpreter);
-                }
-                debugger->lastScroll = codeView->scroll.y;
-                //NOTE: scroll might change (as a result of user action) at the end of the block
-            }
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                    oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+                    oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-            if(!debugger->freshScroll && fabs(debugger->lastScroll - codeView->scroll.y) > 1)
-            {
-                //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
-                OC_ASSERT(oc_ui_box_get_sig(codeView).wheel.y != 0);
-                debugger->autoScroll = false;
+                    //TODO: show/pick tabs
+
+                    if(tab)
+                    {
+                        if(tab->freshScroll)
+                        {
+                            codeView->scroll.y = 0;
+                        }
+
+                        switch(tab->mode)
+                        {
+                            case OC_DEBUGGER_CODE_TAB_ASSEMBLY:
+                                oc_debugger_assembly_view(debugger, interpreter, tab);
+                                break;
+                            case OC_DEBUGGER_CODE_TAB_SOURCE:
+                                oc_debugger_source_view(debugger, interpreter, tab);
+                                break;
+                        }
+                        tab->lastScroll = codeView->scroll.y;
+                        //NOTE: codeView scroll can change on end of block due to user input
+                    }
+                }
+                if(tab)
+                {
+                    if(!tab->freshScroll && fabs(tab->lastScroll - codeView->scroll.y) > 1)
+                    {
+                        //NOTE: if user has adjusted scroll manually, deactivate auto-scroll
+                        OC_ASSERT(oc_ui_box_get_sig(codeView).wheel.y != 0);
+                        tab->autoScroll = false;
+                    }
+                    tab->freshScroll = false;
+                    tab->scrollSpeed = 0.5;
+                }
             }
 
             oc_ui_box* inspector = oc_ui_box("inspector-view")
@@ -1962,7 +2084,7 @@ void debugger_ui_update(oc_debugger* debugger, oc_wasm_env* env)
                         oc_ui_label("title", "Registers:");
                         oc_ui_label("spacer", " ");
 
-                        oc_debugger_register_view(debugger, interpreter, debugger->selectedFunction != oldSelectedFunction);
+                        oc_debugger_register_view(debugger, interpreter, false); //TODO: pass fresh on file change
                     }
                     else
                     {

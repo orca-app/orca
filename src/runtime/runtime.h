@@ -68,6 +68,29 @@ typedef struct oc_debugger_value
 
 } oc_debugger_value;
 
+typedef enum oc_debugger_code_tab_mode
+{
+    OC_DEBUGGER_CODE_TAB_SOURCE,
+    OC_DEBUGGER_CODE_TAB_ASSEMBLY,
+} oc_debugger_code_tab_mode;
+
+typedef struct oc_debugger_code_tab
+{
+    oc_list_elt listElt;
+    oc_debugger_code_tab_mode mode;
+    wa_source_node* selectedFile;
+    i64 selectedFunction;
+
+    //TODO: cleanup scroll stuff
+    bool freshScroll;
+    bool autoScroll;
+    u64 autoScrollLine;
+    u64 autoScrollIndex;
+    f32 scrollSpeed;
+    f32 lastScroll;
+
+} oc_debugger_code_tab;
+
 typedef struct oc_debugger
 {
     bool init;
@@ -77,24 +100,16 @@ typedef struct oc_debugger
     oc_canvas_context canvas;
     oc_ui_context* ui;
 
-    wa_source_node* selectedFile;
-    i64 selectedFunction;
-    i64 selectedFrame;
-
-    bool showSymbols;
-    bool freshScroll;
-    bool autoScroll;
-    u64 autoScrollLine;
-    u64 autoScrollIndex;
-
-    f32 scrollSpeed;
-    f32 lastScroll;
-
     wa_source_node sourceTree;
+    i64 selectedFrame;
+    bool showSymbols;
 
-    oc_arena valuesArena[2];
-    u8 valuesArenaIndex;
+    oc_arena tabsArena;
+    oc_list tabsFreeList;
+    oc_list tabs;
+    oc_debugger_code_tab* selectedTab;
 
+    oc_arena debugArena;
     oc_list* locals;
     oc_list globals;
 
