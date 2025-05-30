@@ -8,7 +8,7 @@
 #include "hash.h"
 #include "platform/platform.h"
 
-//xxhash64, copy-pasted from https://github.com/demetri/scribbles/blob/master/hashing/hash_functions.c
+//xxhash64, copy-pasted from https://github.com/demetri/scribbles/blob/master/hashing/ub_aware_hash_functions.c
 // Thanks to Demetri Spanos
 
 uint64_t xxh_64(const void* key, int len, uint64_t h)
@@ -21,10 +21,11 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
     uint64_t s[4] = { h + p1 + p2, h + p2, h, h - p1 };
 
     // bulk work: process all 32 byte blocks
-    uint64_t* k32 = (uint64_t*)key;
-    for(int i = 0; i < (len / 32) * 4; i += 4)
+    for(int i = 0; i < (len / 32); i++)
     {
-        uint64_t b[4] = { k32[i + 0], k32[i + 1], k32[i + 2], k32[i + 3] };
+        uint64_t b[4];
+        memcpy(b, (const char*)key + 4 * i, sizeof(b));
+
         for(int j = 0; j < 4; j++)
             b[j] = b[j] * p2 + s[j];
         for(int j = 0; j < 4; j++)
@@ -45,10 +46,13 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
     s64 += len;
 
     // up to 31 bytes remain, process 0-3 8 byte blocks
-    uint8_t* tail = (uint8_t*)(((char*)key) + (len / 32) * 32);
+    uint8_t* tail = (uint8_t*)((const char*)key + (len / 32) * 32);
     for(int i = 0; i < (len & 31) / 8; i++, tail += 8)
     {
-        uint64_t b = (*((uint64_t*)tail)) * p2;
+        uint64_t b;
+        memcpy(&b, tail, sizeof(uint64_t));
+
+        b *= p2;
         b = (((b << 31) | (b >> 33)) * p1) ^ s64;
         s64 = ((b << 27) | (b >> 37)) * p1 + p4;
     }
@@ -56,7 +60,11 @@ uint64_t xxh_64(const void* key, int len, uint64_t h)
     // up to 7 bytes remain, process 0-1 4 byte block
     for(int i = 0; i < (len & 7) / 4; i++, tail += 4)
     {
-        uint64_t b = s64 ^ (*(uint32_t*)tail) * p1;
+        uint32_t b32;
+        memcpy(&b32, tail, sizeof(b32));
+        uint64_t b = b32;
+
+        b = (s64 ^ b) * p1;
         s64 = ((b << 23) | (b >> 41)) * p2 + p3;
     }
 

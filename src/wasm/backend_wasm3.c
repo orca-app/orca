@@ -399,7 +399,7 @@ oc_wasm_function_info oc_wasm_function_get_info(oc_arena* scratch, oc_wasm* wasm
     info.countParams = countParams;
     info.countReturns = countReturns;
     info.params = types;
-    info.returns = types + info.countParams;
+    info.returns = types ? types + info.countParams : 0;
 
     for(u32 i = 0; i < info.countParams; ++i)
     {

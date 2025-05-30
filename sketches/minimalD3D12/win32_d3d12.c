@@ -7,9 +7,7 @@
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
 #include <dxgidebug.h>
-#include <dwmapi.h >
-
-#define _USE_MATH_DEFINES
+#include <dwmapi.h>
 #include <math.h>
 #include <float.h>
 #include <string.h>
