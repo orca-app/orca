@@ -22,8 +22,9 @@ const CSources = struct {
     }
 
     fn collect(sources: *CSources, path: []const u8) !void {
+        const path_from_root = sources.b.pathFromRoot(path); // ensures if the user is in a subdir the path is correct
         const cwd: std.fs.Dir = sources.b.build_root.handle;
-        const dir: std.fs.Dir = try cwd.openDir(path, .{ .iterate = true });
+        const dir: std.fs.Dir = try cwd.openDir(path_from_root, .{ .iterate = true });
         var iter: std.fs.Dir.Iterator = dir.iterate();
         while (try iter.next()) |entry| {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".c")) {
@@ -57,24 +58,47 @@ fn pathExists(dir: std.fs.Dir, path: []const u8) bool {
     return true;
 }
 
+var HOME_PATH: []const u8 = "";
+fn homePath(target: Build.ResolvedTarget, allocator: std.mem.Allocator) []const u8 {
+    if (HOME_PATH.len == 0) {
+        if (target.result.os.tag == .windows) {
+            // TODO
+        } else if (target.result.os.tag.isDarwin()) {
+            var envmap: std.process.EnvMap = std.process.getEnvMap(allocator) catch @panic("OOM");
+            defer envmap.deinit();
+
+            if (envmap.get("HOME")) |path| {
+                HOME_PATH = allocator.dupe(u8, path) catch @panic("OOM");
+            } else {
+                @panic("Unable to find home directory - missing environment variable 'HOME'. Either set this envar or avoid using ~ in the path.");
+            }
+        } else {
+            unreachable; // unimplemented for the target OS
+        }
+    }
+    return HOME_PATH;
+}
+
 const LibShas = struct {
     angle: []const u8,
     dawn: []const u8,
 
     fn find(cwd: std.fs.Dir, allocator: std.mem.Allocator) !LibShas {
-        const BuildZon = struct {
-            const Dependencies = struct {
-                const Dependency = struct {
-                    url: []const u8,
-                };
+        const Helpers = struct {
+            fn findFieldIndex(ast: *const std.zig.Ast, current_node: u32, search: []const u8) ?u32 {
+                var buf: [2]std.zig.Ast.Node.Index = undefined;
+                if (ast.fullStructInit(&buf, current_node)) |struct_ast| {
+                    for (struct_ast.ast.fields) |i| {
+                        const field_name = ast.tokenSlice(ast.firstToken(i) - 2);
+                        if (std.mem.eql(u8, field_name, search)) {
+                            return i;
+                        }
+                    }
+                }
+                return null;
+            }
 
-                angle: Dependency,
-                dawn: Dependency,
-            };
-
-            dependencies: Dependencies,
-
-            // example URL: "https://chromium.googlesource.com/angle/angle.git/+archive/8a8c8fc280d74b34731e0e417b19bff7c967388a.tar.gz"
+            // "https://chromium.googlesource.com/angle/angle.git/+archive/8a8c8fc280d74b34731e0e417b19bff7c967388a.tar.gz"
             fn extractCommitFromUrl(url: []const u8) []const u8 {
                 const basename = std.fs.path.basename;
                 const stem = std.fs.path.stem;
@@ -82,18 +106,33 @@ const LibShas = struct {
             }
         };
 
-        const zon_data: []const u8 = try cwd.readFileAlloc(allocator, "build.zig.zon", 1024 * 1024 * 1);
-        const zon_data_z: [:0]u8 = @ptrCast(try allocator.alloc(u8, zon_data.len));
-        @memcpy(zon_data_z[0..zon_data.len], zon_data);
+        const contents: []const u8 = try cwd.readFileAlloc(allocator, "build.zig.zon", 1024 * 1024 * 1);
+        const contents_z = try allocator.alloc(u8, contents.len + 1);
+        @memcpy(contents_z[0..contents.len], contents);
+        contents_z[contents.len] = 0;
 
-        var status = std.zon.parse.Status{};
-        const zon = std.zon.parse.fromSlice(BuildZon, allocator, zon_data_z, &status, .{ .ignore_unknown_fields = true, .free_on_error = false }) catch |e| {
-            std.log.err("Failed to parse build.zig.zon. Error: {}. Status: {}", .{ e, status });
-            return e;
-        };
+        // NOTE: there will eventually be a ZON parser in the stdlib, but until then we'll just get by
+        // with a hacky version that only looks for the libs we care about
+        var ast = try std.zig.Ast.parse(allocator, contents_z[0..contents.len :0], .zon);
 
-        const angle_sha: []const u8 = BuildZon.extractCommitFromUrl(zon.dependencies.angle.url);
-        const dawn_sha: []const u8 = BuildZon.extractCommitFromUrl(zon.dependencies.dawn.url);
+        var angle_sha: []const u8 = "";
+        var dawn_sha: []const u8 = "";
+
+        const root_index = ast.nodes.items(.data)[0].lhs;
+        if (Helpers.findFieldIndex(&ast, root_index, "dependencies")) |deps_index| {
+            if (Helpers.findFieldIndex(&ast, deps_index, "angle")) |angle_index| {
+                if (Helpers.findFieldIndex(&ast, angle_index, "url")) |url_index| {
+                    const url = ast.tokenSlice(ast.nodes.items(.main_token)[url_index]);
+                    angle_sha = Helpers.extractCommitFromUrl(url);
+                }
+            }
+            if (Helpers.findFieldIndex(&ast, deps_index, "dawn")) |angle_index| {
+                if (Helpers.findFieldIndex(&ast, angle_index, "url")) |url_index| {
+                    const url = ast.tokenSlice(ast.nodes.items(.main_token)[url_index]);
+                    dawn_sha = Helpers.extractCommitFromUrl(url);
+                }
+            }
+        }
 
         return LibShas{
             .angle = angle_sha,
@@ -190,8 +229,8 @@ pub fn build(b: *Build) !void {
         b.resolveInstallPrefix(output_dir, default_install_dirs);
     }
 
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const target: Build.ResolvedTarget = b.standardTargetOptions(.{});
+    const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
 
     const compile_flag_min_macos_version: []const u8 = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
 
@@ -783,16 +822,17 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary("d3d11");
         orca_platform_lib.linkSystemLibrary("dcomp");
         orca_platform_lib.linkSystemLibrary("shcore");
-        // orca_platform_lib.linkSystemLibrary("delayimp");
         orca_platform_lib.linkSystemLibrary("dwmapi");
         orca_platform_lib.linkSystemLibrary("comctl32");
         orca_platform_lib.linkSystemLibrary("ole32");
         orca_platform_lib.linkSystemLibrary("shell32");
         orca_platform_lib.linkSystemLibrary("shlwapi");
 
-        orca_platform_lib.linkSystemLibrary("libEGL.dll"); // todo DELAYLOAD?
-        orca_platform_lib.linkSystemLibrary("libGLESv2.dll"); // todo DELAYLOAD?
-        orca_platform_lib.linkSystemLibrary("webgpu"); // todo DELAYLOAD?
+        // TODO delay load these the graphics libs
+        // orca_platform_lib.linkSystemLibrary("delayimp");
+        orca_platform_lib.linkSystemLibrary("libEGL.dll");
+        orca_platform_lib.linkSystemLibrary("libGLESv2.dll");
+        orca_platform_lib.linkSystemLibrary("webgpu");
     } else if (target.result.os.tag.isDarwin()) {
         orca_platform_lib.linkFramework("Carbon");
         orca_platform_lib.linkFramework("Cocoa");
@@ -800,8 +840,9 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkFramework("QuartzCore");
         orca_platform_lib.linkFramework("UniformTypeIdentifiers");
 
-        // TODO add @rpath stuff?
-        // orca_platform_lib.addRPath("@rpath");
+        orca_platform_lib.root_module.addRPathSpecial("@rpath/libEGL.dylib");
+        orca_platform_lib.root_module.addRPathSpecial("@rpath/libGLESv2.dylib");
+
         orca_platform_lib.linkSystemLibrary2("EGL", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
@@ -878,6 +919,8 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.addIncludePath(b.path("src/ext"));
     orca_runtime_exe.addIncludePath(b.path("build/angle.out/include"));
     orca_runtime_exe.addIncludePath(b.path("src/ext/wasm3/source"));
+
+    orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
 
     orca_runtime_exe.addCSourceFiles(.{
         .files = &.{"src/runtime.c"},
@@ -1130,12 +1173,21 @@ pub fn build(b: *Build) !void {
     const sdk_deps_install_path_opt = b.option([]const u8, "sdk-deps-path", "Specify absolute path for installing Orca SDK angle and dawn dependencies.");
 
     const SdkHelpers = struct {
-        fn addAbsolutePathArg(b_: *Build, run: *Build.Step.Run, prefix: []const u8, path: []const u8) void {
-            var path_absolute = path;
-            if (std.fs.path.isAbsolute(path_absolute) == false) {
-                path_absolute = b_.pathFromRoot(path);
+        fn addAbsolutePathArg(b_: *Build, target_: Build.ResolvedTarget, run: *Build.Step.Run, prefix: []const u8, path: []const u8) void {
+            if (path.len == 0) {
+                return;
             }
-            std.debug.assert(std.fs.path.isAbsolute(path_absolute));
+
+            var path_absolute: []const u8 = path;
+
+            if (std.fs.path.isAbsolute(path_absolute) == false) {
+                if (path_absolute[0] == '~') {
+                    const home: []const u8 = homePath(target_, b_.allocator);
+                    path_absolute = std.fs.path.join(b_.allocator, &.{ home, path_absolute[1..] }) catch @panic("OOM");
+                } else {
+                    path_absolute = b_.pathFromRoot(path); // TODO maybe use resolve instead??
+                }
+            }
 
             const sdk_path = std.mem.join(b_.allocator, "", &.{ prefix, path_absolute }) catch @panic("OOM");
             run.addArg(sdk_path);
@@ -1149,11 +1201,11 @@ pub fn build(b: *Build) !void {
     orca_install.addPrefixedFileArg("--src-path=", b.path("src"));
 
     if (sdk_install_path_opt) |sdk_install_path| {
-        SdkHelpers.addAbsolutePathArg(b, orca_install, "--sdk-path=", sdk_install_path);
+        SdkHelpers.addAbsolutePathArg(b, target, orca_install, "--sdk-path=", sdk_install_path);
     }
 
     if (sdk_deps_install_path_opt) |sdk_deps_install_path| {
-        SdkHelpers.addAbsolutePathArg(b, orca_install, "--sdk-deps-path=", sdk_deps_install_path);
+        SdkHelpers.addAbsolutePathArg(b, target, orca_install, "--sdk-deps-path=", sdk_deps_install_path);
     }
 
     if (git_version_opt) |git_version| {
@@ -1179,14 +1231,14 @@ pub fn build(b: *Build) !void {
     package_sdk_to_dir.addPrefixedFileArg("--src-path=", b.path("src"));
 
     if (sdk_install_path_opt) |sdk_install_path| {
-        SdkHelpers.addAbsolutePathArg(b, package_sdk_to_dir, "--sdk-path=", sdk_install_path);
+        SdkHelpers.addAbsolutePathArg(b, target, package_sdk_to_dir, "--sdk-path=", sdk_install_path);
     } else {
         const fail = b.addFail("package-sdk requires -Dsdk-path");
         package_sdk_to_dir.step.dependOn(&fail.step);
     }
 
     if (sdk_deps_install_path_opt) |sdk_deps_install_path| {
-        SdkHelpers.addAbsolutePathArg(b, package_sdk_to_dir, "--sdk-deps-path=", sdk_deps_install_path);
+        SdkHelpers.addAbsolutePathArg(b, target, package_sdk_to_dir, "--sdk-deps-path=", sdk_deps_install_path);
     }
 
     if (git_version_opt) |git_version| {
