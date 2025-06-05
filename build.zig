@@ -59,21 +59,25 @@ fn pathExists(dir: std.fs.Dir, path: []const u8) bool {
 }
 
 var HOME_PATH: []const u8 = "";
-fn homePath(target: Build.ResolvedTarget, allocator: std.mem.Allocator) []const u8 {
+fn homePath(target: Build.ResolvedTarget, b: *Build) []const u8 {
     if (HOME_PATH.len == 0) {
-        if (target.result.os.tag == .windows) {
-            // TODO
-        } else if (target.result.os.tag.isDarwin()) {
-            var envmap: std.process.EnvMap = std.process.getEnvMap(allocator) catch @panic("OOM");
-            defer envmap.deinit();
+        var envmap: std.process.EnvMap = std.process.getEnvMap(b.allocator) catch @panic("OOM");
+        defer envmap.deinit();
 
+        if (target.result.os.tag == .windows) {
+            if (envmap.get("HOMEDRIVE")) |home_drive| {
+                if (envmap.get("HOMEPATH")) |home_path| {
+                    HOME_PATH = b.pathJoin(&.{ home_drive, home_path });
+                }
+            }
+        } else if (target.result.os.tag.isDarwin()) {
             if (envmap.get("HOME")) |path| {
-                HOME_PATH = allocator.dupe(u8, path) catch @panic("OOM");
+                HOME_PATH = b.allocator.dupe(u8, path) catch @panic("OOM");
             } else {
                 @panic("Unable to find home directory - missing environment variable 'HOME'. Either set this envar or avoid using ~ in the path.");
             }
         } else {
-            unreachable; // unimplemented for the target OS
+            @panic("Unimplemented"); // unimplemented for the target OS
         }
     }
     return HOME_PATH;
@@ -84,21 +88,19 @@ const LibShas = struct {
     dawn: []const u8,
 
     fn find(cwd: std.fs.Dir, allocator: std.mem.Allocator) !LibShas {
-        const Helpers = struct {
-            fn findFieldIndex(ast: *const std.zig.Ast, current_node: u32, search: []const u8) ?u32 {
-                var buf: [2]std.zig.Ast.Node.Index = undefined;
-                if (ast.fullStructInit(&buf, current_node)) |struct_ast| {
-                    for (struct_ast.ast.fields) |i| {
-                        const field_name = ast.tokenSlice(ast.firstToken(i) - 2);
-                        if (std.mem.eql(u8, field_name, search)) {
-                            return i;
-                        }
-                    }
-                }
-                return null;
-            }
+        const BuildZon = struct {
+            const Dependencies = struct {
+                const Dependency = struct {
+                    url: []const u8,
+                };
 
-            // "https://chromium.googlesource.com/angle/angle.git/+archive/8a8c8fc280d74b34731e0e417b19bff7c967388a.tar.gz"
+                angle: Dependency,
+                dawn: Dependency,
+            };
+
+            dependencies: Dependencies,
+
+            // example URL: "https://chromium.googlesource.com/angle/angle.git/+archive/8a8c8fc280d74b34731e0e417b19bff7c967388a.tar.gz"
             fn extractCommitFromUrl(url: []const u8) []const u8 {
                 const basename = std.fs.path.basename;
                 const stem = std.fs.path.stem;
@@ -106,33 +108,18 @@ const LibShas = struct {
             }
         };
 
-        const contents: []const u8 = try cwd.readFileAlloc(allocator, "build.zig.zon", 1024 * 1024 * 1);
-        const contents_z = try allocator.alloc(u8, contents.len + 1);
-        @memcpy(contents_z[0..contents.len], contents);
-        contents_z[contents.len] = 0;
+        const zon_data: []const u8 = try cwd.readFileAlloc(allocator, "build.zig.zon", 1024 * 1024 * 1);
+        const zon_data_z: [:0]u8 = @ptrCast(try allocator.alloc(u8, zon_data.len));
+        @memcpy(zon_data_z[0..zon_data.len], zon_data);
 
-        // NOTE: there will eventually be a ZON parser in the stdlib, but until then we'll just get by
-        // with a hacky version that only looks for the libs we care about
-        var ast = try std.zig.Ast.parse(allocator, contents_z[0..contents.len :0], .zon);
+        var status = std.zon.parse.Status{};
+        const zon = std.zon.parse.fromSlice(BuildZon, allocator, zon_data_z, &status, .{ .ignore_unknown_fields = true, .free_on_error = false }) catch |e| {
+            std.log.err("Failed to parse build.zig.zon. Error: {}. Status: {}", .{ e, status });
+            return e;
+        };
 
-        var angle_sha: []const u8 = "";
-        var dawn_sha: []const u8 = "";
-
-        const root_index = ast.nodes.items(.data)[0].lhs;
-        if (Helpers.findFieldIndex(&ast, root_index, "dependencies")) |deps_index| {
-            if (Helpers.findFieldIndex(&ast, deps_index, "angle")) |angle_index| {
-                if (Helpers.findFieldIndex(&ast, angle_index, "url")) |url_index| {
-                    const url = ast.tokenSlice(ast.nodes.items(.main_token)[url_index]);
-                    angle_sha = Helpers.extractCommitFromUrl(url);
-                }
-            }
-            if (Helpers.findFieldIndex(&ast, deps_index, "dawn")) |angle_index| {
-                if (Helpers.findFieldIndex(&ast, angle_index, "url")) |url_index| {
-                    const url = ast.tokenSlice(ast.nodes.items(.main_token)[url_index]);
-                    dawn_sha = Helpers.extractCommitFromUrl(url);
-                }
-            }
-        }
+        const angle_sha: []const u8 = BuildZon.extractCommitFromUrl(zon.dependencies.angle.url);
+        const dawn_sha: []const u8 = BuildZon.extractCommitFromUrl(zon.dependencies.dawn.url);
 
         return LibShas{
             .angle = angle_sha,
@@ -1182,7 +1169,7 @@ pub fn build(b: *Build) !void {
 
             if (std.fs.path.isAbsolute(path_absolute) == false) {
                 if (path_absolute[0] == '~') {
-                    const home: []const u8 = homePath(target_, b_.allocator);
+                    const home: []const u8 = homePath(target_, b_);
                     path_absolute = std.fs.path.join(b_.allocator, &.{ home, path_absolute[1..] }) catch @panic("OOM");
                 } else {
                     path_absolute = b_.pathFromRoot(path); // TODO maybe use resolve instead??
