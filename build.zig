@@ -582,7 +582,7 @@ pub fn build(b: *Build) !void {
     build_dawn_step.dependOn(&run_dawn_build.step);
 
     /////////////////////////////////////////////////////////
-    // CI helper to print the desired angle/dawn shas to stdout
+    // CI helper to print the desired angle/dawn shas to stdout for the build-<lib>-<platform>.yml workflows
 
     const echo_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "echo",
