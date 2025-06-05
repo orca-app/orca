@@ -32,7 +32,7 @@ const Options = struct {
     arena: std.mem.Allocator,
     lib: Lib,
     commit_sha: []const u8,
-    check_only: bool,
+    is_ci: bool,
     optimize: std.builtin.OptimizeMode,
     paths: struct {
         python: []const u8,
@@ -45,7 +45,7 @@ const Options = struct {
     fn parse(args: []const [:0]const u8, arena: std.mem.Allocator) !Options {
         var lib: ?Lib = null;
         var commit_sha: ?[]const u8 = null;
-        var check_only: bool = false;
+        var is_ci: bool = false;
         var optimize: std.builtin.OptimizeMode = .ReleaseFast;
 
         var python: ?[]const u8 = null;
@@ -74,8 +74,8 @@ const Options = struct {
                 }
             } else if (std.mem.eql(u8, arg, "--sha")) {
                 commit_sha = splitIter.next();
-            } else if (std.mem.eql(u8, arg, "--check")) {
-                check_only = true;
+            } else if (std.mem.eql(u8, arg, "--ci")) {
+                is_ci = true;
             } else if (std.mem.eql(u8, arg, "--debug")) {
                 optimize = .Debug;
             } else if (std.mem.eql(u8, arg, "--python")) {
@@ -135,7 +135,7 @@ const Options = struct {
             .arena = arena,
             .lib = lib.?,
             .commit_sha = commit_sha.?,
-            .check_only = check_only,
+            .is_ci = is_ci,
             .optimize = optimize,
             .paths = .{
                 .python = python.?,
@@ -733,6 +733,14 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
     if (isLibUpToDate(&opts, .NoError)) {
+        return;
+    }
+
+    if (opts.is_ci) {
+        switch (opts.lib) {
+            .Angle => try buildAngle(&opts),
+            .Dawn => try buildDawn(&opts),
+        }
         return;
     }
 

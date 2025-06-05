@@ -54,7 +54,7 @@ jobs:
         if: steps.cache-dawn.outputs.cache-hit != 'true' || inputs.ignore-cache == 'true' 
         shell: cmd
         run: |
-          zig build dawn -Doptimize=ReleaseFast
+          zig build dawn -Doptimize=ReleaseFast -Dci=true
 
       - uses: actions/upload-artifact@v4
         with:

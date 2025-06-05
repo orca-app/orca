@@ -196,6 +196,7 @@ fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.St
 
 pub fn build(b: *Build) !void {
     const git_version_opt: ?[]const u8 = b.option([]const u8, "version", "Specify the specific git version you want to package") orelse null;
+    const is_ci: bool = b.option(bool, "ci", "Used in CI to tell the build system it's in a CI environment") orelse false;
 
     const cwd = b.build_root.handle;
 
@@ -544,14 +545,6 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = .Debug,
     });
-    // build_deps_exe.addIncludePath(b.path("src/ext/curl/include"));
-    // build_deps_exe.addIncludePath(b.path("src/ext/microtar"));
-    // build_deps_exe.linkLibrary(curl_lib);
-    // build_deps_exe.linkLibrary(z_lib);
-    // build_deps_exe.addCSourceFiles(.{
-    //     .files = &.{"src/ext/microtar/microtar.c"},
-    //     .flags = &.{},
-    // });
 
     /////////////////////////////////////////////////////////
     // angle build
@@ -563,6 +556,9 @@ pub fn build(b: *Build) !void {
     run_angle_build.addPrefixedFileArg("--orca-tool=", orca_tool_exe.getEmittedBin());
     RunHelpers.addPythonArg(run_angle_build, target, b);
     RunHelpers.addCmakeArg(run_angle_build, target, b);
+    if (is_ci) {
+        run_angle_build.addArg("--ci");
+    }
 
     const build_angle_step = b.step("angle", "Build Angle libs");
     build_angle_step.dependOn(&run_angle_build.step);
@@ -577,6 +573,9 @@ pub fn build(b: *Build) !void {
     run_dawn_build.addPrefixedFileArg("--orca-tool=", orca_tool_exe.getEmittedBin());
     RunHelpers.addPythonArg(run_dawn_build, target, b);
     RunHelpers.addCmakeArg(run_dawn_build, target, b);
+    if (is_ci) {
+        run_dawn_build.addArg("--ci");
+    }
 
     const build_dawn_step = b.step("dawn", "Build Dawn libs");
     build_dawn_step.dependOn(&run_dawn_build.step);
