@@ -84,7 +84,7 @@ typedef struct oc_debugger_code_tab
     //TODO: cleanup scroll stuff
     bool freshScroll;
     bool autoScroll;
-    u64 autoScrollLine;
+    u64 selectedLine;
     u64 autoScrollIndex;
     f32 scrollSpeed;
     f32 lastScroll;
@@ -102,7 +102,8 @@ typedef struct oc_debugger
 
     wa_source_node sourceTree;
     i64 selectedFrame;
-    bool showSymbols;
+    bool browseSymbols;
+    bool showRegisters;
 
     oc_arena tabsArena;
     oc_list tabsFreeList;

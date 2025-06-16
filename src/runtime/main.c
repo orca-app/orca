@@ -680,7 +680,7 @@ i32 control_runloop(void* user)
                             else if(event->key.keyCode == OC_KEY_N)
                             {
                                 //NOTE: signal vm thread to step
-                                if(app->debugger.showSymbols)
+                                if(app->debugger.selectedTab && app->debugger.selectedTab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY)
                                 {
                                     debugger_resume_with_command(app, OC_DEBUGGER_STEP);
                                 }

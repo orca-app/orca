@@ -972,7 +972,7 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
         //NOTE: after pausing, set autoscroll mode
         tab->autoScroll = true;
         tab->autoScrollIndex = warmLoc.codeIndex;
-        tab->autoScrollLine = lineLoc.line;
+        tab->selectedLine = lineLoc.line;
 
         if((tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY && tab->selectedFunction != oldSelectedFunction)
            || (tab->mode == OC_DEBUGGER_CODE_TAB_SOURCE && tab->selectedFile != oldSelectedFile))
@@ -1053,8 +1053,27 @@ void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
                         tab = oc_debugger_code_tab_alloc(debugger);
                     }
 
+                    //TODO: find source file for function
+                    ///////////////////////////////////////////////
+                    //TODO: guard against no debug info
+                    ///////////////////////////////////////////////
+                    //wa_debug_function* func = env->instance->debugInfo->functionLocals[funcIndex];
+                    //wa_debug_scope* body = &func->body.ranges[1];
+                    wa_warm_loc warmLoc = {
+                        .module = env->module,
+                        .funcIndex = funcIndex,
+                        .codeIndex = 0,
+                    };
+                    wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
+
+                    tab->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
                     tab->selectedFunction = funcIndex;
-                    tab->autoScroll = false;
+                    //TODO: if there is no source file, or if we were deliberately in assembly mode, set
+                    //      symbol rather than file
+
+                    tab->autoScroll = true;
+                    tab->autoScrollIndex = warmLoc.codeIndex;
+                    tab->selectedLine = lineLoc.line;
                     tab->freshScroll = true;
                 }
             }
@@ -1157,7 +1176,7 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
 
                     tab->autoScroll = true;
                     tab->autoScrollIndex = warmLoc.codeIndex;
-                    tab->autoScrollLine = lineLoc.line;
+                    tab->selectedLine = lineLoc.line;
 
                     if(oldFile != tab->selectedFile)
                     {
@@ -1640,7 +1659,12 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
 
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
-                if(interpreter->instance)
+                if(lineNum == tab->selectedLine)
+                {
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                }
+
+                if(interpreter->instance) //TODO: should be always the case?
                 {
                     //NOTE: highlight callstack lines
                     for(u64 frameIndex = 0; frameIndex <= interpreter->controlStackTop; frameIndex++)
@@ -1731,7 +1755,7 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
                 oc_ui_label_str8(OC_STR8("line"), line);
             }
 
-            if(lineNum == tab->autoScrollLine)
+            if(lineNum == tab->selectedLine)
             {
                 scrollToY = lineY;
                 scrollLineH = lineH;
@@ -1829,7 +1853,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 
                         if(oc_ui_get_sig().pressed)
                         {
-                            debugger->showSymbols = false;
+                            debugger->browseSymbols = false;
                         }
                     }
 
@@ -1850,11 +1874,11 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 
                         if(oc_ui_get_sig().pressed)
                         {
-                            debugger->showSymbols = true;
+                            debugger->browseSymbols = true;
                         }
                     }
 
-                    oc_ui_style_rule(debugger->showSymbols ? "option-symbols" : "option-files")
+                    oc_ui_style_rule(debugger->browseSymbols ? "option-symbols" : "option-files")
                     {
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
                     }
@@ -1870,7 +1894,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                    if(debugger->showSymbols)
+                    if(debugger->browseSymbols)
                     {
                         oc_debugger_symbol_browser(debugger, env);
                     }
@@ -1923,6 +1947,19 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
             oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
 
             oc_debugger_code_tab* tab = debugger->selectedTab;
+
+            if(tab)
+            {
+                oc_input_state* input = oc_ui_input();
+                i64 upCount = oc_key_press_count(input, OC_KEY_UP) + oc_key_repeat_count(input, OC_KEY_UP);
+                i64 downCount = oc_key_press_count(input, OC_KEY_DOWN) + oc_key_repeat_count(input, OC_KEY_DOWN);
+                i64 move = downCount - upCount;
+                if(move)
+                {
+                    tab->selectedLine = oc_clamp((i64)tab->selectedLine + move, 0, INT32_MAX);
+                    tab->autoScroll = true;
+                }
+            }
 
             oc_ui_box("code-panel")
             {
@@ -2033,6 +2070,13 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 
                     if(tab)
                     {
+                        if(oc_key_press_count(oc_ui_input(), OC_KEY_D) && oc_key_mods(oc_ui_input()) == OC_KEYMOD_SHIFT)
+                        {
+                            tab->mode = (tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY)
+                                          ? OC_DEBUGGER_CODE_TAB_SOURCE
+                                          : OC_DEBUGGER_CODE_TAB_ASSEMBLY;
+                        }
+
                         if(tab->freshScroll)
                         {
                             codeView->scroll.y = 0;
@@ -2079,7 +2123,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
                     oc_ui_style_set_f32(OC_UI_SPACING, 5);
 
-                    if(debugger->showSymbols)
+                    if(debugger->showRegisters)
                     {
                         oc_ui_label("title", "Registers:");
                         oc_ui_label("spacer", " ");
