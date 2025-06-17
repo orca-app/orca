@@ -65,8 +65,15 @@ wa_wasm_loc wa_wasm_loc_from_warm_loc(wa_warm_loc loc)
         result.module = loc.module;
         result.offset = instr->loc.start;
     }
+    OC_DEBUG_ASSERT(result.module);
+
     return (result);
 }
+
+/*NOTE:
+    - for each emitted warm opcode, we have a corresponding wasm loc (see wa_emit_opcode) stored in warmToWasmMap
+    - for each wasm instruction, we have a corresponding warm index (even if not an exact match) in wasmToWarmMap
+*/
 
 wa_warm_loc wa_warm_loc_from_wasm_loc(wa_wasm_loc loc)
 {
@@ -87,6 +94,7 @@ wa_warm_loc wa_warm_loc_from_wasm_loc(wa_wasm_loc loc)
             break;
         }
     }
+    OC_DEBUG_ASSERT(result.module);
 
     return (result);
 }
@@ -133,6 +141,7 @@ wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc)
             wasmLoc.offset = entry->wasmOffset;
         }
     }
+    //NOTE: we always have a wasm loc here, even if not an _exact_ match
 
     if(wasmLoc.module)
     {

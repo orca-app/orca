@@ -84,8 +84,10 @@ typedef struct oc_debugger_code_tab
     //TODO: cleanup scroll stuff
     bool freshScroll;
     bool autoScroll;
+
     u64 selectedLine;
-    u64 autoScrollIndex;
+    u64 selectedIndex;
+
     f32 scrollSpeed;
     f32 lastScroll;
 

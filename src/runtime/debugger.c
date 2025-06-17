@@ -957,7 +957,7 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
 
         if(lineLoc.fileIndex)
         {
-            //TODO: faster lookup
+            tab->mode = OC_DEBUGGER_CODE_TAB_SOURCE;
             tab->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
 
             //NOTE: expand all parents of selected file
@@ -968,10 +968,14 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
                 parent = parent->parent;
             }
         }
+        else
+        {
+            tab->mode = OC_DEBUGGER_CODE_TAB_ASSEMBLY;
+        }
 
         //NOTE: after pausing, set autoscroll mode
         tab->autoScroll = true;
-        tab->autoScrollIndex = warmLoc.codeIndex;
+        tab->selectedIndex = warmLoc.codeIndex;
         tab->selectedLine = lineLoc.line;
 
         if((tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY && tab->selectedFunction != oldSelectedFunction)
@@ -1072,7 +1076,7 @@ void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
                     //      symbol rather than file
 
                     tab->autoScroll = true;
-                    tab->autoScrollIndex = warmLoc.codeIndex;
+                    tab->selectedIndex = warmLoc.codeIndex;
                     tab->selectedLine = lineLoc.line;
                     tab->freshScroll = true;
                 }
@@ -1169,14 +1173,27 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
                     }
 
                     wa_source_node* oldFile = tab->selectedFile;
-                    tab->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
-                    tab->selectedFunction = func - interpreter->instance->functions;
+
+                    ////////////////////////////////////////////////////////////
+                    //TODO: coalesce with similar part of oc_debugger_update()
+                    ////////////////////////////////////////////////////////////
+
+                    if(lineLoc.fileIndex)
+                    {
+                        tab->mode = OC_DEBUGGER_CODE_TAB_SOURCE;
+                        tab->selectedFile = find_source_node(&debugger->sourceTree, lineLoc.fileIndex);
+                        tab->selectedLine = lineLoc.line;
+                    }
+                    else
+                    {
+                        tab->mode = OC_DEBUGGER_CODE_TAB_ASSEMBLY;
+                        tab->selectedFunction = func - interpreter->instance->functions;
+                        tab->selectedIndex = warmLoc.codeIndex;
+                    }
                     //TODO: if there is no source file, or if we were deliberately in assembly mode, set
                     //      symbol rather than file
 
                     tab->autoScroll = true;
-                    tab->autoScrollIndex = warmLoc.codeIndex;
-                    tab->selectedLine = lineLoc.line;
 
                     if(oldFile != tab->selectedFile)
                     {
@@ -1434,6 +1451,12 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                     {
                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
+                        //NOTE: highlight current "line".
+                        if(codeIndex == tab->selectedIndex)
+                        {
+                            oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
+                        }
+
                         //NOTE: highlight callstack lines
                         for(u64 frameIndex = 0; frameIndex <= interpreter->controlStackTop; frameIndex++)
                         {
@@ -1562,7 +1585,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                     }
 
                     //NOTE: auto-scroll
-                    if(codeIndex == tab->autoScrollIndex)
+                    if(codeIndex == tab->selectedIndex)
                     {
                         scrollToY = lineY;
                         scrollLineH = lineH;
@@ -1956,7 +1979,14 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                 i64 move = downCount - upCount;
                 if(move)
                 {
-                    tab->selectedLine = oc_clamp((i64)tab->selectedLine + move, 0, INT32_MAX);
+                    if(tab->mode == OC_DEBUGGER_CODE_TAB_SOURCE)
+                    {
+                        tab->selectedLine = oc_clamp((i64)tab->selectedLine + move, 0, INT32_MAX);
+                    }
+                    else
+                    {
+                        //TODO: in disassembly, we should move indices to next/prev _opcode_, which needs more logic
+                    }
                     tab->autoScroll = true;
                 }
             }
@@ -2066,15 +2096,39 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                     oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
 
-                    //TODO: show/pick tabs
-
                     if(tab)
                     {
                         if(oc_key_press_count(oc_ui_input(), OC_KEY_D) && oc_key_mods(oc_ui_input()) == OC_KEYMOD_SHIFT)
                         {
-                            tab->mode = (tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY)
-                                          ? OC_DEBUGGER_CODE_TAB_SOURCE
-                                          : OC_DEBUGGER_CODE_TAB_ASSEMBLY;
+                            //NOTE: toggles disassembly view
+
+                            /////////////////////////////////////////////////////////////////////////
+                            //TODO: - can tab's node be changed here?
+                            //      - are we guaranteed to fine a line/warm loc in all cases?
+                            /////////////////////////////////////////////////////////////////////////
+                            if(tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY)
+                            {
+                                wa_warm_loc warmLoc = {
+                                    .module = env->module,
+                                    .funcIndex = tab->selectedFunction,
+                                    .codeIndex = tab->selectedLine,
+                                };
+                                wa_line_loc lineLoc = wa_line_loc_from_warm_loc(env->module, warmLoc);
+
+                                tab->mode = OC_DEBUGGER_CODE_TAB_SOURCE;
+                                tab->selectedLine = lineLoc.line;
+                            }
+                            else
+                            {
+                                wa_line_loc lineLoc = {
+                                    .fileIndex = tab->selectedFile->index,
+                                    .line = tab->selectedLine,
+                                };
+                                wa_warm_loc warmLoc = wa_warm_loc_from_line_loc(env->module, lineLoc);
+
+                                tab->mode = OC_DEBUGGER_CODE_TAB_ASSEMBLY;
+                                tab->selectedLine = warmLoc.codeIndex;
+                            }
                         }
 
                         if(tab->freshScroll)
@@ -2108,34 +2162,97 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                 }
             }
 
-            oc_ui_box* inspector = oc_ui_box("inspector-view")
+            oc_ui_box("inspector-view")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
-                oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
-
-                if(env->paused)
+                oc_ui_box("tabs")
                 {
-                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
-                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
-                    oc_ui_style_set_f32(OC_UI_SPACING, 5);
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
 
-                    if(debugger->showRegisters)
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_2);
+
+                    oc_ui_box("option-vars")
                     {
-                        oc_ui_label("title", "Registers:");
-                        oc_ui_label("spacer", " ");
+                        oc_ui_set_text(OC_STR8("Variables"));
 
-                        oc_debugger_register_view(debugger, interpreter, false); //TODO: pass fresh on file change
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                        if(oc_ui_get_sig().pressed)
+                        {
+                            debugger->showRegisters = false;
+                        }
                     }
-                    else
-                    {
-                        oc_ui_label("title", "Variables:");
-                        oc_ui_label("spacer", " ");
 
-                        oc_debugger_variables_view(debugger, interpreter);
+                    oc_ui_box("option-regs")
+                    {
+                        oc_ui_set_text(OC_STR8("Registers"));
+
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_TEXT });
+                        oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_X, OC_UI_THEME_SPACING_TIGHT);
+                        oc_ui_style_set_var_str8(OC_UI_MARGIN_Y, OC_UI_THEME_SPACING_EXTRA_TIGHT);
+
+                        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+                        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 12);
+                        oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_0);
+
+                        if(oc_ui_get_sig().pressed)
+                        {
+                            debugger->showRegisters = true;
+                        }
+                    }
+
+                    oc_ui_style_rule(debugger->showRegisters ? "option-regs" : "option-vars")
+                    {
+                        oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_PRIMARY);
+                    }
+                }
+
+                oc_ui_box* inspector = oc_ui_box("inspector")
+                {
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                    oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
+
+                    oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
+
+                    if(env->paused)
+                    {
+                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+                        oc_ui_style_set_f32(OC_UI_SPACING, 5);
+
+                        if(debugger->showRegisters)
+                        {
+                            oc_ui_label("title", "Registers:");
+                            oc_ui_label("spacer", " ");
+
+                            oc_debugger_register_view(debugger, interpreter, false); //TODO: pass fresh on file change
+                        }
+                        else
+                        {
+                            oc_ui_label("title", "Variables:");
+                            oc_ui_label("spacer", " ");
+
+                            oc_debugger_variables_view(debugger, interpreter);
+                        }
                     }
                 }
             }
