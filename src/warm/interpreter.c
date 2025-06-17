@@ -2344,7 +2344,7 @@ void wa_print_stack_trace(wa_interpreter* interpreter)
 //-------------------------------------------------------------------------
 // debugger
 //-------------------------------------------------------------------------
-//TODO: move this in its own place
+//TODO: move this in its own place, probably the debugger instead of the interpreter
 
 typedef struct wa_breakpoint
 {
@@ -2352,27 +2352,16 @@ typedef struct wa_breakpoint
     bool isLine;
     wa_line_loc lineLoc;
     wa_warm_loc warmLoc;
-    wa_code savedOpcode;
 
 } wa_breakpoint;
 
-wa_breakpoint* wa_interpreter_find_breakpoint_any(wa_interpreter* interpreter, wa_warm_loc* loc)
+typedef struct wa_trap
 {
-    wa_breakpoint* result = 0;
-
-    oc_list_for(interpreter->breakpoints, bp, wa_breakpoint, listElt)
-    {
-        if(bp->warmLoc.module == loc->module
-           && bp->warmLoc.funcIndex == loc->funcIndex
-           && bp->warmLoc.codeIndex == loc->codeIndex)
-        {
-            result = bp;
-            break;
-        }
-    }
-
-    return result;
-}
+    oc_list_elt listElt;
+    wa_warm_loc loc;
+    wa_code savedOpcode;
+    u64 count;
+} wa_trap;
 
 wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc)
 {
@@ -2393,27 +2382,6 @@ wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_wa
     return result;
 }
 
-wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc)
-{
-    wa_breakpoint* bp = wa_interpreter_find_breakpoint(interpreter, loc);
-    if(bp == 0)
-    {
-        bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
-        if(!bp)
-        {
-            bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
-        }
-        bp->isLine = false;
-        bp->warmLoc = *loc;
-        oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
-
-        wa_func* func = &interpreter->instance->functions[bp->warmLoc.funcIndex];
-        bp->savedOpcode = func->code[bp->warmLoc.codeIndex];
-        func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
-    }
-    return bp;
-}
-
 wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc)
 {
     wa_breakpoint* result = 0;
@@ -2432,6 +2400,84 @@ wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, 
     return result;
 }
 
+wa_trap* wa_interpreter_find_trap(wa_interpreter* interpreter, wa_warm_loc* loc)
+{
+    wa_trap* result = 0;
+
+    oc_list_for(interpreter->traps, trap, wa_trap, listElt)
+    {
+        if(trap->loc.module == loc->module
+           && trap->loc.funcIndex == loc->funcIndex
+           && trap->loc.codeIndex == loc->codeIndex)
+        {
+            result = trap;
+            break;
+        }
+    }
+
+    return result;
+}
+
+void wa_interpreter_add_trap(wa_interpreter* interpreter, wa_warm_loc* loc)
+{
+    wa_trap* trap = wa_interpreter_find_trap(interpreter, loc);
+    if(!trap)
+    {
+        trap = oc_list_pop_front_entry(&interpreter->trapFreeList, wa_trap, listElt);
+        if(!trap)
+        {
+            trap = oc_arena_push_type(&interpreter->arena, wa_trap);
+        }
+        else
+        {
+            memset(trap, 0, sizeof(wa_trap));
+        }
+        trap->loc = *loc;
+        oc_list_push_back(&interpreter->traps, &trap->listElt);
+
+        wa_func* func = &interpreter->instance->functions[trap->loc.funcIndex];
+        trap->savedOpcode = func->code[trap->loc.codeIndex];
+        func->code[trap->loc.codeIndex].opcode = WA_INSTR_breakpoint;
+    }
+    trap->count++;
+}
+
+void wa_interpreter_remove_trap(wa_interpreter* interpreter, wa_warm_loc* loc)
+{
+    wa_trap* trap = wa_interpreter_find_trap(interpreter, loc);
+    if(trap)
+    {
+        trap->count--;
+        if(trap->count == 0)
+        {
+            wa_func* func = &interpreter->instance->functions[trap->loc.funcIndex];
+            func->code[trap->loc.codeIndex] = trap->savedOpcode;
+
+            oc_list_remove(&interpreter->traps, &trap->listElt);
+            oc_list_push_front(&interpreter->trapFreeList, &trap->listElt);
+        }
+    }
+}
+
+wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc)
+{
+    wa_breakpoint* bp = wa_interpreter_find_breakpoint(interpreter, loc);
+    if(bp == 0)
+    {
+        bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
+        if(!bp)
+        {
+            bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
+        }
+        bp->isLine = false;
+        bp->warmLoc = *loc;
+        oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
+
+        wa_interpreter_add_trap(interpreter, loc);
+    }
+    return bp;
+}
+
 wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
 wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
 
@@ -2444,19 +2490,17 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
                                                         *loc);
         if(warmLoc.module)
         {
+
             bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
             if(!bp)
             {
                 bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
             }
             bp->isLine = true;
-            bp->warmLoc = warmLoc;
             bp->lineLoc = *loc;
             oc_list_push_back(&interpreter->breakpoints, &bp->listElt);
 
-            wa_func* func = &interpreter->instance->functions[bp->warmLoc.funcIndex];
-            bp->savedOpcode = func->code[bp->warmLoc.codeIndex];
-            func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
+            wa_interpreter_add_trap(interpreter, &warmLoc);
         }
     }
     return bp;
@@ -2464,16 +2508,25 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp)
 {
-    wa_func* func = &interpreter->instance->functions[bp->warmLoc.funcIndex];
-    func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
+    wa_warm_loc loc = { 0 };
+    if(bp->isLine)
+    {
+        loc = wa_warm_loc_from_line_loc(interpreter->instance->module,
+                                        bp->lineLoc);
+    }
+    else
+    {
+        loc = bp->warmLoc;
+    }
+    wa_interpreter_remove_trap(interpreter, &loc);
 
     oc_list_remove(&interpreter->breakpoints, &bp->listElt);
     oc_list_push_back(&interpreter->breakpointFreeList, &bp->listElt);
 }
 
-wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp)
+wa_instr_op wa_trap_saved_opcode(wa_trap* trap)
 {
-    return bp->savedOpcode.opcode;
+    return trap->savedOpcode.opcode;
 }
 
 void wa_interpreter_cache_registers(wa_interpreter* interpreter)
@@ -2496,7 +2549,7 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
     u64 funcIndex = func - interpreter->instance->functions;
 
-    wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
+    wa_trap* trap = wa_interpreter_find_trap(
         interpreter,
         &(wa_warm_loc){
             .module = interpreter->instance->module,
@@ -2504,14 +2557,14 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
             .codeIndex = interpreter->pc - func->code,
         });
 
-    if(bp)
+    if(trap)
     {
-        func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
+        func->code[trap->loc.codeIndex] = trap->savedOpcode;
 
         wa_status status = wa_interpreter_run(interpreter, true);
         //TODO: check if program terminated
 
-        func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
+        func->code[trap->loc.codeIndex].opcode = WA_INSTR_breakpoint;
     }
 
     return wa_interpreter_run(interpreter, false);
@@ -2524,7 +2577,7 @@ wa_status wa_interpreter_step(wa_interpreter* interpreter)
     wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
     u64 funcIndex = func - interpreter->instance->functions;
 
-    wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
+    wa_trap* trap = wa_interpreter_find_trap(
         interpreter,
         &(wa_warm_loc){
             .module = interpreter->instance->module,
@@ -2532,16 +2585,16 @@ wa_status wa_interpreter_step(wa_interpreter* interpreter)
             .codeIndex = interpreter->pc - func->code,
         });
 
-    if(bp)
+    if(trap)
     {
-        func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
+        func->code[trap->loc.codeIndex] = trap->savedOpcode;
     }
 
     wa_status status = wa_interpreter_run(interpreter, true);
 
-    if(bp)
+    if(trap)
     {
-        func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
+        func->code[trap->loc.codeIndex].opcode = WA_INSTR_breakpoint;
     }
 
     return status;
@@ -2568,7 +2621,7 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
     while((lineLoc.fileIndex == startLoc.fileIndex && lineLoc.line == startLoc.line)
           || lineLoc.line == 0)
     {
-        wa_breakpoint* bp = wa_interpreter_find_breakpoint_any(
+        wa_trap* trap = wa_interpreter_find_trap(
             interpreter,
             &(wa_warm_loc){
                 .module = interpreter->instance->module,
@@ -2576,16 +2629,16 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
                 .codeIndex = interpreter->pc - func->code,
             });
 
-        if(bp)
+        if(trap)
         {
-            func->code[bp->warmLoc.codeIndex] = bp->savedOpcode;
+            func->code[trap->loc.codeIndex] = trap->savedOpcode;
         }
 
         status = wa_interpreter_run(interpreter, true);
 
-        if(bp)
+        if(trap)
         {
-            func->code[bp->warmLoc.codeIndex].opcode = WA_INSTR_breakpoint;
+            func->code[trap->loc.codeIndex].opcode = WA_INSTR_breakpoint;
         }
 
         if(status != WA_TRAP_STEP && status != WA_TRAP_BREAKPOINT)

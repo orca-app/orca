@@ -260,6 +260,7 @@ static inline bool wa_status_is_fail(wa_status status)
 // Debugger
 
 typedef struct wa_breakpoint wa_breakpoint;
+typedef struct wa_trap wa_trap;
 
 typedef struct wa_warm_loc
 {

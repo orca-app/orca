@@ -542,12 +542,6 @@ void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
     oc_stroke();
 }
 
-////////////////////////////////////////////////////////////////////////////:
-//TODO: declare this guy somewhere more appropriate
-wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
-
-/////////////////////////////////////////////////////////////////////////////
-
 oc_debugger_code_tab* oc_debugger_code_tab_alloc(oc_debugger* debugger)
 {
     oc_debugger_code_tab* tab = oc_list_pop_front_entry(&debugger->tabsFreeList, oc_debugger_code_tab, listElt);
@@ -1422,7 +1416,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
 
                 //TODO: should probably not intertwine modified bytecode and UI like that?
                 {
-                    wa_breakpoint* anyBreakpoint = wa_interpreter_find_breakpoint_any(
+                    wa_trap* trap = wa_interpreter_find_trap(
                         interpreter,
                         &(wa_warm_loc){
                             .module = interpreter->instance->module,
@@ -1430,10 +1424,9 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                             .codeIndex = codeIndex,
                         });
 
-                    if(anyBreakpoint)
+                    if(trap)
                     {
-                        //TODO: find _any_ breakpoint (could be a line one) that might modify opcodes
-                        opcode = wa_breakpoint_saved_opcode(anyBreakpoint);
+                        opcode = wa_trap_saved_opcode(trap);
                     }
                 }
 
@@ -2233,6 +2226,9 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
+                    /////////////////////////////////////////////////////////////////////////////////////////////
+                    //TODO: there's a race here, env->pause can be set by creating a breakpoint earlier...
+                    /////////////////////////////////////////////////////////////////////////////////////////////
                     if(env->paused)
                     {
                         oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);

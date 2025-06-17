@@ -368,6 +368,8 @@ typedef struct wa_interpreter
     oc_arena arena;
     oc_list breakpoints;
     oc_list breakpointFreeList;
+    oc_list traps;
+    oc_list trapFreeList;
 
     wa_code cachedRegs[WA_MAX_REG];
 
@@ -380,7 +382,10 @@ wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, 
 
 wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
-wa_instr_op wa_breakpoint_saved_opcode(wa_breakpoint* bp);
+
+wa_trap* wa_interpreter_find_trap(wa_interpreter* interpreter, wa_warm_loc* loc);
+wa_instr_op wa_trap_saved_opcode(wa_trap* trap);
+
 void wa_interpreter_cache_registers(wa_interpreter* interpreter);
 wa_status wa_interpreter_continue(wa_interpreter* interpreter);
 wa_status wa_interpreter_step(wa_interpreter* interpreter);
