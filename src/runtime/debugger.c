@@ -1947,7 +1947,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                     oc_ui_label("spacer", " ");
                 }
 
-                if(env->paused)
+                if(paused)
                 {
                     oc_debugger_callstack_ui(debugger, interpreter);
                 }
@@ -2229,7 +2229,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                     /////////////////////////////////////////////////////////////////////////////////////////////
                     //TODO: there's a race here, env->pause can be set by creating a breakpoint earlier...
                     /////////////////////////////////////////////////////////////////////////////////////////////
-                    if(env->paused)
+                    if(paused)
                     {
                         oc_ui_style_set_f32(OC_UI_MARGIN_X, 5);
                         oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
