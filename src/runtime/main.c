@@ -196,15 +196,27 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
             }
             break;
 
-            case OC_DEBUGGER_STEP:
+            case OC_DEBUGGER_INSTR_STEP_IN:
             {
-                status = wa_interpreter_step(interpreter);
+                status = wa_interpreter_instr_step_in(interpreter);
             }
             break;
 
-            case OC_DEBUGGER_STEP_LINE:
+            case OC_DEBUGGER_LINE_STEP_IN:
             {
-                status = wa_interpreter_step_line(interpreter);
+                status = wa_interpreter_line_step_in(interpreter);
+            }
+            break;
+
+            case OC_DEBUGGER_INSTR_STEP_OVER:
+            {
+                status = wa_interpreter_instr_step_over(interpreter);
+            }
+            break;
+
+            case OC_DEBUGGER_LINE_STEP_OVER:
+            {
+                status = wa_interpreter_line_step_over(interpreter);
             }
             break;
 
@@ -679,14 +691,25 @@ i32 control_runloop(void* user)
                             }
                             else if(event->key.keyCode == OC_KEY_N)
                             {
-                                //NOTE: signal vm thread to step
+                                //NOTE: signal vm thread to step over
                                 if(app->debugger.selectedTab && app->debugger.selectedTab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY)
                                 {
-                                    debugger_resume_with_command(app, OC_DEBUGGER_STEP);
+                                    debugger_resume_with_command(app, OC_DEBUGGER_INSTR_STEP_OVER);
                                 }
                                 else
                                 {
-                                    debugger_resume_with_command(app, OC_DEBUGGER_STEP_LINE);
+                                    debugger_resume_with_command(app, OC_DEBUGGER_LINE_STEP_OVER);
+                                }
+                            }
+                            else if(event->key.keyCode == OC_KEY_I)
+                            {
+                                if(app->debugger.selectedTab && app->debugger.selectedTab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY)
+                                {
+                                    debugger_resume_with_command(app, OC_DEBUGGER_INSTR_STEP_IN);
+                                }
+                                else
+                                {
+                                    debugger_resume_with_command(app, OC_DEBUGGER_LINE_STEP_IN);
                                 }
                             }
                             else if(event->key.keyCode == OC_KEY_P

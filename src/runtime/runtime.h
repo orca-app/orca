@@ -183,8 +183,10 @@ const oc_export_desc OC_EXPORT_DESC[] = {
 typedef enum oc_debugger_command
 {
     OC_DEBUGGER_CONTINUE,
-    OC_DEBUGGER_STEP,
-    OC_DEBUGGER_STEP_LINE,
+    OC_DEBUGGER_INSTR_STEP_OVER,
+    OC_DEBUGGER_LINE_STEP_OVER,
+    OC_DEBUGGER_INSTR_STEP_IN,
+    OC_DEBUGGER_LINE_STEP_IN,
     OC_DEBUGGER_QUIT,
 } oc_debugger_command;
 

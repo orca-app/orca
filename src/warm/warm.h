@@ -337,6 +337,7 @@ typedef struct wa_control
     wa_func* func;
     wa_code* returnPC;
     wa_value* returnFrame;
+    bool returnTrap;
 } wa_control;
 
 enum
@@ -388,6 +389,4 @@ wa_instr_op wa_trap_saved_opcode(wa_trap* trap);
 
 void wa_interpreter_cache_registers(wa_interpreter* interpreter);
 wa_status wa_interpreter_continue(wa_interpreter* interpreter);
-wa_status wa_interpreter_step(wa_interpreter* interpreter);
-wa_status wa_interpreter_step_line(wa_interpreter* interpreter);
 void wa_interpreter_suspend(wa_interpreter* interpreter);

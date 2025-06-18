@@ -588,6 +588,10 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                         memPtr = memory->ptr;
                     }
                 }
+                if(control.returnTrap)
+                {
+                    return WA_TRAP_STEP;
+                }
             }
             break;
 
@@ -2570,7 +2574,7 @@ wa_status wa_interpreter_continue(wa_interpreter* interpreter)
     return wa_interpreter_run(interpreter, false);
 }
 
-wa_status wa_interpreter_step(wa_interpreter* interpreter)
+wa_status wa_interpreter_instr_step_in(wa_interpreter* interpreter)
 {
     wa_interpreter_cache_registers(interpreter);
 
@@ -2600,7 +2604,7 @@ wa_status wa_interpreter_step(wa_interpreter* interpreter)
     return status;
 }
 
-wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
+wa_status wa_interpreter_line_step_in(wa_interpreter* interpreter)
 {
     wa_interpreter_cache_registers(interpreter);
 
@@ -2658,6 +2662,78 @@ wa_status wa_interpreter_step_line(wa_interpreter* interpreter)
             });
     }
 
+    return status;
+}
+
+wa_status wa_interpreter_instr_step_over(wa_interpreter* interpreter)
+{
+    u64 oldStackTop = interpreter->controlStackTop;
+
+    //NOTE: first step in
+    wa_status status = wa_interpreter_instr_step_in(interpreter);
+
+    if(status == WA_TRAP_STEP && interpreter->controlStackTop > oldStackTop)
+    {
+        //NOTE: we stepped in a new function call. Now mark the frame and continue
+        interpreter->controlStack[interpreter->controlStackTop].returnTrap = true;
+        status = wa_interpreter_run(interpreter, false);
+    }
+    return status;
+}
+
+wa_status wa_interpreter_line_step_over(wa_interpreter* interpreter)
+{
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
+
+    wa_line_loc startLoc = wa_line_loc_from_warm_loc(
+        interpreter->instance->module,
+        (wa_warm_loc){
+            .module = interpreter->instance->module,
+            .funcIndex = funcIndex,
+            .codeIndex = interpreter->pc - func->code,
+        });
+
+    u64 oldStackTop = interpreter->controlStackTop;
+
+    //NOTE: first line step in
+    wa_status status = wa_interpreter_line_step_in(interpreter);
+
+    if(status == WA_TRAP_STEP && interpreter->controlStackTop > oldStackTop)
+    {
+        //NOTE: we stepped in a new function call. Now mark the frame and continue
+        interpreter->controlStack[interpreter->controlStackTop].returnTrap = true;
+        status = wa_interpreter_run(interpreter, false);
+
+        //NOTE: if we're back to the same line (because there are still instructions to complete the call line), step to
+        // the next line
+        if(status == WA_TRAP_STEP)
+        {
+            OC_ASSERT(interpreter->controlStackTop == oldStackTop);
+
+            func = interpreter->controlStack[interpreter->controlStackTop].func;
+            funcIndex = func - interpreter->instance->functions;
+
+            wa_line_loc lineLoc = wa_line_loc_from_warm_loc(
+                interpreter->instance->module,
+                (wa_warm_loc){
+                    .module = interpreter->instance->module,
+                    .funcIndex = funcIndex,
+                    .codeIndex = interpreter->pc - func->code,
+                });
+
+            if((lineLoc.fileIndex == startLoc.fileIndex && lineLoc.line == startLoc.line)
+               || lineLoc.line == 0)
+            {
+                status = wa_interpreter_line_step_in(interpreter);
+            }
+        }
+        else
+        {
+            //NOTE: we trapped before returning from the called frame. Unmark it.
+            interpreter->controlStack[oldStackTop + 1].returnTrap = false;
+        }
+    }
     return status;
 }
 
