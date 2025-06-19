@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __GRAPHICS_BACKENDS_H_
-#define __GRAPHICS_BACKENDS_H_
+#pragma once
 
 #include "platform/platform.h"
 
@@ -124,5 +123,3 @@ typedef enum
     OC_SURFACE_CANVAS = 1 << 31,
 
 } oc_surface_api;
-
-#endif //__GRAPHICS_BACKENDS_H_

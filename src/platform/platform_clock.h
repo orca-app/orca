@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __PLATFORM_CLOCK_H_
-#define __PLATFORM_CLOCK_H_
+#pragma once
 
 #include "platform.h"
 #include "util/typedefs.h"
@@ -31,5 +30,3 @@ ORCA_API f64 oc_clock_time(oc_clock_kind clock);
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus
-
-#endif //__PLATFORM_CLOCK_H_

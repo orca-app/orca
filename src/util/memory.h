@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __MEMORY_H_
-#define __MEMORY_H_
+#pragma once
 
 #include "platform/platform_memory.h"
 #include "util/lists.h"
@@ -56,6 +55,9 @@ ORCA_API void oc_arena_cleanup(oc_arena* arena);
 
 ORCA_API void* oc_arena_push(oc_arena* arena, u64 size);
 ORCA_API void* oc_arena_push_aligned(oc_arena* arena, u64 size, u32 alignment);
+ORCA_API void* oc_arena_push_uninitialized(oc_arena* arena, u64 size);
+ORCA_API void* oc_arena_push_aligned_uninitialized(oc_arena* arena, u64 size, u32 alignment);
+
 ORCA_API void oc_arena_clear(oc_arena* arena);
 
 ORCA_API oc_arena_scope oc_arena_scope_begin(oc_arena* arena);
@@ -63,6 +65,8 @@ ORCA_API void oc_arena_scope_end(oc_arena_scope scope);
 
 #define oc_arena_push_type(arena, type) ((type*)oc_arena_push_aligned(arena, sizeof(type), _Alignof(type)))
 #define oc_arena_push_array(arena, type, count) ((type*)oc_arena_push_aligned(arena, sizeof(type) * (count), _Alignof(type)))
+#define oc_arena_push_type_uninitialized(arena, type) ((type*)oc_arena_push_aligned_uninitialized(arena, sizeof(type), _Alignof(type)))
+#define oc_arena_push_array_uninitialized(arena, type, count) ((type*)oc_arena_push_aligned_uninitialized(arena, sizeof(type) * (count), _Alignof(type)))
 
 static inline void* oc_arena_push_zero(oc_arena* arena, u64 size)
 {
@@ -119,5 +123,3 @@ ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__MEMORY_H_

@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __PLATFORM_H_
-#define __PLATFORM_H_
+#pragma once
 
 //-----------------------------------------------------------------
 // Compiler identification
@@ -133,5 +131,3 @@ ORCA_API oc_host_platform oc_get_host_platform(void);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif // __PLATFORM_H_

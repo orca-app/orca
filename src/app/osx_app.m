@@ -6,7 +6,8 @@
 *
 **************************************************************************/
 
-#import <QuartzCore/QuartzCore.h> //CATransaction
+#import <QuartzCore/QuartzCore.h>                         //CATransaction
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h> // for file dialog
 
 #include <stdlib.h> // malloc/free
 
@@ -861,6 +862,16 @@ static void oc_process_mouse_button(NSEvent* nsEvent, oc_window_data* window, oc
     [self mouseMoved:nsEvent];
 }
 
+- (void)rightMouseDragged:(NSEvent*)nsEvent
+{
+    [self mouseMoved:nsEvent];
+}
+
+- (void)otherMouseDragged:(NSEvent*)nsEvent
+{
+    [self mouseMoved:nsEvent];
+}
+
 - (void)mouseMoved:(NSEvent*)nsEvent
 {
     NSPoint p = [self convertPoint:[nsEvent locationInWindow] fromView:nil];
@@ -1442,14 +1453,19 @@ void oc_window_destroy(oc_window window)
         {
             [windowData->osx.nsWindow orderOut:nil];
 
+            //            [windowData->osx.nsView setWantsLayer:NO];
+            //            [windowData->osx.nsView setLayer:nil];
+            [windowData->osx.nsView removeFromSuperview];
+            [windowData->osx.nsView release];
+            windowData->osx.nsView = nil;
+
             [windowData->osx.nsWindow setDelegate:nil];
             [windowData->osx.nsWindowDelegate release];
             windowData->osx.nsWindowDelegate = nil;
 
-            [windowData->osx.nsView release];
-            windowData->osx.nsView = nil;
+            [windowData->osx.nsWindow close]; //also autoreleases the window
 
-            [windowData->osx.nsWindow close]; //also release the window
+            //TODO: we should invalidate the window surfaces still attached here
 
             oc_window_recycle_ptr(windowData);
         }
@@ -1829,6 +1845,28 @@ i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc
 // system dialogs windows
 //--------------------------------------------------------------------
 
+@interface OCOpenSavePanelDelegate : NSObject <NSOpenSavePanelDelegate>
+{
+}
+@end
+
+@implementation OCOpenSavePanelDelegate
+
+- (BOOL)panel:(id)sender shouldEnableURL:(NSURL*)url
+{
+    UTType* fileType = [UTType typeWithFilenameExtension:[url pathExtension]];
+    if(!fileType)
+    {
+        return YES;
+    }
+    else
+    {
+        return [[sender allowedContentTypes] containsObject:fileType];
+    }
+}
+
+@end
+
 ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
 {
     __block oc_file_dialog_result result = { 0 };
@@ -1921,9 +1959,14 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
               {
                   oc_str8 string = elt->string;
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
-                  [fileTypesArray addObject:filter];
+                  UTType* type = [UTType typeWithFilenameExtension:filter];
+                  [fileTypesArray addObject:type];
               }
               [dialog setAllowedContentTypes:fileTypesArray];
+
+              //NOTE: set delegate. This is needed for filters to actually work as expected.
+              OCOpenSavePanelDelegate* delegate = [[OCOpenSavePanelDelegate alloc] init];
+              [dialog setDelegate:delegate];
           }
 
           // Display the dialog box. If the OK pressed,

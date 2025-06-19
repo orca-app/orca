@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __STRINGS_H_
-#define __STRINGS_H_
+#pragma once
 
 #include "debug.h"
 #include "lists.h"
@@ -41,9 +40,9 @@ typedef struct oc_str8
 #define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? strlen(s) : 0 })
 
 //NOTE: this only works with string literals, but is sometimes necessary to generate compile-time constants
-#define OC_STR8_LIT(s)            \
-    {                             \
-        (char*)(s), sizeof(s) - 1 \
+#define OC_STR8_LIT(s)                          \
+    {                                           \
+        .ptr = (char*)(s), .len = sizeof(s) - 1 \
     }
 
 #define oc_str8_lp(s) ((s).len), ((s).ptr)
@@ -174,5 +173,3 @@ ORCA_API oc_str32_list oc_str32_split(oc_arena* arena, oc_str32 str, oc_str32_li
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__STRINGS_H_

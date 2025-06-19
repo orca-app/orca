@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __RUNTIME_MEMORY_H_
-#define __RUNTIME_MEMORY_H_
+#pragma once
 
 #include "wasm/wasm.h"
 
@@ -94,5 +93,3 @@ typedef struct oc_wasm_str8_list
 //------------------------------------------------------------------------------------
 
 oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size);
-
-#endif //__RUNTIME_MEMORY_H_

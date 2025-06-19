@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __INPUT_STATE_H_
-#define __INPUT_STATE_H_
+#pragma once
 
 #include "app/app.h"
 #include "platform/platform.h"
@@ -120,5 +119,3 @@ ORCA_API oc_keymod_flags oc_key_mods(oc_input_state* state);
 #ifdef __cplusplus
 }
 #endif
-
-#endif //__INPUT_STATE_H_

@@ -407,7 +407,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
     oc_font_data* font = oc_list_pop_front_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
     if(!font)
     {
-        font = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_font_data);
+        font = oc_arena_push_type_uninitialized(&oc_graphicsData.resourceArena, oc_font_data);
     }
     if(font)
     {
@@ -585,7 +585,7 @@ oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range*
     oc_arena_scope scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
-    char* buffer = oc_arena_push(scratch.arena, size);
+    char* buffer = oc_arena_push_uninitialized(scratch.arena, size);
     u64 read = oc_file_read(file, size, buffer);
 
     if(read != size)
@@ -681,7 +681,7 @@ oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 b
 
 oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints)
 {
-    u32* buffer = oc_arena_push_array(arena, u32, codePoints.len);
+    u32* buffer = oc_arena_push_array_uninitialized(arena, u32, codePoints.len);
     oc_str32 backing = { .ptr = buffer, .len = codePoints.len };
     return (oc_font_get_glyph_indices(font, codePoints, backing));
 }
@@ -954,7 +954,7 @@ oc_canvas_context oc_canvas_context_create()
     oc_canvas_context_data* context = oc_list_pop_front_entry(&oc_graphicsData.canvasFreeList, oc_canvas_context_data, freeListElt);
     if(!context)
     {
-        context = oc_arena_push_type(&oc_graphicsData.resourceArena, oc_canvas_context_data);
+        context = oc_arena_push_type_uninitialized(&oc_graphicsData.resourceArena, oc_canvas_context_data);
     }
     if(context)
     {
@@ -1740,8 +1740,16 @@ void oc_rectangle_fill(f32 x, f32 y, f32 w, f32 h)
 
 void oc_rectangle_stroke(f32 x, f32 y, f32 w, f32 h)
 {
-    oc_rectangle_path(x, y, w, h);
-    oc_stroke();
+    oc_canvas_context_data* context = oc_currentCanvasContext;
+    if(context)
+    {
+        f32 oldExcursion = context->attributes.maxJointExcursion;
+        context->attributes.maxJointExcursion = 2 * context->attributes.width;
+        oc_rectangle_path(x, y, w, h);
+        oc_stroke();
+
+        context->attributes.maxJointExcursion = oldExcursion;
+    }
 }
 
 void oc_rounded_rectangle_path(f32 x, f32 y, f32 w, f32 h, f32 r)
@@ -1900,7 +1908,7 @@ oc_image oc_image_create_from_file(oc_canvas_renderer renderer, oc_file file, bo
     oc_arena_scope scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
-    char* buffer = oc_arena_push(scratch.arena, size);
+    char* buffer = oc_arena_push_uninitialized(scratch.arena, size);
     u64 read = oc_file_read(file, size, buffer);
 
     if(read != size)
@@ -1987,7 +1995,6 @@ typedef struct oc_rect_atlas
 oc_rect_atlas* oc_rect_atlas_create(oc_arena* arena, i32 width, i32 height)
 {
     oc_rect_atlas* atlas = oc_arena_push_type(arena, oc_rect_atlas);
-    memset(atlas, 0, sizeof(oc_rect_atlas));
     atlas->arena = arena;
     atlas->size = (oc_vec2i){ width, height };
     return (atlas);
@@ -2058,7 +2065,7 @@ oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image ba
     oc_arena_scope scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
-    char* buffer = oc_arena_push(scratch.arena, size);
+    char* buffer = oc_arena_push_uninitialized(scratch.arena, size);
     u64 read = oc_file_read(file, size, buffer);
 
     if(read != size)

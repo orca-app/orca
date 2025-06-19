@@ -402,7 +402,6 @@ oc_wasm* oc_wasm_create(void)
     oc_arena_init(&arena);
 
     oc_wasm* wasm = oc_arena_push_type(&arena, oc_wasm);
-    memset(wasm, 0, sizeof(oc_wasm));
 
     wasm->arena = arena;
     oc_list_init(&wasm->bindings);

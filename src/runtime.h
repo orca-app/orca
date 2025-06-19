@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __RUNTIME_H_
-#define __RUNTIME_H_
+#pragma once
 
 #include "platform/platform_io_internal.h"
 #include "runtime_memory.h"
@@ -96,7 +95,7 @@ typedef struct oc_debug_overlay
 
     oc_font fontReg;
     oc_font fontBold;
-    oc_ui_context ui;
+    oc_ui_context* ui;
 
     oc_arena logArena;
     oc_list logEntries;
@@ -144,5 +143,3 @@ void oc_assert_fail_dialog(const char* file, const char* function, int line, con
         }                                                                                                           \
     }                                                                                                               \
     while(0)
-
-#endif //__RUNTIME_H_

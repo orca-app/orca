@@ -5,8 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#ifndef __GRAPHICS_SURFACE_H_
-#define __GRAPHICS_SURFACE_H_
+#pragma once
 
 #include "platform/platform.h"
 
@@ -72,5 +71,3 @@ void oc_surface_base_set_hidden(oc_surface_base* surface, bool hidden);
 #ifdef __cplusplus
 } // extern "C"
 #endif
-
-#endif //__GRAPHICS_SURFACE_H_

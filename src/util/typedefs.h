@@ -5,9 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-
-#ifndef __TYPEDEFS_H_
-#define __TYPEDEFS_H_
+#pragma once
 
 #include <float.h> //FLT_MAX/MIN etc...
 #include <stddef.h>
@@ -101,5 +99,3 @@ typedef union
 
     f32 c[4];
 } oc_rect;
-
-#endif //__TYPEDEFS_H_

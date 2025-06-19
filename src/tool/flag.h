@@ -11,21 +11,20 @@
 //   Inspired by Go's flag module: https://pkg.go.dev/flag
 //
 
-#ifndef __FLAG_H_
-    #define __FLAG_H_
+#pragma once
 
-    #include <assert.h>
-    #include <ctype.h>
-    #include <stdio.h>
-    #include <stdlib.h>
-    #include <stdbool.h>
-    #include <stdint.h>
-    #include <stddef.h>
-    #include <limits.h>
-    #include <string.h>
-    #include <errno.h>
+#include <assert.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stddef.h>
+#include <limits.h>
+#include <string.h>
+#include <errno.h>
 
-    #include "orca.h"
+#include "orca.h"
 
 // TODO: *_var function variants
 // void flag_bool_var(bool *var, const char *name, bool def, const char *desc);
@@ -92,9 +91,9 @@ typedef struct
     bool chosen;
 } Flag_Command;
 
-    #ifndef FLAGS_CAP
-        #define FLAGS_CAP 256
-    #endif
+#ifndef FLAGS_CAP
+    #define FLAGS_CAP 256
+#endif
 
 typedef struct
 {
@@ -136,7 +135,7 @@ void flag_print_usage(Flag_Context* c, const char* prefix, FILE* stream);
 
 //////////////////////////////
 
-    #ifdef FLAG_IMPLEMENTATION
+#ifdef FLAG_IMPLEMENTATION
 
 oc_str8 oc_str8_toupper_inplace(oc_str8 str)
 {
@@ -799,9 +798,7 @@ void flag_print_error(Flag_Context* c, FILE* stream)
     }
 }
 
-    #endif
-
-#endif // __FLAG_H_
+#endif
 
 // Original copyright notice:
 

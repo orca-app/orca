@@ -419,43 +419,44 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
                                              { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } }
     };
 
-    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                     .size.height = { OC_UI_SIZE_CHILDREN },
-                                     .layout.axis = OC_UI_AXIS_Y,
-                                     .layout.margin.x = 10,
-                                     .layout.margin.y = 5,
-                                     .bgColor = bgColors[entry->level][entry->recordIndex & 1] },
-                     OC_UI_STYLE_SIZE
-                         | OC_UI_STYLE_LAYOUT_AXIS
-                         | OC_UI_STYLE_LAYOUT_MARGINS
-                         | OC_UI_STYLE_BG_COLOR);
-
     oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
 
-    oc_ui_container_str8(key, OC_UI_FLAG_DRAW_BACKGROUND)
+    oc_ui_box_str8(key)
     {
-        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                         .size.height = { OC_UI_SIZE_CHILDREN },
-                                         .layout.axis = OC_UI_AXIS_X },
-                         OC_UI_STYLE_SIZE
-                             | OC_UI_STYLE_LAYOUT_AXIS);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+        oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+        oc_ui_style_set_color(OC_UI_BG_COLOR, bgColors[entry->level][entry->recordIndex & 1]);
 
-        oc_ui_container("header", 0)
+        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+        oc_ui_box("header")
         {
-            oc_ui_style_next(&(oc_ui_style){ .color = levelColors[entry->level],
-                                             .font = overlay->fontBold },
-                             OC_UI_STYLE_COLOR
-                                 | OC_UI_STYLE_FONT);
-            oc_ui_label(levelNames[entry->level]);
+            oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+
+            oc_ui_style_rule("level")
+            {
+                oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
+
+                oc_ui_style_set_color(OC_UI_COLOR, levelColors[entry->level]);
+                oc_ui_style_set_font(OC_UI_FONT, overlay->fontBold);
+            }
+            oc_ui_label("level", levelNames[entry->level]);
 
             oc_str8 loc = oc_str8_pushf(scratch.arena,
                                         "%.*s() in %.*s:%i:",
                                         oc_str8_ip(entry->function),
                                         oc_str8_ip(entry->file),
                                         entry->line);
-            oc_ui_label_str8(loc);
+            oc_ui_label_str8(OC_STR8("loc"), loc);
         }
-        oc_ui_label_str8(entry->msg);
+        oc_ui_label_str8(OC_STR8("msg"), entry->msg);
     }
     oc_scratch_end(scratch);
 }
@@ -681,7 +682,7 @@ i32 orca_runloop(void* user)
         OC_WASM_TRAP(status);
     }
 
-    oc_ui_set_context(&app->debugOverlay.ui);
+    oc_ui_set_context(app->debugOverlay.ui);
 
     while(!app->quit)
     {
@@ -866,67 +867,37 @@ i32 orca_runloop(void* user)
             //TODO: only move if it's not already on the front?
             oc_surface_bring_to_front(app->debugOverlay.surface);
 
-            oc_ui_style debugUIDefaultStyle = { .bgColor = { 0 },
-                                                .color = { 1, 1, 1, 1 },
-                                                .font = app->debugOverlay.fontReg,
-                                                .fontSize = 16,
-                                                .borderColor = { 1, 0, 0, 1 },
-                                                .borderSize = 2 };
-
-            oc_ui_style_mask debugUIDefaultMask = OC_UI_STYLE_BG_COLOR
-                                                | OC_UI_STYLE_COLOR
-                                                | OC_UI_STYLE_BORDER_COLOR
-                                                | OC_UI_STYLE_BORDER_SIZE
-                                                | OC_UI_STYLE_FONT
-                                                | OC_UI_STYLE_FONT_SIZE;
-
             oc_vec2 frameSize = oc_surface_get_size(app->debugOverlay.surface);
 
-            oc_ui_frame(frameSize, &debugUIDefaultStyle, debugUIDefaultMask)
+            oc_ui_frame(frameSize)
             {
-                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
-                                 OC_UI_STYLE_SIZE);
+                oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0 });
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-                oc_ui_container("overlay area", 0)
+                oc_ui_box("overlay-area")
                 {
-                    //...
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.6, 1 });
                 }
 
-                oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                 .size.height = { OC_UI_SIZE_PARENT, 0.4 },
-                                                 .layout.axis = OC_UI_AXIS_Y,
-                                                 .bgColor = { 0, 0, 0, 0.5 } },
-                                 OC_UI_STYLE_SIZE
-                                     | OC_UI_STYLE_LAYOUT_AXIS
-                                     | OC_UI_STYLE_BG_COLOR);
-
-                oc_ui_container("log console", OC_UI_FLAG_DRAW_BACKGROUND)
+                oc_ui_box("log console")
                 {
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                     .size.height = { OC_UI_SIZE_CHILDREN },
-                                                     .layout.axis = OC_UI_AXIS_X,
-                                                     .layout.spacing = 10,
-                                                     .layout.margin.x = 10,
-                                                     .layout.margin.y = 10 },
-                                     OC_UI_STYLE_SIZE
-                                         | OC_UI_STYLE_LAYOUT);
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.4 });
+                    oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                    oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+                    oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 0.5 });
 
-                    oc_ui_container("log toolbar", 0)
+                    oc_ui_box("log toolbar")
                     {
-                        oc_ui_style buttonStyle = { .layout.margin.x = 4,
-                                                    .layout.margin.y = 4,
-                                                    .roundness = 2,
-                                                    .bgColor = { 0, 0, 0, 0.5 },
-                                                    .color = { 1, 1, 1, 1 } };
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                        oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
+                        oc_ui_style_set_f32(OC_UI_SPACING, 10);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                        oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
 
-                        oc_ui_style_mask buttonStyleMask = OC_UI_STYLE_LAYOUT_MARGINS
-                                                         | OC_UI_STYLE_ROUNDNESS
-                                                         | OC_UI_STYLE_BG_COLOR
-                                                         | OC_UI_STYLE_COLOR;
-
-                        oc_ui_style_match_after(oc_ui_pattern_all(), &buttonStyle, buttonStyleMask);
-                        if(oc_ui_button("Clear").clicked)
+                        if(oc_ui_button("clear", "Clear").clicked)
                         {
                             oc_list_for_safe(app->debugOverlay.logEntries, entry, log_entry, listElt)
                             {
@@ -937,44 +908,30 @@ i32 orca_runloop(void* user)
                         }
                     }
 
-                    oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                     .size.height = { OC_UI_SIZE_PARENT, 1, 1 } },
-                                     OC_UI_STYLE_SIZE);
-
-                    //TODO: this is annoying to have to do that. Basically there's another 'contents' box inside oc_ui_panel,
-                    //      and we need to change that to size according to its parent (whereas the default is sizing according
-                    //      to its children)
-                    oc_ui_pattern pattern = { 0 };
-                    oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_OWNER });
-                    oc_ui_pattern_push(scratch.arena, &pattern, (oc_ui_selector){ .kind = OC_UI_SEL_TEXT, .text = OC_STR8("contents") });
-                    oc_ui_style_match_after(pattern, &(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 } }, OC_UI_STYLE_SIZE_WIDTH);
-
-                    oc_ui_box* panel = oc_ui_box_lookup("log view");
                     f32 scrollY = 0;
-                    if(panel)
+
+                    oc_ui_box* panel = oc_ui_box("log-view")
                     {
                         scrollY = panel->scroll.y;
-                    }
 
-                    oc_ui_panel("log view", OC_UI_FLAG_SCROLL_WHEEL_Y)
-                    {
-                        panel = oc_ui_box_top()->parent;
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
+                        oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_SCROLL);
 
-                        oc_ui_style_next(&(oc_ui_style){ .size.width = { OC_UI_SIZE_PARENT, 1 },
-                                                         .size.height = { OC_UI_SIZE_CHILDREN },
-                                                         .layout.axis = OC_UI_AXIS_Y,
-                                                         .layout.margin.y = 5 },
-                                         OC_UI_STYLE_SIZE
-                                             | OC_UI_STYLE_LAYOUT_AXIS);
-
-                        oc_ui_container("contents", 0)
+                        oc_ui_box("contents")
                         {
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
+
                             oc_list_for(app->debugOverlay.logEntries, entry, log_entry, listElt)
                             {
                                 log_entry_ui(&app->debugOverlay, entry);
                             }
                         }
                     }
+
                     if(app->debugOverlay.logScrollToLast)
                     {
                         if(panel->scroll.y >= scrollY)
@@ -1070,7 +1027,7 @@ int main(int argc, char** argv)
         oc_surface_swap_interval(app->debugOverlay.surface, 1);
 #endif
     */
-        oc_ui_init(&app->debugOverlay.ui);
+        app->debugOverlay.ui = oc_ui_context_create(app->debugOverlay.fontReg);
 
         //NOTE: show window and start runloop
         oc_window_bring_to_front(app->window);
