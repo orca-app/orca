@@ -1875,7 +1875,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_push",
-                    "doc": "Allocate a block of memory from an arena.",
+                    "doc": "Allocate a zero initialized block of memory from an arena.",
                     "return": {
                         "kind": "pointer",
                         "type": {
@@ -1907,6 +1907,77 @@
                 {
                     "kind": "proc",
                     "name": "oc_arena_push_aligned",
+                    "doc": "Allocate an aligned, zero initialized block of memory from an arena.",
+                    "return": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "void"
+                        },
+                        "doc": "A pointer to the allocated memory"
+                    },
+                    "params": [
+                        {
+                            "name": "arena",
+                            "doc": "An arena to allocate memory from.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        },
+                        {
+                            "name": "size",
+                            "doc": "The size of the memory to allocate, in bytes.",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        },
+                        {
+                            "name": "alignment",
+                            "doc": "The desired alignment of the memory block, in bytes",
+                            "type": {
+                                "kind": "u32"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_arena_push_uninitialized",
+                    "doc": "Allocate a block of memory from an arena.",
+                    "return": {
+                        "kind": "pointer",
+                        "type": {
+                            "kind": "void"
+                        },
+                        "doc": "A pointer to the allocated memory."
+                    },
+                    "params": [
+                        {
+                            "name": "arena",
+                            "doc": "An arena to allocate memory from.",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        },
+                        {
+                            "name": "size",
+                            "doc": "The size of the memory to allocate, in bytes.",
+                            "type": {
+                                "kind": "u64"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_arena_push_aligned_uninitialized",
                     "doc": "Allocate an aligned block of memory from an arena.",
                     "return": {
                         "kind": "pointer",
@@ -2048,7 +2119,7 @@
                 },
                 {
                     "kind": "macro",
-                    "doc": "Allocate a type from an arena. This macro takes care of the memory alignment and type cast.",
+                    "doc": "Allocate a zero initialized type from an arena. This macro takes care of the memory alignment and type cast.",
                     "name": "oc_arena_push_type",
                     "params": [
                         {
@@ -2068,6 +2139,47 @@
                 {
                     "kind": "macro",
                     "name": "oc_arena_push_array",
+                    "doc": "Allocate a zero initialized array from an arena. This macro takes care of the size calculation, memory alignment and type cast.",
+                    "params": [
+                        {
+                            "name": "arena",
+                            "doc": "The arena to allocate from."
+                        },
+                        {
+                            "name": "type",
+                            "doc": "The type of the array's elements."
+                        },
+                        {
+                            "name": "count",
+                            "doc": "The number of element in the array."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the allocated array."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "doc": "Allocate a type from an arena. This macro takes care of the memory alignment and type cast.",
+                    "name": "oc_arena_push_type_uninitialized",
+                    "params": [
+                        {
+                            "name": "arena",
+                            "doc": "The arena to allocate from."
+                        },
+                        {
+                            "name": "type",
+                            "doc": "The type of the object to allocate."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the allocated object."
+                    }
+
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_arena_push_array_uninitialized",
                     "doc": "Allocate an array from an arena. This macro takes care of the size calculation, memory alignment and type cast.",
                     "params": [
                         {
