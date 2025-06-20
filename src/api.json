@@ -8199,6 +8199,23 @@
                     }
                 },
                 {
+                    "kind": "typename",
+                    "name": "oc_window",
+                    "doc": "An opaque handle identifying a window.",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "h",
+                                "doc": "Opaque window handle.",
+                                "type": {
+                                    "kind": "u64"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
                     "kind": "proc",
                     "name": "oc_window_set_title",
                     "doc": "Set the title of the application's window.",
