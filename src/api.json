@@ -511,6 +511,61 @@
         },
         {
             "kind": "module",
+            "name": "Clock",
+            "brief": "API for sampling the system clock.",
+            "contents": [
+                {
+                    "kind": "typename",
+                    "name": "oc_clock_kind",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_CLOCK_MONOTONIC",
+                                "doc": "A clock incrementing monotonically.",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_CLOCK_UPTIME",
+                                "doc": "A clock incrementing monotonically during uptime.",
+                                "value": 1
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_CLOCK_DATE",
+                                "doc": "A clock driven by the platform time.",
+                                "value": 2
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_clock_time",
+                    "return": {
+                        "kind": "f64",
+                        "doc": "The sampled time in seconds."
+                    },
+                    "params": [
+                        {
+                            "name": "clock",
+                            "doc": "The kind of clock to sample.",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_clock_kind"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "kind": "module",
             "name": "Debug",
             "brief": "Helpers for logging, asserting and aborting.",
             "contents": [
