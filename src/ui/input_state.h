@@ -58,7 +58,7 @@ typedef struct oc_mouse_state
     };
 } oc_mouse_state;
 
-enum
+enum oc_input_text_backing_size
 {
     OC_INPUT_TEXT_BACKING_SIZE = 64
 };
