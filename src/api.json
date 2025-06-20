@@ -8292,7 +8292,7 @@
     "contents": [
         {
             "kind": "module",
-            "name": "File API",
+            "name": "Files",
             "brief": "API for opening, reading and writing files.",
             "contents": [
                 {
@@ -9758,7 +9758,7 @@
     "contents": [
         {
             "kind": "module",
-            "name": "Canvas API",
+            "name": "Canvas",
             "brief": "A 2D Vector Graphics API.",
             "contents": [
 
