@@ -4333,8 +4333,1867 @@
                             }
                         ]
                     }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BASIC_LATIN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 0,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 128,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LATIN_EXTENDED_A",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 256,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LATIN_EXTENDED_B",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 384,
+                            "count": 207
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_IPA_EXTENSIONS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 592,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SPACING_MODIFIER_LETTERS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 688,
+                            "count": 79
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_COMBINING_DIACRITICAL_MARKS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 768,
+                            "count": 111
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GREEK_COPTIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 880,
+                            "count": 143
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CYRILLIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1024,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CYRILLIC_SUPPLEMENT",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1280,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ARMENIAN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1328,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HEBREW",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1424,
+                            "count": 111
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ARABIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1536,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SYRIAC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1792,
+                            "count": 79
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_THAANA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1920,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_DEVANAGARI",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 2304,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BENGALI_ASSAMESE",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 2432,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GURMUKHI",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 2560,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GUJARATI",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 2688,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ORIYA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 2816,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TAMIL",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 2944,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TELUGU",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3072,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KANNADA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3200,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MALAYALAM",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3328,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SINHALA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3456,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_THAI",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3584,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LAO",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3712,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TIBETAN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 3840,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MYANMAR",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 4096,
+                            "count": 159
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GEORGIAN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 4256,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HANGUL_JAMO",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 4352,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ETHIOPIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 4608,
+                            "count": 383
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CHEROKEE",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5024,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_UNIFIED_CANADIAN_ABORIGINAL_SYLLABICS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5120,
+                            "count": 639
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_OGHAM",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5760,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_RUNIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5792,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TAGALOG",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5888,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HANUNOO",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5920,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BUHID",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5952,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TAGBANWA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 5984,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KHMER",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 6016,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MONGOLIAN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 6144,
+                            "count": 175
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LIMBU",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 6400,
+                            "count": 79
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TAI_LE",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 6480,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KHMER_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 6624,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_PHONETIC_EXTENSIONS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 7424,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LATIN_EXTENDED_ADDITIONAL",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 7680,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GREEK_EXTENDED",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 7936,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GENERAL_PUNCTUATION",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8192,
+                            "count": 111
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SUPERSCRIPTS_AND_SUBSCRIPTS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8304,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CURRENCY_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8352,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_COMBINING_DIACRITICAL_MARKS_FOR_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8400,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LETTERLIKE_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8448,
+                            "count": 79
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_NUMBER_FORMS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8528,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ARROWS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8592,
+                            "count": 111
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MATHEMATICAL_OPERATORS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8704,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MISCELLANEOUS_TECHNICAL",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 8960,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CONTROL_PICTURES",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9216,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_OPTICAL_CHARACTER_RECOGNITION",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9280,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ENCLOSED_ALPHANUMERICS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9312,
+                            "count": 159
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BOX_DRAWING",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9472,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BLOCK_ELEMENTS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9600,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GEOMETRIC_SHAPES",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9632,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MISCELLANEOUS_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9728,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_DINGBATS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 9984,
+                            "count": 191
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MISCELLANEOUS_MATHEMATICAL_SYMBOLS_A",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 10176,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SUPPLEMENTAL_ARROWS_A",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 10224,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BRAILLE_PATTERNS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 10240,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SUPPLEMENTAL_ARROWS_B",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 10496,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MISCELLANEOUS_MATHEMATICAL_SYMBOLS_B",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 10624,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SUPPLEMENTAL_MATHEMATICAL_OPERATORS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 10752,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MISCELLANEOUS_SYMBOLS_AND_ARROWS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 11008,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_RADICALS_SUPPLEMENT",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 11904,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KANGXI_RADICALS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12032,
+                            "count": 223
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_IDEOGRAPHIC_DESCRIPTION_CHARACTERS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12272,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_SYMBOLS_AND_PUNCTUATION",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12288,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HIRAGANA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12352,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KATAKANA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12448,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BOPOMOFO",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12544,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HANGUL_COMPATIBILITY_JAMO",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12592,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KANBUN_KUNTEN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12688,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BOPOMOFO_EXTENDED",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12704,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_KATAKANA_PHONETIC_EXTENSIONS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12784,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ENCLOSED_CJK_LETTERS_AND_MONTHS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 12800,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_COMPATIBILITY",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 13056,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 13312,
+                            "count": 6591
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_YIJING_HEXAGRAM_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 19904,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_UNIFIED_IDEOGRAPHS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 19968,
+                            "count": 20911
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_YI_SYLLABLES",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 40960,
+                            "count": 1167
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_YI_RADICALS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 42128,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HANGUL_SYLLABLES",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 44032,
+                            "count": 11183
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HIGH_SURROGATE_AREA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 55296,
+                            "count": 1023
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LOW_SURROGATE_AREA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 56320,
+                            "count": 1023
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_PRIVATE_USE_AREA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 57344,
+                            "count": 6399
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_COMPATIBILITY_IDEOGRAPHS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 63744,
+                            "count": 511
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ALPHABETIC_PRESENTATION_FORMS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 64256,
+                            "count": 79
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ARABIC_PRESENTATION_FORMS_A",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 64336,
+                            "count": 687
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_VARIATION_SELECTORS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65024,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_COMBINING_HALF_MARKS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65056,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_COMPATIBILITY_FORMS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65072,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SMALL_FORM_VARIANTS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65104,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_ARABIC_PRESENTATION_FORMS_B",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65136,
+                            "count": 143
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_HALFWIDTH_AND_FULLWIDTH_FORMS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65280,
+                            "count": 239
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SPECIALS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65520,
+                            "count": 15
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LINEAR_B_SYLLABARY",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65536,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_LINEAR_B_IDEOGRAMS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65664,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_AEGEAN_NUMBERS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 65792,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_OLD_ITALIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 66304,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_GOTHIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 66352,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_UGARITIC",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 66432,
+                            "count": 31
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_DESERET",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 66560,
+                            "count": 79
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SHAVIAN",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 66640,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_OSMANYA",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 66688,
+                            "count": 47
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CYPRIOT_SYLLABARY",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 67584,
+                            "count": 63
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_BYZANTINE_MUSICAL_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 118784,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MUSICAL_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 119040,
+                            "count": 255
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TAI_XUAN_JING_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 119552,
+                            "count": 95
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_MATHEMATICAL_ALPHANUMERIC_SYMBOLS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 119808,
+                            "count": 1023
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 131072,
+                            "count": 42719
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 194560,
+                            "count": 543
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_TAGS",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 917504,
+                            "count": 127
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_VARIATION_SELECTORS_SUPPLEMENT",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 917760,
+                            "count": 239
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SUPPLEMENTARY_PRIVATE_USE_AREA_A",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 983040,
+                            "count": 65533
+                        }
+                    }
+                },
+                {
+                    "kind": "const",
+                    "name": "OC_UNICODE_SUPPLEMENTARY_PRIVATE_USE_AREA_B",
+                    "type": {
+                        "kind": "namedType",
+                        "name": "oc_unicode_range"
+                    },
+                    "init": {
+                        "kind": "struct",
+                        "value": {
+                            "firstCodePoint": 1048576,
+                            "count": 65533
+                        }
+                    }
                 }
-
             ]
         }
     ]
