@@ -3962,31 +3962,31 @@
                                 "kind": "enum-constant",
                                 "name": "OC_UTF8_UNEXPECTED_CONTINUATION_BYTE",
                                 "doc": "A continuation byte was encountered where a leading byte was expected.",
-                                "value": 3
+                                "value": 2
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_UTF8_UNEXPECTED_LEADING_BYTE",
                                 "doc": "A leading byte was encountered in the middle of the encoding of utf8 codepoint.",
-                                "value": 4
+                                "value": 3
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_UTF8_INVALID_BYTE",
                                 "doc": "The utf8 sequence contains an invalid byte.",
-                                "value": 5
+                                "value": 4
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_UTF8_INVALID_CODEPOINT",
                                 "doc": "The operation encountered an invalid utf8 codepoint.",
-                                "value": 6
+                                "value": 5
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_UTF8_OVERLONG_ENCODING",
                                 "doc": "The utf8 sequence contains an overlong encoding of a utf8 codepoint.",
-                                "value": 7
+                                "value": 6
                             }
                         ]
                     }
