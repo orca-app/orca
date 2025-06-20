@@ -506,6 +506,32 @@
                             }
                         }
                     ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_mat2x3_scale",
+                    "doc": "Return a 2x3 matrix representing a scale.",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_mat2x3",
+                        "doc": "The resulting scale."
+                    },
+                    "params": [
+                        {
+                            "name": "x",
+                            "doc": "The first component of the scale.",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        },
+                        {
+                            "name": "y",
+                            "doc": "The second component of the scale.",
+                            "type": {
+                                "kind": "f32"
+                            }
+                        }
+                    ]
                 }
             ]
         },
