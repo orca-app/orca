@@ -11127,7 +11127,7 @@
         },
         {
             "kind": "typename",
-            "name": "",
+            "name": "oc_input_text_backing_size",
             "type": {
                 "kind": "enum",
                 "type": {
