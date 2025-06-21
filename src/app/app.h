@@ -293,7 +293,7 @@ typedef struct oc_event
 } oc_event;
 
 //NOTE: these APIs are not directly available to Orca apps
-#if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+#if !OC_PLATFORM_ORCA
 //--------------------------------------------------------------------
 // app management
 //--------------------------------------------------------------------
@@ -399,7 +399,7 @@ ORCA_API bool oc_clipboard_has_tag(const char* tag);
 ORCA_API void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data);
 ORCA_API oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag);
 
-#endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+#endif // !OC_PLATFORM_ORCA
 
 //--------------------------------------------------------------------
 // native open/save/alert windows
@@ -450,7 +450,7 @@ typedef struct oc_file_dialog_result
 
 } oc_file_dialog_result;
 
-#if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+#if !OC_PLATFORM_ORCA
 
 ORCA_API oc_file_dialog_result oc_file_dialog(oc_arena* arena, oc_file_dialog_desc* desc);
 
@@ -479,7 +479,7 @@ oc_key_code ORCA_IMPORT(oc_scancode_to_keycode)(oc_scan_code scanCode);
 
 void oc_clipboard_set_string(oc_str8 string);
 
-#endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+#endif // !OC_PLATFORM_ORCA
 
 #ifdef __cplusplus
 } // extern "C"

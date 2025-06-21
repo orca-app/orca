@@ -100,7 +100,7 @@ void oc_gles_surface_swap_interval(oc_surface handle, int swap)
 
 void* oc_gles_surface_native_pointer(oc_gles_surface* surface);
 
-#ifdef OC_PLATFORM_MACOS
+#if OC_PLATFORM_MACOS
 
 void* oc_gles_surface_native_pointer(oc_gles_surface* surface)
 {

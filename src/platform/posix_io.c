@@ -161,7 +161,7 @@ static int oc_io_convert_open_flags(oc_file_open_flags flags)
         oflags |= O_NOFOLLOW;
     }
 // TODO: it seems that on macos you must allow following of symlinks, where on linux it's the default behavior
-#ifdef OC_PLATFORM_MACOS
+#if OC_PLATFORM_MACOS
     if(flags & OC_FILE_OPEN_SYMLINK)
     {
         oflags |= O_SYMLINK;

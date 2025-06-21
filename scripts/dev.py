@@ -726,8 +726,6 @@ def build_runtime_linux(release, wasm_backend):
 
     libs = [
         "-Lbuild/bin", "-Lbuild/lib", "-lorca",
-        "-lX11", "-lxcb",
-        "-lc", "-lm", "-lpthread",
     ]
 
     if wasm_backend == "bytebox":
@@ -987,6 +985,8 @@ def build_platform_layer_lib_linux(release):
         "-shared", "-fuse-ld=lld",
         "-lc", "-lm", "-lpthread",
         "-Lbuild/bin", "-lEGL", "-lGLESv2", "-lwebgpu",
+        "-lX11", "-lxcb", "-lX11-xcb",
+        "-Wl,-rpath=build/bin",
     ]
     includes = ["-Isrc", "-Isrc/ext", "-Isrc/ext/angle/include", "-Isrc/ext/dawn/include"]
 

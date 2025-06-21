@@ -53,7 +53,8 @@ extern "C" {
     #define OC_ASSERT(x, ...)
     #define OC_DEBUG_ASSERT(x, ...)
 #else
-    #define _OC_ASSERT_(test, fmt, ...) ((test) || (oc_assert_fail(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__), 0))
+    #define _OC_ASSERT_(test, fmt, ...) \
+        do { if(!(test)) oc_assert_fail(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__); } while(0)
     #define OC_ASSERT(test, ...) _OC_ASSERT_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
 
     #ifdef OC_DEBUG

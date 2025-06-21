@@ -22,7 +22,7 @@
 #include "platform/platform_io.h"
 #include "platform/platform_path.h"
 
-#if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
+#if !OC_PLATFORM_ORCA
     #include "platform/platform_thread.h"
 #endif
 
@@ -40,6 +40,9 @@
     //----------------------------------------------------------------
     #include "graphics/graphics.h"
     #include "graphics/backends.h"
+    #if !defined(OC_GRAPHICS_INCLUDE_GL_API)
+        #define OC_GRAPHICS_INCLUDE_GL_API 0
+    #endif
 
     #if OC_GRAPHICS_ENABLE_METAL
         #include "graphics/mtl_surface.h"

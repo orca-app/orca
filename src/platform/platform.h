@@ -17,10 +17,16 @@
     #elif defined(_MSC_VER)
         #define OC_COMPILER_CLANG_CL 1
     #endif
+    #define OC_COMPILER_CL 0
+    #define OC_COMPILER_GCC 0
 
 #elif defined(_MSC_VER)
+    #define OC_COMPILER_CLANG 0
     #define OC_COMPILER_CL 1
+    #define OC_COMPILER_GCC 0
 #elif defined(__GNUC__)
+    #define OC_COMPILER_CLANG 0
+    #define OC_COMPILER_CL 0
     #define OC_COMPILER_GCC 1
 #else
     #error "Can't identify compiler"
@@ -33,17 +39,29 @@
 //-----------------------------------------------------------------
 #if defined(_WIN64)
     #define OC_PLATFORM_WINDOWS 1
+    #define OC_PLATFORM_MACOS 0
+    #define OC_PLATFORM_LINUX 0
+    #define OC_PLATFORM_ORCA 0
 #elif defined(_WIN32)
     #error "Unsupported OS (32bit only version of Windows)"
 #elif defined(__APPLE__) && defined(__MACH__)
+    #define OC_PLATFORM_WINDOWS 0
     #define OC_PLATFORM_MACOS 1
+    #define OC_PLATFORM_LINUX 0
+    #define OC_PLATFORM_ORCA 0
 #elif defined(__linux__)
+    #define OC_PLATFORM_WINDOWS 0
+    #define OC_PLATFORM_MACOS 0
     #define OC_PLATFORM_LINUX 1
+    #define OC_PLATFORM_ORCA 0
     #define _POSIX_C_SOURCE 200809L
     #define _DEFAULT_SOURCE 1
     #define _XOPEN_SOURCE 500
     #define _GNU_SOURCE 1
 #elif defined(__wasm__)
+    #define OC_PLATFORM_WINDOWS 0
+    #define OC_PLATFORM_MACOS 0
+    #define OC_PLATFORM_LINUX 0
     #define OC_PLATFORM_ORCA 1
 #else
     #error "Can't identify platform"
@@ -52,7 +70,7 @@
 //-----------------------------------------------------------------
 // Architecture identification
 //-----------------------------------------------------------------
-#if defined(OC_COMPILER_CL)
+#if OC_COMPILER_CL
     #if defined(_M_AMD64)
         #define OC_ARCH_X64 1
     #elif defined(_M_I86)
@@ -83,21 +101,21 @@
 //-----------------------------------------------------------------
 // platform helper macros
 //-----------------------------------------------------------------
-#if defined(OC_COMPILER_CL)
+#if OC_COMPILER_CL
     #if defined(OC_BUILD_DLL)
         #define ORCA_API __declspec(dllexport)
     #else
         #define ORCA_API __declspec(dllimport)
     #endif
-#elif defined(OC_COMPILER_GCC) || defined(OC_COMPILER_CLANG)
+#elif OC_COMPILER_GCC || OC_COMPILER_CLANG
     #define ORCA_API
 #endif
 
 #if OC_PLATFORM_ORCA
     #define oc_thread_local // no tls (or threads) for now on wasm orca
-#elif defined(OC_COMPILER_CL)
+#elif OC_COMPILER_CL
     #define oc_thread_local __declspec(thread)
-#elif defined(OC_COMPILER_GCC) || defined(OC_COMPILER_CLANG)
+#elif OC_COMPILER_GCC || OC_COMPILER_CLANG
     #define oc_thread_local __thread
 #endif
 

@@ -21,7 +21,7 @@ typedef enum
     OC_CLOCK_DATE       // clock that is driven by the platform time
 } oc_clock_kind;
 
-#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
+#if !OC_PLATFORM_ORCA
 ORCA_API void oc_clock_init(void); // initialize the clock subsystem
 #endif
 

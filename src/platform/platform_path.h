@@ -29,7 +29,7 @@ ORCA_API oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath
 
 ORCA_API bool oc_path_is_absolute(oc_str8 path);
 
-#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
+#if !OC_PLATFORM_ORCA
 
 ORCA_API oc_str8 oc_path_executable(oc_arena* arena);
 ORCA_API oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path);

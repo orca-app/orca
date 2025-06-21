@@ -114,7 +114,7 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
     return (result);
 }
 
-#if !defined(OC_PLATFORM_ORCA) || !OC_PLATFORM_ORCA
+#if !OC_PLATFORM_ORCA
 
 oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
 {

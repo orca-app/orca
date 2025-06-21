@@ -30,12 +30,9 @@
     #endif
 
     //NOTE: surface backends available but disabled by default on macOS are: Metal
-    #ifndef OC_GRAPHICS_ENABLE_METAL
-        #define OC_GRAPHICS_ENABLE_METAL 0
-    #endif
 
     //NOTE: surface backends not supported on macOS are: OpenGL
-    #if OC_GRAPHICS_ENABLE_GL
+    #if defined(OC_GRAPHICS_ENABLE_GL) && OC_GRAPHICS_ENABLE_GL
         #error "Desktop OpenGL backend is not supported on macOS. Make sure you let OC_GRAPHICS_ENABLE_GL undefined or set to 0"
     #endif
 
@@ -57,12 +54,9 @@
     #endif
 
     //NOTE: surface backends available but disabled by default on Windows are: OpenGL
-    #ifndef OC_GRAPHICS_ENABLE_GL
-        #define OC_GRAPHICS_ENABLE_GL 0
-    #endif
 
     //NOTE: surface backends not supported on Windows are: Metal
-    #if OC_GRAPHICS_ENABLE_METAL
+    #if defined(OC_GRAPHICS_ENABLE_METAL) && OC_GRAPHICS_ENABLE_METAL
         #error "Metal backend is not supported on Windows. Make sure you let OC_GRAPHICS_ENABLE_METAL undefined or set to 0"
     #endif
 
@@ -83,11 +77,9 @@
     #endif
 
     //NOTE: surface backends available but disabled by default on Linux are: OpenGL
-    #ifndef OC_GRAPHICS_ENABLE_GL
-        #define OC_GRAPHICS_ENABLE_GL 0
-    #endif
 
-    #if OC_GRAPHICS_ENABLE_METAL
+    //NOTE: surface backends not supported on Windows are: Metal
+    #if defined(OC_GRAPHICS_ENABLE_METAL) && OC_GRAPHICS_ENABLE_METAL
         #error "Metal backend is not supported on Linux. Make sure you let OC_GRAPHICS_ENABLE_METAL undefined or set to 0"
     #endif
 
@@ -102,15 +94,31 @@
     #endif
 
     //NOTE: surface backends not supported on Orca are: Metal, OpenGL
-    #if OC_GRAPHICS_ENABLE_METAL
+    #if defined(OC_GRAPHICS_ENABLE_METAL) && OC_GRAPHICS_ENABLE_METAL
         #error "Metal backend is not supported on Orca. Make sure you let OC_GRAPHICS_ENABLE_METAL undefined or set to 0"
     #endif
 
-    #if OC_GRAPHICS_ENABLE_GL
+    #if defined(OC_GRAPHICS_ENABLE_GL) && OC_GRAPHICS_ENABLE_GL
         #error "Desktop OpenGL backend is not supported on Orca. Make sure you let OC_GRAPHICS_ENABLE_GL undefined or set to 0"
     #endif
 #else
     #error "unsupported platform"
+#endif
+
+#ifndef OC_GRAPHICS_ENABLE_GLES
+    #define OC_GRAPHICS_ENABLE_GLES 0
+#endif
+#ifndef OC_GRAPHICS_ENABLE_WEBGPU
+    #define OC_GRAPHICS_ENABLE_WEBGPU 0
+#endif
+#ifndef OC_GRAPHICS_ENABLE_GL
+    #define OC_GRAPHICS_ENABLE_GL 0
+#endif
+#ifndef OC_GRAPHICS_ENABLE_METAL
+    #define OC_GRAPHICS_ENABLE_METAL 0
+#endif
+#ifndef OC_GRAPHICS_ENABLE_CANVAS
+    #define OC_GRAPHICS_ENABLE_CANVAS 0
 #endif
 
 typedef enum
