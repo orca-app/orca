@@ -7,6 +7,9 @@
 **************************************************************************/
 #pragma once
 
+#include "util/typedefs.h"
+#include "util/strings.h"
+
 #define WA_STATUS(_)                                                              \
     _(WA_OK, "success")                                                           \
     /* parse/validation errors */                                                 \
