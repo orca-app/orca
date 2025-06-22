@@ -14,6 +14,10 @@
 extern "C" {
 #endif
 
+#if !defined(OC_DEBUG)
+    #define OC_DEBUG 0
+#endif
+
 //----------------------------------------------------------------
 // Logging
 //----------------------------------------------------------------
@@ -57,11 +61,7 @@ extern "C" {
         do { if(!(test)) oc_assert_fail(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__); } while(0)
     #define OC_ASSERT(test, ...) _OC_ASSERT_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
 
-    #ifdef OC_DEBUG
-        #define OC_DEBUG_ASSERT(x, ...) OC_ASSERT(x, ##__VA_ARGS__)
-    #else
-        #define OC_DEBUG_ASSERT(x, ...)
-    #endif
+    #define OC_DEBUG_ASSERT(x, ...) do { if(OC_DEBUG)  OC_ASSERT(x, ##__VA_ARGS__); } while(0)
 #endif
 
 #define oc_notpossible() OC_ABORT("Not possible")

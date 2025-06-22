@@ -1,19 +1,93 @@
 #include "orca.h"
 
+#include <stdio.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+typedef ssize_t isize;
+typedef size_t usize;
+
+// FIXME(pld): thread name: 64 on MacOS, 20 on FreeBSD, 16 on Linux (with NUL)
+// FIXME(pld): clock meanings?
+
+static void print_file(const char *pathname)
+{
+    int fd = open(pathname, O_RDONLY);
+    OC_ASSERT(fd != -1);
+    u8 buf[8192];
+    isize n = 0;
+    do {
+        n = read(fd, buf, oc_array_size(buf));
+        OC_ASSERT(n >= 0);
+        dprintf(2, "%.*s", (int)n, buf);
+    } while(n > 0);
+    close(fd);
+}
+
 int main(void)
 {
     // platform_debug
-    oc_log_set_level(OC_LOG_LEVEL_INFO);
-    oc_log_set_output(OC_LOG_DEFAULT_OUTPUT);
-    oc_log_info("Hello\n");
-    if(0)  OC_ABORT("Testing abort");
-    if(0)  OC_ASSERT(0, "Test assert");
+    {
+        oc_log_set_level(OC_LOG_LEVEL_INFO);
+        oc_log_set_output(OC_LOG_DEFAULT_OUTPUT);
+        oc_log_info("Logs work\n");
+        if(0)  OC_ABORT("Testing abort");
+        if(0)  OC_ASSERT(0, "Test assert");
+    }
+
+    // platform_clock
+    {
+        oc_clock_init();
+        f64 a = 0.0, b = 0.0;
+        a = oc_clock_time(OC_CLOCK_MONOTONIC);
+        b = oc_clock_time(OC_CLOCK_MONOTONIC);
+        OC_ASSERT(a < b);
+        oc_log_info("monotonic: %f\n", a);
+        a = oc_clock_time(OC_CLOCK_UPTIME);
+        b = oc_clock_time(OC_CLOCK_UPTIME);
+        OC_ASSERT(a < b);
+        oc_log_info("uptime: %f\n", a);
+        a = oc_clock_time(OC_CLOCK_DATE);
+        b = oc_clock_time(OC_CLOCK_DATE);
+        OC_ASSERT(a < b);
+        oc_log_info("date: %f\n", a);
+    }
+
+    // platform_memory
+    {
+        const char *statm = "/proc/self/statm";
+        oc_base_allocator* base = oc_base_allocator_default();
+        oc_log_info("memory: initial:         "), print_file(statm);
+        u8* p = oc_base_reserve(base, 1 << 30);
+        oc_log_info("memory: reserved:        "), print_file(statm);
+        oc_base_commit(base, p, 1 << 30);
+        oc_log_info("memory: committed:       "), print_file(statm);
+        p[0] = 1;
+        oc_log_info("memory: wrote a page:    "), print_file(statm);
+        oc_base_decommit(base, p, 1 << 30);
+        oc_log_info("memory: decommitted:     "), print_file(statm);
+        oc_base_commit(base, p, 1 << 30);
+        oc_log_info("memory: committed:       "), print_file(statm);
+        OC_ASSERT(p[0] == 0);
+        for(usize n = 0; n < (1 << 30); n += 4096)  p[n] = 1;
+        oc_log_info("memory: wrote all pages: "), print_file(statm);
+        oc_base_decommit(base, p, 1 << 30);
+        oc_log_info("memory: decommitted:     "), print_file(statm);
+        oc_base_decommit(base, p, 1 << 30);
+        oc_base_commit(base, p, 1 << 30);
+        OC_ASSERT(p[0] == 0);
+        oc_base_release(base, p, 1 << 30);
+        oc_log_info("memory: released:        "), print_file(statm);
+    }
+
+    // TODO(pld): test platform_path
+    {
+
+    }
 
     // TODO(pld): test platform_thread
-    // TODO(pld): test platform_path
-    // TODO(pld): test platform_clock
     // TODO(pld): test platform_io
-    // TODO(pld): test platform_memory
     // TODO(pld): test platform_io_dialog
     // TODO(pld): test platform_io_internal
 
