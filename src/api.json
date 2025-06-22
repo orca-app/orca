@@ -14125,13 +14125,13 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_LAYOUT_ALIGN_X",
-                                "value": 64
+                                "name": "OC_UI_MASK_LAYOUT_MARGIN_X",
+                                "value": 8
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_LAYOUT_ALIGN_Y",
-                                "value": 128
+                                "name": "OC_UI_MASK_LAYOUT_MARGIN_Y",
+                                "value": 16
                             },
                             {
                                 "kind": "enum-constant",
@@ -14140,13 +14140,13 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_LAYOUT_MARGIN_X",
-                                "value": 8
+                                "name": "OC_UI_MASK_LAYOUT_ALIGN_X",
+                                "value": 64
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_LAYOUT_MARGIN_Y",
-                                "value": 16
+                                "name": "OC_UI_MASK_LAYOUT_ALIGN_Y",
+                                "value": 128
                             },
                             {
                                 "kind": "enum-constant",
@@ -14205,16 +14205,6 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_BORDER_SIZE",
-                                "value": 2097152
-                            },
-                            {
-                                "kind": "enum-constant",
-                                "name": "OC_UI_MASK_ROUNDNESS",
-                                "value": 4194304
-                            },
-                            {
-                                "kind": "enum-constant",
                                 "name": "OC_UI_MASK_FONT",
                                 "value": 524288
                             },
@@ -14222,6 +14212,16 @@
                                 "kind": "enum-constant",
                                 "name": "OC_UI_MASK_FONT_SIZE",
                                 "value": 1048576
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_MASK_BORDER_SIZE",
+                                "value": 2097152
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_MASK_ROUNDNESS",
+                                "value": 4194304
                             },
                             {
                                 "kind": "enum-constant",
@@ -14518,6 +14518,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_ui_draw_mask",
+                    "doc": "These bits *disable* the corresponding element when they're set.",
                     "type": {
                         "kind": "enum",
                         "type": {
