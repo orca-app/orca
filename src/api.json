@@ -7711,6 +7711,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
@@ -8069,6 +8070,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
@@ -9249,6 +9251,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
@@ -9311,6 +9314,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
@@ -10182,6 +10186,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
@@ -14094,6 +14099,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
@@ -14515,6 +14521,7 @@
                     "type": {
                         "kind": "enum",
                         "type": {
+                            "bitflags": true,
                             "kind": "u32"
                         },
                         "constants": [
