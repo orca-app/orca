@@ -128,6 +128,22 @@ void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format,
     oc_str8_list_push(arena, list, str);
 }
 
+void oc_str8_list_push_front(oc_arena* arena, oc_str8_list* list, oc_str8 str)
+{
+    oc_str8_elt* elt = oc_arena_push_type(arena, oc_str8_elt);
+    elt->string = str;
+    oc_list_push_front(&list->list, &elt->listElt);
+    list->eltCount++;
+    list->len += str.len;
+}
+
+void oc_str8_list_remove(oc_str8_list* list, oc_str8_elt* elt)
+{
+    oc_list_remove(&list->list, &elt->listElt);
+    list->eltCount--;
+    list->len -= elt->string.len;
+}
+
 oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix)
 {
     oc_str8 str = { 0 };

@@ -37,7 +37,8 @@ typedef struct oc_str8
     size_t len;
 } oc_str8;
 
-#define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? strlen(s) : 0 })
+OC_STATIC_ASSERT(__builtin_constant_p(""));
+#define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? (__builtin_constant_p(s) ? sizeof(s) - 1 : strlen(s)) : 0 })
 
 //NOTE: this only works with string literals, but is sometimes necessary to generate compile-time constants
 #define OC_STR8_LIT(s)                          \
@@ -49,7 +50,13 @@ typedef struct oc_str8
 #define oc_str8_ip(s) (int)oc_str8_lp(s)
 
 ORCA_API oc_str8 oc_str8_from_buffer(u64 len, char* buffer);
+//FIXME(pld): audit calls to oc_str8_slice, some seem to assume a length
+//instead of an end-point.
 ORCA_API oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end);
+static inline oc_str8 oc_str8_slice_len(oc_str8 s, u64 start, u64 len)
+{
+    return oc_str8_slice(s, start, start + len);
+}
 
 ORCA_API oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer);
 ORCA_API oc_str8 oc_str8_push_cstring(oc_arena* arena, const char* str);
@@ -60,6 +67,11 @@ ORCA_API oc_str8 oc_str8_pushfv(oc_arena* arena, const char* format, va_list arg
 ORCA_API oc_str8 oc_str8_pushf(oc_arena* arena, const char* format, ...);
 
 ORCA_API int oc_str8_cmp(oc_str8 s1, oc_str8 s2);
+
+static inline bool oc_str8_eq(oc_str8 s1, oc_str8 s2)
+{
+    return !oc_str8_cmp(s1, s2);
+}
 
 ORCA_API char* oc_str8_to_cstring(oc_arena* arena, oc_str8 string);
 
@@ -81,6 +93,8 @@ typedef struct oc_str8_list
 
 ORCA_API void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str);
 ORCA_API void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...);
+ORCA_API void oc_str8_list_push_front(oc_arena* arena, oc_str8_list* list, oc_str8 str);
+ORCA_API void oc_str8_list_remove(oc_str8_list* list, oc_str8_elt* elt);
 
 ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix);
 ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);

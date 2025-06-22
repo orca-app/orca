@@ -67,6 +67,8 @@ extern "C" {
 #define oc_notpossible() OC_ABORT("Not possible")
 #define oc_unimplemented() OC_ABORT("Unimplemented")
 
+#define OC_STATIC_ASSERT(expr)  _Static_assert(expr, "")
+
 #ifdef __cplusplus
 }
 #endif

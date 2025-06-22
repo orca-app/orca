@@ -10,6 +10,7 @@ typedef size_t usize;
 
 // FIXME(pld): thread name: 64 on MacOS, 20 on FreeBSD, 16 on Linux (with NUL)
 // FIXME(pld): clock meanings?
+// FIXME(pld): audit all implicit u64->i64 conversions
 
 static void print_file(const char *pathname)
 {
@@ -31,9 +32,9 @@ int main(void)
     {
         oc_log_set_level(OC_LOG_LEVEL_INFO);
         oc_log_set_output(OC_LOG_DEFAULT_OUTPUT);
-        oc_log_info("Logs work\n");
-        if(0)  OC_ABORT("Testing abort");
-        if(0)  OC_ASSERT(0, "Test assert");
+        oc_log_info("debug: Logs work\n");
+        if(0)  OC_ABORT("debug: Testing abort");
+        if(0)  OC_ASSERT(0, "debug: Test assert");
     }
 
     // platform_clock
@@ -43,15 +44,15 @@ int main(void)
         a = oc_clock_time(OC_CLOCK_MONOTONIC);
         b = oc_clock_time(OC_CLOCK_MONOTONIC);
         OC_ASSERT(a < b);
-        oc_log_info("monotonic: %f\n", a);
+        oc_log_info("clock: monotonic: %f\n", a);
         a = oc_clock_time(OC_CLOCK_UPTIME);
         b = oc_clock_time(OC_CLOCK_UPTIME);
         OC_ASSERT(a < b);
-        oc_log_info("uptime: %f\n", a);
+        oc_log_info("clock: uptime:   %f\n", a);
         a = oc_clock_time(OC_CLOCK_DATE);
         b = oc_clock_time(OC_CLOCK_DATE);
         OC_ASSERT(a < b);
-        oc_log_info("date: %f\n", a);
+        oc_log_info("clock: date:     %f\n", a);
     }
 
     // platform_memory
@@ -81,18 +82,104 @@ int main(void)
         oc_log_info("memory: released:        "), print_file(statm);
     }
 
-    // TODO(pld): test platform_path
+    // platform_path
     {
+        oc_arena_scope scratch = oc_scratch_begin();
 
+        {
+            oc_str8 path = OC_STR8_LIT("/tmp/a/b/c");
+            oc_str8 dir = oc_path_slice_directory(path);
+            OC_ASSERT(oc_str8_eq(dir, OC_STR8("/tmp/a/b")));
+            oc_str8 filename = oc_path_slice_filename(path);
+            OC_ASSERT(oc_str8_eq(filename, OC_STR8("c")));
+            oc_str8_list split = oc_path_split(scratch.arena, path);
+            static oc_str8 components[] = {
+                OC_STR8_LIT("/"),
+                OC_STR8_LIT("tmp"),
+                OC_STR8_LIT("a"),
+                OC_STR8_LIT("b"),
+                OC_STR8_LIT("c"),
+            };
+            usize i = 0;
+            oc_str8_list_for(split, component) {
+                OC_ASSERT(oc_str8_eq(component->string, components[i]));
+                i++;
+            }
+            OC_ASSERT(i == oc_array_size(components));
+            OC_ASSERT(oc_str8_eq(oc_path_join(scratch.arena, split), OC_STR8("/tmp/a/b/c")));
+        }
+
+        {
+            // TODO(pld): handle more than one trailing slash
+            oc_str8 path = OC_STR8_LIT("/tmp/a/b/c/");
+            oc_str8 dir = oc_path_slice_directory(path);
+            OC_ASSERT(oc_str8_eq(dir, OC_STR8("/tmp/a/b")));
+            oc_str8 filename = oc_path_slice_filename(path);
+            OC_ASSERT(oc_str8_eq(filename, OC_STR8("c")));
+            oc_str8_list split = oc_path_split(scratch.arena, path);
+            static oc_str8 components[] = {
+                OC_STR8_LIT("/"),
+                OC_STR8_LIT("tmp"),
+                OC_STR8_LIT("a"),
+                OC_STR8_LIT("b"),
+                OC_STR8_LIT("c"),
+            };
+            usize i = 0;
+            oc_str8_list_for(split, component) {
+                OC_ASSERT(oc_str8_eq(component->string, components[i]));
+                i++;
+            }
+            OC_ASSERT(i == oc_array_size(components));
+            OC_ASSERT(oc_str8_eq(oc_path_join(scratch.arena, split), OC_STR8("/tmp/a/b/c")));
+        }
+
+        {
+            // TODO(pld): trim extraneous slashes?
+            oc_str8 path = OC_STR8_LIT("/tmp/a/b/c/");
+            oc_str8 path2 = oc_path_append(scratch.arena, path, OC_STR8("d/e/////f"));
+            OC_ASSERT(oc_str8_eq(path2, OC_STR8("/tmp/a/b/c/d/e/////f")));
+        }
+        OC_ASSERT(oc_path_is_absolute(OC_STR8("/tmp/a/b/c")));
+        OC_ASSERT(!oc_path_is_absolute(OC_STR8("../hello")));
+        OC_ASSERT(oc_str8_eq(oc_path_executable(scratch.arena), OC_STR8("/tmp/main")));
+        OC_ASSERT(oc_str8_eq(oc_path_canonical(scratch.arena, OC_STR8("../../../../bin/bash")), OC_STR8("/bin/bash")));
+        OC_ASSERT(oc_str8_eq(oc_path_executable_relative(scratch.arena, OC_STR8("../bin/bash")), OC_STR8("/tmp/../bin/bash")));
+
+        oc_scratch_end(scratch);
     }
 
     // TODO(pld): test platform_thread
+    {
+        // oc_thread_create
+        // oc_thread_create_with_name
+        // oc_thread_get_name
+        // oc_thread_unique_id
+        // oc_thread_self_id
+        // oc_thread_signal
+        // oc_thread_join
+        // oc_thread_detach
+        // oc_mutex_create
+        // oc_mutex_destroy
+        // oc_mutex_lock
+        // oc_mutex_unlock
+        // oc_ticket_init
+        // oc_ticket_lock
+        // oc_ticket_unlock
+        // oc_condition_create
+        // oc_condition_destroy
+        // oc_condition_wait
+        // oc_condition_timedwait
+        // oc_condition_signal
+        // oc_condition_broadcast
+        // oc_sleep_nano
+    }
+
     // TODO(pld): test platform_io
     // TODO(pld): test platform_io_dialog
     // TODO(pld): test platform_io_internal
 
-    oc_init();
-    oc_clock_init();
+    //oc_init();
+    //oc_clock_init();
 
     // TODO(pld): test app.h
     // - oc_init
