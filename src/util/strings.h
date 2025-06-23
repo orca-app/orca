@@ -37,6 +37,7 @@ typedef struct oc_str8
     size_t len;
 } oc_str8;
 
+//FIXME(pld): Maybe compiler already optimizes strlen to a constant?
 OC_STATIC_ASSERT(__builtin_constant_p(""));
 #define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? (__builtin_constant_p(s) ? sizeof(s) - 1 : strlen(s)) : 0 })
 
