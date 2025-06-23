@@ -243,23 +243,21 @@ int main(void)
         OC_ASSERT(exitCode == 1);
         OC_ASSERT(flag);
 
-        // TODO(pld): per-platform thread name max size?
         oc_str8 name = OC_STR8("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA");
-        OC_ASSERT(name.len > OC_THREAD_NAME_MAX_SIZE);
+        OC_ASSERT(name.len >= 16);
         i64 tid = -1;
         thd = oc_thread_create_with_name(gettid_thread_proc, &tid, name);
         OC_ASSERT(thd);
-        oc_str8 expected = oc_str8_slice(name, 0, OC_THREAD_NAME_MAX_SIZE - 1);
-        OC_ASSERT(oc_str8_eq(oc_thread_get_name(thd), expected));
+        OC_ASSERT(oc_str8_eq(oc_thread_get_name(thd), name));
         {
-            oc_sleep_nano(500e6);
+            oc_sleep_nano(100e6);
             oc_arena_scope scratch = oc_scratch_begin();
             i64 pid = (i64)getpid();
             tid = __atomic_load_n(&tid, __ATOMIC_SEQ_CST);
             oc_str8 path = oc_str8_pushf(scratch.arena, "/proc/%lld/task/%lld/comm", pid, tid);
             oc_str8 comm = read_file(scratch.arena, path);
             comm = oc_str8_slice(comm, 0, comm.len - 1);
-            OC_ASSERT(oc_str8_eq(comm, expected));
+            OC_ASSERT(oc_str8_eq(comm, oc_str8_slice(name, 0, 15)));
             oc_scratch_end(scratch);
         }
         __atomic_store_n(&tid, 0, __ATOMIC_SEQ_CST);
@@ -300,8 +298,6 @@ int main(void)
             OC_ASSERT(!pathname_exists(scratch.arena, path));
             oc_scratch_end(scratch);
         }
-
-        // TODO(pld): per-platform thread name size
 
         // oc_mutex_create
         // oc_mutex_destroy

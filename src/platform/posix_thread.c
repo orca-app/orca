@@ -22,7 +22,7 @@ struct oc_thread
     oc_thread_start_proc start;
     void* userPointer;
     oc_str8 name;
-    char nameBuffer[OC_THREAD_NAME_MAX_SIZE];
+    char* nameBuffer;
 };
 
 static void* oc_thread_bootstrap(void* data)
@@ -30,13 +30,21 @@ static void* oc_thread_bootstrap(void* data)
     oc_thread* thread = (oc_thread*)data;
     if(thread->name.len)
     {
-#if OC_PLATFORM_MACOS
-        pthread_setname_np(thread->nameBuffer);
-#elif OC_PLATFORM_LINUX
-        pthread_setname_np(thread->pthread, thread->nameBuffer);
-#else
-    #error "unsupported POSIX platform"
-#endif
+        #if OC_PLATFORM_MACOS
+            char s[64];
+            u64 len = oc_min(thread->name.len, sizeof(s) - 1);
+            memcpy(s, thread->name.ptr, len);
+            s[len] = '\0';
+            pthread_setname_np(s);
+        #elif OC_PLATFORM_LINUX
+            char s[16];
+            u64 len = oc_min(thread->name.len, sizeof(s) - 1);
+            memcpy(s, thread->name.ptr, len);
+            s[len] = '\0';
+            pthread_setname_np(thread->pthread, s);
+        #else
+            #error "unsupported POSIX platform"
+        #endif
     }
     i32 exitCode = thread->start(thread->userPointer);
     return ((void*)(ptrdiff_t)exitCode);
@@ -52,20 +60,21 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPoin
 
     if(name.len && name.ptr)
     {
-        char* end = stpncpy(thread->nameBuffer, name.ptr, oc_min(name.len, OC_THREAD_NAME_MAX_SIZE - 1));
-        *end = '\0';
-        thread->name = oc_str8_from_buffer(end - thread->nameBuffer, thread->nameBuffer);
+        thread->nameBuffer = malloc(name.len);
+        memcpy(thread->nameBuffer, name.ptr, name.len);
+        thread->name = oc_str8_from_buffer(name.len, thread->nameBuffer);
     }
     else
     {
-        thread->nameBuffer[0] = '\0';
-        thread->name = oc_str8_from_buffer(0, thread->nameBuffer);
+        thread->nameBuffer = NULL;
+        thread->name = OC_STR8("");
     }
     thread->start = start;
     thread->userPointer = userPointer;
 
     if(pthread_create(&thread->pthread, 0, oc_thread_bootstrap, thread) != 0)
     {
+        free(thread->nameBuffer);
         free(thread);
         return (0);
     }
@@ -125,6 +134,7 @@ int oc_thread_join(oc_thread* thread, i64* exitCode)
     {
         return (-1);
     }
+    free(thread->nameBuffer);
     free(thread);
 
     if(exitCode)
@@ -140,6 +150,7 @@ int oc_thread_detach(oc_thread* thread)
     {
         return (-1);
     }
+    free(thread->nameBuffer);
     free(thread);
     return (0);
 }

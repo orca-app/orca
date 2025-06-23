@@ -24,11 +24,6 @@ extern "C" {
 // Platform Thread API
 //---------------------------------------------------------------
 
-enum
-{
-    OC_THREAD_NAME_MAX_SIZE = 64, // including null terminator
-};
-
 typedef struct oc_thread oc_thread;
 
 typedef i32 (*oc_thread_start_proc)(void* userPointer);

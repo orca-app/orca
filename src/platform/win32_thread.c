@@ -19,7 +19,7 @@ struct oc_thread
     DWORD threadId;
     void* userPointer;
     oc_str8 name;
-    char nameBuffer[OC_THREAD_NAME_MAX_SIZE];
+    char* nameBuffer;
 };
 
 static DWORD WINAPI oc_thread_bootstrap(LPVOID lpParameter)
@@ -37,14 +37,14 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPoin
     thread->userPointer = userPointer;
     if(name.len && name.ptr)
     {
-        strncpy_s(thread->nameBuffer, OC_THREAD_NAME_MAX_SIZE, name.ptr, oc_min(name.len, OC_THREAD_NAME_MAX_SIZE - 1));
-        thread->nameBuffer[OC_THREAD_NAME_MAX_SIZE - 1] = '\0';
-        thread->name = OC_STR8(thread->nameBuffer);
+        thread->nameBuffer = malloc(name.len);
+        memcpy(thread->nameBuffer, name.ptr, name.len);
+        thread->name = oc_str8_from_buffer(name.len, thread->nameBuffer);
     }
     else
     {
-        thread->nameBuffer[0] = '\0';
-        thread->name = oc_str8_from_buffer(0, thread->nameBuffer);
+        thread->nameBuffer = NULL;
+        thread->name = OC_STR8("");
     }
 
     SECURITY_ATTRIBUTES childProcessSecurity = {
@@ -57,6 +57,7 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPoin
     thread->handle = CreateThread(&childProcessSecurity, stackSize, oc_thread_bootstrap, thread, flags, &threadId);
     if(thread->handle == NULL)
     {
+        free(thread->nameBuffer);
         free(thread);
         return (NULL);
     }
@@ -65,12 +66,13 @@ oc_thread* oc_thread_create_with_name(oc_thread_start_proc start, void* userPoin
 
     if(thread->name.len)
     {
-        wchar_t widename[OC_THREAD_NAME_MAX_SIZE];
+        wchar_t* widename = malloc((thread->name.len + 1) * sizeof(*widename));
         size_t length;
-        mbstowcs_s(&length, widename, OC_THREAD_NAME_MAX_SIZE, thread->nameBuffer, OC_THREAD_NAME_MAX_SIZE - 1);
+        mbstowcs_s(&length, widename, thread->name.len + 1, thread->nameBuffer, thread->name.len);
         widename[length] = '\0';
 
         SetThreadDescription(thread->handle, widename);
+        free(widename);
     }
 
     return (thread);
@@ -119,6 +121,7 @@ int oc_thread_join(oc_thread* thread, i64* exitCode)
         }
     }
 
+    free(thread->nameBuffer);
     free(thread);
     return (0);
 }
@@ -127,6 +130,7 @@ int oc_thread_detach(oc_thread* thread)
 {
     if(CloseHandle(thread->handle))
     {
+        free(thread->nameBuffer);
         free(thread);
         return (0);
     }
