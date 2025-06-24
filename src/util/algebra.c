@@ -61,7 +61,7 @@ oc_mat2x3 oc_mat2x3_rotate(f32 radians)
     const f32 cosRot = cosf(radians);
     oc_mat2x3 rot = {
         cosRot, -sinRot, 0,
-        sinRot,  cosRot, 0
+        sinRot, cosRot, 0
     };
     return rot;
 }
