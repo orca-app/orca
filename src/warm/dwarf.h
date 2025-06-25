@@ -923,7 +923,7 @@ typedef struct dw_unit
         //TODO: other types of units
     };
 
-    dw_abbrev_table* abbrev;
+    dw_abbrev_table abbrev;
 
     dw_die* rootDie;
 

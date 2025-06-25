@@ -11,29 +11,6 @@
 #include "debug_info.h"
 #include "warm.h"
 
-wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
-{
-    wa_debug_info* info = oc_arena_push_type(module->arena, wa_debug_info);
-
-    //NOTE: alloc warm to wasm maps
-    //TODO: tune size
-    info->warmToWasmMapLen = 4096;
-    info->warmToWasmMap = oc_arena_push_array(module->arena, oc_list, 4096);
-
-    info->wasmToWarmMapLen = 4096;
-    info->wasmToWarmMap = oc_arena_push_array(module->arena, oc_list, 4096);
-
-    //NOTE: parse and process dwarf info from contents
-
-    //TODO: pass debug info to parse dwarf?
-    module->debugInfo = info;
-
-    wa_import_dwarf(module, contents);
-    wa_import_debug_locals(module);
-
-    return info;
-}
-
 //-------------------------------------------------------------------------
 // bytecode -> instr map
 //-------------------------------------------------------------------------

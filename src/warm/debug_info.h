@@ -183,7 +183,7 @@ typedef struct wa_debug_info
     u32 wasmToWarmMapLen;
     oc_list* wasmToWarmMap;
 
-    dw_info* dwarf;
+    //    dw_info* dwarf;
 
     wa_source_info sourceInfo;
 
@@ -205,7 +205,7 @@ wa_type* wa_type_strip(wa_type* t);
 // building debug info
 //------------------------------------------------------------------------
 void wa_import_dwarf(wa_module* module, oc_str8 contents);
-void wa_import_debug_locals(wa_module* module);
+void wa_import_debug_locals(wa_module* module, dw_info* dwarf);
 void wa_warm_to_wasm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
 void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, wa_instr* instr);
 

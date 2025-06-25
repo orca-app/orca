@@ -62,269 +62,6 @@ void wa_dwarf_error_callback(dw_parser* parser, u64 loc, oc_str8 message, void* 
     oc_list_push_back(&module->errors, &error->listElt);
 }
 
-void wa_import_dwarf(wa_module* module, oc_str8 contents)
-{
-    dw_sections dwarfSections = { 0 };
-
-    oc_list_for(module->toc.customSections, section, wa_section, listElt)
-    {
-        dw_section sectionContents = {
-            .offset = section->offset,
-            .len = section->len,
-        };
-
-        if(!oc_str8_cmp(section->name, OC_STR8(".debug_abbrev")))
-        {
-            dwarfSections.abbrev = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_info")))
-        {
-            dwarfSections.info = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str_offsets")))
-        {
-            dwarfSections.strOffsets = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str")))
-        {
-            dwarfSections.str = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_addr")))
-        {
-            dwarfSections.addr = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line")))
-        {
-            dwarfSections.line = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line_str")))
-        {
-            dwarfSections.lineStr = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_loc")))
-        {
-            dwarfSections.loc = sectionContents;
-        }
-        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_ranges")))
-        {
-            dwarfSections.ranges = sectionContents;
-        }
-    }
-
-    //TODO: We don't really need to keep dwarf struct around after processing, so we could just have
-    //      a local dwarf struct with data allocated on a temp arena.
-    //      For now we just keep the dwarf info around in the module to ease debugging
-
-    dw_parser parser = {
-        .arena = module->arena,
-        .sections = dwarfSections,
-        .errorCallback = wa_dwarf_error_callback,
-        .userData = module,
-        .rootReader = wa_reader_from_str8(contents),
-    };
-
-    module->debugInfo->dwarf = dw_parse_dwarf(&parser);
-
-    //NOTE: process line info
-    dw_line_info* lineInfo = &module->debugInfo->dwarf->line;
-
-    //NOTE: alloc wasm to line map
-    for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
-    {
-        module->debugInfo->wasmToLineCount += lineInfo->tables[tableIndex].entryCount;
-    }
-    module->debugInfo->wasmToLine = oc_arena_push_array(module->arena, wa_wasm_to_line_entry, module->debugInfo->wasmToLineCount);
-    u64 wasmToLineIndex = 0;
-
-    //NOTE: build a global file table and build wasm line map
-    wa_source_info* sourceInfo = &module->debugInfo->sourceInfo;
-    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
-
-    oc_list files = { 0 };
-    sourceInfo->fileCount = 1; // index 0 is reserved for a "nil" wa_source_file entry
-
-    for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
-    {
-        dw_line_table* table = &lineInfo->tables[tableIndex];
-
-        //NOTE: determine the paths of compile unit current directory, current file, and current file dir,
-        //      which varies between dwarf 4 and 5.
-        //WARN: currentFileDir can be different from currentDir if currentFile is an absolute path, or if it
-        //      explicitly refers to another directory than the compile unit current directory.
-        oc_str8 currentDir = { 0 };
-        oc_str8 currentFile = { 0 };
-        oc_str8 currentFileDir = { 0 };
-        oc_str8 currentFileAbs = { 0 };
-
-        bool currentFileInTable = false;
-
-        if(table->header.version == 4)
-        {
-            //NOTE: set current dir current file from CU info
-            OC_ASSERT(tableIndex < module->debugInfo->dwarf->unitCount);
-            dw_unit* unit = &module->debugInfo->dwarf->units[tableIndex];
-            dw_die* die = unit->rootDie;
-
-            OC_ASSERT(die->abbrev->tag == DW_TAG_compile_unit);
-
-            //TODO: make sure the die DW_AT_stmt_list corresponds to the current table
-            dw_attr* dirAttr = dw_die_get_attr(die, DW_AT_comp_dir);
-            if(dirAttr)
-            {
-                currentDir = dirAttr->string;
-            }
-
-            dw_attr* fileAttr = dw_die_get_attr(die, DW_AT_name);
-            if(fileAttr)
-            {
-                currentFile = fileAttr->string;
-            }
-        }
-        else
-        {
-            currentDir = table->header.dirEntries[0].path;
-            currentFile = table->header.fileEntries[0].path;
-        }
-
-        if(currentFile.len && currentFile.ptr[0] == '/')
-        {
-            currentFileDir = currentFile;
-            currentFileAbs = currentFile;
-        }
-        else
-        {
-            currentFileDir = currentDir;
-            currentFileAbs = oc_path_append(scratch.arena, currentFileDir, currentFile);
-        }
-        OC_DEBUG_ASSERT(!oc_str8_cmp(currentFileDir, oc_str8_slice(currentFileAbs, 0, currentFileDir.len)),
-                        "currentFileDir should be a prefix of currentFileAbs");
-
-        //NOTE: allocate a table to map dwarf file indices to our global file table indices
-        u64* fileIndices = oc_arena_push_array(scratch.arena, u64, table->header.fileEntryCount + 1);
-
-        //NOTE: add the current table file entries to our global table
-        for(u64 fileIndex = 0; fileIndex < table->header.fileEntryCount; fileIndex++)
-        {
-            //NOTE: first find the root path and full path of the file
-            dw_file_entry* fileEntry = &table->header.fileEntries[fileIndex];
-            oc_str8 filePath = fileEntry->path;
-            oc_str8 rootPath = { 0 };
-            oc_str8 fullPath = { 0 };
-
-            if(filePath.len && filePath.ptr[0] == '/')
-            {
-                //NOTE: absolute file path. This will be shown as a single file name at the root of the tree
-                rootPath = filePath;
-                fullPath = filePath;
-            }
-            else
-            {
-                //NOTE: relative file path. This will be shown in a subtree whose root it either the name of the
-                // dir path (in case of an absolute dir path), or the name of the CU path (in case of a relative dir path)
-
-                oc_str8 dirPath = { 0 };
-                if(table->header.version == 5)
-                {
-                    dw_file_entry* dirEntry = &table->header.dirEntries[fileEntry->dirIndex];
-                    dirPath = dirEntry->path;
-                }
-                else if(fileEntry->dirIndex)
-                {
-                    dw_file_entry* dirEntry = &table->header.dirEntries[fileEntry->dirIndex - 1];
-                    dirPath = dirEntry->path;
-                }
-                else
-                {
-                    dirPath = currentDir;
-                }
-
-                if(dirPath.len && dirPath.ptr[0] == '/')
-                {
-                    // absolute dir path
-                    rootPath = dirPath;
-                }
-                else
-                {
-                    // dir path relative to current directory of compilation
-                    rootPath = currentDir;
-                    filePath = oc_path_append(scratch.arena, dirPath, filePath);
-                }
-                fullPath = oc_path_append(scratch.arena, rootPath, filePath);
-
-                OC_DEBUG_ASSERT(!oc_str8_cmp(rootPath, oc_str8_slice(fullPath, 0, rootPath.len)),
-                                "rootPath should be a prefix of fullPath");
-            }
-
-            //NOTE: now we create a wa_source_file entry with the given root path and file path, if it doesn't exist
-            wa_source_file_elt* file = wa_find_or_add_source_file(scratch.arena,
-                                                                  module->arena,
-                                                                  &files,
-                                                                  &sourceInfo->fileCount,
-                                                                  rootPath,
-                                                                  fullPath);
-
-            //NOTE: if the found/created wa_source_file represents the current file, we mark it as found.
-            //      this avoids duplicates when toolchain explicity put the current file in dwarf version 4
-            //      file entries rather than using index 0 as the implicit current file.
-            if(!oc_str8_cmp(currentFileAbs, file->file.fullPath))
-            {
-                currentFileInTable = true;
-                if(table->header.version == 4)
-                {
-                    fileIndices[0] = file->index;
-                }
-            }
-
-            if(table->header.version == 4)
-            {
-                fileIndices[fileIndex + 1] = file->index;
-            }
-            else
-            {
-                fileIndices[fileIndex] = file->index;
-            }
-        }
-
-        if(table->header.version == 4 && currentFile.len && !currentFileInTable)
-        {
-            //NOTE: if the compile unit "current file" is only referenced implicitly by index 0,
-            //      we add it to our global table here
-
-            wa_source_file_elt* file = wa_find_or_add_source_file(scratch.arena,
-                                                                  module->arena,
-                                                                  &files,
-                                                                  &sourceInfo->fileCount,
-                                                                  currentFileDir,
-                                                                  currentFileAbs);
-
-            fileIndices[0] = file->index;
-        }
-
-        //NOTE: add the table line entries to our module's wasmToLineEntry table
-        for(u64 entryIndex = 0; entryIndex < table->entryCount; entryIndex++)
-        {
-            dw_line_entry* lineEntry = &table->entries[entryIndex];
-            wa_wasm_to_line_entry* wasmToLineEntry = &module->debugInfo->wasmToLine[wasmToLineIndex];
-
-            wasmToLineEntry->wasmOffset = lineEntry->address;
-            wasmToLineEntry->loc.fileIndex = fileIndices[lineEntry->file];
-            wasmToLineEntry->loc.line = lineEntry->line;
-
-            wasmToLineIndex++;
-        }
-    }
-
-    //NOTE: now copy all wa_source_file entries to the module's global file array, and finally clear the scratch
-    //      the first element of the array is a zeroed wa_source_file (index 0 is used as an invalid fileIndex)
-    sourceInfo->files = oc_arena_push_array(module->arena, wa_source_file, sourceInfo->fileCount);
-    oc_list_for_indexed(files, it, wa_source_file_elt, listElt)
-    {
-        sourceInfo->files[it.index + 1] = it.elt->file;
-    }
-
-    oc_scratch_end(scratch);
-}
-
 //-------------------------------------------------------------------------
 // Debug type processing
 //-------------------------------------------------------------------------
@@ -651,7 +388,7 @@ wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_i
     return var;
 }
 
-void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcInfo, wa_debug_scope* scope, dw_die* scopeDie, dw_info* dwarf, oc_list* types)
+void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcInfo, wa_debug_scope* scope, dw_die* scopeDie, u64 unitBaseAddress, dw_info* dwarf, oc_list* types)
 {
     //NOTE: set scope's extents
     dw_attr* lowPC = dw_die_get_attr(scopeDie, DW_AT_low_pc);
@@ -696,14 +433,35 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
         dw_attr* rangesAttr = dw_die_get_attr(scopeDie, DW_AT_ranges);
         if(rangesAttr)
         {
-            scope->rangeCount = rangesAttr->ranges.entryCount;
-            scope->ranges = oc_arena_push_type(arena, wa_debug_range);
+            //NOTE: get base address of unit
+            u64 baseAddress = unitBaseAddress;
 
-            for(u64 i = 0; i < scope->rangeCount; i++)
+            //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
+            // since some dwarf range entries are base selection entries that don't make it into the final range list
+            oc_arena_scope scratch = oc_scratch_begin();
+            wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, rangesAttr->ranges.entryCount);
+
+            for(u64 i = 0; i < rangesAttr->ranges.entryCount; i++)
             {
-                scope->ranges[i].low = rangesAttr->ranges.entries[i].start;
-                scope->ranges[i].high = rangesAttr->ranges.entries[i].end;
+                dw_range_entry* entry = &rangesAttr->ranges.entries[i];
+                if(entry->start == 0xffffffffffffffff)
+                {
+                    // base selection entry, change base addres and skip
+                    baseAddress = entry->end;
+                }
+                else
+                {
+                    // normal entry, record it in ranges
+                    ranges[scope->rangeCount].low = baseAddress + entry->start;
+                    ranges[scope->rangeCount].high = baseAddress + entry->end;
+                    scope->rangeCount++;
+                }
             }
+            //NOTE: allocate scope ranges with the final size, and copy ranges there.
+            scope->ranges = oc_arena_push_array(arena, wa_debug_range, scope->rangeCount);
+            memcpy(scope->ranges, ranges, sizeof(wa_debug_range) * scope->rangeCount);
+
+            oc_scratch_end(scratch);
         }
     }
 
@@ -744,24 +502,34 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
             childScope->parent = scope;
             oc_list_push_back(&scope->children, &childScope->listElt);
 
-            wa_debug_extract_vars_from_scope(arena, funcInfo, childScope, childDie, dwarf, types);
+            wa_debug_extract_vars_from_scope(arena, funcInfo, childScope, childDie, unitBaseAddress, dwarf, types);
         }
     }
 }
 
-void wa_import_debug_locals(wa_module* module)
+void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_info* dwarf)
 {
-    wa_debug_info* info = module->debugInfo;
+    //TODO: could we get function count from somewhere else so we dont need to pass module here?
+
     //NOTE: allocate arrays for units and function infos
-    info->units = oc_arena_push_array(module->arena, wa_debug_unit, info->dwarf->unitCount);
+    info->units = oc_arena_push_array(module->arena, wa_debug_unit, dwarf->unitCount);
     info->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
 
     //NOTE: list of all types to deduplicate types
     oc_list types = { 0 };
 
-    for(u64 unitIndex = 0; unitIndex < info->dwarf->unitCount; unitIndex++)
+    for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
-        dw_die* rootDie = info->dwarf->units[unitIndex].rootDie;
+        dw_die* rootDie = dwarf->units[unitIndex].rootDie; //TODO: could the unit be null?
+
+        OC_ASSERT(rootDie && rootDie->abbrev && rootDie->abbrev->tag == DW_TAG_compile_unit);
+        u64 unitBaseAddress = 0;
+        dw_attr* lowPC = dw_die_get_attr(rootDie, DW_AT_low_pc);
+        if(lowPC)
+        {
+            unitBaseAddress = lowPC->valU64;
+        }
+
         wa_debug_unit* unit = &info->units[unitIndex];
 
         //NOTE: count globals
@@ -788,7 +556,7 @@ void wa_import_debug_locals(wa_module* module)
                 dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
                 if(name)
                 {
-                    unit->globals[globalIndex] = wa_debug_import_variable(module->arena, varDie, info->dwarf, &types);
+                    unit->globals[globalIndex] = wa_debug_import_variable(module->arena, varDie, dwarf, &types);
                     globalIndex++;
                 }
             }
@@ -828,7 +596,7 @@ void wa_import_debug_locals(wa_module* module)
                         funcInfo->frameBase = &frameBase->loc;
                     }
 
-                    wa_debug_extract_vars_from_scope(module->arena, funcInfo, &funcInfo->body, funcDie, info->dwarf, &types);
+                    wa_debug_extract_vars_from_scope(module->arena, funcInfo, &funcInfo->body, funcDie, unitBaseAddress, dwarf, &types);
                 }
             }
         }
@@ -865,4 +633,289 @@ void wa_wasm_to_warm_loc_push(wa_module* module, u32 funcIndex, u32 codeIndex, w
     u64 index = hash % module->debugInfo->wasmToWarmMapLen;
 
     oc_list_push_back(&module->debugInfo->wasmToWarmMap[index], &mapping->listElt);
+}
+
+//-------------------------------------------------------------------------
+// Create debug info from dwarf
+//-------------------------------------------------------------------------
+
+void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_info* dwarf)
+{
+    dw_line_info* lineInfo = &dwarf->line;
+
+    //NOTE: alloc wasm to line map
+    for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
+    {
+        info->wasmToLineCount += lineInfo->tables[tableIndex].entryCount;
+    }
+    info->wasmToLine = oc_arena_push_array(arena, wa_wasm_to_line_entry, info->wasmToLineCount);
+    u64 wasmToLineIndex = 0;
+
+    //NOTE: build a global file table and build wasm line map
+    wa_source_info* sourceInfo = &info->sourceInfo;
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_list files = { 0 };
+    sourceInfo->fileCount = 1; // index 0 is reserved for a "nil" wa_source_file entry
+
+    for(u64 tableIndex = 0; tableIndex < lineInfo->tableCount; tableIndex++)
+    {
+        dw_line_table* table = &lineInfo->tables[tableIndex];
+
+        //NOTE: determine the paths of compile unit current directory, current file, and current file dir,
+        //      which varies between dwarf 4 and 5.
+        //WARN: currentFileDir can be different from currentDir if currentFile is an absolute path, or if it
+        //      explicitly refers to another directory than the compile unit current directory.
+        oc_str8 currentDir = { 0 };
+        oc_str8 currentFile = { 0 };
+        oc_str8 currentFileDir = { 0 };
+        oc_str8 currentFileAbs = { 0 };
+
+        bool currentFileInTable = false;
+
+        if(table->header.version == 4)
+        {
+            //NOTE: set current dir current file from CU info
+            OC_ASSERT(tableIndex < dwarf->unitCount);
+            dw_unit* unit = &dwarf->units[tableIndex];
+            dw_die* die = unit->rootDie;
+
+            OC_ASSERT(die->abbrev->tag == DW_TAG_compile_unit);
+
+            //TODO: make sure the die DW_AT_stmt_list corresponds to the current table
+            dw_attr* dirAttr = dw_die_get_attr(die, DW_AT_comp_dir);
+            if(dirAttr)
+            {
+                currentDir = dirAttr->string;
+            }
+
+            dw_attr* fileAttr = dw_die_get_attr(die, DW_AT_name);
+            if(fileAttr)
+            {
+                currentFile = fileAttr->string;
+            }
+        }
+        else
+        {
+            currentDir = table->header.dirEntries[0].path;
+            currentFile = table->header.fileEntries[0].path;
+        }
+
+        if(currentFile.len && currentFile.ptr[0] == '/')
+        {
+            currentFileDir = currentFile;
+            currentFileAbs = currentFile;
+        }
+        else
+        {
+            currentFileDir = currentDir;
+            currentFileAbs = oc_path_append(scratch.arena, currentFileDir, currentFile);
+        }
+        OC_DEBUG_ASSERT(!oc_str8_cmp(currentFileDir, oc_str8_slice(currentFileAbs, 0, currentFileDir.len)),
+                        "currentFileDir should be a prefix of currentFileAbs");
+
+        //NOTE: allocate a table to map dwarf file indices to our global file table indices
+        u64* fileIndices = oc_arena_push_array(scratch.arena, u64, table->header.fileEntryCount + 1);
+
+        //NOTE: add the current table file entries to our global table
+        for(u64 fileIndex = 0; fileIndex < table->header.fileEntryCount; fileIndex++)
+        {
+            //NOTE: first find the root path and full path of the file
+            dw_file_entry* fileEntry = &table->header.fileEntries[fileIndex];
+            oc_str8 filePath = fileEntry->path;
+            oc_str8 rootPath = { 0 };
+            oc_str8 fullPath = { 0 };
+
+            if(filePath.len && filePath.ptr[0] == '/')
+            {
+                //NOTE: absolute file path. This will be shown as a single file name at the root of the tree
+                rootPath = filePath;
+                fullPath = filePath;
+            }
+            else
+            {
+                //NOTE: relative file path. This will be shown in a subtree whose root it either the name of the
+                // dir path (in case of an absolute dir path), or the name of the CU path (in case of a relative dir path)
+
+                oc_str8 dirPath = { 0 };
+                if(table->header.version == 5)
+                {
+                    dw_file_entry* dirEntry = &table->header.dirEntries[fileEntry->dirIndex];
+                    dirPath = dirEntry->path;
+                }
+                else if(fileEntry->dirIndex)
+                {
+                    dw_file_entry* dirEntry = &table->header.dirEntries[fileEntry->dirIndex - 1];
+                    dirPath = dirEntry->path;
+                }
+                else
+                {
+                    dirPath = currentDir;
+                }
+
+                if(dirPath.len && dirPath.ptr[0] == '/')
+                {
+                    // absolute dir path
+                    rootPath = dirPath;
+                }
+                else
+                {
+                    // dir path relative to current directory of compilation
+                    rootPath = currentDir;
+                    filePath = oc_path_append(scratch.arena, dirPath, filePath);
+                }
+                fullPath = oc_path_append(scratch.arena, rootPath, filePath);
+
+                OC_DEBUG_ASSERT(!oc_str8_cmp(rootPath, oc_str8_slice(fullPath, 0, rootPath.len)),
+                                "rootPath should be a prefix of fullPath");
+            }
+
+            //NOTE: now we create a wa_source_file entry with the given root path and file path, if it doesn't exist
+            wa_source_file_elt* file = wa_find_or_add_source_file(scratch.arena,
+                                                                  arena,
+                                                                  &files,
+                                                                  &sourceInfo->fileCount,
+                                                                  rootPath,
+                                                                  fullPath);
+
+            //NOTE: if the found/created wa_source_file represents the current file, we mark it as found.
+            //      this avoids duplicates when toolchain explicity put the current file in dwarf version 4
+            //      file entries rather than using index 0 as the implicit current file.
+            if(!oc_str8_cmp(currentFileAbs, file->file.fullPath))
+            {
+                currentFileInTable = true;
+                if(table->header.version == 4)
+                {
+                    fileIndices[0] = file->index;
+                }
+            }
+
+            if(table->header.version == 4)
+            {
+                fileIndices[fileIndex + 1] = file->index;
+            }
+            else
+            {
+                fileIndices[fileIndex] = file->index;
+            }
+        }
+
+        if(table->header.version == 4 && currentFile.len && !currentFileInTable)
+        {
+            //NOTE: if the compile unit "current file" is only referenced implicitly by index 0,
+            //      we add it to our global table here
+
+            wa_source_file_elt* file = wa_find_or_add_source_file(scratch.arena,
+                                                                  arena,
+                                                                  &files,
+                                                                  &sourceInfo->fileCount,
+                                                                  currentFileDir,
+                                                                  currentFileAbs);
+
+            fileIndices[0] = file->index;
+        }
+
+        //NOTE: add the table line entries to our module's wasmToLineEntry table
+        for(u64 entryIndex = 0; entryIndex < table->entryCount; entryIndex++)
+        {
+            dw_line_entry* lineEntry = &table->entries[entryIndex];
+            wa_wasm_to_line_entry* wasmToLineEntry = &info->wasmToLine[wasmToLineIndex];
+
+            wasmToLineEntry->wasmOffset = lineEntry->address;
+            wasmToLineEntry->loc.fileIndex = fileIndices[lineEntry->file];
+            wasmToLineEntry->loc.line = lineEntry->line;
+
+            wasmToLineIndex++;
+        }
+    }
+
+    //NOTE: now copy all wa_source_file entries to the module's global file array, and finally clear the scratch
+    //      the first element of the array is a zeroed wa_source_file (index 0 is used as an invalid fileIndex)
+    sourceInfo->files = oc_arena_push_array(arena, wa_source_file, sourceInfo->fileCount);
+    oc_list_for_indexed(files, it, wa_source_file_elt, listElt)
+    {
+        sourceInfo->files[it.index + 1] = it.elt->file;
+    }
+
+    oc_scratch_end(scratch);
+}
+
+wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
+{
+    wa_debug_info* info = oc_arena_push_type(module->arena, wa_debug_info);
+
+    //NOTE: alloc warm to wasm maps
+    //TODO: tune size
+    info->warmToWasmMapLen = 4096;
+    info->warmToWasmMap = oc_arena_push_array(module->arena, oc_list, 4096);
+    info->wasmToWarmMapLen = 4096;
+    info->wasmToWarmMap = oc_arena_push_array(module->arena, oc_list, 4096);
+
+    //NOTE: get dwarf sections
+    dw_sections dwarfSections = { 0 };
+
+    oc_list_for(module->toc.customSections, section, wa_section, listElt)
+    {
+        dw_section sectionContents = {
+            .offset = section->offset,
+            .len = section->len,
+        };
+
+        if(!oc_str8_cmp(section->name, OC_STR8(".debug_abbrev")))
+        {
+            dwarfSections.abbrev = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_info")))
+        {
+            dwarfSections.info = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str_offsets")))
+        {
+            dwarfSections.strOffsets = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_str")))
+        {
+            dwarfSections.str = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_addr")))
+        {
+            dwarfSections.addr = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line")))
+        {
+            dwarfSections.line = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_line_str")))
+        {
+            dwarfSections.lineStr = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_loc")))
+        {
+            dwarfSections.loc = sectionContents;
+        }
+        else if(!oc_str8_cmp(section->name, OC_STR8(".debug_ranges")))
+        {
+            dwarfSections.ranges = sectionContents;
+        }
+    }
+
+    //NOTE: parse dwarf info and process it
+    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
+
+    dw_parser parser = {
+        .arena = scratch.arena,
+        .sections = dwarfSections,
+        .errorCallback = wa_dwarf_error_callback,
+        .userData = module,
+        .rootReader = wa_reader_from_str8(contents),
+    };
+
+    dw_info dwarf = dw_parse_dwarf(&parser);
+
+    wa_debug_info_import_line_table(module->arena, info, &dwarf);
+    wa_debug_info_import_variables(module, info, &dwarf);
+
+    oc_scratch_end(scratch);
+
+    return info;
 }
