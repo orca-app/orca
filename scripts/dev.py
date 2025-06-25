@@ -953,6 +953,10 @@ def build_sdk_internal(release):
         except subprocess.CalledProcessError:
             brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
         clang = os.path.join(brew_llvm, 'bin', 'clang')
+    elif platform.system() == "Windows":
+        # another very stupid github CI workaround
+        if os.path.exists("C:\\Program Files\\LLVM\\bin"):
+            clang = 'C:\\Program Files\\LLVM\\bin\clang'
 
     # compile sdk
 
@@ -1028,6 +1032,13 @@ def build_libc_internal(release):
             brew_llvm = subprocess.check_output(["brew", "--prefix", "llvm", "--installed"]).decode().strip()
         clang = os.path.join(brew_llvm, 'bin', 'clang')
         llvm_ar = os.path.join(brew_llvm, 'bin', 'llvm-ar')
+    elif platform.system() == "Windows":
+        # another very stupid github CI workaround
+        if os.path.exists("C:\\Program Files\\LLVM\\bin"):
+            clang = 'C:\\Program Files\\LLVM\\bin\clang'
+
+
+    subprocess.run([clang, '-v'], check=True)
 
     # compile dummy CRT
     subprocess.run([
