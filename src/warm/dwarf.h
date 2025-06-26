@@ -903,6 +903,11 @@ typedef struct dw_die
     dw_attr* attributes;
 } dw_die;
 
+typedef struct dw_die_option
+{
+    dw_die* p;
+} dw_die_option;
+
 typedef struct dw_unit
 {
     u64 start;
@@ -925,7 +930,7 @@ typedef struct dw_unit
 
     dw_abbrev_table abbrev;
 
-    dw_die* rootDie;
+    dw_die_option rootDie;
 
 } dw_unit;
 
@@ -947,6 +952,7 @@ typedef struct dw_line_program_header
 {
     u64 offset;
     u64 unitLength;
+    u8 format;
     uint16_t version;
     u8 addressSize;
     u8 segmentSelectorSize;

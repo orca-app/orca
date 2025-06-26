@@ -107,10 +107,15 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
 
         if(typeRef >= unit->start && typeRef < unit->start + unitSize)
         {
-            die = dw_die_next(unit->rootDie, unit->rootDie);
+            dw_die* rootDie = oc_catch_ptr(unit->rootDie)
+            {
+                break;
+            }
+
+            die = dw_die_next(rootDie, rootDie);
             while(die && die->start != typeRef)
             {
-                die = dw_die_next(unit->rootDie, die);
+                die = dw_die_next(rootDie, die);
             }
 
             if(die)
@@ -520,7 +525,10 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
 
     for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
-        dw_die* rootDie = dwarf->units[unitIndex].rootDie; //TODO: could the unit be null?
+        dw_die* rootDie = oc_catch_ptr(dwarf->units[unitIndex].rootDie)
+        {
+            continue;
+        }
 
         OC_ASSERT(rootDie && rootDie->abbrev && rootDie->abbrev->tag == DW_TAG_compile_unit);
         u64 unitBaseAddress = 0;
@@ -678,21 +686,25 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
             //NOTE: set current dir current file from CU info
             OC_ASSERT(tableIndex < dwarf->unitCount);
             dw_unit* unit = &dwarf->units[tableIndex];
-            dw_die* die = unit->rootDie;
 
-            OC_ASSERT(die->abbrev->tag == DW_TAG_compile_unit);
-
-            //TODO: make sure the die DW_AT_stmt_list corresponds to the current table
-            dw_attr* dirAttr = dw_die_get_attr(die, DW_AT_comp_dir);
-            if(dirAttr)
+            if(unit->rootDie.p)
             {
-                currentDir = dirAttr->string;
-            }
+                dw_die* die = unit->rootDie.p;
 
-            dw_attr* fileAttr = dw_die_get_attr(die, DW_AT_name);
-            if(fileAttr)
-            {
-                currentFile = fileAttr->string;
+                OC_ASSERT(die->abbrev->tag == DW_TAG_compile_unit);
+
+                //TODO: make sure the die DW_AT_stmt_list corresponds to the current table
+                dw_attr* dirAttr = dw_die_get_attr(die, DW_AT_comp_dir);
+                if(dirAttr)
+                {
+                    currentDir = dirAttr->string;
+                }
+
+                dw_attr* fileAttr = dw_die_get_attr(die, DW_AT_name);
+                if(fileAttr)
+                {
+                    currentFile = fileAttr->string;
+                }
             }
         }
         else

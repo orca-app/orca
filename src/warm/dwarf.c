@@ -217,6 +217,7 @@ void wa_read_file_entries(dw_parser* parser,
     }
     else
     {
+        OC_DEBUG_ASSERT(header->version == 4);
         if(directories)
         {
             formatCount = 1;
@@ -295,8 +296,6 @@ void wa_read_file_entries(dw_parser* parser,
         }
 
         dw_file_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_file_entry_elt);
-        oc_list_push_back(&entryList, &elt->listElt);
-
         dw_file_entry* entry = &elt->entry;
 
         for(int fmtIndex = 0; fmtIndex < formatCount; fmtIndex++)
@@ -326,6 +325,7 @@ void wa_read_file_entries(dw_parser* parser,
                             }
                             else
                             {
+                                OC_DEBUG_ASSERT(header->addressSize == 8);
                                 strp = wa_read_u64(reader);
                             }
                             dw_section section = { 0 };
@@ -340,8 +340,8 @@ void wa_read_file_entries(dw_parser* parser,
                             else
                             {
                                 //TODO: supplementary string section
-                                printf("error: unsupported supplementary string section\n");
-                                exit(-1);
+                                dw_parse_error(parser, wa_reader_absolute_loc(reader), "unsupported supplementary string section\n");
+                                break;
                             }
 
                             wa_reader strReader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
@@ -351,10 +351,11 @@ void wa_read_file_entries(dw_parser* parser,
                         break;
 
                         default:
-                            printf("unsupported form code for %s file entry format\n",
-                                   dw_get_line_header_entry_format_string(content));
-                            exit(-1);
-                            break;
+                            dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                           "unsupported form code for %s file entry format\n",
+                                           dw_get_line_header_entry_format_string(content));
+                            //NOTE: after that we can't parse other entries, so bail out
+                            goto collect;
                     }
                 }
                 break;
@@ -379,10 +380,11 @@ void wa_read_file_entries(dw_parser* parser,
                         break;
 
                         default:
-                            printf("unsupported form code for %s file entry format\n",
-                                   dw_get_line_header_entry_format_string(content));
-                            exit(-1);
-                            break;
+                            dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                           "unsupported form code for %s file entry format\n",
+                                           dw_get_line_header_entry_format_string(content));
+                            //NOTE: after that we can't parse other entries, so bail out
+                            goto collect;
                     }
                 }
                 break;
@@ -411,16 +413,18 @@ void wa_read_file_entries(dw_parser* parser,
                             u64 len = wa_read_leb128_u64(reader);
                             oc_str8 str = wa_read_bytes(reader, len);
 
-                            printf("warning: unsupported form DW_FORM_block in %s file entry format\n",
-                                   dw_get_line_header_entry_format_string(content));
+                            dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                           "unsupported form DW_FORM_block in %s file entry format\n",
+                                           dw_get_line_header_entry_format_string(content));
                         }
                         break;
 
                         default:
-                            printf("unsupported form code for %s file entry format\n",
-                                   dw_get_line_header_entry_format_string(content));
-                            exit(-1);
-                            break;
+                            dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                           "unsupported form code for %s file entry format\n",
+                                           dw_get_line_header_entry_format_string(content));
+                            //NOTE: after that we can't parse other entries, so bail out
+                            goto collect;
                     }
                 }
                 break;
@@ -455,10 +459,11 @@ void wa_read_file_entries(dw_parser* parser,
                         break;
 
                         default:
-                            printf("unsupported form code for %s file entry format\n",
-                                   dw_get_line_header_entry_format_string(content));
-                            exit(-1);
-                            break;
+                            dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                           "unsupported form code for %s file entry format\n",
+                                           dw_get_line_header_entry_format_string(content));
+                            //NOTE: after that we can't parse other entries, so bail out
+                            goto collect;
                     }
                 }
                 break;
@@ -466,9 +471,11 @@ void wa_read_file_entries(dw_parser* parser,
                 {
                     if(form != DW_FORM_data16)
                     {
-                        printf("unsupported form code for %s file entry format\n",
-                               dw_get_line_header_entry_format_string(content));
-                        exit(-1);
+                        dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                       "unsupported form code for %s file entry format\n",
+                                       dw_get_line_header_entry_format_string(content));
+                        //NOTE: after that we can't parse other entries, so bail out
+                        goto collect;
                     }
                     oc_str8 md5 = wa_read_bytes(reader, 16);
                     if(md5.len == 16)
@@ -490,25 +497,34 @@ void wa_read_file_entries(dw_parser* parser,
                 {
                     if(content >= DW_LNCT_lo_user && content <= DW_LNCT_hi_user)
                     {
-                        printf("error: unsupported vendor-defined content description\n");
-                        //TODO: just skip
-                        exit(-1);
+                        dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                       "error: unsupported vendor-defined content description %u\n", content);
+                        //NOTE: after that we can't parse other entries, so bail out
+                        goto collect;
                     }
                     else
                     {
-                        printf("error: unrecognized directory entry content description\n");
-                        exit(-1);
+                        dw_parse_error(parser, wa_reader_absolute_loc(reader),
+                                       "unrecognized directory entry content description %u\n", content);
+                        //NOTE: after that we can't parse other entries, so bail out
+                        goto collect;
                     }
                 }
                 break;
             }
         }
 
-        OC_DEBUG_ASSERT(entry->path.ptr);
+        if(elt)
+        {
+            //TODO: check that entry has the minimal info we need
+            OC_DEBUG_ASSERT(entry->path.ptr);
 
-        entryIndex++;
+            oc_list_push_back(&entryList, &elt->listElt);
+            entryIndex++;
+        }
     }
-    OC_DEBUG_ASSERT(header->version == 4 || *entryCount == entryIndex);
+
+collect:
 
     *entryCount = entryIndex;
 
@@ -523,71 +539,83 @@ void wa_read_file_entries(dw_parser* parser,
     oc_scratch_end(scratch);
 }
 
-int wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_line_program_header* header, dw_sections* sections)
+typedef struct dw_line_program_header_option
 {
-    header->offset = wa_reader_offset(reader);
+    bool ok;
+    dw_line_program_header value;
+} dw_line_program_header_option;
 
-    u8 dwarfFormat = 0;
-    wa_read_inital_length(reader, &header->unitLength, &dwarfFormat);
+dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_sections* sections)
+{
+    dw_line_program_header header = { 0 };
+    header.offset = wa_reader_offset(reader);
 
-    header->version = wa_read_u16(reader);
+    wa_read_inital_length(reader, &header.unitLength, &header.format);
 
-    if(header->version != 5 && header->version != 4)
+    header.version = wa_read_u16(reader);
+
+    if(header.version != 5 && header.version != 4)
     {
-        printf("error: DWARF version %i not supported\n", header->version);
-        exit(-1);
+        dw_parse_error(parser, wa_reader_absolute_loc(reader), "DWARF version %i not supported on line program header\n", header.version);
+        return oc_wrap_nil(dw_line_program_header_option);
     }
 
-    if(header->version == 5)
+    if(header.version == 5)
     {
-        header->addressSize = wa_read_u8(reader);
-        if(header->addressSize != 4 && header->addressSize != 8)
+        header.addressSize = wa_read_u8(reader);
+        if(header.addressSize != 4 && header.addressSize != 8)
         {
-            oc_log_error("address size should be 4 or 8\n");
-            exit(-1);
+            dw_parse_error(parser, wa_reader_absolute_loc(reader), "address size should be 4 or 8, got %hhu\n", header.addressSize);
+            return oc_wrap_nil(dw_line_program_header_option);
         }
 
-        header->segmentSelectorSize = wa_read_u8(reader);
+        header.segmentSelectorSize = wa_read_u8(reader);
     }
     else
     {
         //NOTE: we set 4 by default as it is the address size on wasm.
         //TODO: THIS SHOULD CHANGE IF WE SWITCH TO WASM64!
         //TODO: allow configuring the "default target address size" from outside
-        header->addressSize = 4;
+        header.addressSize = 4;
     }
 
-    if(dwarfFormat == DW_DWARF32)
+    if(header.format == DW_DWARF32)
     {
-        header->headerLength = wa_read_u32(reader);
+        header.headerLength = wa_read_u32(reader);
     }
     else
     {
-        header->headerLength = wa_read_u64(reader);
+        header.headerLength = wa_read_u64(reader);
     }
     u64 headerLengthBase = wa_reader_offset(reader);
 
-    header->minInstructionLength = wa_read_u8(reader);
-    header->maxOperationsPerInstruction = wa_read_u8(reader);
-    header->defaultIsStmt = wa_read_u8(reader);
-    header->lineBase = wa_read_u8(reader);
-    header->lineRange = wa_read_u8(reader);
-    header->opcodeBase = wa_read_u8(reader);
+    header.minInstructionLength = wa_read_u8(reader);
+    header.maxOperationsPerInstruction = wa_read_u8(reader);
+    header.defaultIsStmt = wa_read_u8(reader);
+    header.lineBase = wa_read_u8(reader);
+    header.lineRange = wa_read_u8(reader);
+    header.opcodeBase = wa_read_u8(reader);
 
     //TODO: support non-12 sizes
     for(int i = 0; i < 12; i++)
     {
-        header->standardOpcodeLength[i] = wa_read_u8(reader);
+        header.standardOpcodeLength[i] = wa_read_u8(reader);
     }
 
     // directories
-    wa_read_file_entries(parser, reader, &header->dirEntryCount, &header->dirEntries, sections, header, true);
+    wa_read_file_entries(parser, reader, &header.dirEntryCount, &header.dirEntries, sections, &header, true);
 
     // files
-    wa_read_file_entries(parser, reader, &header->fileEntryCount, &header->fileEntries, sections, header, false);
+    wa_read_file_entries(parser, reader, &header.fileEntryCount, &header.fileEntries, sections, &header, false);
 
-    //NOTE: return offset from start to beginning of line program code
-    return (headerLengthBase + header->headerLength - header->offset);
+    if(reader->status == WA_READER_OK)
+    {
+        return oc_wrap_value(dw_line_program_header_option, header);
+    }
+    else
+    {
+        return oc_wrap_nil(dw_line_program_header_option);
+    }
 }
 
 void dw_line_machine_reset(dw_line_machine* m, bool defaultIsStmt)
@@ -665,17 +693,28 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
     while(wa_reader_has_more(&reader))
     {
         u64 unitStart = wa_reader_offset(&reader);
-        dw_line_program_header header = { 0 };
 
-        wa_read_line_program_header(parser, &reader, &header, sections);
+        dw_line_program_header_option headerOption = wa_read_line_program_header(parser, &reader, sections);
+
+        dw_line_program_header header = oc_catch(headerOption)
+        {
+            //NOTE: if we had an error parsing header, we can't resync to subsequent tables, so bail out...
+            break;
+        }
 
         u64 unitLineInfoEnd = unitStart + header.addressSize + header.unitLength;
 
         if(unitLineInfoEnd > reader.contents.len)
         {
-            oc_log_error("inconsistent size information in line program header\n");
-            exit(-1);
+            dw_parse_error(parser,
+                           wa_reader_absolute_loc(&reader),
+                           "Size information in line program header is out of bounds (line info end = %llu, section size = %llu).\n",
+                           unitLineInfoEnd,
+                           reader.contents.len);
+            break;
         }
+
+        OC_DEBUG_ASSERT(reader->status == WA_READER_OK);
 
         dw_line_table_elt* table = oc_arena_push_type(scratch.arena, dw_line_table_elt);
         oc_list_push_back(&tablesList, &table->listElt);
@@ -692,6 +731,12 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
         while(wa_reader_offset(&reader) < unitLineInfoEnd)
         {
             u8 opcode = wa_read_u8(&reader);
+
+            if(reader.status != WA_READER_OK)
+            {
+                //NOTE: if a read error occured, we're guaranteed to bail out before emitting the next row
+                break;
+            }
 
             if(opcode >= header.opcodeBase)
             {
@@ -734,15 +779,13 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
                             tombstoneAddress = 0xffffffff;
                             address = wa_read_u32(&reader);
                         }
-                        else if(header.addressSize == 8)
+                        else
                         {
+                            OC_DEBUG_ASSERT(header.addressSize == 8);
                             tombstoneAddress = 0xffffffffffffffff;
                             address = wa_read_u64(&reader);
                         }
-                        else
-                        {
-                            OC_ASSERT(0);
-                        }
+
                         machine.tombstone = (address == tombstoneAddress);
                         machine.address = address;
                         machine.opIndex = 0;
@@ -759,13 +802,19 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
                     {
                         if(opcode >= DW_LNE_lo_user && opcode <= DW_LNE_hi_user)
                         {
-                            printf("error: unsupported user opcode\n");
-                            exit(-1);
+                            dw_parse_error(parser,
+                                           wa_reader_absolute_loc(&reader),
+                                           "unsupported line program user opcode %u\n",
+                                           opcode);
+                            goto collect;
                         }
                         else
                         {
-                            oc_log_error("unrecognized line program opcode\n");
-                            exit(-1);
+                            dw_parse_error(parser,
+                                           wa_reader_absolute_loc(&reader),
+                                           "unsupported line program opcode %u\n",
+                                           opcode);
+                            goto collect;
                         }
                     }
                     break;
@@ -856,13 +905,17 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
 
                     default:
                     {
-                        oc_log_error("unrecognized line program opcode\n");
-                        exit(-1);
+                        dw_parse_error(parser,
+                                       wa_reader_absolute_loc(&reader),
+                                       "unsupported line program opcode %u\n",
+                                       opcode);
+                        goto collect;
                     }
                     break;
                 }
             }
         }
+    collect:
 
         table->table.entryCount = rowCount;
         table->table.entries = oc_arena_push_array(parser->arena, dw_line_entry, rowCount);
@@ -873,6 +926,9 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
         }
 
         tableCount++;
+
+        //NOTE: skip to next table
+        wa_reader_seek(&reader, unitLineInfoEnd);
     }
 
     lineInfo.tableCount = tableCount;
@@ -1172,20 +1228,26 @@ dw_expr dw_parse_expr(dw_parser* parser, wa_reader* reader, dw_dwarf_format form
     return expr;
 }
 
-dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u64 offset)
+typedef struct dw_loc_option
+{
+    bool ok;
+    dw_loc value;
+} dw_loc_option;
+
+dw_loc_option dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u64 offset)
 {
     //TODO: parse from debug loclist.
     // in v4, offset is an offset from the beginning of the debug_loc section
     // in v5, offset in an offset from the beginning of the debug_loclists section
     dw_loc loc = { 0 };
 
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
-
     wa_reader reader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
     wa_reader_seek(&reader, offset);
 
     if(unit->version == 4)
     {
+        oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+
         typedef struct dw_loc_entry_elt
         {
             oc_list_elt listElt;
@@ -1209,14 +1271,11 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
                     start = 0xffffffffffffffff;
                 }
             }
-            else if(unit->addressSize == 8)
-            {
-                start = wa_read_u64(&reader);
-                end = wa_read_u64(&reader);
-            }
             else
             {
-                OC_ASSERT(0);
+                OC_DEBUG_ASSERT(unit->addressSize == 8);
+                start = wa_read_u64(&reader);
+                end = wa_read_u64(&reader);
             }
 
             if(start == 0 && end == 0)
@@ -1251,16 +1310,18 @@ dw_loc dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u6
         {
             loc.entries[it.index] = it.elt->entry;
         }
+        oc_scratch_end(scratch);
     }
     else
     {
-        //TODO
-        OC_ASSERT(0);
+        //TODO: support v5 loclists
+        dw_parse_error(parser,
+                       wa_reader_absolute_loc(&reader),
+                       "DWARF version 5 loclist are not supported yet...\n");
+        return oc_wrap_nil(dw_loc_option);
     }
 
-    oc_scratch_end(scratch);
-
-    return loc;
+    return oc_wrap_value(dw_loc_option, loc);
 }
 
 dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
@@ -1277,13 +1338,19 @@ dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
             }
         }
     }
-    OC_ASSERT(0, "unreachable");
+    OC_DEBUG_ASSERT(0, "unreachable");
     return 0;
 }
 
 dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
 
-dw_range_list dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw_sections* sections, u64 offset)
+typedef struct dw_range_list_option
+{
+    bool ok;
+    dw_range_list value;
+} dw_range_list_option;
+
+dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw_sections* sections, u64 offset)
 {
     dw_range_list rangeList = { 0 };
 
@@ -1316,15 +1383,11 @@ dw_range_list dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw
                     start = 0xffffffffffffffff;
                 }
             }
-            else if(unit->addressSize == 8)
-            {
-                start = wa_read_u64(&reader);
-                end = wa_read_u64(&reader);
-            }
             else
             {
-                //TODO return error
-                OC_ASSERT(0);
+                OC_DEBUG_ASSERT(unit->addressSize == 8);
+                start = wa_read_u64(&reader);
+                end = wa_read_u64(&reader);
             }
 
             if(start == 0 && end == 0)
@@ -1355,13 +1418,19 @@ dw_range_list dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw
     }
     else
     {
+        dw_section section = sections->ranges;
+        wa_reader reader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
+
         //////////////////////////////////////////////////////////////////
         //TODO
         //////////////////////////////////////////////////////////////////
-        OC_ASSERT(0, "rangelist version 5 is unsupported yet");
+        dw_parse_error(parser,
+                       wa_reader_absolute_loc(&reader),
+                       "rangelist version 5 is unsupported yet");
+        return oc_wrap_nil(dw_range_list_option);
     }
 
-    return rangeList;
+    return oc_wrap_value(dw_range_list_option, rangeList);
 }
 
 typedef struct dw_attr_option
@@ -1395,6 +1464,7 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
             }
             else
             {
+                OC_DEBUG_ASSERT(unit->addressSize == 8);
                 attr.valU64 = wa_read_u64(reader);
             }
         }
@@ -1531,7 +1601,11 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
 
             wa_reader exprReader = wa_reader_subreader(reader, wa_reader_offset(reader), len);
             dw_expr expr = dw_parse_expr(parser, &exprReader, unit->format);
-            //TODO: we should set the status of parent reader if this fails?
+
+            if(exprReader.status != WA_READER_OK)
+            {
+                return oc_wrap_nil(dw_attr_option);
+            }
 
             wa_reader_skip(reader, len);
 
@@ -1688,6 +1762,11 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
                 wa_reader strReader = wa_reader_subreader(&parser->rootReader, strSection->offset, strSection->len);
                 wa_reader_seek(&strReader, strOffset);
                 attr.string = wa_read_cstring(&strReader);
+
+                if(strReader.status != WA_READER_OK)
+                {
+                    return oc_wrap_nil(dw_attr_option);
+                }
             }
         }
         break;
@@ -1759,10 +1838,19 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
                 wa_reader_skip(&strOffsetReader, index * 8);
                 strOffset = wa_read_u64(&strOffsetReader);
             }
+            if(strOffsetReader.status != WA_READER_OK)
+            {
+                return oc_wrap_nil(dw_attr_option);
+            }
 
             wa_reader strReader = wa_reader_subreader(&parser->rootReader, sections->str.offset, sections->str.len);
             wa_reader_seek(&strReader, strOffset);
             attr.string = wa_read_cstring(&strReader);
+
+            if(strReader.status != WA_READER_OK)
+            {
+                return oc_wrap_nil(dw_attr_option);
+            }
         }
         break;
 
@@ -1786,13 +1874,19 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
             {
                 case DW_AT_location:
                 {
-                    attr.loc = dw_parse_loclist(parser, unit, sections->loc, addrOffset);
+                    attr.loc = oc_catch(dw_parse_loclist(parser, unit, sections->loc, addrOffset))
+                    {
+                        return oc_wrap_nil(dw_attr_option);
+                    }
                 }
                 break;
 
                 case DW_AT_ranges:
                 {
-                    attr.ranges = dw_parse_range_list_at_offset(parser, unit, sections, addrOffset);
+                    attr.ranges = oc_catch(dw_parse_range_list_at_offset(parser, unit, sections, addrOffset))
+                    {
+                        return oc_wrap_nil(dw_attr_option);
+                    }
                 }
                 break;
                 default:
@@ -1820,11 +1914,6 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
 
     return oc_wrap_value(dw_attr_option, attr);
 }
-
-typedef struct dw_die_option
-{
-    dw_die* p;
-} dw_die_option;
 
 dw_die_option dw_parse_die(dw_parser* parser, wa_reader* reader, dw_sections* sections, dw_unit* unit)
 {
@@ -1907,7 +1996,6 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
 
         if(unit->type == DW_UT_compile || unit->type == DW_UT_partial)
         {
-            u8 addressSize;
             u64 abbrevOffset = 0;
 
             if(unit->version >= 5)
@@ -1937,13 +2025,23 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
                 unit->addressSize = wa_read_u8(&reader);
             }
 
+            if(unit->addressSize != 4 && unit->addressSize != 8)
+            {
+                dw_parse_error(parser,
+                               wa_reader_absolute_loc(&reader),
+                               "unit address size should be 4 or 8, got %hhu\n",
+                               unit->addressSize);
+                goto skip_to_next_unit;
+            }
+
             unit->abbrev = dw_load_abbrev_table(parser, sections->abbrev, unit->abbrevOffset);
 
             //NOTE(martin): read DIEs for unit
             dw_die* parentDIE = 0;
             do
             {
-                dw_die* die = oc_catch_ptr(dw_parse_die(parser, &reader, sections, unit))
+                dw_die_option dieOption = dw_parse_die(parser, &reader, sections, unit);
+                dw_die* die = oc_catch_ptr(dieOption)
                 {
                     //NOTE: if a DIE fails parsing, all other DIEs in the unit won't be parsed
                     // correctly, so bail out.
@@ -1960,7 +2058,7 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
                 else
                 {
                     //NOTE: This is the root DIE
-                    unit->rootDie = die;
+                    unit->rootDie = dieOption;
                 }
 
                 if(die->abbrevCode == 0)
@@ -1987,6 +2085,7 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
         oc_list_push_back(&units, &unitElt->listElt);
         info->unitCount++;
 
+    skip_to_next_unit:
         // skip to next unit
         wa_reader_seek(&reader, unit->start + unit->initialLength + (unit->format == DW_DWARF32 ? 4 : 8));
     }
@@ -2256,7 +2355,10 @@ void dw_print_debug_info(dw_info* info)
         printf("    type: %s\n", dw_get_cu_type_string(unit->type));
         printf("    version: %i\n", unit->version);
 
-        dw_print_die(unit, unit->rootDie, 0);
+        if(unit->rootDie.p)
+        {
+            dw_print_die(unit, unit->rootDie.p, 0);
+        }
     }
 }
 
@@ -2276,7 +2378,7 @@ void dw_print_line_info(dw_line_info* info)
         printf("debug_line[0x%08llx]\n", table->header.offset);
         printf("Line table prologue:\n");
         printf("    total_length: 0x%08llx\n", table->header.unitLength);
-        printf("          format: %s\n", table->header.addressSize == 4 ? "DWARF32" : "DWARF64");
+        printf("          format: %s\n", table->header.format == DW_DWARF32 ? "DWARF32" : "DWARF64");
         printf("         version: %i\n", table->header.version);
         if(table->header.version >= 5)
         {
@@ -2360,7 +2462,7 @@ void dw_print_line_info(dw_line_info* info)
                 This is NOT be the same as an _empty table_: eg llvm-dwarfdump does produce
                 headings even if the table is entirely tombstoned.
             */
-            u64 unitLengthSize = (table->header.addressSize == 4) ? 4 : 12;
+            u64 unitLengthSize = (table->header.format == DW_DWARF32) ? 4 : 12;
             u64 programEnd = unitLengthSize + table->header.unitLength;
             u64 prologueStart = unitLengthSize + 2 + table->header.addressSize;
             if(table->header.version >= 5)
