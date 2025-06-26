@@ -10,6 +10,7 @@
 #include "util/typedefs.h"
 #include "util/strings.h"
 #include "util/wrapped_types.h"
+#include "reader.h"
 
 //------------------------------------------------------------------------
 // Dwarf enums
@@ -1048,3 +1049,31 @@ typedef struct dw_sections
     dw_section loc;
     dw_section ranges;
 } dw_sections;
+
+typedef struct dw_parser dw_parser;
+typedef void (*dw_error_callback)(dw_parser* parser, u64 loc, oc_str8 message, void* user);
+
+typedef struct dw_parser
+{
+    oc_arena* arena;
+    wa_reader rootReader;
+    dw_sections sections;
+    dw_error_callback errorCallback;
+    void* userData;
+    u64 errorCount;
+} dw_parser;
+
+//------------------------------------------------------------------------
+// parsing dwarf
+//------------------------------------------------------------------------
+dw_info dw_parse_dwarf(dw_parser* parser);
+
+//------------------------------------------------------------------------
+// traversing DIEs
+//------------------------------------------------------------------------
+dw_die* dw_die_next(dw_die* root, dw_die* die);
+dw_die* dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags);
+dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag);
+dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
+dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
+dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form);

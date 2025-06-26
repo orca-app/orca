@@ -96,19 +96,6 @@ const dw_attr_class_info DW_AT_CLASS_INFO[] = {
 // structs
 //------------------------------------------------------------------------
 
-typedef struct dw_parser dw_parser;
-typedef void (*dw_error_callback)(dw_parser* parser, u64 loc, oc_str8 message, void* user);
-
-typedef struct dw_parser
-{
-    oc_arena* arena;
-    wa_reader rootReader;
-    dw_sections sections;
-    dw_error_callback errorCallback;
-    void* userData;
-    u64 errorCount;
-} dw_parser;
-
 typedef struct dw_line_machine
 {
     u64 address;
@@ -205,6 +192,7 @@ void wa_read_file_entries(dw_parser* parser,
                           u64* entryCount,
                           dw_file_entry** entries,
                           dw_sections* sections,
+                          dw_info* dwarf,
                           dw_line_program_header* header,
                           bool directories)
 {
@@ -282,6 +270,66 @@ void wa_read_file_entries(dw_parser* parser,
 
     oc_list entryList = { 0 };
     u64 entryIndex = 0;
+
+    if(header->version == 4)
+    {
+        //NOTE: In Dwarf version 4, the current file and current dir are not stored in the
+        // table and are implicitly refered to as index 0.
+        // To simplify usage code, we always put current directory and current file in the table,
+        // so we get them from CU info here.
+
+        oc_str8 currentDirOrFile = { 0 };
+
+        for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
+        {
+            dw_unit* unit = &dwarf->units[unitIndex];
+            if(unit->type == DW_UT_compile)
+            {
+                if(unit->rootDie.p)
+                {
+                    dw_die* die = unit->rootDie.p;
+                    OC_DEBUG_ASSERT(die->abbrev && die->abbrev->tag == DW_TAG_compile_unit);
+
+                    dw_attr* stmtListAttr = dw_die_get_attr(die, DW_AT_stmt_list);
+                    if(stmtListAttr && stmtListAttr->valU64 == header->offset)
+                    {
+                        if(directories)
+                        {
+                            dw_attr* dirAttr = dw_die_get_attr(die, DW_AT_comp_dir);
+                            if(dirAttr)
+                            {
+                                currentDirOrFile = dirAttr->string;
+                            }
+                        }
+                        else
+                        {
+                            dw_attr* fileAttr = dw_die_get_attr(die, DW_AT_name);
+                            if(fileAttr)
+                            {
+                                currentDirOrFile = fileAttr->string;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        if(currentDirOrFile.len == 0)
+        {
+            dw_parse_error(parser,
+                           wa_reader_absolute_loc(reader),
+                           "Couldn't infer table's current %s from compilation unit for DWARF v4 line table.\n",
+                           directories ? "directory" : "file");
+            return;
+        }
+        else
+        {
+            dw_file_entry_elt* elt = oc_arena_push_type(scratch.arena, dw_file_entry_elt);
+            elt->entry.path = currentDirOrFile;
+            oc_list_push_back(&entryList, &elt->listElt);
+            entryIndex++;
+        }
+    }
 
     while(wa_reader_has_more(reader))
     {
@@ -541,7 +589,7 @@ collect:
 
 typedef oc_option(dw_line_program_header) dw_line_program_header_option;
 
-dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_sections* sections)
+dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_sections* sections, dw_info* dwarf)
 {
     dw_line_program_header header = { 0 };
     header.offset = wa_reader_offset(reader);
@@ -599,10 +647,10 @@ dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_
     }
 
     // directories
-    wa_read_file_entries(parser, reader, &header.dirEntryCount, &header.dirEntries, sections, &header, true);
+    wa_read_file_entries(parser, reader, &header.dirEntryCount, &header.dirEntries, sections, dwarf, &header, true);
 
     // files
-    wa_read_file_entries(parser, reader, &header.fileEntryCount, &header.fileEntries, sections, &header, false);
+    wa_read_file_entries(parser, reader, &header.fileEntryCount, &header.fileEntries, sections, dwarf, &header, false);
 
     if(reader->status == WA_READER_OK)
     {
@@ -676,7 +724,7 @@ void dw_line_machine_emit_row(oc_arena* arena, dw_line_machine* m, oc_list* rowL
     }
 }
 
-dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
+dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections, dw_info* dwarf)
 {
     dw_line_info lineInfo = { 0 };
 
@@ -690,7 +738,7 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections)
     {
         u64 unitStart = wa_reader_offset(&reader);
 
-        dw_line_program_header_option headerOption = wa_read_line_program_header(parser, &reader, sections);
+        dw_line_program_header_option headerOption = wa_read_line_program_header(parser, &reader, sections, dwarf);
 
         dw_line_program_header header = oc_catch(headerOption)
         {
@@ -1334,8 +1382,6 @@ dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
     return 0;
 }
 
-dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
-
 typedef oc_option(dw_range_list) dw_range_list_option;
 
 dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw_sections* sections, u64 offset)
@@ -1873,6 +1919,13 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
                     }
                 }
                 break;
+
+                case DW_AT_stmt_list:
+                {
+                    attr.valU64 = addrOffset;
+                }
+                break;
+
                 default:
                     //TODO
                     break;
@@ -2090,7 +2143,7 @@ dw_info dw_parse_dwarf(dw_parser* parser)
     dw_info dwarf = { 0 };
     dw_parse_info(parser, &parser->sections, &dwarf);
 
-    dwarf.line = dw_load_line_info(parser, &parser->sections);
+    dwarf.line = dw_load_line_info(parser, &parser->sections, &dwarf);
 
     return dwarf;
 }

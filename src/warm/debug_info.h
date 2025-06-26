@@ -177,18 +177,16 @@ typedef struct wa_debug_function
 
 typedef struct wa_debug_info
 {
+    wa_source_info sourceInfo;
+
+    u64 wasmToLineCount;
+    wa_wasm_to_line_entry* wasmToLine;
+
     u32 warmToWasmMapLen;
     oc_list* warmToWasmMap;
 
     u32 wasmToWarmMapLen;
     oc_list* wasmToWarmMap;
-
-    //    dw_info* dwarf;
-
-    wa_source_info sourceInfo;
-
-    u64 wasmToLineCount;
-    wa_wasm_to_line_entry* wasmToLine;
 
     wa_register_map** registerMaps;
 
