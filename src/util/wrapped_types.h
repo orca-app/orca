@@ -14,16 +14,16 @@
 //NOTE(martin): Helpers for result types
 //----------------------------------------------------------------------------------------
 
-#define oc_result_type_def(name, valueType, errorType) \
-    typedef struct name                                \
-    {                                                  \
-        bool ok;                                       \
-        union                                          \
-        {                                              \
-            valueType value;                           \
-            errorType error;                           \
-        };                                             \
-    } name
+#define oc_result(valueType, errorType) \
+    struct                              \
+    {                                   \
+        bool ok;                        \
+        union                           \
+        {                               \
+            valueType value;            \
+            errorType error;            \
+        };                              \
+    }
 
 extern oc_thread_local bool oc_lastCatchResult;
 
@@ -40,18 +40,18 @@ extern oc_thread_local bool oc_lastCatchResult;
 //NOTE(martin): Helpers for option types
 //----------------------------------------------------------------------------------------
 
-#define oc_option_type_def(name, valueType) \
-    typedef struct name                     \
-    {                                       \
-        bool ok;                            \
-        valueType value;                    \
-    } name
+#define oc_option(valueType) \
+    struct                   \
+    {                        \
+        bool ok;             \
+        valueType value;     \
+    }
 
-#define oc_option_ptr_type_def(name, valueType) \
-    typedef struct name                         \
-    {                                           \
-        valueType* p;                           \
-    } name
+#define oc_option_ptr(valueType) \
+    struct                       \
+    {                            \
+        valueType* p;            \
+    }
 
 #define oc_wrap_nil(type) ((type){ 0 })
 

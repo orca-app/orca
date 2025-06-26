@@ -539,11 +539,7 @@ collect:
     oc_scratch_end(scratch);
 }
 
-typedef struct dw_line_program_header_option
-{
-    bool ok;
-    dw_line_program_header value;
-} dw_line_program_header_option;
+typedef oc_option(dw_line_program_header) dw_line_program_header_option;
 
 dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_sections* sections)
 {
@@ -1228,11 +1224,7 @@ dw_expr dw_parse_expr(dw_parser* parser, wa_reader* reader, dw_dwarf_format form
     return expr;
 }
 
-typedef struct dw_loc_option
-{
-    bool ok;
-    dw_loc value;
-} dw_loc_option;
+typedef oc_option(dw_loc) dw_loc_option;
 
 dw_loc_option dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u64 offset)
 {
@@ -1344,11 +1336,7 @@ dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
 
 dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
 
-typedef struct dw_range_list_option
-{
-    bool ok;
-    dw_range_list value;
-} dw_range_list_option;
+typedef oc_option(dw_range_list) dw_range_list_option;
 
 dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw_sections* sections, u64 offset)
 {
@@ -1433,11 +1421,7 @@ dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* u
     return oc_wrap_value(dw_range_list_option, rangeList);
 }
 
-typedef struct dw_attr_option
-{
-    bool ok;
-    dw_attr value;
-} dw_attr_option;
+typedef oc_option(dw_attr) dw_attr_option;
 
 dw_attr_option dw_parse_form_value(dw_parser* parser,
                                    wa_reader* reader,

@@ -9,6 +9,7 @@
 
 #include "util/typedefs.h"
 #include "util/strings.h"
+#include "util/wrapped_types.h"
 
 //------------------------------------------------------------------------
 // Dwarf enums
@@ -903,10 +904,7 @@ typedef struct dw_die
     dw_attr* attributes;
 } dw_die;
 
-typedef struct dw_die_option
-{
-    dw_die* p;
-} dw_die_option;
+typedef oc_option_ptr(dw_die) dw_die_option;
 
 typedef struct dw_unit
 {
