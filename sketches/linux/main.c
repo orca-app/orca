@@ -8,6 +8,8 @@
 #include <signal.h>
 #include <sys/syscall.h>
 #include <sys/stat.h>
+#include <sys/random.h>
+#include <sched.h>
 typedef ssize_t isize;
 typedef size_t usize;
 
@@ -107,6 +109,77 @@ static i32 sleep_until_signaled_thread_proc(void* p)
     pause();
     __atomic_store_n(signaled, (i64)gettid(), __ATOMIC_SEQ_CST);
     pause();
+    return 0;
+}
+
+// https://en.wikipedia.org/wiki/Xorshift
+struct xoshiro256pp_state { u64 a[4]; };
+static void xoshiro256pp_state_reset(struct xoshiro256pp_state* state)
+{
+    isize n = getrandom(state, sizeof(state->a), 0);
+    OC_ASSERT(n == sizeof(state->a));
+}
+static inline u64 xoshiro256pp_rol(u64 x, u64 k)
+{
+    return (x << k) | (x >> (64 - k));
+}
+static u64 xoshiro256pp(struct xoshiro256pp_state* state)
+{
+    u64* a = state->a;
+    u64 n = xoshiro256pp_rol(a[0] + a[3], 23) + a[0];
+    u64 t = a[1] << 17;
+    a[2] ^= a[0];
+    a[3] ^= a[1];
+    a[1] ^= a[2];
+    a[0] ^= a[3];
+    a[2] ^= t;
+    a[3] = xoshiro256pp_rol(a[3], 45);
+    return n;
+}
+static u64 random_u64(struct xoshiro256pp_state* state)
+{
+    return xoshiro256pp(state);
+}
+
+#define compiler_barrier()  asm volatile("" ::: "memory")
+#define THREADS  16
+#define ITERATIONS_PER_THREAD  1000
+#define SLEEP_RANGE_PER_ITERATION  ((u64)1e6)
+static oc_mutex* m = NULL;
+static i32 lock_inc_unlock_sleep_thread_proc(void* p)
+{
+    struct xoshiro256pp_state seed = {0};
+    xoshiro256pp_state_reset(&seed);
+
+    i64* n = p;
+    for(usize i = 0; i < ITERATIONS_PER_THREAD; i++)
+    {
+        oc_mutex_lock(m);
+        i64 tmp = *n + 1;
+        compiler_barrier();
+        *n = tmp;
+        oc_mutex_unlock(m);
+        oc_sleep_nano(random_u64(&seed) % SLEEP_RANGE_PER_ITERATION);
+    }
+    return 0;
+}
+
+oc_ticket ticket_mutex = {0};
+static i32 ticket_lock_cmp_inc_unlock_repeat_thread_proc(void* p)
+{
+    struct xoshiro256pp_state seed = {0};
+    xoshiro256pp_state_reset(&seed);
+
+    i64* n = p;
+    for(usize i = 0; i < ITERATIONS_PER_THREAD; i++)
+    {
+        oc_ticket_lock(&ticket_mutex);
+        i64 tmp = *n + 1;
+        compiler_barrier();
+        *n = tmp;
+        oc_ticket_unlock(&ticket_mutex);
+        oc_sleep_nano(random_u64(&seed) % SLEEP_RANGE_PER_ITERATION);
+    }
     return 0;
 }
 
@@ -299,13 +372,38 @@ int main(void)
             oc_scratch_end(scratch);
         }
 
-        // oc_mutex_create
-        // oc_mutex_destroy
-        // oc_mutex_lock
-        // oc_mutex_unlock
-        // oc_ticket_init
-        // oc_ticket_lock
-        // oc_ticket_unlock
+        {
+            u64 n = 0;
+            m = oc_mutex_create();
+            OC_ASSERT(m);
+            OC_ASSERT(oc_mutex_lock(m) == 0);
+            OC_ASSERT(oc_mutex_unlock(m) == 0);
+            oc_thread* threads[THREADS] = {0};
+            for(usize i = 0; i < THREADS; i++)
+            {
+                threads[i] = oc_thread_create(lock_inc_unlock_sleep_thread_proc, &n);
+            }
+            for(usize i = 0; i < THREADS; i++)  OC_ASSERT(oc_thread_join(threads[i], NULL) == 0);
+            OC_ASSERT(oc_mutex_destroy(m) == 0);
+            OC_ASSERT(n == ITERATIONS_PER_THREAD * THREADS);
+        }
+
+        {
+            u64 n = 0;
+            oc_ticket_init(&ticket_mutex);
+            oc_ticket_lock(&ticket_mutex);
+            oc_ticket_unlock(&ticket_mutex);
+            oc_ticket_lock(&ticket_mutex);
+            oc_thread* threads[THREADS] = {0};
+            for(usize i = 0; i < THREADS; i++)
+            {
+                threads[i] = oc_thread_create(ticket_lock_cmp_inc_unlock_repeat_thread_proc, &n);
+            }
+            oc_ticket_unlock(&ticket_mutex);
+            for(usize i = 0; i < THREADS; i++)  OC_ASSERT(oc_thread_join(threads[i], NULL) == 0);
+            OC_ASSERT(n == THREADS * ITERATIONS_PER_THREAD);
+        }
+
         // oc_condition_create
         // oc_condition_destroy
         // oc_condition_wait
