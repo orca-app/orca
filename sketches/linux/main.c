@@ -10,14 +10,16 @@
 #include <sys/stat.h>
 #include <sys/random.h>
 #include <sched.h>
+#include <errno.h>
 typedef ssize_t isize;
 typedef size_t usize;
 
-// FIXME(pld): thread name: 64 on MacOS, 20 on FreeBSD, 16 on Linux (with NUL)
 // FIXME(pld): clock meanings?
 // FIXME(pld): audit all implicit u64->i64 conversions
 // FIXME(pld): path: handle escaped '/'
 // FIXME(pld): path: oc_path_normalize
+// FIXME(pld): thread: cond_timedwait and destroy error codes? Same for other
+// helpers in threads
 
 static void print_file(const char* pathname)
 {
@@ -151,11 +153,11 @@ static i32 lock_inc_unlock_sleep_thread_proc(void* p)
     struct xoshiro256pp_state seed = {0};
     xoshiro256pp_state_reset(&seed);
 
-    i64* n = p;
+    u64* n = p;
     for(usize i = 0; i < ITERATIONS_PER_THREAD; i++)
     {
         oc_mutex_lock(m);
-        i64 tmp = *n + 1;
+        u64 tmp = *n + 1;
         compiler_barrier();
         *n = tmp;
         oc_mutex_unlock(m);
@@ -164,22 +166,34 @@ static i32 lock_inc_unlock_sleep_thread_proc(void* p)
     return 0;
 }
 
-oc_ticket ticket_mutex = {0};
+static oc_ticket ticket_mutex = {0};
 static i32 ticket_lock_cmp_inc_unlock_repeat_thread_proc(void* p)
 {
     struct xoshiro256pp_state seed = {0};
     xoshiro256pp_state_reset(&seed);
 
-    i64* n = p;
+    u64* n = p;
     for(usize i = 0; i < ITERATIONS_PER_THREAD; i++)
     {
         oc_ticket_lock(&ticket_mutex);
-        i64 tmp = *n + 1;
+        u64 tmp = *n + 1;
         compiler_barrier();
         *n = tmp;
         oc_ticket_unlock(&ticket_mutex);
         oc_sleep_nano(random_u64(&seed) % SLEEP_RANGE_PER_ITERATION);
     }
+    return 0;
+}
+
+static oc_condition* cond = NULL;
+static i32 cond_wait_inc_thread_proc(void* p)
+{
+    u64* n = p;
+    OC_ASSERT(oc_mutex_lock(m) == 0);
+    *n += 1;
+    OC_ASSERT(oc_condition_wait(cond, m) == 0);
+    *n += 1;
+    OC_ASSERT(oc_mutex_unlock(m) == 0);
     return 0;
 }
 
@@ -208,7 +222,7 @@ int main(void)
         oc_log_info("clock: uptime:    %f\n", a);
         a = oc_clock_time(OC_CLOCK_DATE);
         b = oc_clock_time(OC_CLOCK_DATE);
-        OC_ASSERT(a < b);
+        OC_ASSERT(a <= b);
         oc_log_info("clock: date:      %f\n", a);
     }
 
@@ -382,6 +396,7 @@ int main(void)
             for(usize i = 0; i < THREADS; i++)
             {
                 threads[i] = oc_thread_create(lock_inc_unlock_sleep_thread_proc, &n);
+                OC_ASSERT(threads[i]);
             }
             for(usize i = 0; i < THREADS; i++)  OC_ASSERT(oc_thread_join(threads[i], NULL) == 0);
             OC_ASSERT(oc_mutex_destroy(m) == 0);
@@ -398,20 +413,52 @@ int main(void)
             for(usize i = 0; i < THREADS; i++)
             {
                 threads[i] = oc_thread_create(ticket_lock_cmp_inc_unlock_repeat_thread_proc, &n);
+                OC_ASSERT(threads[i]);
             }
             oc_ticket_unlock(&ticket_mutex);
             for(usize i = 0; i < THREADS; i++)  OC_ASSERT(oc_thread_join(threads[i], NULL) == 0);
             OC_ASSERT(n == THREADS * ITERATIONS_PER_THREAD);
         }
 
-        // oc_condition_create
-        // oc_condition_destroy
-        // oc_condition_wait
-        // oc_condition_timedwait
-        // oc_condition_signal
-        // oc_condition_broadcast
+        {
+            m = oc_mutex_create();
+            OC_ASSERT(m);
+            cond = oc_condition_create();
+            OC_ASSERT(cond);
+            OC_ASSERT(oc_mutex_lock(m) == 0);
+            f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);
+            OC_ASSERT(oc_condition_timedwait(cond, m, 0.5) == ETIMEDOUT);
+            f64 end = oc_clock_time(OC_CLOCK_MONOTONIC);
+            OC_ASSERT(oc_mutex_unlock(m) == 0);
+            OC_ASSERT(end - start >= 0.5, "start=%f, end=%f, elapsed=%f", start, end, end - start);
+            u64 n = 0;
+            oc_thread* thread = oc_thread_create(cond_wait_inc_thread_proc, &n);
+            OC_ASSERT(thread);
+            while(n < 1);
+            OC_ASSERT(n == 1);
+            OC_ASSERT(oc_condition_signal(cond) == 0);
+            OC_ASSERT(oc_thread_join(thread, NULL) == 0);
+            OC_ASSERT(n == 2);
+            n = 0;
+            oc_thread* threads[THREADS] = {0};
+            for(usize i = 0; i < THREADS; i++)
+            {
+                threads[i] = oc_thread_create(cond_wait_inc_thread_proc, &n);
+                OC_ASSERT(threads[i]);
+            }
+            while(n < 16);
+            OC_ASSERT(n == 16);
+            OC_ASSERT(oc_condition_broadcast(cond) == 0);
+            for(usize i = 0; i < THREADS; i++)  OC_ASSERT(oc_thread_join(threads[i], NULL) == 0);
+            OC_ASSERT(n == 32);
+            OC_ASSERT(oc_condition_destroy(cond) == 0);
+            OC_ASSERT(oc_mutex_destroy(m) == 0);
+        }
     }
 
+    {
+
+    }
     // TODO(pld): test platform_io
     // - oc_io_wait_single_req
     // - oc_file_nil

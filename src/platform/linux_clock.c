@@ -21,7 +21,7 @@ static const u64 CLK_JAN_1970 = 2208988800ULL;
 
 static inline f64 tp_to_f64(struct timespec tp)
 {
-    return (f64)tp.tv_sec + (f64)tp.tv_nsec / 1e-9;
+    return (f64)tp.tv_sec + (f64)tp.tv_nsec * 1e-9;
 }
 
 void oc_clock_init(void)
