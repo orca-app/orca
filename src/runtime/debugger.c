@@ -340,7 +340,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     }
     else if(strippedType->kind == WA_TYPE_ARRAY)
     {
-        wa_type* eltType = wa_type_strip(oc_unwrap(strippedType->array.type));
+        wa_type* eltType = wa_type_strip(strippedType->array.type);
 
         for(u64 i = 0; i < strippedType->array.count; i++)
         {
@@ -735,7 +735,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                 }
                 else if(strippedType->kind == WA_TYPE_ARRAY)
                 {
-                    wa_type* eltType = oc_unwrap(strippedType->array.type);
+                    wa_type* eltType = strippedType->array.type;
                     oc_str8 typeStr = oc_str8_pushf(scratch.arena, "((%.*s)[%llu]) ", oc_str8_ip(eltType->name), strippedType->array.count);
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
@@ -749,6 +749,12 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 switch(strippedType->encoding)
                 {
+                    case WA_TYPE_UNKNOWN_ENCODING:
+                    {
+                        oc_ui_label("unavailable", "unknown encoding");
+                    }
+                    break;
+
                     case WA_TYPE_BOOL:
                     {
                         //TODO
@@ -892,7 +898,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 if(oc_list_empty(value->children))
                 {
-                    wa_type* pointeeType = wa_type_strip(oc_unwrap(strippedType->type));
+                    wa_type* pointeeType = wa_type_strip(strippedType->type);
                     u32 size = pointeeType->size;
                     u32 addr = 0;
                     memcpy(&addr, value->data.ptr, sizeof(addr));
@@ -912,7 +918,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                                                              .len = pointeeType->size,
                                                          });
 
-                        oc_debugger_value* pointee = debugger_build_value_tree(&debugger->debugArena, (oc_str8){ 0 }, oc_unwrap(strippedType->type), data);
+                        oc_debugger_value* pointee = debugger_build_value_tree(&debugger->debugArena, (oc_str8){ 0 }, strippedType->type, data);
 
                         oc_list_push_back(&value->children, &pointee->listElt);
                     }

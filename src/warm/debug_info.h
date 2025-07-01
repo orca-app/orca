@@ -71,6 +71,7 @@ typedef struct wa_register_map
 
 typedef enum wa_type_kind
 {
+    WA_TYPE_NIL = 0,
     WA_TYPE_VOID,
     WA_TYPE_BASIC,
     WA_TYPE_POINTER,
@@ -84,6 +85,7 @@ typedef enum wa_type_kind
 
 typedef enum wa_type_encoding
 {
+    WA_TYPE_UNKNOWN_ENCODING,
     WA_TYPE_SIGNED,
     WA_TYPE_UNSIGNED,
     WA_TYPE_FLOAT,
@@ -107,9 +109,7 @@ typedef struct wa_type_enumerator
     //TODO value
 } wa_type_enumerator;
 
-typedef struct wa_type wa_type;
-typedef oc_option_ptr(wa_type) wa_type_ptr_option;
-
+//NOTE: once built, type members are guaranteed to point to a valid (possibly 'unknown') type.
 typedef struct wa_type
 {
     oc_list_elt listElt; //TODO: remove
@@ -121,18 +121,18 @@ typedef struct wa_type
     union
     {
         wa_type_encoding encoding;
-        wa_type_ptr_option type;
+        wa_type* type;
         oc_list fields;
 
         struct
         {
-            wa_type_ptr_option type;
+            wa_type* type;
             u64 count;
         } array;
 
         struct
         {
-            wa_type_ptr_option type;
+            wa_type* type;
             oc_list enumerators;
         } enumType;
 
