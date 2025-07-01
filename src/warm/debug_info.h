@@ -112,8 +112,6 @@ typedef struct wa_type_enumerator
 //NOTE: once built, type members are guaranteed to point to a valid (possibly 'unknown') type.
 typedef struct wa_type
 {
-    oc_list_elt listElt; //TODO: remove
-    u64 dwarfRef;        //TODO: remove
     oc_str8 name;
     wa_type_kind kind;
     u64 size;

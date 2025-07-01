@@ -63,19 +63,32 @@ void wa_dwarf_error_callback(dw_parser* parser, u64 loc, oc_str8 message, void* 
 // Debug type processing
 //-------------------------------------------------------------------------
 
+typedef struct wa_type_elt
+{
+    oc_list_elt listElt;
+    u64 dwarfRef;
+    wa_type* type;
+} wa_type_elt;
+
 typedef struct wa_import_context
 {
     oc_arena* arena;
+    oc_arena* scratchArena;
+
     oc_list types;
     wa_type* nilType;
 } wa_import_context;
 
-wa_type* wa_type_alloc(wa_import_context* context, u64 typeRef, wa_type_kind kind)
+wa_type* wa_type_alloc(wa_import_context* context, u64 dwarfRef, wa_type_kind kind)
 {
     wa_type* type = oc_arena_push_type(context->arena, wa_type);
     type->kind = kind;
-    type->dwarfRef = typeRef;
-    oc_list_push_back(&context->types, &type->listElt);
+
+    wa_type_elt* elt = oc_arena_push_type(context->scratchArena, wa_type_elt);
+    elt->type = type;
+    elt->dwarfRef = dwarfRef;
+    oc_list_push_back(&context->types, &elt->listElt);
+
     return type;
 }
 
@@ -88,14 +101,14 @@ wa_type* wa_type_strip(wa_type* type)
     return type;
 }
 
-wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwarf, u64 typeRef)
+wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwarf, u64 dwarfRef)
 {
     //NOTE: if we already parsed that type, return it
-    oc_list_for(context->types, t, wa_type, listElt)
+    oc_list_for(context->types, e, wa_type_elt, listElt)
     {
-        if(t->dwarfRef == typeRef)
+        if(e->dwarfRef == dwarfRef)
         {
-            return t;
+            return e->type;
         }
     }
 
@@ -110,7 +123,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
         dw_unit* unit = &dwarf->units[unitIndex];
         u64 unitSize = unit->initialLength + (unit->format == DW_DWARF32 ? 4 : 8);
 
-        if(typeRef >= unit->start && typeRef < unit->start + unitSize)
+        if(dwarfRef >= unit->start && dwarfRef < unit->start + unitSize)
         {
             dw_die* rootDie = oc_catch(unit->rootDie)
             {
@@ -119,7 +132,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
             dieOption = dw_die_next(rootDie, rootDie);
 
-            while(oc_check(dieOption) && oc_unwrap(dieOption)->start != typeRef)
+            while(oc_check(dieOption) && oc_unwrap(dieOption)->start != dwarfRef)
             {
                 dieOption = dw_die_next(rootDie, oc_unwrap(dieOption));
             }
@@ -141,7 +154,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
         {
             case DW_TAG_base_type:
             {
-                type = wa_type_alloc(context, typeRef, WA_TYPE_BASIC);
+                type = wa_type_alloc(context, dwarfRef, WA_TYPE_BASIC);
 
                 //TODO: endianity
 
@@ -181,7 +194,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
             case DW_TAG_unspecified_type:
             {
-                type = wa_type_alloc(context, typeRef, WA_TYPE_VOID);
+                type = wa_type_alloc(context, dwarfRef, WA_TYPE_VOID);
             }
             break;
 
@@ -200,7 +213,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
             case DW_TAG_pointer_type:
             {
-                type = wa_type_alloc(context, typeRef, WA_TYPE_POINTER);
+                type = wa_type_alloc(context, dwarfRef, WA_TYPE_POINTER);
                 type->size = addressSize;
 
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
@@ -218,7 +231,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
             case DW_TAG_typedef:
             {
-                type = wa_type_alloc(context, typeRef, WA_TYPE_NAMED);
+                type = wa_type_alloc(context, dwarfRef, WA_TYPE_NAMED);
 
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(oc_check(typeAttr))
@@ -235,7 +248,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
             case DW_TAG_array_type:
             {
-                type = wa_type_alloc(context, typeRef, WA_TYPE_ARRAY);
+                type = wa_type_alloc(context, dwarfRef, WA_TYPE_ARRAY);
 
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(oc_check(typeAttr))
@@ -291,7 +304,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
             {
                 wa_type_kind kind = (die->abbrev->tag == DW_TAG_structure_type) ? WA_TYPE_STRUCT
                                                                                 : WA_TYPE_UNION;
-                type = wa_type_alloc(context, typeRef, kind);
+                type = wa_type_alloc(context, dwarfRef, kind);
 
                 oc_list_for(die->children, child, dw_die, parentElt)
                 {
@@ -334,7 +347,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
             case DW_TAG_enumeration_type:
             {
-                type = wa_type_alloc(context, typeRef, WA_TYPE_ENUM);
+                type = wa_type_alloc(context, dwarfRef, WA_TYPE_ENUM);
 
                 dw_attr_ptr_option valType = dw_die_get_attr(die, DW_AT_type);
                 if(oc_check(valType))
@@ -558,11 +571,13 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
     info->functions = oc_arena_push_array(module->arena, wa_debug_function, info->functionCount);
 
     //NOTE: type import context to deduplicate types
+    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
+
     wa_import_context context = {
         .arena = module->arena,
+        .scratchArena = scratch.arena,
     };
     context.nilType = oc_arena_push_type(context.arena, wa_type);
-    oc_list_push_back(&context.types, &context.nilType->listElt);
 
     for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
@@ -650,6 +665,8 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
             }
         }
     }
+
+    oc_scratch_end(scratch);
 }
 
 //-------------------------------------------------------------------------
