@@ -150,7 +150,16 @@ typedef struct dw_stack_value
     };
 } dw_stack_value;
 
-dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_function* funcInfo, dw_expr expr)
+typedef enum wa_debug_loc_error
+{
+    WA_DEBUG_LOC_NO_FRAMEBASE,
+    WA_DEBUG_LOC_UNKNOWN_OP,
+    //...
+} wa_debug_loc_error;
+
+typedef oc_result(dw_stack_value, wa_debug_loc_error) dw_stack_value_result;
+
+dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_function* funcInfo, dw_expr expr)
 {
     u64 sp = 0;
     u64 pc = 0;
@@ -183,14 +192,18 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
 
                 dw_loc* frameBaseLoc = oc_catch(funcInfo->frameBase)
                 {
-                    //TODO: error
+                    return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
                 }
                 if(!frameBaseLoc->single || frameBaseLoc->entryCount != 1)
                 {
-                    //TODO: error
+                    return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
                 }
 
-                dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, frameBaseLoc->entries[0].expr);
+                dw_stack_value_result frameBaseResult = wa_interpret_dwarf_expr(interpreter, funcInfo, frameBaseLoc->entries[0].expr);
+                dw_stack_value frameBase = oc_catch(frameBaseResult)
+                {
+                    return frameBaseResult;
+                }
 
                 /*NOTE: what the spec says and what clang does seem to differ:
                     - dwarf says that DW_OP_stack_value means the _value_ of the object (not its location) is on the top of the stack
@@ -277,13 +290,13 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
 
             default:
                 oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(instr->op));
-                goto end;
+                return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_UNKNOWN_OP);
         }
     }
 
 end:
     OC_ASSERT(sp > 0);
-    return (stack[sp - 1]);
+    return oc_wrap_value(dw_stack_value_result, stack[sp - 1]);
 }
 
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var)
@@ -304,26 +317,60 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     {
         dw_loc_entry* entry = &loc->entries[entryIndex];
 
-        dw_stack_value val = wa_interpret_dwarf_expr(interpreter, funcInfo, entry->expr);
+        dw_stack_value val = oc_catch(wa_interpret_dwarf_expr(interpreter, funcInfo, entry->expr))
+        {
+            return (oc_str8){ 0 };
+        }
 
         switch(val.type)
         {
             case DW_STACK_VALUE_ADDRESS:
             {
-                //TODO: bounds check
                 if(loc->single)
                 {
-                    memcpy(res.ptr, interpreter->instance->memories[0]->ptr + val.valU32, res.len);
+                    if(val.valU32 + res.len > interpreter->instance->memories[0]->limits.min * WA_PAGE_SIZE
+                       || val.valU32 + res.len < val.valU32)
+                    {
+                        return (oc_str8){ 0 };
+                    }
+                    else
+                    {
+                        memcpy(res.ptr, interpreter->instance->memories[0]->ptr + val.valU32, res.len);
+                    }
                 }
                 else
                 {
-                    memcpy(res.ptr + entry->start, interpreter->instance->memories[0]->ptr + val.valU32, entry->end - entry->start);
+
+                    if(entry->end < entry->start)
+                    {
+                        //NOTE: error, faulty entry
+                        return (oc_str8){ 0 };
+                    }
+                    else
+                    {
+                        u64 len = entry->end - entry->start;
+                        if(entry->start + len > res.len || entry->start + len < entry->start)
+                        {
+                            //NOTE: error, write out of bounds of res.
+                            return (oc_str8){ 0 };
+                        }
+                        else if(val.valU32 + len > interpreter->instance->memories[0]->limits.min * WA_PAGE_SIZE
+                                || val.valU32 + len < val.valU32)
+                        {
+                            //NOTE: error, read out of bounds of memory
+                            return (oc_str8){ 0 };
+                        }
+                        else
+                        {
+                            memcpy(res.ptr + entry->start, interpreter->instance->memories[0]->ptr + val.valU32, entry->end - entry->start);
+                        }
+                    }
                 }
             }
             break;
 
             default:
-                break;
+                return (oc_str8){ 0 };
         }
     end:
         continue;

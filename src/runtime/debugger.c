@@ -731,6 +731,10 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     oc_str8 typeStr = oc_str8_pushf(scratch.arena, "(%.*s) ", oc_str8_ip(value->type->name));
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
+                else if(strippedType->kind == WA_TYPE_NIL)
+                {
+                    oc_ui_label("type", "(missing type info)");
+                }
                 else if(strippedType->kind == WA_TYPE_UNION)
                 {
                     oc_ui_label("type", "(anonymous union) ");

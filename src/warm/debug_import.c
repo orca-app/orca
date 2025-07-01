@@ -314,7 +314,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         dw_attr_ptr_option memberName = dw_die_get_attr(child, DW_AT_name);
                         if(oc_check(memberName))
                         {
-                            member->name = oc_unwrap(memberName)->string;
+                            member->name = oc_str8_push_copy(context->arena, oc_unwrap(memberName)->string);
                         }
 
                         dw_attr_ptr_option memberType = dw_die_get_attr(child, DW_AT_type);
@@ -367,7 +367,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         dw_attr_ptr_option name = dw_die_get_attr(child, DW_AT_name);
                         if(oc_check(name))
                         {
-                            enumerator->name = oc_unwrap(name)->string;
+                            enumerator->name = oc_str8_push_copy(context->arena, oc_unwrap(name)->string);
                         }
                         //TODO: extract const values
 
@@ -397,7 +397,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
             dw_attr_ptr_option name = dw_die_get_attr(die, DW_AT_name);
             if(oc_check(name))
             {
-                type->name = oc_unwrap(name)->string;
+                type->name = oc_str8_push_copy(context->arena, oc_unwrap(name)->string);
             }
         }
     }
@@ -418,7 +418,10 @@ wa_debug_variable wa_debug_import_variable(wa_import_context* context, dw_die* v
     wa_debug_variable var = { 0 };
 
     dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
-    var.name = oc_ptr_field_or(name, string, (oc_str8){ 0 });
+    if(oc_check(name))
+    {
+        var.name = oc_str8_push_copy(context->arena, oc_unwrap(name)->string);
+    }
 
     //TODO: consider not creating the variable if we don't have a name for it?
 
