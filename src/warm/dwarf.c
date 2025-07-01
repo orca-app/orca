@@ -2234,6 +2234,50 @@ dw_attr_ptr_option dw_die_get_attr(dw_die* die, dw_attr_name name)
     return oc_wrap_ptr(dw_attr_ptr_option, res);
 }
 
+dw_loc* dw_loc_copy(oc_arena* arena, dw_loc* src)
+{
+    dw_loc* dest = oc_arena_push_type(arena, dw_loc);
+    dest->single = src->single;
+    dest->entryCount = src->entryCount;
+
+    dest->entries = oc_arena_push_array(arena, dw_loc_entry, dest->entryCount);
+    for(u64 entryIndex = 0; entryIndex < dest->entryCount; entryIndex++)
+    {
+        dest->entries[entryIndex].start = src->entries[entryIndex].start;
+        dest->entries[entryIndex].end = src->entries[entryIndex].end;
+
+        u64 codeLen = dest->entries[entryIndex].expr.codeLen = src->entries[entryIndex].expr.codeLen;
+
+        dw_expr_instr* srcCode = src->entries[entryIndex].expr.code;
+        dw_expr_instr* destCode = dest->entries[entryIndex].expr.code = oc_arena_push_array(arena, dw_expr_instr, codeLen);
+
+        for(u64 instrIndex = 0; instrIndex < codeLen; instrIndex++)
+        {
+            dw_expr_instr* srcInstr = &srcCode[instrIndex];
+            dw_expr_instr* destInstr = &destCode[instrIndex];
+
+            destInstr->op = srcInstr->op;
+
+            const dw_op_info* info = &DW_OP_INFO[destInstr->op];
+
+            destInstr->operands = oc_arena_push_array(arena, dw_val, info->count);
+            for(u64 opdIndex = 0; opdIndex < info->count; opdIndex++)
+            {
+                if(destInstr->op == DW_OP_implicit_value && opdIndex == 2)
+                {
+                    //NOTE: if operand is a string we also need to copy it...
+                    destInstr->operands[opdIndex].string = oc_str8_push_copy(arena, srcInstr->operands[opdIndex].string);
+                }
+                else
+                {
+                    destInstr->operands[opdIndex] = srcInstr->operands[opdIndex];
+                }
+            }
+        }
+    }
+    return dest;
+}
+
 //------------------------------------------------------------------------
 // debug printing
 //------------------------------------------------------------------------

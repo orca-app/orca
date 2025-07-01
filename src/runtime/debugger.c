@@ -356,15 +356,21 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
 
 oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_warm_loc warmLoc)
 {
-    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex];
-
     oc_list list = { 0 };
+
+    wa_debug_function* funcInfo = oc_catch(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
+    {
+        return list;
+    }
+
+    wa_debug_scope* scope = oc_catch(wa_debug_get_scope_for_warm_loc(interpreter, warmLoc))
+    {
+        return list;
+    }
 
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
     wa_debug_variable** shadow = oc_arena_push_array(scratch.arena, wa_debug_variable*, funcInfo->totalVarDecl);
     u64 shadowCount = 0;
-
-    wa_debug_scope* scope = wa_debug_get_scope_for_warm_loc(interpreter, warmLoc);
 
     while(scope)
     {
@@ -998,7 +1004,6 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
     {
         wa_func* func = interpreter->controlStack[frameIndex].func;
         u64 funcIndex = func - interpreter->instance->functions;
-        wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functions[funcIndex];
 
         wa_warm_loc warmLoc = {
             .module = interpreter->instance->module,
@@ -1009,16 +1014,20 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
         debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, warmLoc);
     }
 
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     //WARN: here we only load globals from the top function's unit... this isn't necessarily what we want
+    //TODO: we could be able to load globals even if debug info for current function does not exist
     //TODO: see how we want to display globals
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
     wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
     u64 funcIndex = execFunc - interpreter->instance->functions;
-    wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functions[funcIndex];
 
-    if(oc_check(debugFunc->unit))
+    wa_debug_function_ptr_option debugFuncOption = interpreter->instance->module->debugInfo->functions[funcIndex];
+
+    if(oc_check(debugFuncOption))
     {
-        //TODO: if there's no unit, mark that we couldn't load globals?
-        debugger->globals = debugger_build_globals_tree(&debugger->debugArena, oc_unwrap(debugFunc->unit), interpreter);
+        wa_debug_function* debugFunc = oc_unwrap(debugFuncOption);
+        debugger->globals = debugger_build_globals_tree(&debugger->debugArena, debugFunc->unit, interpreter);
     }
 }
 

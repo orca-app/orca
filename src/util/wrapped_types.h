@@ -32,6 +32,10 @@ extern oc_thread_local bool oc_lastCatchResult;
 
 #define oc_unwrap(e) ({__typeof__(e) tmp = e; OC_ASSERT(tmp.ok); tmp.value; })
 #define oc_unwrap_or(e, d) ({__typeof__(e) tmp = e; (tmp.ok ? tmp.value : (d)); })
+#define oc_if_unwrap(e) \
+    ({__typeof__(e) tmp = e; oc_lastCatchResult = tmp.ok; tmp.value; });              \
+    if(oc_lastCatchResult)
+
 #define oc_catch(e) \
     ({__typeof__(e) tmp = e; oc_lastCatchResult = tmp.ok; tmp.value; });          \
     if(!oc_lastCatchResult)
@@ -67,7 +71,7 @@ extern oc_thread_local bool oc_lastCatchResult;
         valueType value;     \
     }
 
-#define oc_option_ptr(valueType) \
+#define oc_ptr_option(valueType) \
     union                        \
     {                            \
         valueType* ok;           \

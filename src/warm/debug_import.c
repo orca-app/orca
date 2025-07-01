@@ -236,7 +236,6 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
                 if(oc_check(typeAttr))
                 {
-
                     type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(typeAttr)->valU64);
                 }
                 else
@@ -421,20 +420,26 @@ wa_debug_variable wa_debug_import_variable(wa_import_context* context, dw_die* v
     dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
     var.name = oc_ptr_field_or(name, string, (oc_str8){ 0 });
 
-    //TODO: consider not creating the variable if we don't have a name for it...
+    //TODO: consider not creating the variable if we don't have a name for it?
 
-    dw_attr_ptr_option loc = dw_die_get_attr(varDie, DW_AT_location);
-    if(oc_check(loc))
+    dw_attr_ptr_option locAttr = dw_die_get_attr(varDie, DW_AT_location);
+    if(oc_check(locAttr))
     {
-        //TODO: wrap loc into option
-        var.loc = &oc_unwrap(loc)->loc;
-        //TODO: compile the expr to wasm
+        /////////////////////////////////////////////////////////////////
+        //TODO: we should import the expr to our own format.
+        /////////////////////////////////////////////////////////////////
+        dw_loc* loc = dw_loc_copy(context->arena, &oc_unwrap(locAttr)->loc);
+        var.loc = oc_wrap_ptr(dw_loc_ptr_option, loc);
     }
 
     dw_attr_ptr_option type = dw_die_get_attr(varDie, DW_AT_type);
     if(oc_check(type))
     {
         var.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(type)->valU64);
+    }
+    else
+    {
+        var.type = context->nilType;
     }
     return var;
 }
@@ -448,10 +453,9 @@ void wa_debug_extract_vars_from_scope(wa_import_context* context, wa_debug_funct
         dw_attr_ptr_option highPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
         if(!oc_check(highPC))
         {
-            ////////////////////////////////////////////////////////////////////
-            //TODO: process error
-            ////////////////////////////////////////////////////////////////////
-            OC_ASSERT(0, "TODO: dwarf error");
+            oc_log_error("No high PC found for scope DIE at offset %llu\n", scopeDie->start);
+            //TODO: should store the fact that some variables couldn't be loaded
+            return;
         }
         else
         {
@@ -472,10 +476,10 @@ void wa_debug_extract_vars_from_scope(wa_import_context* context, wa_debug_funct
             }
             else
             {
-                ////////////////////////////////////////////////////////////////////
-                //TODO: process error? or should have detected it earlier?
-                ////////////////////////////////////////////////////////////////////
-                OC_ASSERT(0, "TODO: dwarf error");
+                oc_log_error("Couldn't interpret class of DW_AT_high_pc attribute for scope DIE at offset %llu\n",
+                             scopeDie->start);
+                //TODO: should store the fact that some variables couldn't be loaded
+                return;
             }
         }
     }
@@ -560,15 +564,12 @@ void wa_debug_extract_vars_from_scope(wa_import_context* context, wa_debug_funct
 
 void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_info* dwarf)
 {
-    //TODO: could we get function count from somewhere else so we dont need to pass module here?
-    // This would be better to get it from dwarf info anyway
-
     //NOTE: allocate arrays for units and function infos
     info->unitCount = dwarf->unitCount;
     info->units = oc_arena_push_array(module->arena, wa_debug_unit, info->unitCount);
 
     info->functionCount = module->functionCount;
-    info->functions = oc_arena_push_array(module->arena, wa_debug_function, info->functionCount);
+    info->functions = oc_arena_push_array(module->arena, wa_debug_function_ptr_option, info->functionCount);
 
     //NOTE: type import context to deduplicate types
     oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
@@ -649,8 +650,8 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
 
                 if(found)
                 {
-                    wa_debug_function* funcInfo = &info->functions[funcIndex];
-                    funcInfo->unit = oc_wrap_ptr(wa_debug_unit_option, unit);
+                    wa_debug_function* funcInfo = oc_arena_push_type(context.arena, wa_debug_function);
+                    funcInfo->unit = unit;
 
                     //NOTE: get frame base expr loc
                     dw_attr_ptr_option frameBase = dw_die_get_attr(oc_unwrap(funcDie), DW_AT_frame_base);
@@ -661,6 +662,8 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
                     }
 
                     wa_debug_extract_vars_from_scope(&context, funcInfo, &funcInfo->body, oc_unwrap(funcDie), unitBaseAddress, dwarf);
+
+                    info->functions[funcIndex] = oc_wrap_ptr(wa_debug_function_ptr_option, funcInfo);
                 }
             }
         }

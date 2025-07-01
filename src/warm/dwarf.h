@@ -905,7 +905,7 @@ typedef struct dw_die
     dw_attr* attributes;
 } dw_die;
 
-typedef oc_option_ptr(dw_die) dw_die_option;
+typedef oc_ptr_option(dw_die) dw_die_option;
 
 typedef struct dw_unit
 {
@@ -1071,11 +1071,13 @@ dw_info dw_parse_dwarf(dw_parser* parser);
 //------------------------------------------------------------------------
 // traversing DIEs
 //------------------------------------------------------------------------
-typedef oc_option_ptr(dw_die) dw_die_ptr_option;
-typedef oc_option_ptr(dw_attr) dw_attr_ptr_option;
+typedef oc_ptr_option(dw_die) dw_die_ptr_option;
+typedef oc_ptr_option(dw_attr) dw_attr_ptr_option;
 
 dw_die_ptr_option dw_die_next(dw_die* root, dw_die* die);
 dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags);
 dw_die_ptr_option dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag);
 dw_attr_ptr_option dw_die_get_attr(dw_die* die, dw_attr_name name);
 dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form);
+
+dw_loc* dw_loc_copy(oc_arena* arena, dw_loc* src);

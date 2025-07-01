@@ -144,12 +144,13 @@ typedef struct wa_type
 
 typedef struct dw_info dw_info;
 typedef struct dw_loc dw_loc;
+typedef oc_ptr_option(dw_loc) dw_loc_ptr_option;
 
 typedef struct wa_debug_variable
 {
     oc_str8 name;
     u64 uid;
-    dw_loc* loc;
+    dw_loc_ptr_option loc;
     wa_type* type;
 } wa_debug_variable;
 
@@ -180,18 +181,19 @@ typedef struct wa_debug_scope
     wa_debug_variable* vars;
 } wa_debug_scope;
 
-typedef oc_option_ptr(wa_debug_unit) wa_debug_unit_option;
-typedef oc_option_ptr(dw_loc) dw_loc_option;
+typedef oc_ptr_option(dw_loc) dw_loc_option;
 
 typedef struct wa_debug_function
 {
-    wa_debug_unit_option unit;
+    wa_debug_unit* unit;
     dw_loc_option frameBase;
 
     u64 totalVarDecl;
     wa_debug_scope body;
 
 } wa_debug_function;
+
+typedef oc_ptr_option(wa_debug_function) wa_debug_function_ptr_option;
 
 //------------------------------------------------------------------------
 // Debug info struct
@@ -216,7 +218,7 @@ typedef struct wa_debug_info
     wa_debug_unit* units;
 
     u64 functionCount;
-    wa_debug_function* functions;
+    wa_debug_function_ptr_option* functions;
 } wa_debug_info;
 
 //------------------------------------------------------------------------
@@ -239,4 +241,5 @@ wa_line_loc wa_line_loc_from_warm_loc(wa_module* module, wa_warm_loc loc);
 wa_warm_loc wa_warm_loc_from_line_loc(wa_module* module, wa_line_loc loc);
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var);
 
-wa_debug_scope* wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc);
+typedef oc_ptr_option(wa_debug_scope) wa_debug_scope_ptr_option;
+wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc);

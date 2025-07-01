@@ -288,20 +288,17 @@ end:
 
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_debug_function* funcInfo, wa_debug_variable* var)
 {
-    if(!var->loc)
+    dw_loc* loc = oc_catch(var->loc)
     {
         return (oc_str8){ 0 };
     }
 
-    //TODO: handle error
     wa_type* type = wa_type_strip(var->type);
 
     oc_str8 res = {
         .len = type->size,
         .ptr = oc_arena_push_aligned(arena, type->size, 8),
     };
-
-    dw_loc* loc = var->loc;
 
     for(u64 entryIndex = 0; entryIndex < loc->entryCount; entryIndex++)
     {
@@ -335,11 +332,15 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     return res;
 }
 
-wa_debug_scope* wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc)
+wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc)
 {
     wa_wasm_loc loc = wa_wasm_loc_from_warm_loc(warmLoc);
 
-    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex];
+    wa_debug_function* funcInfo = oc_catch(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
+    {
+        return oc_wrap_nil(wa_debug_scope_ptr_option);
+    }
+
     wa_debug_scope* scope = &funcInfo->body;
 
     while(!oc_list_empty(scope->children))
@@ -362,6 +363,6 @@ wa_debug_scope* wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_
         }
         scope = next;
     }
-
-    return scope;
+    OC_DEBUG_ASSERT(scope);
+    return oc_wrap_ptr(wa_debug_scope_ptr_option, scope);
 }
