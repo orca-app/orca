@@ -68,6 +68,22 @@ typedef struct oc_debugger_value
 
 } oc_debugger_value;
 
+typedef struct wa_source_node wa_source_node;
+
+typedef struct wa_source_node
+{
+    oc_list_elt listElt;
+    oc_list children;
+    wa_source_node* parent;
+
+    u64 id;
+    u64 index;
+    oc_str8 name; // slice into a wa_source_file path
+
+    bool expanded;
+    oc_str8 contents;
+} wa_source_node;
+
 typedef enum oc_debugger_code_tab_mode
 {
     OC_DEBUGGER_CODE_TAB_SOURCE,

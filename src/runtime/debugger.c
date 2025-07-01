@@ -314,6 +314,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     value->type = type;
     value->data = data;
 
+    //TODO: handle error case
     wa_type* strippedType = wa_type_strip(type);
 
     //NOTE: by defaut, expand struct, union, and small arrays
@@ -329,6 +330,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
         oc_list_for(strippedType->fields, field, wa_type_field, listElt)
         {
             wa_type* fieldStrippedType = wa_type_strip(field->type);
+
             u64 fieldSize = fieldStrippedType->size;
             oc_str8 fieldData = oc_str8_slice(data, field->offset, field->offset + fieldSize);
             oc_debugger_value* fieldVal = debugger_build_value_tree(arena, field->name, field->type, fieldData);
@@ -338,7 +340,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     }
     else if(strippedType->kind == WA_TYPE_ARRAY)
     {
-        wa_type* eltType = wa_type_strip(strippedType->array.type);
+        wa_type* eltType = wa_type_strip(oc_unwrap(strippedType->array.type));
 
         for(u64 i = 0; i < strippedType->array.count; i++)
         {
@@ -354,7 +356,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
 
 oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_warm_loc warmLoc)
 {
-    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[warmLoc.funcIndex];
+    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex];
 
     oc_list list = { 0 };
 
@@ -367,7 +369,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
     while(scope)
     {
         //NOTE: process vars in scope
-        for(u64 varIndex = 0; varIndex < scope->count; varIndex++)
+        for(u64 varIndex = 0; varIndex < scope->varCount; varIndex++)
         {
             wa_debug_variable* var = &scope->vars[varIndex];
 
@@ -733,7 +735,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                 }
                 else if(strippedType->kind == WA_TYPE_ARRAY)
                 {
-                    wa_type* eltType = strippedType->array.type;
+                    wa_type* eltType = oc_unwrap(strippedType->array.type);
                     oc_str8 typeStr = oc_str8_pushf(scratch.arena, "((%.*s)[%llu]) ", oc_str8_ip(eltType->name), strippedType->array.count);
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
@@ -890,7 +892,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 if(oc_list_empty(value->children))
                 {
-                    wa_type* pointeeType = wa_type_strip(strippedType->type);
+                    wa_type* pointeeType = wa_type_strip(oc_unwrap(strippedType->type));
                     u32 size = pointeeType->size;
                     u32 addr = 0;
                     memcpy(&addr, value->data.ptr, sizeof(addr));
@@ -910,7 +912,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                                                              .len = pointeeType->size,
                                                          });
 
-                        oc_debugger_value* pointee = debugger_build_value_tree(&debugger->debugArena, (oc_str8){ 0 }, strippedType->type, data);
+                        oc_debugger_value* pointee = debugger_build_value_tree(&debugger->debugArena, (oc_str8){ 0 }, oc_unwrap(strippedType->type), data);
 
                         oc_list_push_back(&value->children, &pointee->listElt);
                     }
@@ -990,7 +992,7 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
     {
         wa_func* func = interpreter->controlStack[frameIndex].func;
         u64 funcIndex = func - interpreter->instance->functions;
-        wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
+        wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functions[funcIndex];
 
         wa_warm_loc warmLoc = {
             .module = interpreter->instance->module,
@@ -1005,8 +1007,13 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
     //TODO: see how we want to display globals
     wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
     u64 funcIndex = execFunc - interpreter->instance->functions;
-    wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functionLocals[funcIndex];
-    debugger->globals = debugger_build_globals_tree(&debugger->debugArena, debugFunc->unit, interpreter);
+    wa_debug_function* debugFunc = &interpreter->instance->module->debugInfo->functions[funcIndex];
+
+    if(oc_check(debugFunc->unit))
+    {
+        //TODO: if there's no unit, mark that we couldn't load globals?
+        debugger->globals = debugger_build_globals_tree(&debugger->debugArena, oc_unwrap(debugFunc->unit), interpreter);
+    }
 }
 
 void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)

@@ -13,12 +13,6 @@
 // Dwarf line processing
 //------------------------------------------------------------------------
 
-wa_source_node* wa_source_node_alloc(wa_module* module)
-{
-    wa_source_node* node = oc_arena_push_type(module->arena, wa_source_node);
-    return node;
-}
-
 typedef struct wa_source_file_elt
 {
     oc_list_elt listElt;
@@ -78,23 +72,38 @@ wa_type* wa_type_alloc(oc_arena* arena, u64 typeRef, wa_type_kind kind, oc_list*
     return type;
 }
 
-wa_type* wa_type_strip(wa_type* type)
-{
-    while(type && type->kind == WA_TYPE_NAMED)
-    {
-        type = type->type;
-    }
-    return type;
-}
-
-wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typeRef, oc_list* types)
+wa_type* wa_type_void(oc_arena* arena, oc_list* types)
 {
     //NOTE: if we already parsed that type, return it
     oc_list_for(*types, t, wa_type, listElt)
     {
-        if(t->dwarfRef == typeRef)
+        if(t->kind == WA_TYPE_VOID)
         {
-            return (t);
+            return t;
+        }
+    }
+    return wa_type_alloc(arena, 0, WA_TYPE_VOID, types);
+}
+
+wa_type* wa_type_strip(wa_type* type)
+{
+    while(type && type->kind == WA_TYPE_NAMED)
+    {
+        type = oc_unwrap_or(type->type, 0);
+    }
+    return type;
+}
+
+wa_type_ptr_option wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typeRef, oc_list* types)
+{
+    //NOTE: if we already parsed that type, return it
+    oc_list_for(*types, t, wa_type, listElt)
+    {
+        //NOTE: typeRef found in dwarf file should never be 0.
+
+        if(typeRef != 0 && t->dwarfRef == typeRef)
+        {
+            return (oc_wrap_ptr(wa_type_ptr_option, t));
         }
     }
 
@@ -102,7 +111,8 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
 
     //NOTE: find die corresponding to typeRef
     u64 addressSize = 4;
-    dw_die* die = 0;
+    dw_die_ptr_option dieOption = { 0 };
+
     for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
         dw_unit* unit = &dwarf->units[unitIndex];
@@ -110,18 +120,19 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
 
         if(typeRef >= unit->start && typeRef < unit->start + unitSize)
         {
-            dw_die* rootDie = oc_catch_ptr(unit->rootDie)
+            dw_die* rootDie = oc_catch(unit->rootDie)
             {
                 break;
             }
 
-            die = dw_die_next(rootDie, rootDie);
-            while(die && die->start != typeRef)
+            dieOption = dw_die_next(rootDie, rootDie);
+
+            while(oc_check(dieOption) && oc_unwrap(dieOption)->start != typeRef)
             {
-                die = dw_die_next(rootDie, die);
+                dieOption = dw_die_next(rootDie, oc_unwrap(dieOption));
             }
 
-            if(die)
+            if(oc_check(dieOption))
             {
                 addressSize = unit->addressSize;
                 break;
@@ -129,8 +140,10 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
         }
     }
 
-    if(die)
+    if(oc_check(dieOption))
     {
+        dw_die* die = oc_unwrap(dieOption);
+
         //NOTE: process die
         switch(die->abbrev->tag)
         {
@@ -140,7 +153,12 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
 
                 //TODO: endianity
 
-                dw_attr* encoding = dw_die_get_attr(die, DW_AT_encoding);
+                dw_attr* encoding = oc_catch(dw_die_get_attr(die, DW_AT_encoding))
+                {
+                    oc_log_error("missing dwarf type encoding attribute\n");
+                    return oc_wrap_nil(wa_type_ptr_option);
+                }
+
                 if(encoding)
                 {
                     switch(encoding->valU64)
@@ -162,7 +180,7 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
                             break;
                         default:
                             oc_log_error("unrecognized type encoding %s\n", dw_get_encoding_string(encoding->valU64));
-                            break;
+                            return oc_wrap_nil(wa_type_ptr_option);
                     }
                 }
             }
@@ -179,10 +197,10 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
             case DW_TAG_restrict_type:
             case DW_TAG_volatile_type:
             {
-                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(typeAttr)
+                dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(oc_check(typeAttr))
                 {
-                    type = wa_build_debug_type_from_dwarf(arena, dwarf, typeAttr->valU64, types);
+                    type = oc_unwrap_or(wa_build_debug_type_from_dwarf(arena, dwarf, oc_unwrap(typeAttr)->valU64, types), 0);
                 }
             }
             break;
@@ -192,27 +210,31 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
                 type = wa_type_alloc(arena, typeRef, WA_TYPE_POINTER, types);
                 type->size = addressSize;
 
-                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(typeAttr)
+                dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(oc_check(typeAttr))
                 {
-                    type->type = wa_build_debug_type_from_dwarf(arena, dwarf, typeAttr->valU64, types);
-                    //TODO: should we assert that type->type is always non null?
-                    if(type->type)
+                    type->type = wa_build_debug_type_from_dwarf(arena, dwarf, oc_unwrap(typeAttr)->valU64, types);
+
+                    if(oc_check(type->type))
                     {
-                        type->name = oc_str8_pushf(arena, "%.*s*", oc_str8_ip(type->type->name));
+                        type->name = oc_str8_pushf(arena, "%.*s*", oc_str8_ip(oc_unwrap(type->type)->name));
                     }
+                }
+                else
+                {
+                    //NOTE: apparently a pointer type without a pointee type is considered a void*?
+                    type->type = oc_wrap_ptr(wa_type_ptr_option, wa_type_void(arena, types));
                 }
             }
             break;
 
             case DW_TAG_typedef:
             {
-                type = wa_type_alloc(arena, typeRef, WA_TYPE_NAMED, types);
-
-                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(typeAttr)
+                dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(oc_check(typeAttr))
                 {
-                    type->type = wa_build_debug_type_from_dwarf(arena, dwarf, typeAttr->valU64, types);
+                    type = wa_type_alloc(arena, typeRef, WA_TYPE_NAMED, types);
+                    type->type = wa_build_debug_type_from_dwarf(arena, dwarf, oc_unwrap(typeAttr)->valU64, types);
                 }
             }
             break;
@@ -221,10 +243,10 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
             {
                 type = wa_type_alloc(arena, typeRef, WA_TYPE_ARRAY, types);
 
-                dw_attr* typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(typeAttr)
+                dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
+                if(oc_check(typeAttr))
                 {
-                    type->array.type = wa_build_debug_type_from_dwarf(arena, dwarf, typeAttr->valU64, types);
+                    type->array.type = wa_build_debug_type_from_dwarf(arena, dwarf, oc_unwrap(typeAttr)->valU64, types);
                 }
 
                 //TODO stride
@@ -232,7 +254,12 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
                 ///////////////////////////////////////
                 //TODO: multi dim arrays...
                 ///////////////////////////////////////
-                u64 size = wa_type_strip(type->array.type)->size;
+                u64 size = 0;
+
+                if(oc_check(type->array.type))
+                {
+                    size = wa_type_strip(oc_unwrap(type->array.type))->size;
+                }
 
                 oc_list_for(die->children, child, dw_die, parentElt)
                 {
@@ -240,10 +267,10 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
                     {
                         if(child->abbrev->tag == DW_TAG_subrange_type)
                         {
-                            dw_attr* count = dw_die_get_attr(child, DW_AT_count);
-                            if(count)
+                            dw_attr_ptr_option count = dw_die_get_attr(child, DW_AT_count);
+                            if(oc_check(count))
                             {
-                                type->array.count = count->valU64;
+                                type->array.count = oc_unwrap(count)->valU64;
                                 size *= type->array.count;
                             }
                         }
@@ -279,25 +306,31 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
                     {
                         wa_type_field* member = oc_arena_push_type(arena, wa_type_field);
 
-                        dw_attr* memberName = dw_die_get_attr(child, DW_AT_name);
-                        if(memberName)
+                        dw_attr_ptr_option memberName = dw_die_get_attr(child, DW_AT_name);
+                        if(oc_check(memberName))
                         {
-                            member->name = memberName->string;
+                            member->name = oc_unwrap(memberName)->string;
                         }
 
-                        dw_attr* memberType = dw_die_get_attr(child, DW_AT_type);
-                        if(memberType)
+                        dw_attr* memberType = oc_catch(dw_die_get_attr(child, DW_AT_type))
                         {
-                            member->type = wa_build_debug_type_from_dwarf(arena, dwarf, memberType->valU64, types);
+                            type = 0;
+                            break;
                         }
 
-                        dw_attr* memberOffset = dw_die_get_attr(child, DW_AT_data_member_location);
-                        if(memberOffset)
+                        member->type = oc_catch(wa_build_debug_type_from_dwarf(arena, dwarf, memberType->valU64, types))
+                        {
+                            type = 0;
+                            break;
+                        }
+
+                        dw_attr_ptr_option memberOffset = dw_die_get_attr(child, DW_AT_data_member_location);
+                        if(oc_check(memberOffset))
                         {
                             ///////////////////////////////////////////////////////////////
                             //TODO: this could also be a location description, ensure this is not the case or bailout for now
                             ///////////////////////////////////////////////////////////////
-                            member->offset = memberOffset->valU64;
+                            member->offset = oc_unwrap(memberOffset)->valU64;
                         }
 
                         //TODO: bit offset
@@ -311,11 +344,14 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
             {
                 type = wa_type_alloc(arena, typeRef, WA_TYPE_ENUM, types);
 
-                dw_attr* valType = dw_die_get_attr(die, DW_AT_type);
-                if(valType)
+                dw_attr_ptr_option valType = dw_die_get_attr(die, DW_AT_type);
+                if(oc_check(valType))
                 {
-                    type->enumType.type = wa_build_debug_type_from_dwarf(arena, dwarf, valType->valU64, types);
-                    type->size = wa_type_strip(type->enumType.type)->size;
+                    type->enumType.type = wa_build_debug_type_from_dwarf(arena, dwarf, oc_unwrap(valType)->valU64, types);
+                    if(oc_check(type->enumType.type))
+                    {
+                        type->size = wa_type_strip(oc_unwrap(type->enumType.type))->size;
+                    }
                 }
 
                 oc_list_for(die->children, child, dw_die, parentElt)
@@ -323,10 +359,10 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
                     if(child->abbrev && child->abbrev->tag == DW_TAG_enumerator)
                     {
                         wa_type_enumerator* enumerator = oc_arena_push_type(arena, wa_type_enumerator);
-                        dw_attr* name = dw_die_get_attr(child, DW_AT_name);
-                        if(name)
+                        dw_attr_ptr_option name = dw_die_get_attr(child, DW_AT_name);
+                        if(oc_check(name))
                         {
-                            enumerator->name = name->string;
+                            enumerator->name = oc_unwrap(name)->string;
                         }
                         //TODO: extract const values
 
@@ -350,17 +386,17 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
         }
         if(type)
         {
-            dw_attr* byteSize = dw_die_get_attr(die, DW_AT_byte_size);
-            if(byteSize)
+            dw_attr_ptr_option byteSize = dw_die_get_attr(die, DW_AT_byte_size);
+            if(oc_check(byteSize))
             {
-                type->size = byteSize->valU64;
+                type->size = oc_unwrap(byteSize)->valU64;
             }
             //TODO: bitSize and offset
 
-            dw_attr* name = dw_die_get_attr(die, DW_AT_name);
-            if(name)
+            dw_attr_ptr_option name = dw_die_get_attr(die, DW_AT_name);
+            if(oc_check(name))
             {
-                type->name = name->string;
+                type->name = oc_unwrap(name)->string;
             }
         }
     }
@@ -368,30 +404,31 @@ wa_type* wa_build_debug_type_from_dwarf(oc_arena* arena, dw_info* dwarf, u64 typ
     {
         oc_log_error("Could not find referenced type DIE.\n");
     }
-    return type;
+    return oc_wrap_ptr(wa_type_ptr_option, type);
 }
 
 wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_info* dwarf, oc_list* types)
 {
     wa_debug_variable var = { 0 };
 
-    dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
-    if(name)
-    {
-        var.name = oc_str8_push_copy(arena, name->string);
-    }
+    dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
+    var.name = oc_ptr_field_or(name, string, (oc_str8){ 0 });
 
-    dw_attr* loc = dw_die_get_attr(varDie, DW_AT_location);
-    if(loc)
+    //TODO: consider not creating the variable if we don't have a name for it...
+
+    dw_attr_ptr_option loc = dw_die_get_attr(varDie, DW_AT_location);
+    if(oc_check(loc))
     {
-        var.loc = &loc->loc;
+        //TODO: wrap loc into option
+        var.loc = &oc_unwrap(loc)->loc;
         //TODO: compile the expr to wasm
     }
 
-    dw_attr* type = dw_die_get_attr(varDie, DW_AT_type);
-    if(type)
+    dw_attr_ptr_option type = dw_die_get_attr(varDie, DW_AT_type);
+    if(oc_check(type))
     {
-        var.type = wa_build_debug_type_from_dwarf(arena, dwarf, type->valU64, types);
+        //TODO wrap type into option?
+        var.type = oc_unwrap_or(wa_build_debug_type_from_dwarf(arena, dwarf, oc_unwrap(type)->valU64, types), 0);
     }
     return var;
 }
@@ -399,11 +436,11 @@ wa_debug_variable wa_debug_import_variable(oc_arena* arena, dw_die* varDie, dw_i
 void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcInfo, wa_debug_scope* scope, dw_die* scopeDie, u64 unitBaseAddress, dw_info* dwarf, oc_list* types)
 {
     //NOTE: set scope's extents
-    dw_attr* lowPC = dw_die_get_attr(scopeDie, DW_AT_low_pc);
-    if(lowPC)
+    dw_attr_ptr_option lowPC = dw_die_get_attr(scopeDie, DW_AT_low_pc);
+    if(oc_check(lowPC))
     {
-        dw_attr* highPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
-        if(!highPC)
+        dw_attr_ptr_option highPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
+        if(!oc_check(highPC))
         {
             ////////////////////////////////////////////////////////////////////
             //TODO: process error
@@ -415,17 +452,17 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
             scope->rangeCount = 1;
             scope->ranges = oc_arena_push_type(arena, wa_debug_range);
 
-            scope->ranges[0].low = lowPC->valU64;
+            scope->ranges[0].low = oc_unwrap(lowPC)->valU64;
 
-            dw_attr_class attrClass = dw_attr_get_class(DW_AT_high_pc, highPC->abbrev->form);
+            dw_attr_class attrClass = dw_attr_get_class(DW_AT_high_pc, oc_unwrap(highPC)->abbrev->form);
 
             if(attrClass == DW_AT_CLASS_address)
             {
-                scope->ranges[0].high = highPC->valU64;
+                scope->ranges[0].high = oc_unwrap(highPC)->valU64;
             }
             else if(attrClass == DW_AT_CLASS_constant)
             {
-                scope->ranges[0].high = scope->ranges[0].low + highPC->valU64;
+                scope->ranges[0].high = scope->ranges[0].low + oc_unwrap(highPC)->valU64;
             }
             else
             {
@@ -438,8 +475,8 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
     }
     else
     {
-        dw_attr* rangesAttr = dw_die_get_attr(scopeDie, DW_AT_ranges);
-        if(rangesAttr)
+        dw_attr_ptr_option rangesAttr = dw_die_get_attr(scopeDie, DW_AT_ranges);
+        if(oc_check(rangesAttr))
         {
             //NOTE: get base address of unit
             u64 baseAddress = unitBaseAddress;
@@ -447,11 +484,11 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
             //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
             // since some dwarf range entries are base selection entries that don't make it into the final range list
             oc_arena_scope scratch = oc_scratch_begin();
-            wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, rangesAttr->ranges.entryCount);
+            wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_unwrap(rangesAttr)->ranges.entryCount);
 
-            for(u64 i = 0; i < rangesAttr->ranges.entryCount; i++)
+            for(u64 i = 0; i < oc_unwrap(rangesAttr)->ranges.entryCount; i++)
             {
-                dw_range_entry* entry = &rangesAttr->ranges.entries[i];
+                dw_range_entry* entry = &oc_unwrap(rangesAttr)->ranges.entries[i];
                 if(entry->start == 0xffffffffffffffff)
                 {
                     // base selection entry, change base addres and skip
@@ -481,12 +518,12 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
     {
         if(varDie->abbrev && (varDie->abbrev->tag == DW_TAG_variable || varDie->abbrev->tag == DW_TAG_formal_parameter))
         {
-            scope->count++;
+            scope->varCount++;
         }
     }
 
     //NOTE: extract scope vars
-    scope->vars = oc_arena_push_array(arena, wa_debug_variable, scope->count);
+    scope->vars = oc_arena_push_array(arena, wa_debug_variable, scope->varCount);
 
     u64 varIndex = 0;
     oc_list_for(scopeDie->children, varDie, dw_die, parentElt)
@@ -499,7 +536,7 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
         varIndex++;
     }
 
-    funcInfo->totalVarDecl += scope->count;
+    funcInfo->totalVarDecl += scope->varCount;
 
     //NOTE: create children scopes
     oc_list_for(scopeDie->children, childDie, dw_die, parentElt)
@@ -518,28 +555,25 @@ void wa_debug_extract_vars_from_scope(oc_arena* arena, wa_debug_function* funcIn
 void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_info* dwarf)
 {
     //TODO: could we get function count from somewhere else so we dont need to pass module here?
+    // This would be better to get it from dwarf info anyway
 
     //NOTE: allocate arrays for units and function infos
-    info->units = oc_arena_push_array(module->arena, wa_debug_unit, dwarf->unitCount);
-    info->functionLocals = oc_arena_push_array(module->arena, wa_debug_function, module->functionCount);
+    info->unitCount = dwarf->unitCount;
+    info->units = oc_arena_push_array(module->arena, wa_debug_unit, info->unitCount);
+
+    info->functionCount = module->functionCount;
+    info->functions = oc_arena_push_array(module->arena, wa_debug_function, info->functionCount);
 
     //NOTE: list of all types to deduplicate types
     oc_list types = { 0 };
 
     for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
-        dw_die* rootDie = oc_catch_ptr(dwarf->units[unitIndex].rootDie)
+        dw_die* rootDie = oc_catch(dwarf->units[unitIndex].rootDie)
         {
             continue;
         }
-
         OC_ASSERT(rootDie && rootDie->abbrev && rootDie->abbrev->tag == DW_TAG_compile_unit);
-        u64 unitBaseAddress = 0;
-        dw_attr* lowPC = dw_die_get_attr(rootDie, DW_AT_low_pc);
-        if(lowPC)
-        {
-            unitBaseAddress = lowPC->valU64;
-        }
 
         wa_debug_unit* unit = &info->units[unitIndex];
 
@@ -548,8 +582,8 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
         {
             if(varDie->abbrev && varDie->abbrev->tag == DW_TAG_variable)
             {
-                dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
-                if(name)
+                dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
+                if(oc_check(name))
                 {
                     unit->globalCount++;
                 }
@@ -564,8 +598,8 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
         {
             if(varDie->abbrev && varDie->abbrev->tag == DW_TAG_variable)
             {
-                dw_attr* name = dw_die_get_attr(varDie, DW_AT_name);
-                if(name)
+                dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
+                if(oc_check(name))
                 {
                     unit->globals[globalIndex] = wa_debug_import_variable(module->arena, varDie, dwarf, &types);
                     globalIndex++;
@@ -574,12 +608,19 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
         }
 
         //NOTE: extract per-function locals
-        for(dw_die* funcDie = dw_die_find_next_with_tag(rootDie, rootDie, DW_TAG_subprogram);
-            funcDie != 0;
-            funcDie = dw_die_find_next_with_tag(rootDie, funcDie, DW_TAG_subprogram))
+        u64 unitBaseAddress = 0;
+        dw_attr_ptr_option lowPC = dw_die_get_attr(rootDie, DW_AT_low_pc);
+        if(oc_check(lowPC))
         {
-            dw_attr* funcNameAttr = dw_die_get_attr(funcDie, DW_AT_name);
-            if(funcNameAttr)
+            unitBaseAddress = oc_unwrap(lowPC)->valU64;
+        }
+
+        for(dw_die_ptr_option funcDie = dw_die_find_next_with_tag(rootDie, rootDie, DW_TAG_subprogram);
+            oc_check(funcDie);
+            funcDie = dw_die_find_next_with_tag(rootDie, oc_unwrap(funcDie), DW_TAG_subprogram))
+        {
+            dw_attr_ptr_option funcNameAttr = dw_die_get_attr(oc_unwrap(funcDie), DW_AT_name);
+            if(oc_check(funcNameAttr))
             {
                 //TODO: better way of finding function
                 bool found = false;
@@ -587,7 +628,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
                 for(; funcIndex < module->functionCount; funcIndex++)
                 {
                     oc_str8 funcName = wa_module_get_function_name(module, funcIndex);
-                    if(!oc_str8_cmp(funcName, funcNameAttr->string))
+                    if(!oc_str8_cmp(funcName, oc_unwrap(funcNameAttr)->string))
                     {
                         found = true;
                         break;
@@ -596,18 +637,18 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
 
                 if(found)
                 {
-                    wa_debug_function* funcInfo = &info->functionLocals[funcIndex];
-                    funcInfo->unit = unit;
+                    wa_debug_function* funcInfo = &info->functions[funcIndex];
+                    funcInfo->unit = oc_wrap_ptr(wa_debug_unit_option, unit);
 
                     //NOTE: get frame base expr loc
-                    dw_attr* frameBase = dw_die_get_attr(funcDie, DW_AT_frame_base);
-                    if(frameBase)
+                    dw_attr_ptr_option frameBase = dw_die_get_attr(oc_unwrap(funcDie), DW_AT_frame_base);
+                    if(oc_check(frameBase))
                     {
-                        OC_DEBUG_ASSERT(frameBase->abbrev->form == DW_FORM_exprloc);
-                        funcInfo->frameBase = &frameBase->loc;
+                        OC_DEBUG_ASSERT(oc_unwrap(frameBase)->abbrev->form == DW_FORM_exprloc);
+                        funcInfo->frameBase = oc_wrap_ptr(dw_loc_option, &oc_unwrap(frameBase)->loc);
                     }
 
-                    wa_debug_extract_vars_from_scope(module->arena, funcInfo, &funcInfo->body, funcDie, unitBaseAddress, dwarf, &types);
+                    wa_debug_extract_vars_from_scope(module->arena, funcInfo, &funcInfo->body, oc_unwrap(funcDie), unitBaseAddress, dwarf, &types);
                 }
             }
         }
@@ -712,11 +753,12 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
                 }
                 else
                 {
+                    //NOTE: if the directory index for the entry is invalid, we skip it.
+                    //      This leaves that file entry mapped to our nil file.
                     oc_log_error("Directory index %llu for file entry %llu is out of bounds\n",
                                  fileEntry->dirIndex,
                                  fileIndex);
-                    //////////////////////
-                    //Error
+                    continue;
                 }
 
                 if(dirPath.len && dirPath.ptr[0] == '/')
@@ -732,6 +774,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
                 }
                 fullPath = oc_path_append(scratch.arena, rootPath, filePath);
 
+                //TODO: review this. this doesn't seem to be always the case.
                 OC_DEBUG_ASSERT(!oc_str8_cmp(rootPath, oc_str8_slice(fullPath, 0, rootPath.len)),
                                 "rootPath should be a prefix of fullPath");
             }

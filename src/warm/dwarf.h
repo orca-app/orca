@@ -1071,9 +1071,11 @@ dw_info dw_parse_dwarf(dw_parser* parser);
 //------------------------------------------------------------------------
 // traversing DIEs
 //------------------------------------------------------------------------
-dw_die* dw_die_next(dw_die* root, dw_die* die);
-dw_die* dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags);
-dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag);
-dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
-dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name);
+typedef oc_option_ptr(dw_die) dw_die_ptr_option;
+typedef oc_option_ptr(dw_attr) dw_attr_ptr_option;
+
+dw_die_ptr_option dw_die_next(dw_die* root, dw_die* die);
+dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags);
+dw_die_ptr_option dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag);
+dw_attr_ptr_option dw_die_get_attr(dw_die* die, dw_attr_name name);
 dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form);

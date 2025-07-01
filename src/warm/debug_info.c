@@ -181,9 +181,16 @@ dw_stack_value wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_debug_fun
             {
                 i64 offset = instr->operands[0].valI64;
 
-                OC_ASSERT(funcInfo->frameBase->single && funcInfo->frameBase->entryCount == 1);
+                dw_loc* frameBaseLoc = oc_catch(funcInfo->frameBase)
+                {
+                    //TODO: error
+                }
+                if(!frameBaseLoc->single || frameBaseLoc->entryCount != 1)
+                {
+                    //TODO: error
+                }
 
-                dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, funcInfo->frameBase->entries[0].expr);
+                dw_stack_value frameBase = wa_interpret_dwarf_expr(interpreter, funcInfo, frameBaseLoc->entries[0].expr);
 
                 /*NOTE: what the spec says and what clang does seem to differ:
                     - dwarf says that DW_OP_stack_value means the _value_ of the object (not its location) is on the top of the stack
@@ -285,6 +292,8 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     {
         return (oc_str8){ 0 };
     }
+
+    //TODO: handle error
     wa_type* type = wa_type_strip(var->type);
 
     oc_str8 res = {
@@ -330,7 +339,7 @@ wa_debug_scope* wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_
 {
     wa_wasm_loc loc = wa_wasm_loc_from_warm_loc(warmLoc);
 
-    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functionLocals[warmLoc.funcIndex];
+    wa_debug_function* funcInfo = &interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex];
     wa_debug_scope* scope = &funcInfo->body;
 
     while(!oc_list_empty(scope->children))

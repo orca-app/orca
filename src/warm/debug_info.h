@@ -11,6 +11,24 @@
 #include "warm.h"
 
 //------------------------------------------------------------------------
+// source info structs
+//------------------------------------------------------------------------
+
+typedef struct wa_source_file
+{
+    oc_str8 rootPath; // slice into fullPath
+    oc_str8 fullPath;
+    // timestamp, hash, etc
+} wa_source_file;
+
+typedef struct wa_source_info
+{
+    u64 fileCount;
+    wa_source_file* files;
+
+} wa_source_info;
+
+//------------------------------------------------------------------------
 // line info structs
 //------------------------------------------------------------------------
 
@@ -89,10 +107,13 @@ typedef struct wa_type_enumerator
     //TODO value
 } wa_type_enumerator;
 
+typedef struct wa_type wa_type;
+typedef oc_option_ptr(wa_type) wa_type_ptr_option;
+
 typedef struct wa_type
 {
-    oc_list_elt listElt;
-    u64 dwarfRef;
+    oc_list_elt listElt; //TODO: remove
+    u64 dwarfRef;        //TODO: remove
     oc_str8 name;
     wa_type_kind kind;
     u64 size;
@@ -100,18 +121,18 @@ typedef struct wa_type
     union
     {
         wa_type_encoding encoding;
-        wa_type* type;
+        wa_type_ptr_option type;
         oc_list fields;
 
         struct
         {
-            wa_type* type;
+            wa_type_ptr_option type;
             u64 count;
         } array;
 
         struct
         {
-            wa_type* type;
+            wa_type_ptr_option type;
             oc_list enumerators;
         } enumType;
 
@@ -157,14 +178,17 @@ typedef struct wa_debug_scope
     u64 rangeCount;
     wa_debug_range* ranges;
 
-    u64 count;
+    u64 varCount;
     wa_debug_variable* vars;
 } wa_debug_scope;
 
+typedef oc_option_ptr(wa_debug_unit) wa_debug_unit_option;
+typedef oc_option_ptr(dw_loc) dw_loc_option;
+
 typedef struct wa_debug_function
 {
-    wa_debug_unit* unit;
-    dw_loc* frameBase;
+    wa_debug_unit_option unit;
+    dw_loc_option frameBase;
 
     u64 totalVarDecl;
     wa_debug_scope body;
@@ -190,8 +214,11 @@ typedef struct wa_debug_info
 
     wa_register_map** registerMaps;
 
+    u64 unitCount;
     wa_debug_unit* units;
-    wa_debug_function* functionLocals;
+
+    u64 functionCount;
+    wa_debug_function* functions;
 } wa_debug_info;
 
 //------------------------------------------------------------------------

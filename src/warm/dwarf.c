@@ -285,29 +285,33 @@ void wa_read_file_entries(dw_parser* parser,
             dw_unit* unit = &dwarf->units[unitIndex];
             if(unit->type == DW_UT_compile)
             {
-                if(unit->rootDie.p)
+                if(oc_check(unit->rootDie))
                 {
-                    dw_die* die = unit->rootDie.p;
+                    dw_die* die = oc_unwrap(unit->rootDie);
                     OC_DEBUG_ASSERT(die->abbrev && die->abbrev->tag == DW_TAG_compile_unit);
 
-                    dw_attr* stmtListAttr = dw_die_get_attr(die, DW_AT_stmt_list);
-                    if(stmtListAttr && stmtListAttr->valU64 == header->offset)
+                    dw_attr* stmtListAttr = oc_catch(dw_die_get_attr(die, DW_AT_stmt_list))
+                    {
+                        continue;
+                    }
+
+                    if(stmtListAttr->valU64 == header->offset)
                     {
                         if(directories)
                         {
-                            dw_attr* dirAttr = dw_die_get_attr(die, DW_AT_comp_dir);
-                            if(dirAttr)
+                            dw_attr* dirAttr = oc_catch(dw_die_get_attr(die, DW_AT_comp_dir))
                             {
-                                currentDirOrFile = dirAttr->string;
+                                break;
                             }
+                            currentDirOrFile = dirAttr->string;
                         }
                         else
                         {
-                            dw_attr* fileAttr = dw_die_get_attr(die, DW_AT_name);
-                            if(fileAttr)
+                            dw_attr* fileAttr = oc_catch(dw_die_get_attr(die, DW_AT_name))
                             {
-                                currentDirOrFile = fileAttr->string;
+                                break;
                             }
+                            currentDirOrFile = fileAttr->string;
                         }
                         break;
                     }
@@ -2078,7 +2082,7 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
             do
             {
                 dw_die_option dieOption = dw_parse_die(parser, &reader, sections, unit);
-                dw_die* die = oc_catch_ptr(dieOption)
+                dw_die* die = oc_catch(dieOption)
                 {
                     //NOTE: if a DIE fails parsing, all other DIEs in the unit won't be parsed
                     // correctly, so bail out.
@@ -2151,7 +2155,7 @@ dw_info dw_parse_dwarf(dw_parser* parser)
 //------------------------------------------------------------------------
 // traversing DIEs
 //------------------------------------------------------------------------
-dw_die* dw_die_next(dw_die* root, dw_die* die)
+dw_die_ptr_option dw_die_next(dw_die* root, dw_die* die)
 {
     if(!oc_list_empty(die->children))
     {
@@ -2170,10 +2174,10 @@ dw_die* dw_die_next(dw_die* root, dw_die* die)
         die = 0;
     }
 
-    return die;
+    return oc_wrap_ptr(dw_die_ptr_option, die);
 }
 
-dw_die* dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags)
+dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags)
 {
     dw_die* die = start;
 
@@ -2185,7 +2189,7 @@ dw_die* dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_ta
             {
                 if(die->abbrev->tag == tags[i])
                 {
-                    return die;
+                    return oc_wrap_ptr(dw_die_ptr_option, die);
                 }
             }
         }
@@ -2207,15 +2211,15 @@ dw_die* dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_ta
             break;
         }
     }
-    return 0;
+    return oc_wrap_nil(dw_die_ptr_option);
 }
 
-dw_die* dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
+dw_die_ptr_option dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
 {
     return dw_die_find_next_with_tags(root, start, 1, &tag);
 }
 
-dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name)
+dw_attr_ptr_option dw_die_get_attr(dw_die* die, dw_attr_name name)
 {
     dw_attr* res = 0;
     for(u64 attrIndex = 0; attrIndex < die->abbrev->attrCount; attrIndex++)
@@ -2227,7 +2231,7 @@ dw_attr* dw_die_get_attr(dw_die* die, dw_attr_name name)
             break;
         }
     }
-    return res;
+    return oc_wrap_ptr(dw_attr_ptr_option, res);
 }
 
 //------------------------------------------------------------------------
@@ -2392,9 +2396,9 @@ void dw_print_debug_info(dw_info* info)
         printf("    type: %s\n", dw_get_cu_type_string(unit->type));
         printf("    version: %i\n", unit->version);
 
-        if(unit->rootDie.p)
+        if(oc_check(unit->rootDie))
         {
-            dw_print_die(unit, unit->rootDie.p, 0);
+            dw_print_die(unit, oc_unwrap(unit->rootDie), 0);
         }
     }
 }

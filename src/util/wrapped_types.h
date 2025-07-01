@@ -36,6 +36,26 @@ extern oc_thread_local bool oc_lastCatchResult;
     ({__typeof__(e) tmp = e; oc_lastCatchResult = tmp.ok; tmp.value; });          \
     if(!oc_lastCatchResult)
 
+#define oc_check(e) ((e).ok)
+
+//NOTE: when value is a pointer these helpers allow dereferencing the pointer
+#define oc_ptr_deref(e) ({__typeof__(e) tmp = e; OC_ASSERT(tmp.ok); *tmp.value; })
+#define oc_ptr_deref_or(e, d) ({__typeof__(e) tmp = e; (tmp.ok ? *tmp.value : d); })
+#define oc_ptr_deref_catch(e) \
+    ({__typeof__(e) tmp = e; oc_lastCatchResult = (tmp.ok != 0); (tmp.ok ? *tmp.value : (__typeof__(*tmp.value)){0}); });                    \
+    if(!oc_lastCatchResult)
+
+//NOTE: when value is a struct or a pointer to a struct these helpers allow accessing the struct fields
+#define oc_field_or(e, f, d) ({__typeof__(e) tmp = e; (tmp.ok ? tmp.value.f : d); })
+#define oc_field_catch(e, f) \
+    ({__typeof__(e) tmp = e; oc_lastCatchResult = tmp.ok; tmp.value.f; });                   \
+    if(!oc_lastCatchResult)
+
+#define oc_ptr_field_or(e, f, d) ({__typeof__(e) tmp = e; (tmp.ok ? tmp.value->f : d); })
+#define oc_ptr_field_catch(e, f) \
+    ({__typeof__(e) tmp = e; oc_lastCatchResult = tmp.ok; tmp.value->f; });                       \
+    if(!oc_lastCatchResult)
+
 //----------------------------------------------------------------------------------------
 //NOTE(martin): Helpers for option types
 //----------------------------------------------------------------------------------------
@@ -48,25 +68,15 @@ extern oc_thread_local bool oc_lastCatchResult;
     }
 
 #define oc_option_ptr(valueType) \
-    struct                       \
+    union                        \
     {                            \
-        valueType* p;            \
+        valueType* ok;           \
+        valueType* value;        \
     }
 
 #define oc_wrap_nil(type) ((type){ 0 })
+#define oc_wrap_ptr(type, p) ((type){ .value = p })
 
-//NOTE: we can use normal oc_wrap_value / oc_unwrap / oc_catch with value options. For pointer options,
-// use the following versions:
-#define oc_wrap_ptr(type, ptr) ((type){ .p = ptr })
-#define oc_unwrap_ptr(e) ({__typeof__(e) tmp = e; OC_ASSERT(tmp.p); tmp.p; })
-#define oc_unwrap_or_ptr(e, d) ({__typeof__(e) tmp = e; (tmp.p ? tmp.p : d); })
-#define oc_catch_ptr(e) \
-    ({__typeof__(e) tmp = e; oc_lastCatchResult = (tmp.p != 0); tmp.p; });              \
-    if(!oc_lastCatchResult)
-
-//NOTE: additionally, the pointer options have dereferencing versions
-#define oc_deref(e) ({__typeof__(e) tmp = e; OC_ASSERT(tmp.p); *tmp.p; })
-#define oc_deref_or(e, d) ({__typeof__(e) tmp = e; (tmp.p ? *tmp.p : d); })
-#define oc_deref_catch(e) \
-    ({__typeof__(e) tmp = e; oc_lastCatchResult = (tmp.p != 0); (tmp.p ? *tmp.p : (__typeof__(*tmp.p)){0}); });                \
-    if(!oc_lastCatchResult)
+//NOTE: we can use normal
+// - oc_wrap_value can be used with value options. For pointer options use oc_wrap_ptr.
+// - Other result constructs like oc_unwrap/oc_catch etc can be used with either value or pointer options.
