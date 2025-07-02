@@ -154,17 +154,25 @@ typedef struct wa_debug_variable
     wa_type* type;
 } wa_debug_variable;
 
-typedef struct wa_debug_unit
-{
-    u64 globalCount;
-    wa_debug_variable* globals;
-} wa_debug_unit;
-
 typedef struct wa_debug_range
 {
     u64 low;
     u64 high;
 } wa_debug_range;
+
+typedef struct wa_debug_range_list
+{
+    u64 count;
+    wa_debug_range* ranges;
+} wa_debug_range_list;
+
+typedef struct wa_debug_unit
+{
+    u64 globalCount;
+    wa_debug_variable* globals;
+
+    wa_debug_range_list rangeList;
+} wa_debug_unit;
 
 typedef struct wa_debug_scope wa_debug_scope;
 
@@ -174,8 +182,7 @@ typedef struct wa_debug_scope
     oc_list children;
     wa_debug_scope* parent;
 
-    u64 rangeCount;
-    wa_debug_range* ranges;
+    wa_debug_range_list rangeList;
 
     u64 varCount;
     wa_debug_variable* vars;
@@ -243,3 +250,6 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
 
 typedef oc_ptr_option(wa_debug_scope) wa_debug_scope_ptr_option;
 wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc);
+
+typedef oc_ptr_option(wa_debug_unit) wa_debug_unit_ptr_option;
+wa_debug_unit_ptr_option wa_debug_get_unit_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc);

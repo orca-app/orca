@@ -395,9 +395,10 @@ wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interp
         wa_debug_scope* next = 0;
         oc_list_for(scope->children, child, wa_debug_scope, listElt)
         {
-            for(u64 rangeIndex = 0; rangeIndex < child->rangeCount; rangeIndex++)
+            for(u64 rangeIndex = 0; rangeIndex < child->rangeList.count; rangeIndex++)
             {
-                if(loc.offset >= child->ranges[rangeIndex].low && loc.offset < child->ranges[rangeIndex].high)
+                wa_debug_range* range = &child->rangeList.ranges[rangeIndex];
+                if(loc.offset >= range->low && loc.offset < range->high)
                 {
                     next = child;
                     break;
@@ -412,4 +413,40 @@ wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interp
     }
     OC_DEBUG_ASSERT(scope);
     return oc_wrap_ptr(wa_debug_scope_ptr_option, scope);
+}
+
+wa_debug_unit_ptr_option wa_debug_get_unit_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc)
+{
+    wa_debug_info* debugInfo = interpreter->instance->module->debugInfo;
+    wa_wasm_loc loc = wa_wasm_loc_from_warm_loc(warmLoc);
+
+    wa_debug_unit* unit = 0;
+
+    wa_debug_function_ptr_option funcOption = debugInfo->functions[warmLoc.funcIndex];
+    if(oc_check(funcOption))
+    {
+        wa_debug_function* func = oc_unwrap(funcOption);
+        unit = func->unit;
+    }
+    else
+    {
+        for(u64 unitIndex = 0; unitIndex < debugInfo->unitCount; unitIndex++)
+        {
+            wa_debug_unit* candidate = &debugInfo->units[unitIndex];
+            for(u64 rangeIndex = 0; rangeIndex < candidate->rangeList.count; rangeIndex++)
+            {
+                wa_debug_range* range = &candidate->rangeList.ranges[rangeIndex];
+                if(loc.offset >= range->low && loc.offset < range->high)
+                {
+                    unit = candidate;
+                    break;
+                }
+            }
+            if(unit)
+            {
+                break;
+            }
+        }
+    }
+    return oc_wrap_ptr(wa_debug_unit_ptr_option, unit);
 }

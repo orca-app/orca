@@ -203,6 +203,7 @@ typedef enum oc_debugger_command
     OC_DEBUGGER_LINE_STEP_OVER,
     OC_DEBUGGER_INSTR_STEP_IN,
     OC_DEBUGGER_LINE_STEP_IN,
+    OC_DEBUGGER_STEP_OUT,
     OC_DEBUGGER_QUIT,
 } oc_debugger_command;
 

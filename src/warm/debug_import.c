@@ -447,81 +447,80 @@ wa_debug_variable wa_debug_import_variable(wa_import_context* context, dw_die* v
     return var;
 }
 
-void wa_debug_extract_vars_from_scope(wa_import_context* context, wa_debug_function* funcInfo, wa_debug_scope* scope, dw_die* scopeDie, u64 unitBaseAddress, dw_info* dwarf)
+wa_debug_range_list wa_import_range_list(wa_import_context* context, dw_die* die, u64 unitBaseAddress)
 {
-    //NOTE: set scope's extents
-    dw_attr_ptr_option lowPC = dw_die_get_attr(scopeDie, DW_AT_low_pc);
-    if(oc_check(lowPC))
-    {
-        dw_attr_ptr_option highPC = dw_die_get_attr(scopeDie, DW_AT_high_pc);
-        if(!oc_check(highPC))
-        {
-            oc_log_error("No high PC found for scope DIE at offset %llu\n", scopeDie->start);
-            //TODO: should store the fact that some variables couldn't be loaded
-            return;
-        }
-        else
-        {
-            scope->rangeCount = 1;
-            scope->ranges = oc_arena_push_type(context->arena, wa_debug_range);
+    wa_debug_range_list result = { 0 };
 
-            scope->ranges[0].low = oc_unwrap(lowPC)->valU64;
+    //TODO: check DW_AT_ranges
+    dw_attr_ptr_option rangesAttr = dw_die_get_attr(die, DW_AT_ranges);
+    if(oc_check(rangesAttr))
+    {
+        //NOTE: get base address of unit
+        u64 baseAddress = unitBaseAddress;
+
+        //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
+        // since some dwarf range entries are base selection entries that don't make it into the final range list
+        oc_arena_scope scratch = oc_scratch_begin();
+        wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_unwrap(rangesAttr)->ranges.entryCount);
+
+        for(u64 i = 0; i < oc_unwrap(rangesAttr)->ranges.entryCount; i++)
+        {
+            dw_range_entry* entry = &oc_unwrap(rangesAttr)->ranges.entries[i];
+            if(entry->start == 0xffffffffffffffff)
+            {
+                // base selection entry, change base addres and skip
+                baseAddress = entry->end;
+            }
+            else
+            {
+                // normal entry, record it in ranges
+                ranges[result.count].low = baseAddress + entry->start;
+                ranges[result.count].high = baseAddress + entry->end;
+                result.count++;
+            }
+        }
+        //NOTE: allocate scope ranges with the final size, and copy ranges there.
+        result.ranges = oc_arena_push_array(context->arena, wa_debug_range, result.count);
+        memcpy(result.ranges, ranges, sizeof(wa_debug_range) * result.count);
+
+        oc_scratch_end(scratch);
+    }
+    else
+    {
+        dw_attr_ptr_option lowPC = dw_die_get_attr(die, DW_AT_low_pc);
+        dw_attr_ptr_option highPC = dw_die_get_attr(die, DW_AT_high_pc);
+        if(oc_check(lowPC) && oc_check(highPC))
+        {
+            result.count = 1;
+            result.ranges = oc_arena_push_type(context->arena, wa_debug_range);
+
+            result.ranges[0].low = oc_unwrap(lowPC)->valU64;
 
             dw_attr_class attrClass = dw_attr_get_class(DW_AT_high_pc, oc_unwrap(highPC)->abbrev->form);
 
             if(attrClass == DW_AT_CLASS_address)
             {
-                scope->ranges[0].high = oc_unwrap(highPC)->valU64;
+                result.ranges[0].high = oc_unwrap(highPC)->valU64;
             }
             else if(attrClass == DW_AT_CLASS_constant)
             {
-                scope->ranges[0].high = scope->ranges[0].low + oc_unwrap(highPC)->valU64;
+                result.ranges[0].high = result.ranges[0].low + oc_unwrap(highPC)->valU64;
             }
             else
             {
-                oc_log_error("Couldn't interpret class of DW_AT_high_pc attribute for scope DIE at offset %llu\n",
-                             scopeDie->start);
-                //TODO: should store the fact that some variables couldn't be loaded
-                return;
+                oc_log_error("Couldn't interpret class of DW_AT_high_pc attribute for DIE at offset %llu\n",
+                             die->start);
+                result = (wa_debug_range_list){ 0 };
             }
         }
     }
-    else
-    {
-        dw_attr_ptr_option rangesAttr = dw_die_get_attr(scopeDie, DW_AT_ranges);
-        if(oc_check(rangesAttr))
-        {
-            //NOTE: get base address of unit
-            u64 baseAddress = unitBaseAddress;
+    return result;
+}
 
-            //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
-            // since some dwarf range entries are base selection entries that don't make it into the final range list
-            oc_arena_scope scratch = oc_scratch_begin();
-            wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_unwrap(rangesAttr)->ranges.entryCount);
-
-            for(u64 i = 0; i < oc_unwrap(rangesAttr)->ranges.entryCount; i++)
-            {
-                dw_range_entry* entry = &oc_unwrap(rangesAttr)->ranges.entries[i];
-                if(entry->start == 0xffffffffffffffff)
-                {
-                    // base selection entry, change base addres and skip
-                    baseAddress = entry->end;
-                }
-                else
-                {
-                    // normal entry, record it in ranges
-                    ranges[scope->rangeCount].low = baseAddress + entry->start;
-                    ranges[scope->rangeCount].high = baseAddress + entry->end;
-                    scope->rangeCount++;
-                }
-            }
-            //NOTE: allocate scope ranges with the final size, and copy ranges there.
-            scope->ranges = oc_arena_push_array(context->arena, wa_debug_range, scope->rangeCount);
-            memcpy(scope->ranges, ranges, sizeof(wa_debug_range) * scope->rangeCount);
-
-            oc_scratch_end(scratch);
-        }
-    }
+void wa_debug_extract_vars_from_scope(wa_import_context* context, wa_debug_function* funcInfo, wa_debug_scope* scope, dw_die* scopeDie, u64 unitBaseAddress, dw_info* dwarf)
+{
+    //NOTE: set scope's extents
+    scope->rangeList = wa_import_range_list(context, scopeDie, unitBaseAddress);
 
     //NOTE: count scope vars
     u32 varTagCount = 2;
@@ -593,6 +592,17 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
 
         wa_debug_unit* unit = &info->units[unitIndex];
 
+        //NOTE: get unit base address
+        u64 unitBaseAddress = 0;
+        dw_attr_ptr_option lowPC = dw_die_get_attr(rootDie, DW_AT_low_pc);
+        if(oc_check(lowPC))
+        {
+            unitBaseAddress = oc_unwrap(lowPC)->valU64;
+        }
+
+        //NOTE: get unit range
+        unit->rangeList = wa_import_range_list(&context, rootDie, unitBaseAddress);
+
         //NOTE: count globals
         oc_list_for(rootDie->children, varDie, dw_die, parentElt)
         {
@@ -624,12 +634,6 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
         }
 
         //NOTE: extract per-function locals
-        u64 unitBaseAddress = 0;
-        dw_attr_ptr_option lowPC = dw_die_get_attr(rootDie, DW_AT_low_pc);
-        if(oc_check(lowPC))
-        {
-            unitBaseAddress = oc_unwrap(lowPC)->valU64;
-        }
 
         for(dw_die_ptr_option funcDie = dw_die_find_next_with_tag(rootDie, rootDie, DW_TAG_subprogram);
             oc_check(funcDie);
@@ -830,6 +834,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
             wasmToLineEntry->wasmOffset = lineEntry->address;
             wasmToLineEntry->loc.fileIndex = fileIndices[lineEntry->file];
             wasmToLineEntry->loc.line = lineEntry->line;
+            wasmToLineEntry->loc.column = lineEntry->column;
 
             wasmToLineIndex++;
         }

@@ -8,6 +8,8 @@
 
 #include "warm/debug_info.h"
 #include "runtime/runtime.h"
+#include "graphics/graphics.h"
+#include "ui/ui.h"
 
 //------------------------------------------------------------------------
 // Debug Overlay UI
@@ -1018,20 +1020,22 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
         debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, warmLoc);
     }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    //WARN: here we only load globals from the top function's unit... this isn't necessarily what we want
-    //TODO: we could be able to load globals even if debug info for current function does not exist
-    //TODO: see how we want to display globals
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    wa_func* execFunc = interpreter->controlStack[interpreter->controlStackTop].func;
-    u64 funcIndex = execFunc - interpreter->instance->functions;
+    //NOTE: load globals from the current compile unit
 
-    wa_debug_function_ptr_option debugFuncOption = interpreter->instance->module->debugInfo->functions[funcIndex];
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
 
-    if(oc_check(debugFuncOption))
+    wa_warm_loc warmLoc = {
+        .module = interpreter->instance->module,
+        .funcIndex = funcIndex,
+        .codeIndex = interpreter->pc - func->code,
+    };
+
+    wa_debug_unit_ptr_option unitOption = wa_debug_get_unit_for_warm_loc(interpreter, warmLoc);
+    if(oc_check(unitOption))
     {
-        wa_debug_function* debugFunc = oc_unwrap(debugFuncOption);
-        debugger->globals = debugger_build_globals_tree(&debugger->debugArena, debugFunc->unit, interpreter);
+        wa_debug_unit* unit = oc_unwrap(unitOption);
+        debugger->globals = debugger_build_globals_tree(&debugger->debugArena, unit, interpreter);
     }
 }
 
@@ -1681,6 +1685,11 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
         f32 lineH = 0;
         f32 lineY = 0;
 
+        oc_text_metrics metrics = oc_font_text_metrics(oc_ui_var_get_font_str8(OC_UI_THEME_FONT_REGULAR),
+                                                       oc_ui_var_get_f32_str8(OC_UI_THEME_TEXT_SIZE_REGULAR),
+                                                       OC_STR8("x"));
+        f32 xWidth = metrics.advance.x;
+
         while(offset < node->contents.len)
         {
             u64 lineStart = offset;
@@ -1706,6 +1715,8 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
                 {
                     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);
                 }
+
+                u32 execMarkerColumn = 0;
 
                 if(interpreter->instance) //TODO: should be always the case?
                 {
@@ -1734,6 +1745,8 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
 
                         if(node->index == loc.fileIndex && loc.line == lineNum)
                         {
+                            execMarkerColumn = loc.column;
+
                             if(frameIndex == interpreter->controlStackTop)
                             {
                                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.7, 0.1, 1, OC_COLOR_SPACE_SRGB });
@@ -1781,7 +1794,7 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
                 {
                     oc_ui_box("spacer")
                     {
-                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 30 });
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 40 });
                         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
 
                         if(oc_ui_get_sig().clicked)
@@ -1795,7 +1808,27 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
                     }
                 }
 
-                oc_ui_label_str8(OC_STR8("line"), line);
+                oc_ui_box("line")
+                {
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+
+                    if(execMarkerColumn)
+                    {
+                        oc_ui_box("bp-column-marker")
+                        {
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, xWidth });
+                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, lineH });
+                            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+                            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, xWidth * (execMarkerColumn - 1));
+                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+                            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
+                        }
+                    }
+
+                    oc_ui_label_str8(OC_STR8("line-contents"), line);
+                }
             }
 
             if(lineNum == tab->selectedLine)

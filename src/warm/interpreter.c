@@ -2705,8 +2705,6 @@ wa_status wa_interpreter_line_step_over(wa_interpreter* interpreter)
         interpreter->controlStack[interpreter->controlStackTop].returnTrap = true;
         status = wa_interpreter_run(interpreter, false);
 
-        //NOTE: if we're back to the same line (because there are still instructions to complete the call line), step to
-        // the next line
         if(status == WA_TRAP_STEP)
         {
             OC_ASSERT(interpreter->controlStackTop == oldStackTop);
@@ -2722,10 +2720,29 @@ wa_status wa_interpreter_line_step_over(wa_interpreter* interpreter)
                     .codeIndex = interpreter->pc - func->code,
                 });
 
-            if((lineLoc.fileIndex == startLoc.fileIndex && lineLoc.line == startLoc.line)
-               || lineLoc.line == 0)
+            //NOTE: if we're back to the same line (because there are still instructions to complete the call line), step to
+            // the next line, or the next call or breakpoint on the same line
+
+            while((lineLoc.fileIndex == startLoc.fileIndex && lineLoc.line == startLoc.line)
+                  || lineLoc.line == 0)
             {
-                status = wa_interpreter_line_step_in(interpreter);
+                status = wa_interpreter_instr_step_in(interpreter);
+
+                if(status != WA_TRAP_STEP || interpreter->pc->opcode == WA_INSTR_call || interpreter->pc->opcode == WA_INSTR_call_indirect)
+                {
+                    break;
+                }
+
+                func = interpreter->controlStack[interpreter->controlStackTop].func;
+                funcIndex = func - interpreter->instance->functions;
+
+                lineLoc = wa_line_loc_from_warm_loc(
+                    interpreter->instance->module,
+                    (wa_warm_loc){
+                        .module = interpreter->instance->module,
+                        .funcIndex = funcIndex,
+                        .codeIndex = interpreter->pc - func->code,
+                    });
             }
         }
         else
@@ -2734,6 +2751,37 @@ wa_status wa_interpreter_line_step_over(wa_interpreter* interpreter)
             interpreter->controlStack[oldStackTop + 1].returnTrap = false;
         }
     }
+    return status;
+}
+
+wa_status wa_interpreter_step_out(wa_interpreter* interpreter)
+{
+    wa_interpreter_cache_registers(interpreter);
+
+    wa_func* func = interpreter->controlStack[interpreter->controlStackTop].func;
+    u64 funcIndex = func - interpreter->instance->functions;
+
+    wa_trap* trap = wa_interpreter_find_trap(
+        interpreter,
+        &(wa_warm_loc){
+            .module = interpreter->instance->module,
+            .funcIndex = funcIndex,
+            .codeIndex = interpreter->pc - func->code,
+        });
+
+    if(trap)
+    {
+        func->code[trap->loc.codeIndex] = trap->savedOpcode;
+    }
+
+    interpreter->controlStack[interpreter->controlStackTop].returnTrap = true;
+    wa_status status = wa_interpreter_run(interpreter, false);
+
+    if(trap)
+    {
+        func->code[trap->loc.codeIndex].opcode = WA_INSTR_breakpoint;
+    }
+
     return status;
 }
 

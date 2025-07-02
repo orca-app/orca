@@ -250,6 +250,7 @@ wa_status wa_interpreter_instr_step_over(wa_interpreter* interpreter);
 wa_status wa_interpreter_line_step_over(wa_interpreter* interpreter);
 wa_status wa_interpreter_instr_step_in(wa_interpreter* interpreter);
 wa_status wa_interpreter_line_step_in(wa_interpreter* interpreter);
+wa_status wa_interpreter_step_out(wa_interpreter* interpreter);
 
 wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter);
 
@@ -278,7 +279,7 @@ typedef struct wa_line_loc
 {
     u64 fileIndex;
     u64 line;
-
+    u64 column;
 } wa_line_loc;
 
 wa_breakpoint* wa_interpreter_find_breakpoint(wa_interpreter* interpreter, wa_warm_loc* loc);

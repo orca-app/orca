@@ -220,6 +220,12 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
             }
             break;
 
+            case OC_DEBUGGER_STEP_OUT:
+            {
+                status = wa_interpreter_step_out(interpreter);
+            }
+            break;
+
             case OC_DEBUGGER_QUIT:
             {
                 //TODO: should instead return WA_QUIT or something, that shouldn't trigger an error in the caller
@@ -711,6 +717,10 @@ i32 control_runloop(void* user)
                                 {
                                     debugger_resume_with_command(app, OC_DEBUGGER_LINE_STEP_IN);
                                 }
+                            }
+                            else if(event->key.keyCode == OC_KEY_O)
+                            {
+                                debugger_resume_with_command(app, OC_DEBUGGER_STEP_OUT);
                             }
                             else if(event->key.keyCode == OC_KEY_P
                                     && (event->key.mods & OC_KEYMOD_MAIN_MODIFIER))
