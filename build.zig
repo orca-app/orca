@@ -11,12 +11,12 @@ const CompileStep = std.Build.Step.Compile;
 const MACOS_VERSION_MIN = "13.0.0";
 
 const CSources = struct {
-    files: std.ArrayList([]const u8),
+    files: std.ArrayListUnmanaged([]const u8),
     b: *Build,
 
     fn init(b: *Build) CSources {
         return .{
-            .files = std.ArrayList([]const u8).init(b.allocator),
+            .files = std.ArrayListUnmanaged([]const u8){},
             .b = b,
         };
     }
@@ -29,16 +29,16 @@ const CSources = struct {
         while (try iter.next()) |entry| {
             if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".c")) {
                 const filepath = try std.fs.path.resolve(sources.b.allocator, &.{ path, entry.name });
-                try sources.files.append(filepath);
+                try sources.files.append(sources.b.allocator, filepath);
             }
         }
     }
 
-    fn deinit(sources: CSources) void {
+    fn deinit(sources: *CSources) void {
         for (sources.files.items) |path| {
             sources.b.allocator.free(path);
         }
-        sources.files.deinit();
+        sources.files.deinit(sources.b.allocator);
     }
 };
 
@@ -142,10 +142,13 @@ pub fn build(b: *Build) !void {
     defer z_sources.deinit();
     try z_sources.collect("src/ext/zlib/");
 
-    var z_lib = b.addStaticLibrary(.{
+    var z_lib = b.addLibrary(.{
+        .linkage = .static,
         .name = "z",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
     z_lib.addIncludePath(b.path("src/ext/zlib/"));
     z_lib.addCSourceFiles(.{
@@ -165,9 +168,11 @@ pub fn build(b: *Build) !void {
     // Original zig build code MIT licensed from: https://github.com/jiacai2050/zig-curl/blob/main/libs/curl.zig
     const curl_lib = b.addStaticLibrary(.{
         .name = "curl",
-        .target = target,
-        .optimize = optimize,
-        .link_libc = true,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
     });
 
     var curl_sources = CSources.init(b);
@@ -670,11 +675,14 @@ pub fn build(b: *Build) !void {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
     // }
 
-    var orca_platform_lib = b.addSharedLibrary(.{
+    var orca_platform_lib = b.addLibrary(.{
+        .linkage = .dynamic,
         .name = "orca_platform",
-        .target = target,
-        .optimize = optimize,
         .win32_manifest = b.path("src/app/win32_manifest.manifest"),
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     orca_platform_lib.addIncludePath(b.path("src"));
@@ -750,10 +758,13 @@ pub fn build(b: *Build) !void {
 
     // wasm3
 
-    var wasm3_lib = b.addStaticLibrary(.{
+    var wasm3_lib = b.addLibrary(.{
+        .linkage = .static,
         .name = "wasm3",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const wasm3_sources: []const []const u8 = &.{
@@ -966,12 +977,15 @@ pub fn build(b: *Build) !void {
         }
     }
 
-    var wasm_libc_lib = b.addStaticLibrary(.{
+    var wasm_libc_lib = b.addLibrary(.{
+        .linkage = .static,
         .name = "c",
-        .target = wasm_target,
-        .optimize = wasm_optimize,
-        .link_libc = false,
-        .single_threaded = true,
+        .root_module = b.createModule(.{
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .link_libc = false,
+            .single_threaded = true,
+        }),
     });
     for (wasm_libc_objs.items) |obj| {
         wasm_libc_lib.addObject(obj);
@@ -1020,12 +1034,15 @@ pub fn build(b: *Build) !void {
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_io.step);
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_gles.step);
 
-    var wasm_sdk_lib = b.addStaticLibrary(.{
+    var wasm_sdk_lib = b.addLibrary(.{
+        .linkage = .static,
         .name = "orca_wasm",
-        .target = wasm_target,
-        .optimize = wasm_optimize,
-        .link_libc = false,
-        .single_threaded = true,
+        .root_module = b.createModule(.{
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .link_libc = false,
+            .single_threaded = true,
+        }),
     });
     wasm_sdk_lib.addObject(wasm_sdk_obj);
 
