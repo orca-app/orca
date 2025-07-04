@@ -41,7 +41,7 @@ int main()
                                             });
 
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/triceratops.png"));
+    oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("resources/triceratops.png"));
     oc_image image = oc_image_create_from_path(renderer, path, false);
 
     if(oc_image_is_nil(image))
@@ -230,6 +230,7 @@ int main()
         oc_fill();
 
         oc_set_gradient(
+            OC_GRADIENT_BLEND_LINEAR,
             (oc_color){ 0, 0, 0, 1 },
             (oc_color){ 1, 1, 1, 1 },
             (oc_color){ 0, 1, 0, 1 },

@@ -6,7 +6,6 @@
 *
 **************************************************************************/
 
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include "platform/platform.h"
 #include <math.h>
 
@@ -510,16 +509,22 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
                 //NOTE(martin): load glyph metric
                 int xAdvance, xBearing, x0, y0, x1, y1;
                 stbtt_GetGlyphHMetrics(&stbttFontInfo, stbttGlyphIndex, &xAdvance, &xBearing);
-                stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1);
-
-                //NOTE(martin): stb stbtt_GetGlyphBox returns bottom left and top right corners, with y up,
-                //              so we have to set .y = -y1
-                glyph->metrics.ink = (oc_rect){
-                    .x = x0,
-                    .y = -y1,
-                    .w = x1 - x0,
-                    .h = y1 - y0
-                };
+                if (stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1))
+                {
+                    //NOTE(martin): stb stbtt_GetGlyphBox returns bottom left and top right corners, with y up,
+                    //              so we have to set .y = -y1
+                    glyph->metrics.ink = (oc_rect){
+                        .x = x0,
+                        .y = -y1,
+                        .w = x1 - x0,
+                        .h = y1 - y0
+                    };
+                }
+                else
+                {
+                    // NOTE(reuben): stbtt_GetGlyphBox() can fail if it fails to find the glyph offset
+                    memset(&glyph->metrics.ink, 0, sizeof(glyph->metrics.ink));
+                }
 
                 glyph->metrics.advance = (oc_vec2){ xAdvance, 0 };
 

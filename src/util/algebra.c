@@ -74,3 +74,12 @@ oc_mat2x3 oc_mat2x3_translate(f32 x, f32 y)
     };
     return translate;
 }
+
+oc_mat2x3 oc_mat2x3_scale(f32 x, f32 y)
+{
+    oc_mat2x3 scale = {
+        x, 0, 0,
+        0, y, 0
+    };
+    return scale;
+}

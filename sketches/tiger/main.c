@@ -9,8 +9,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
 #include "orca.h"
@@ -21,7 +19,7 @@ oc_font create_font()
 {
     //NOTE(martin): create font
     oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../../resources/OpenSansLatinSubset.ttf"));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/OpenSansLatinSubset.ttf"));
     char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");

@@ -16,7 +16,6 @@
 EXTERN_C const IID IID_IDCompositionDevice;
 DEFINE_GUID(IID_IDCompositionDevice, 0xC37EA93A, 0xE7AA, 0x450D, 0xB1, 0x6F, 0x97, 0x46, 0xCB, 0x04, 0x07, 0xF3);
 
-#define _USE_MATH_DEFINES
 #include <math.h>
 #include <float.h>
 #include <string.h>
