@@ -16,7 +16,7 @@ const CSources = struct {
 
     fn init(b: *Build) CSources {
         return .{
-            .files = std.ArrayListUnmanaged([]const u8){},
+            .files = .empty,
             .b = b,
         };
     }
@@ -101,9 +101,9 @@ const GenerateWasmBindingsParams = struct {
 };
 
 fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.UpdateSourceFiles {
-    var copy_outputs_to_src: *Build.Step.UpdateSourceFiles = b.addUpdateSourceFiles();
+    const copy_outputs_to_src: *Build.Step.UpdateSourceFiles = b.addUpdateSourceFiles();
 
-    var run = b.addRunArtifact(params.exe);
+    const run = b.addRunArtifact(params.exe);
     run.addArg(std.mem.join(b.allocator, "", &.{ "--api-name=", params.api }) catch @panic("OOM"));
     run.addPrefixedFileArg("--spec-path=", b.path(params.spec_path));
     const host_bindings_path = run.addPrefixedOutputFileArg("--bindings-path=", params.host_bindings_path);
@@ -142,12 +142,13 @@ pub fn build(b: *Build) !void {
     defer z_sources.deinit();
     try z_sources.collect("src/ext/zlib/");
 
-    var z_lib = b.addLibrary(.{
+    const z_lib = b.addLibrary(.{
         .linkage = .static,
         .name = "z",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
     z_lib.addIncludePath(b.path("src/ext/zlib/"));
@@ -160,7 +161,6 @@ pub fn build(b: *Build) !void {
             "-DZ_HAVE_UNISTD_H",
         },
     });
-    z_lib.linkLibC();
 
     /////////////////////////////////////////////////////////
     // curl - used in orca cli tool
@@ -386,7 +386,7 @@ pub fn build(b: *Build) !void {
         }
     };
 
-    var orca_tool_compile_flags = std.ArrayList([]const u8).init(b.allocator);
+    var orca_tool_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_tool_compile_flags.deinit();
     try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
@@ -438,7 +438,7 @@ pub fn build(b: *Build) !void {
 
     const build_orca_tool: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
 
-    var run_orca_tool: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
+    const run_orca_tool: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
     run_orca_tool.step.dependOn(&build_orca_tool.step);
     if (b.args) |args| {
         run_orca_tool.addArgs(args); // forwards args afer -- to orca cli, ex: zig build orca-tool -- update
@@ -516,9 +516,11 @@ pub fn build(b: *Build) !void {
 
     const bindgen_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "bindgen",
-        .root_source_file = b.path("src/build/bindgen.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/build/bindgen.zig"),
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
     });
 
     const bindgen_install = b.addInstallArtifact(bindgen_exe, .{});
@@ -535,7 +537,7 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
 
-    var stage_angle_dawn_src = b.addUpdateSourceFiles();
+    const stage_angle_dawn_src = b.addUpdateSourceFiles();
     stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/egl.h"), "src/ext/angle/include/EGL/egl.h");
     stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglext.h"), "src/ext/angle/include/EGL/eglext.h");
     stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglext_angle.h"), "src/ext/angle/include/EGL/eglext_angle.h");
@@ -556,13 +558,13 @@ pub fn build(b: *Build) !void {
     stage_angle_dawn_src.addCopyFileToSource(try dawn_include_path.join(b.allocator, "webgpu.h"), "src/ext/dawn/include/webgpu.h");
 
     // copy angle + dawn libs to output directory
-    var stage_angle_dawn_artifacts = b.addUpdateSourceFiles();
+    const stage_angle_dawn_artifacts = b.addUpdateSourceFiles();
     try stageAngleDawnArtifacts(b, target, stage_angle_dawn_artifacts, b.exe_dir, angle_lib_path, dawn_lib_path);
 
     // generate GLES API spec from OpenGL XML registry
     // TODO port this to C or Zig
-    const python_exe_name = if (target.result.os.tag == .windows) "python.exe" else "python3";
-    var python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{python_exe_name});
+    const python_exe_name = if (b.graph.host.result.os.tag == .windows) "python.exe" else "python3";
+    const python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{python_exe_name});
     python_gen_gles_spec_run.addArg("scripts/gles_gen.py");
     python_gen_gles_spec_run.addPrefixedFileArg("--spec=", b.path("src/ext/gl.xml"));
     const gles_api_header = python_gen_gles_spec_run.addPrefixedOutputFileArg("--header=", "orca_gl31.h");
@@ -571,8 +573,7 @@ pub fn build(b: *Build) !void {
 
     const install_gles_gen_log = b.addInstallFile(gles_api_log, "log/gles_gen.log");
 
-    var stage_gles_api_spec_artifacts = b.addUpdateSourceFiles();
-    stage_gles_api_spec_artifacts.step.dependOn(&python_gen_gles_spec_run.step);
+    const stage_gles_api_spec_artifacts = b.addUpdateSourceFiles();
     stage_gles_api_spec_artifacts.step.dependOn(&install_gles_gen_log.step);
     stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_header, "src/graphics/orca_gl31.h");
     stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_json, "src/wasmbind/gles_api.json");
@@ -625,9 +626,11 @@ pub fn build(b: *Build) !void {
 
     const gen_header_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "gen_header",
-        .root_source_file = b.path("src/build/gen_header_from_files.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/build/gen_header_from_files.zig"),
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
     });
 
     const wgpu_shaders: []const []const u8 = &.{
@@ -643,7 +646,7 @@ pub fn build(b: *Build) !void {
         "src/graphics/wgsl_shaders/final_blit.wgsl",
     };
 
-    var run_gen_wgpu_header: *Build.Step.Run = b.addRunArtifact(gen_header_exe);
+    const run_gen_wgpu_header: *Build.Step.Run = b.addRunArtifact(gen_header_exe);
     for (wgpu_shaders) |path| {
         run_gen_wgpu_header.addPrefixedFileArg("--file=", b.path(path));
     }
@@ -651,13 +654,12 @@ pub fn build(b: *Build) !void {
     run_gen_wgpu_header.addPrefixedDirectoryArg("--root=", b.path(""));
     const wgpu_header_path = run_gen_wgpu_header.addPrefixedOutputFileArg("--output=", "generated_headers/wgpu_renderer_shaders.h");
 
-    var update_wgpu_header: *Build.Step.UpdateSourceFiles = b.addUpdateSourceFiles();
+    const update_wgpu_header: *Build.Step.UpdateSourceFiles = b.addUpdateSourceFiles();
     update_wgpu_header.addCopyFileToSource(wgpu_header_path, "src/graphics/wgpu_renderer_shaders.h");
-    update_wgpu_header.step.dependOn(&run_gen_wgpu_header.step);
 
     // platform lib
 
-    var orca_platform_compile_flags = std.ArrayList([]const u8).init(b.allocator);
+    var orca_platform_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_platform_compile_flags.deinit();
     try orca_platform_compile_flags.append("-std=c11");
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
@@ -675,7 +677,7 @@ pub fn build(b: *Build) !void {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
     // }
 
-    var orca_platform_lib = b.addLibrary(.{
+    const orca_platform_lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "orca_platform",
         .win32_manifest = b.path("src/app/win32_manifest.manifest"),
@@ -691,7 +693,7 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.addIncludePath(b.path("src/ext/dawn/include"));
     orca_platform_lib.addLibraryPath(angle_include_path);
 
-    var orca_platform_files = std.ArrayList([]const u8).init(b.allocator);
+    var orca_platform_files: std.ArrayList([]const u8) = .init(b.allocator);
     try orca_platform_files.append("src/orca.c");
 
     orca_platform_lib.addLibraryPath(angle_lib_path);
@@ -750,7 +752,7 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_io.step);
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
 
-    const orca_platform_install_opts = Build.Step.InstallArtifact.Options{
+    const orca_platform_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .bin },
     };
 
@@ -758,12 +760,13 @@ pub fn build(b: *Build) !void {
 
     // wasm3
 
-    var wasm3_lib = b.addLibrary(.{
+    const wasm3_lib = b.addLibrary(.{
         .linkage = .static,
         .name = "wasm3",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
+            .link_libc = true,
         }),
     });
 
@@ -786,7 +789,7 @@ pub fn build(b: *Build) !void {
         "src/ext/wasm3/source/extensions/m3_extensions.c",
     };
 
-    var wasm3_compile_flags = std.ArrayList([]const u8).init(b.allocator);
+    var wasm3_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     try wasm3_compile_flags.append("-fno-sanitize=undefined");
     if (target.result.os.tag.isDarwin()) {
         try wasm3_compile_flags.append("-foptimize-sibling-calls");
@@ -800,11 +803,10 @@ pub fn build(b: *Build) !void {
         .files = wasm3_sources,
         .flags = wasm3_compile_flags.items,
     });
-    wasm3_lib.linkLibC();
 
     // orca runtime exe
 
-    var orca_runtime_compile_flags = std.ArrayList([]const u8).init(b.allocator);
+    var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_runtime_compile_flags.deinit();
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0");
@@ -815,8 +817,10 @@ pub fn build(b: *Build) !void {
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     orca_runtime_exe.addIncludePath(b.path("src"));
@@ -901,18 +905,20 @@ pub fn build(b: *Build) !void {
 
     // dummy crt1 object for sysroot folder
 
-    var dummy_crt_obj = b.addObject(.{
+    const dummy_crt_obj = b.addObject(.{
         .name = "crt1",
-        .target = wasm_target,
-        .optimize = wasm_optimize,
-        .link_libc = false,
+        .root_module = b.createModule(.{
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .link_libc = false,
+        }),
     });
     dummy_crt_obj.addCSourceFiles(.{
         .files = &.{"src/orca-libc/src/crt/crt1.c"},
         .flags = libc_flags,
     });
 
-    const libc_install_opts = Build.Step.InstallArtifact.Options{
+    const libc_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .{ .custom = "orca-libc/lib" } },
     };
 
@@ -949,7 +955,7 @@ pub fn build(b: *Build) !void {
     var wasm_libc_sources = CSources.init(b);
     defer wasm_libc_sources.deinit();
 
-    var wasm_libc_objs = std.ArrayList(*Build.Step.Compile).init(b.allocator);
+    var wasm_libc_objs: std.ArrayList(*Build.Step.Compile) = .init(b.allocator);
     try wasm_libc_objs.ensureUnusedCapacity(1024); // there are 496 .c files in the libc so this should be enough
 
     for (wasm_libc_source_paths) |path| {
@@ -961,12 +967,14 @@ pub fn build(b: *Build) !void {
         for (wasm_libc_sources.files.items) |filepath| {
             const filename: []const u8 = std.fs.path.basename(filepath);
             const obj_name: []const u8 = try std.mem.join(b.allocator, "_", &.{ "libc", libc_group, filename });
-            var obj = b.addObject(.{
+            const obj = b.addObject(.{
                 .name = obj_name,
-                .target = wasm_target,
-                .optimize = wasm_optimize,
-                .single_threaded = true,
-                .link_libc = false,
+                .root_module = b.createModule(.{
+                    .target = wasm_target,
+                    .optimize = wasm_optimize,
+                    .single_threaded = true,
+                    .link_libc = false,
+                }),
                 .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
             });
             obj.addCSourceFiles(.{
@@ -977,7 +985,7 @@ pub fn build(b: *Build) !void {
         }
     }
 
-    var wasm_libc_lib = b.addLibrary(.{
+    const wasm_libc_lib = b.addLibrary(.{
         .linkage = .static,
         .name = "c",
         .root_module = b.createModule(.{
@@ -1012,12 +1020,14 @@ pub fn build(b: *Build) !void {
         // "-Wl,--relocatable"
     };
 
-    var wasm_sdk_obj = b.addObject(.{
+    const wasm_sdk_obj = b.addObject(.{
         .name = "orca_wasm",
-        .target = wasm_target,
-        .optimize = wasm_optimize,
-        .link_libc = false,
-        .single_threaded = true,
+        .root_module = b.createModule(.{
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .single_threaded = true,
+            .link_libc = false,
+        }),
         .zig_lib_dir = b.path("src/orca-libc"),
     });
     wasm_sdk_obj.addCSourceFile(.{
@@ -1034,7 +1044,7 @@ pub fn build(b: *Build) !void {
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_io.step);
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_gles.step);
 
-    var wasm_sdk_lib = b.addLibrary(.{
+    const wasm_sdk_lib = b.addLibrary(.{
         .linkage = .static,
         .name = "orca_wasm",
         .root_module = b.createModule(.{
@@ -1046,7 +1056,7 @@ pub fn build(b: *Build) !void {
     });
     wasm_sdk_lib.addObject(wasm_sdk_obj);
 
-    const wask_sdk_install_opts = Build.Step.InstallArtifact.Options{
+    const wask_sdk_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .bin },
     };
 
@@ -1065,9 +1075,11 @@ pub fn build(b: *Build) !void {
 
     const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "package_sdk",
-        .root_source_file = b.path("src/build/package_sdk.zig"),
-        .target = target,
-        .optimize = .Debug,
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/build/package_sdk.zig"),
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
     });
 
     const sdk_install_path_opt = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
@@ -1094,7 +1106,7 @@ pub fn build(b: *Build) !void {
         }
     };
 
-    var orca_install: *Build.Step.Run = b.addRunArtifact(package_sdk_exe);
+    const orca_install: *Build.Step.Run = b.addRunArtifact(package_sdk_exe);
     orca_install.addArg("--dev-install");
     orca_install.addPrefixedDirectoryArg("--artifacts-path=", LazyPath{ .cwd_relative = b.install_path });
     orca_install.addPrefixedDirectoryArg("--resources-path=", b.path("resources"));
@@ -1143,7 +1155,7 @@ pub fn build(b: *Build) !void {
         "src/wasmbind/surface_api_bind_gen.c",
     };
     for (clean_paths) |path| {
-        var remove_dir = b.addRemoveDirTree(b.path(path));
+        const remove_dir = b.addRemoveDirTree(b.path(path));
         clean_step.dependOn(&remove_dir.step);
     }
 
@@ -1152,16 +1164,16 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////////////
     // sketches
 
-    var sketches = b.step("sketches", "Build all sketches into build/sketches");
+    const sketches = b.step("sketches", "Build all sketches into build/sketches");
 
-    const sketches_install_opts = Build.Step.InstallArtifact.Options{
+    const sketches_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .{ .custom = "sketches" } },
     };
 
     const orca_platform_sketches_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, sketches_install_opts);
     sketches.dependOn(&orca_platform_sketches_install.step);
 
-    var stage_sketch_dependency_artifacts = b.addUpdateSourceFiles();
+    const stage_sketch_dependency_artifacts = b.addUpdateSourceFiles();
     {
         const sketches_install_path = b.pathJoin(&.{ b.install_path, "sketches" });
 
@@ -1233,16 +1245,18 @@ pub fn build(b: *Build) !void {
             "-Isrc/platform",
         };
 
-        var sketch_exe: *Build.Step.Compile = b.addExecutable(.{
+        const sketch_exe: *Build.Step.Compile = b.addExecutable(.{
             .name = sketch,
-            .target = target,
-            .optimize = optimize,
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
         });
         sketch_exe.addCSourceFiles(.{
             .files = &.{sketch_source},
             .flags = flags,
         });
-        sketch_exe.linkLibC();
         sketch_exe.linkLibrary(orca_platform_lib);
 
         const install: *Build.Step.InstallArtifact = b.addInstallArtifact(sketch_exe, sketches_install_opts);
@@ -1252,7 +1266,7 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////////////
     // tests
 
-    var tests = b.step("test", "Build and run all tests");
+    const tests = b.step("test", "Build and run all tests");
 
     const TestConfig = struct {
         name: []const u8,
@@ -1288,14 +1302,14 @@ pub fn build(b: *Build) !void {
         },
     };
 
-    const tests_install_opts = Build.Step.InstallArtifact.Options{
+    const tests_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .{ .custom = "tests" } },
     };
 
     const orca_platform_tests_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
     tests.dependOn(&orca_platform_tests_install.step);
 
-    var stage_test_dependency_artifacts = b.addUpdateSourceFiles();
+    const stage_test_dependency_artifacts = b.addUpdateSourceFiles();
     {
         const tests_install_path = b.pathJoin(&.{ b.install_path, "tests" });
         try stageAngleDawnArtifacts(b, target, stage_sketch_dependency_artifacts, tests_install_path, angle_lib_path, dawn_lib_path);
@@ -1310,16 +1324,18 @@ pub fn build(b: *Build) !void {
 
         const test_source: []const u8 = b.pathJoin(&.{ "tests", config.name, config.testfile });
 
-        var test_exe: *Build.Step.Compile = b.addExecutable(.{
+        const test_exe: *Build.Step.Compile = b.addExecutable(.{
             .name = config.name,
-            .target = target,
-            .optimize = optimize,
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
         });
         test_exe.addCSourceFiles(.{
             .files = &.{test_source},
             .flags = &.{b.fmt("-I{s}", .{b.pathFromRoot("src")})},
         });
-        test_exe.linkLibC();
         test_exe.linkLibrary(orca_platform_lib);
 
         if (target.result.os.tag == .windows) {
