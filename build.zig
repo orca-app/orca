@@ -728,9 +728,6 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkFramework("QuartzCore");
         orca_platform_lib.linkFramework("UniformTypeIdentifiers");
 
-        orca_platform_lib.root_module.addRPathSpecial("@rpath/libEGL.dylib");
-        orca_platform_lib.root_module.addRPathSpecial("@rpath/libGLESv2.dylib");
-
         orca_platform_lib.linkSystemLibrary2("EGL", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
@@ -760,11 +757,11 @@ pub fn build(b: *Build) !void {
 
     const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, orca_platform_install_opts);
 
-    // wasm3
+    // warm
 
-    const wasm3_lib = b.addLibrary(.{
+    const warm_lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "wasm3",
+        .name = "warm",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
@@ -772,50 +769,43 @@ pub fn build(b: *Build) !void {
         }),
     });
 
-    const wasm3_sources: []const []const u8 = &.{
-        "src/ext/wasm3/source/m3_api_libc.c",
-        "src/ext/wasm3/source/m3_api_meta_wasi.c",
-        "src/ext/wasm3/source/m3_api_tracer.c",
-        "src/ext/wasm3/source/m3_api_uvwasi.c",
-        "src/ext/wasm3/source/m3_api_wasi.c",
-        "src/ext/wasm3/source/m3_bind.c",
-        "src/ext/wasm3/source/m3_code.c",
-        "src/ext/wasm3/source/m3_compile.c",
-        "src/ext/wasm3/source/m3_core.c",
-        "src/ext/wasm3/source/m3_env.c",
-        "src/ext/wasm3/source/m3_exec.c",
-        "src/ext/wasm3/source/m3_function.c",
-        "src/ext/wasm3/source/m3_info.c",
-        "src/ext/wasm3/source/m3_module.c",
-        "src/ext/wasm3/source/m3_parse.c",
-        "src/ext/wasm3/source/extensions/m3_extensions.c",
+    const warm_sources: []const []const u8 = &.{
+        "src/warm/reader.c",
+        "src/warm/instructions.c",
+        "src/warm/wa_types.c",
+        "src/warm/dwarf.c",
+        "src/warm/debug_import.c",
+        "src/warm/parser.c",
+        "src/warm/compiler.c",
+        "src/warm/module.c",
+        "src/warm/instance.c",
+        "src/warm/interpreter.c",
+        "src/warm/debug_info.c",
+        "src/warm/warm_adapter.c",
     };
 
-    var wasm3_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    try wasm3_compile_flags.append("-fno-sanitize=undefined");
-    if (target.result.os.tag.isDarwin()) {
-        try wasm3_compile_flags.append("-foptimize-sibling-calls");
-        try wasm3_compile_flags.append("-Wno-extern-initializer");
-        try wasm3_compile_flags.append("-Dd_m3VerboseErrorMessages");
-        try wasm3_compile_flags.append(compile_flag_min_macos_version);
-    }
+    var warm_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
+    try warm_compile_flags.append("-std=c11");
+    try warm_compile_flags.append("-g");
+    try warm_compile_flags.append("-O0");
+    try warm_compile_flags.append("-fno-sanitize=undefined");
 
-    wasm3_lib.addIncludePath(b.path("src/ext/wasm3/source"));
-    wasm3_lib.addCSourceFiles(.{
-        .files = wasm3_sources,
-        .flags = wasm3_compile_flags.items,
+    warm_lib.addIncludePath(b.path("src"));
+    warm_lib.addCSourceFiles(.{
+        .files = warm_sources,
+        .flags = warm_compile_flags.items,
     });
 
     // orca runtime exe
 
     var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_runtime_compile_flags.deinit();
-    try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
-    try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0");
+
     if (optimize == .Debug) {
         try orca_runtime_compile_flags.append("-DOC_DEBUG");
         try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
     }
+    try orca_runtime_compile_flags.append("-std=c11");
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
@@ -828,16 +818,15 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.addIncludePath(b.path("src"));
     orca_runtime_exe.addIncludePath(b.path("src/ext"));
     orca_runtime_exe.addIncludePath(angle_include_path);
-    orca_runtime_exe.addIncludePath(b.path("src/ext/wasm3/source"));
 
     orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
 
     orca_runtime_exe.addCSourceFiles(.{
-        .files = &.{"src/runtime.c"},
+        .files = &.{"src/runtime/main.c"},
         .flags = orca_runtime_compile_flags.items,
     });
 
-    orca_runtime_exe.linkLibrary(wasm3_lib);
+    orca_runtime_exe.linkLibrary(warm_lib);
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibC();
 
@@ -850,6 +839,16 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const orca_runtime_exe_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
+
+    // if (target.result.os.tag == .macos) {
+    //     const run_install_name = b.addSystemCommand(&.{
+    //         "install_name_tool",
+    //         "-delete_rpath",
+    //     });
+    //     run_install_name.addDirectoryArg(orca_runtime_exe.getEmittedBin().dirname());
+    //     run_install_name.addFileArg(orca_runtime_exe.getEmittedBin());
+    //     orca_runtime_exe_install.step.dependOn(&run_install_name.step);
+    // }
 
     ///////////////////////////////////////////////////////
     // orca wasm libc
@@ -875,20 +874,20 @@ pub fn build(b: *Build) !void {
         b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/internal")}),
 
         // warnings
-        "-Wall", 
-        "-Wextra", 
-        "-Werror", 
-        "-Wno-null-pointer-arithmetic", 
-        "-Wno-unused-parameter", 
-        "-Wno-sign-compare", 
-        "-Wno-unused-variable", 
-        "-Wno-unused-function", 
-        "-Wno-ignored-attributes", 
-        "-Wno-missing-braces", 
-        "-Wno-ignored-pragmas", 
-        "-Wno-unused-but-set-variable", 
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-null-pointer-arithmetic",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-unused-variable",
+        "-Wno-unused-function",
+        "-Wno-ignored-attributes",
+        "-Wno-missing-braces",
+        "-Wno-ignored-pragmas",
+        "-Wno-unused-but-set-variable",
         "-Wno-unknown-warning-option",
-        "-Wno-parentheses", 
+        "-Wno-parentheses",
         "-Wno-shift-op-parentheses",
         "-Wno-bitwise-op-parentheses",
         "-Wno-logical-op-parentheses",

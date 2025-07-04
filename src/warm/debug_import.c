@@ -665,7 +665,8 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
                     if(oc_check(frameBase))
                     {
                         OC_DEBUG_ASSERT(oc_unwrap(frameBase)->abbrev->form == DW_FORM_exprloc);
-                        funcInfo->frameBase = oc_wrap_ptr(dw_loc_option, &oc_unwrap(frameBase)->loc);
+                        dw_loc* loc = dw_loc_copy(context.arena, &oc_unwrap(frameBase)->loc);
+                        funcInfo->frameBase = oc_wrap_ptr(dw_loc_option, loc);
                     }
 
                     wa_debug_extract_vars_from_scope(&context, funcInfo, &funcInfo->body, oc_unwrap(funcDie), unitBaseAddress, dwarf);
