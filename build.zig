@@ -728,9 +728,6 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkFramework("QuartzCore");
         orca_platform_lib.linkFramework("UniformTypeIdentifiers");
 
-        orca_platform_lib.root_module.addRPathSpecial("@rpath/libEGL.dylib");
-        orca_platform_lib.root_module.addRPathSpecial("@rpath/libGLESv2.dylib");
-
         orca_platform_lib.linkSystemLibrary2("EGL", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
@@ -875,20 +872,20 @@ pub fn build(b: *Build) !void {
         b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/internal")}),
 
         // warnings
-        "-Wall", 
-        "-Wextra", 
-        "-Werror", 
-        "-Wno-null-pointer-arithmetic", 
-        "-Wno-unused-parameter", 
-        "-Wno-sign-compare", 
-        "-Wno-unused-variable", 
-        "-Wno-unused-function", 
-        "-Wno-ignored-attributes", 
-        "-Wno-missing-braces", 
-        "-Wno-ignored-pragmas", 
-        "-Wno-unused-but-set-variable", 
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-Wno-null-pointer-arithmetic",
+        "-Wno-unused-parameter",
+        "-Wno-sign-compare",
+        "-Wno-unused-variable",
+        "-Wno-unused-function",
+        "-Wno-ignored-attributes",
+        "-Wno-missing-braces",
+        "-Wno-ignored-pragmas",
+        "-Wno-unused-but-set-variable",
         "-Wno-unknown-warning-option",
-        "-Wno-parentheses", 
+        "-Wno-parentheses",
         "-Wno-shift-op-parentheses",
         "-Wno-bitwise-op-parentheses",
         "-Wno-logical-op-parentheses",

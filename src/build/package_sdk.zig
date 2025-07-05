@@ -221,11 +221,13 @@ pub fn main() !void {
 
     const src_paths: []const []const u8 = &.{
         try join(opts.arena, &.{ opts.artifacts_path, "orca-libc" }),
+        try join(opts.arena, &.{ opts.artifacts_path, "include/orca-libc/include" }),
         opts.resources_path,
     };
 
     const dest_paths: []const []const u8 = &.{
         try join(opts.arena, &.{ opts.sdk_path, "orca-libc" }),
+        try join(opts.arena, &.{ opts.sdk_path, "orca-libc/include" }),
         try join(opts.arena, &.{ opts.sdk_path, "resources" }),
     };
 
@@ -256,12 +258,6 @@ pub fn main() !void {
         const curl_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.sdk_path, "src/ext/curl/include" });
 
         try copyFolder(opts.arena, curl_dest_path, curl_src_path, &.{ .include_extensions = header_extensions });
-    }
-
-    {
-        const wasm3_src_path = try std.fs.path.resolve(opts.arena, &.{ opts.src_path, "ext/wasm3/source" });
-        const wasm3_dest_path = try std.fs.path.resolve(opts.arena, &.{ opts.sdk_path, "src/ext/wasm3/source" });
-        try copyFolder(opts.arena, wasm3_dest_path, wasm3_src_path, &.{ .include_extensions = header_extensions });
     }
 
     {
