@@ -998,9 +998,13 @@ pub fn build(b: *Build) !void {
         wasm_libc_lib.addObject(obj);
     }
 
-    wasm_libc_lib.installHeadersDirectory(b.path("src/orca-libc/include"), "orca-libc/include", .{});
-
     const libc_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_libc_lib, libc_install_opts);
+
+    const libc_header_install: *Build.Step.InstallDir = b.addInstallDirectory(.{
+        .source_dir = b.path("src/orca-libc/include"),
+        .install_dir = .{ .custom = "orca-libc" },
+        .install_subdir = "include",
+    });
 
     /////////////////////////////////////////////////////////
     // Orca wasm SDK
@@ -1068,6 +1072,7 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(&orca_platform_install.step);
     build_orca.dependOn(&orca_runtime_exe_install.step);
     build_orca.dependOn(&libc_install.step);
+    build_orca.dependOn(&libc_header_install.step);
     build_orca.dependOn(&dummy_crt_install.step);
     build_orca.dependOn(&wasm_sdk_install.step);
     build_orca.dependOn(&build_orca_tool.step);

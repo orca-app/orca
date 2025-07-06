@@ -221,7 +221,7 @@ pub fn main() !void {
 
     const src_paths: []const []const u8 = &.{
         try join(opts.arena, &.{ opts.artifacts_path, "orca-libc" }),
-        try join(opts.arena, &.{ opts.artifacts_path, "include/orca-libc/include" }),
+        try join(opts.arena, &.{ opts.artifacts_path, "orca-libc/include" }),
         opts.resources_path,
     };
 
