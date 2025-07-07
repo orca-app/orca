@@ -1138,37 +1138,6 @@ pub fn build(b: *Build) !void {
     b.getInstallStep().dependOn(&orca_install.step);
 
     /////////////////////////////////////////////////////////////////
-    // zig build clean
-
-    const clean_step: *Build.Step = b.step("clean", "Delete all build artifacts and start fresh.");
-
-    const clean_paths = [_][]const u8{
-        // folders
-        "zig-out",
-        "src/ext/angle",
-        "src/ext/dawn",
-        "scripts/files",
-        "scripts/__pycache",
-
-        // files
-        "src/graphics/orca_surface_stubs.c",
-        "src/platform/orca_io_stubs.c",
-        "src/wasmbind/clock_api_bind_gen.c",
-        "src/wasmbind/core_api_bind_gen.c",
-        "src/wasmbind/core_api_stubs.c",
-        "src/wasmbind/gles_api.json",
-        "src/wasmbind/gles_api_bind_gen.c",
-        "src/wasmbind/io_api_bind_gen.c",
-        "src/wasmbind/surface_api_bind_gen.c",
-    };
-    for (clean_paths) |path| {
-        const remove_dir = b.addRemoveDirTree(b.path(path));
-        clean_step.dependOn(&remove_dir.step);
-    }
-
-    b.getUninstallStep().dependOn(clean_step);
-
-    /////////////////////////////////////////////////////////////////
     // sketches
 
     const sketches = b.step("sketches", "Build all sketches into build/sketches");
