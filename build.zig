@@ -689,6 +689,8 @@ pub fn build(b: *Build) !void {
         }),
     });
 
+    orca_platform_lib.install_name = "@executable_path/liborca_platform.dylib";
+
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
     orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
