@@ -97,7 +97,6 @@ const GenerateWasmBindingsParams = struct {
     host_bindings_path: []const u8,
     guest_bindings_path: ?[]const u8 = null,
     guest_include_path: ?[]const u8 = null,
-    deps: []const *Build.Step = &.{},
 };
 
 fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.UpdateSourceFiles {
@@ -114,10 +113,6 @@ fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.St
     }
     if (params.guest_include_path) |path| {
         run.addArg(std.mem.join(b.allocator, "", &.{ "--guest-include-path=", path }) catch @panic("OOM"));
-    }
-
-    for (params.deps) |dep| {
-        run.step.dependOn(dep);
     }
 
     copy_outputs_to_src.step.dependOn(&run.step);
@@ -563,23 +558,6 @@ pub fn build(b: *Build) !void {
     const stage_angle_dawn_artifacts = b.addUpdateSourceFiles();
     try stageAngleDawnArtifacts(b, target, stage_angle_dawn_artifacts, b.exe_dir, angle_lib_path, dawn_lib_path);
 
-    // generate GLES API spec from OpenGL XML registry
-    // TODO port this to C or Zig
-    const python_exe_name = if (b.graph.host.result.os.tag == .windows) "python.exe" else "python3";
-    const python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{python_exe_name});
-    python_gen_gles_spec_run.addArg("scripts/gles_gen.py");
-    python_gen_gles_spec_run.addPrefixedFileArg("--spec=", b.path("src/ext/gl.xml"));
-    const gles_api_header = python_gen_gles_spec_run.addPrefixedOutputFileArg("--header=", "orca_gl31.h");
-    const gles_api_json = python_gen_gles_spec_run.addPrefixedOutputFileArg("--json=", "gles_api.json");
-    const gles_api_log = python_gen_gles_spec_run.addPrefixedOutputFileArg("--log=", "gles_gen.log");
-
-    const install_gles_gen_log = b.addInstallFile(gles_api_log, "log/gles_gen.log");
-
-    const stage_gles_api_spec_artifacts = b.addUpdateSourceFiles();
-    stage_gles_api_spec_artifacts.step.dependOn(&install_gles_gen_log.step);
-    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_header, "src/graphics/orca_gl31.h");
-    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_json, "src/wasmbind/gles_api.json");
-
     // generate wasm bindings
 
     const orca_runtime_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
@@ -621,7 +599,6 @@ pub fn build(b: *Build) !void {
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
         .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
-        .deps = &.{&stage_gles_api_spec_artifacts.step},
     });
 
     // wgpu shaders header
