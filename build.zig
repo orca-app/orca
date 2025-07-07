@@ -1117,6 +1117,7 @@ pub fn build(b: *Build) !void {
     orca_install.addPrefixedDirectoryArg("--artifacts-path=", LazyPath{ .cwd_relative = b.install_path });
     orca_install.addPrefixedDirectoryArg("--resources-path=", b.path("resources"));
     orca_install.addPrefixedDirectoryArg("--src-path=", b.path("src"));
+    orca_install.addArg(b.fmt("--target-os={s}", .{@tagName(target.result.os.tag)}));
 
     if (sdk_install_path_opt) |sdk_install_path| {
         SdkHelpers.addAbsolutePathArg(b, target, orca_install, "--sdk-path=", sdk_install_path);

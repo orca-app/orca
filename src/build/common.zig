@@ -1,7 +1,6 @@
 // Contains some functionality used in multiple helper programs in the zig build graph.
 
 const std = @import("std");
-const builtin = @import("builtin");
 
 pub const CopyFolderOpts = struct {
     include_extensions: []const []const u8 = &.{},

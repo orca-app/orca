@@ -2,8 +2,8 @@
 // build artifacts to an output location.
 
 const std = @import("std");
-const builtin = @import("builtin");
 const common = @import("common.zig");
+const OsTag = std.Target.Os.Tag;
 
 const join = std.fs.path.join;
 const assert = std.debug.assert;
@@ -108,6 +108,7 @@ const Options = struct {
     resources_path: []const u8,
     src_path: []const u8,
     version: []const u8,
+    target_os: OsTag,
 
     fn parse(args: []const [:0]const u8, arena: std.mem.Allocator) !Options {
         var sdk_path: ?[]const u8 = null;
@@ -115,6 +116,7 @@ const Options = struct {
         var resources_path: ?[]const u8 = null;
         var src_path: ?[]const u8 = null;
         var version: ?[]const u8 = null;
+        var target_os: ?[]const u8 = null;
 
         for (args, 0..) |raw_arg, i| {
             if (i == 0) {
@@ -133,6 +135,8 @@ const Options = struct {
                 src_path = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--version")) {
                 version = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--target-os")) {
+                target_os = splitIter.next();
             }
         }
 
@@ -143,6 +147,8 @@ const Options = struct {
             missing_arg = "resources-path";
         } else if (src_path == null) {
             missing_arg = "src-path";
+        } else if (target_os == null) {
+            missing_arg = "target-os";
         }
 
         if (missing_arg) |arg| {
@@ -171,6 +177,13 @@ const Options = struct {
             sdk_path = try join(arena, &.{ sdk_path.?, version.? });
         }
 
+        const os_tag: OsTag = inline for (@typeInfo(OsTag).@"enum".fields) |tag| {
+            if (std.mem.eql(u8, target_os.?, tag.name)) break @field(OsTag, tag.name);
+        } else {
+            std.log.err("Invalid target OS: {s}", .{target_os.?});
+            return error.InvalidTargetOs;
+        };
+
         return Options{
             .arena = arena,
             .sdk_path = sdk_path.?,
@@ -178,6 +191,7 @@ const Options = struct {
             .resources_path = resources_path.?,
             .src_path = src_path.?,
             .version = version.?,
+            .target_os = os_tag,
         };
     }
 };
@@ -216,7 +230,7 @@ pub fn main() !void {
         "libGLESv2.dylib",
         "libwebgpu.dylib",
     };
-    const bin_files = if (builtin.os.tag == .windows) bin_files_windows else bin_files_macos;
+    const bin_files = if (opts.target_os == .windows) bin_files_windows else bin_files_macos;
     try copyFolder(opts.arena, dest_bin_path, src_bin_path, &.{ .required_filenames = bin_files });
 
     const src_paths: []const []const u8 = &.{
@@ -263,10 +277,10 @@ pub fn main() !void {
     {
         const orca_dir_path: []const u8 = if (std.fs.path.dirname(opts.sdk_path)) |orca_dir| orca_dir else opts.sdk_path;
 
-        const src_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca_tool.exe" else "orca_tool";
+        const src_orca_exe_name: []const u8 = if (opts.target_os == .windows) "orca_tool.exe" else "orca_tool";
         const src_tool_path: []const u8 = try join(opts.arena, &.{ opts.artifacts_path, "bin", src_orca_exe_name });
 
-        const dest_orca_exe_name: []const u8 = if (builtin.os.tag == .windows) "orca.exe" else "orca";
+        const dest_orca_exe_name: []const u8 = if (opts.target_os == .windows) "orca.exe" else "orca";
         const dest_tool_path: []const u8 = try join(opts.arena, &.{ orca_dir_path, dest_orca_exe_name });
 
         std.log.info("copying '{s}' to '{s}'", .{ src_tool_path, dest_tool_path });
@@ -274,7 +288,7 @@ pub fn main() !void {
         _ = try cwd.updateFile(src_tool_path, orca_dir, dest_tool_path, .{});
 
         // copy pdb file as well since windows debuggers have a hard time finding the debug symbols otherwise
-        if (builtin.os.tag == .windows) {
+        if (opts.target_os == .windows) {
             const src_pdb_path: []const u8 = try join(opts.arena, &.{ opts.artifacts_path, "bin", "orca_tool.pdb" });
             const dest_pdb_path: []const u8 = try join(opts.arena, &.{ orca_dir_path, "orca.pdb" });
             std.log.info("copying '{s}' to '{s}'", .{ src_pdb_path, dest_pdb_path });
