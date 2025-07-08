@@ -844,11 +844,8 @@ pub fn build(b: *Build) !void {
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
         // need to provide absolute paths to these since we're overriding the default zig lib dir
-        b.fmt("-I{s}", .{b.pathFromRoot("src")}),
         "-isystem", b.pathFromRoot("src/orca-libc/src/include"),
         "-isystem", b.pathFromRoot("src/orca-libc/src/include/private"),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/arch")}),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/internal")}),
 
         // warnings
         "-Wall",
@@ -891,6 +888,9 @@ pub fn build(b: *Build) !void {
             .link_libc = false,
         }),
     });
+    dummy_crt_obj.addIncludePath(b.path("src"));
+    dummy_crt_obj.addIncludePath(b.path("src/orca-libc/src/arch"));
+    dummy_crt_obj.addIncludePath(b.path("src/orca-libc/src/internal"));
     dummy_crt_obj.addCSourceFiles(.{
         .files = &.{"src/orca-libc/src/crt/crt1.c"},
         .flags = libc_flags,
@@ -955,6 +955,9 @@ pub fn build(b: *Build) !void {
                 }),
                 .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
             });
+            obj.addIncludePath(b.path("src"));
+            obj.addIncludePath(b.path("src/orca-libc/src/arch"));
+            obj.addIncludePath(b.path("src/orca-libc/src/internal"));
             obj.addCSourceFiles(.{
                 .files = &.{filepath},
                 .flags = libc_flags,
@@ -989,17 +992,8 @@ pub fn build(b: *Build) !void {
     // Orca wasm SDK
 
     const wasm_sdk_flags: []const []const u8 = &.{
-        // "-Isrc",
-        // "-Isrc/ext",
-        // "-Isrc/orca-libc/include",
-        b.fmt("-I{s}", .{b.pathFromRoot("src")}),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/ext")}),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/include")}),
         "--no-standard-libraries",
         "-D__ORCA__",
-        // "-Wl,--no-entry",
-        // "-Wl,--export-dynamic",
-        // "-Wl,--relocatable"
     };
 
     const wasm_sdk_obj = b.addObject(.{
@@ -1012,6 +1006,9 @@ pub fn build(b: *Build) !void {
         }),
         .zig_lib_dir = b.path("src/orca-libc"),
     });
+    wasm_sdk_obj.addIncludePath(b.path("src"));
+    wasm_sdk_obj.addIncludePath(b.path("src/ext"));
+    wasm_sdk_obj.addIncludePath(b.path("src/orca-libc/include"));
     wasm_sdk_obj.addCSourceFile(.{
         .file = b.path("src/orca.c"),
         .flags = wasm_sdk_flags,
@@ -1285,9 +1282,10 @@ pub fn build(b: *Build) !void {
                 .link_libc = true,
             }),
         });
+        test_exe.addIncludePath(b.path("src"));
         test_exe.addCSourceFiles(.{
             .files = &.{test_source},
-            .flags = &.{b.fmt("-I{s}", .{b.pathFromRoot("src")})},
+            .flags = &.{},
         });
         test_exe.linkLibrary(orca_platform_lib);
 
