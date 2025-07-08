@@ -8,7 +8,7 @@
 #define __WGPU_RENDERER_SHADERS_H__
 
 
-//NOTE: string imported from phics/wgsl_shaders/common.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/common.wgsl
 const char* oc_wgsl_common = 
 "struct oc_path\n"
 "{\n"
@@ -246,7 +246,7 @@ const char* oc_wgsl_common =
 "    return (side);\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/path_setup.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/path_setup.wgsl
 const char* oc_wgsl_path_setup = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Path setup\n"
@@ -299,7 +299,7 @@ const char* oc_wgsl_path_setup =
 "    }\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/segment_setup.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/segment_setup.wgsl
 const char* oc_wgsl_segment_setup = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Segment setup\n"
@@ -1125,7 +1125,7 @@ const char* oc_wgsl_segment_setup =
 "    }\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/backprop.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/backprop.wgsl
 const char* oc_wgsl_backprop = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Backprop pass\n"
@@ -1163,7 +1163,7 @@ const char* oc_wgsl_backprop =
 "    }\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/chunk.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/chunk.wgsl
 const char* oc_wgsl_chunk = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Chunk pass\n"
@@ -1204,7 +1204,7 @@ const char* oc_wgsl_chunk =
 "    }\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/merge.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/merge.wgsl
 const char* oc_wgsl_merge = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Merge pass\n"
@@ -1363,7 +1363,7 @@ const char* oc_wgsl_merge =
 "    }\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/balance_workgroups.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/balance_workgroups.wgsl
 const char* oc_wgsl_balance_workgroups = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Balance workgroups\n"
@@ -1385,7 +1385,7 @@ const char* oc_wgsl_balance_workgroups =
 "    dispatchWorkGroups[2] = 1;\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/raster.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/raster.wgsl
 const char* oc_wgsl_raster = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Raster\n"
@@ -1751,7 +1751,7 @@ const char* oc_wgsl_raster =
 "    textureStore(outTexture, pixCoord, color);\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/blit.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/blit.wgsl
 const char* oc_wgsl_blit = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Blit\n"
@@ -1777,7 +1777,7 @@ const char* oc_wgsl_blit =
 "    return (color);\n"
 "}\n";
 
-//NOTE: string imported from phics/wgsl_shaders/final_blit.wgsl
+//NOTE: string imported from src/graphics/wgsl_shaders/final_blit.wgsl
 const char* oc_wgsl_final_blit = 
 "//------------------------------------------------------------------------------------------------\n"
 "// Blit\n"
