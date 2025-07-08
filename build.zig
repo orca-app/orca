@@ -390,6 +390,7 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
     try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
+    try orca_tool_compile_flags.append("-fno-sanitize=undefined"); // seems to be some UB in stb_image when resizing icons :(
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
