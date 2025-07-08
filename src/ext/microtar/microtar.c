@@ -49,7 +49,7 @@ typedef struct {
   char _padding[12];
 } mtar_raw_header_t;
 
-static_assert(sizeof(mtar_raw_header_t) == 512);
+static_assert(sizeof(mtar_raw_header_t) == 512, "Microtar header must be exactly 512 bytes to conform to the spec.");
 
 static unsigned round_up(unsigned n, unsigned incr) {
   return n + (incr - n % incr) % incr;

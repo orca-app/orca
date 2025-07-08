@@ -236,4 +236,4 @@ For more examples of how to use Orca APIs, you can look at the other [sample app
 
 For a list of Orca APIs, you can look at the [API reference](https://docs.orca-app.dev/api/api_reference/).
 
-You can also ask questions in the [Handmade Network Discord](https://discord.gg/hmn), in particular in the [#orca](https://discord.com/channels/239737791225790464/1121811864066732082) channel.
+You can also ask questions in the [Orca Discord](https://discord.gg/zDFjjyys).

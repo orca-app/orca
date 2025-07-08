@@ -19,22 +19,12 @@ build
 *.o
 *.d
 
-src/ext/dawn
-
 Debug/*
 
 scripts/__pycache__
 
-src/wasmbind/gles_api.json
-src/bindgen_core_api.c
-src/bindgen_gles_api.c
-src/graphics/glsl_shaders.h
-src/graphics/wgpu_renderer_shaders.h
-src/io_stubs.c
-src/orca_surface.c
-src/graphics/orca_gl31.h
-*bind_gen.c
-*_stubs.c
+.zig-cache
+zig-out
 src/ext/bytebox/zig-cache
 src/ext/bytebox/zig-out
 
@@ -46,7 +36,6 @@ scripts/files
 
 # explicitly abandon old ext dir
 /ext
-src/ext/angle
 
 sketches/*/bin
 
@@ -61,3 +50,6 @@ src/ext/zlib/build/
 
 doc/mkdocs/docs/api
 doc/mkdocs/mkdocs.yml
+
+# build folder exclusion is a little too aggressive
+!src/build

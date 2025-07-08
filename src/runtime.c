@@ -231,7 +231,7 @@ void oc_bridge_log(oc_log_level level,
 
     if(!entry)
     {
-        char* mem = oc_arena_push(&debug->logArena, cap);
+        char* mem = oc_arena_push_aligned(&debug->logArena, cap, _Alignof(log_entry));
         entry = (log_entry*)mem;
         entry->cap = cap;
     }

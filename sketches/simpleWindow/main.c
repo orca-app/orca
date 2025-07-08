@@ -99,7 +99,7 @@ int main()
                 case OC_EVENT_MOUSE_BUTTON:
                 {
                     oc_log_info("mouse button %i: %i\n",
-                                event->key.code,
+                                event->key.keyCode,
                                 event->key.action == OC_KEY_PRESS ? 1 : 0);
                 }
                 break;
@@ -107,7 +107,7 @@ int main()
                 case OC_EVENT_KEYBOARD_KEY:
                 {
                     oc_log_info("key %i: %s\n",
-                                event->key.code,
+                                event->key.keyCode,
                                 event->key.action == OC_KEY_PRESS ? "press" : (event->key.action == OC_KEY_RELEASE ? "release" : "repeat"));
                 }
                 break;
