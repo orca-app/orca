@@ -23,7 +23,6 @@ Debug/*
 
 scripts/__pycache__
 
-src/wasmbind/gles_api.json
 .zig-cache
 zig-out
 src/ext/bytebox/zig-cache

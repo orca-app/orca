@@ -798,7 +798,7 @@ i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 //WARN: the following header pulls in objbase.h (even with WIN32_LEAN_AND_MEAN), which
 //      #defines interface to struct... so make sure to #undef interface since it's a
 //      name we want to be able to use throughout the codebase
-#include <ShellScalingApi.h>
+#include <shellscalingapi.h>
 #undef interface
 
 oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)

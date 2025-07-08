@@ -1,3 +1,6 @@
+# Typical usage, run from orca root:
+#   python scripts/gles_gen.py --spec src/ext/gl.xml --header=src/graphics/orca_gl31.h --json=src/wasmbind/gles_api.json --log=zig-out/log/gles_gen.log
+
 import xml.etree.ElementTree as et
 from argparse import ArgumentParser
 

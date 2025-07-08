@@ -97,7 +97,6 @@ const GenerateWasmBindingsParams = struct {
     host_bindings_path: []const u8,
     guest_bindings_path: ?[]const u8 = null,
     guest_include_path: ?[]const u8 = null,
-    deps: []const *Build.Step = &.{},
 };
 
 fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.UpdateSourceFiles {
@@ -114,10 +113,6 @@ fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.St
     }
     if (params.guest_include_path) |path| {
         run.addArg(std.mem.join(b.allocator, "", &.{ "--guest-include-path=", path }) catch @panic("OOM"));
-    }
-
-    for (params.deps) |dep| {
-        run.step.dependOn(dep);
     }
 
     copy_outputs_to_src.step.dependOn(&run.step);
@@ -563,23 +558,6 @@ pub fn build(b: *Build) !void {
     const stage_angle_dawn_artifacts = b.addUpdateSourceFiles();
     try stageAngleDawnArtifacts(b, target, stage_angle_dawn_artifacts, b.exe_dir, angle_lib_path, dawn_lib_path);
 
-    // generate GLES API spec from OpenGL XML registry
-    // TODO port this to C or Zig
-    const python_exe_name = if (b.graph.host.result.os.tag == .windows) "python.exe" else "python3";
-    const python_gen_gles_spec_run: *Build.Step.Run = b.addSystemCommand(&.{python_exe_name});
-    python_gen_gles_spec_run.addArg("scripts/gles_gen.py");
-    python_gen_gles_spec_run.addPrefixedFileArg("--spec=", b.path("src/ext/gl.xml"));
-    const gles_api_header = python_gen_gles_spec_run.addPrefixedOutputFileArg("--header=", "orca_gl31.h");
-    const gles_api_json = python_gen_gles_spec_run.addPrefixedOutputFileArg("--json=", "gles_api.json");
-    const gles_api_log = python_gen_gles_spec_run.addPrefixedOutputFileArg("--log=", "gles_gen.log");
-
-    const install_gles_gen_log = b.addInstallFile(gles_api_log, "log/gles_gen.log");
-
-    const stage_gles_api_spec_artifacts = b.addUpdateSourceFiles();
-    stage_gles_api_spec_artifacts.step.dependOn(&install_gles_gen_log.step);
-    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_header, "src/graphics/orca_gl31.h");
-    stage_gles_api_spec_artifacts.addCopyFileToSource(gles_api_json, "src/wasmbind/gles_api.json");
-
     // generate wasm bindings
 
     const orca_runtime_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
@@ -621,7 +599,6 @@ pub fn build(b: *Build) !void {
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
         .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
-        .deps = &.{&stage_gles_api_spec_artifacts.step},
     });
 
     // wgpu shaders header
@@ -688,6 +665,8 @@ pub fn build(b: *Build) !void {
             .optimize = optimize,
         }),
     });
+
+    orca_platform_lib.install_name = "@executable_path/liborca_platform.dylib";
 
     orca_platform_lib.addIncludePath(b.path("src"));
     orca_platform_lib.addIncludePath(b.path("src/ext"));
@@ -1000,9 +979,13 @@ pub fn build(b: *Build) !void {
         wasm_libc_lib.addObject(obj);
     }
 
-    wasm_libc_lib.installHeadersDirectory(b.path("src/orca-libc/include"), "orca-libc/include", .{});
-
     const libc_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_libc_lib, libc_install_opts);
+
+    const libc_header_install: *Build.Step.InstallDir = b.addInstallDirectory(.{
+        .source_dir = b.path("src/orca-libc/include"),
+        .install_dir = .{ .custom = "orca-libc" },
+        .install_subdir = "include",
+    });
 
     /////////////////////////////////////////////////////////
     // Orca wasm SDK
@@ -1070,6 +1053,7 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(&orca_platform_install.step);
     build_orca.dependOn(&orca_runtime_exe_install.step);
     build_orca.dependOn(&libc_install.step);
+    build_orca.dependOn(&libc_header_install.step);
     build_orca.dependOn(&dummy_crt_install.step);
     build_orca.dependOn(&wasm_sdk_install.step);
     build_orca.dependOn(&build_orca_tool.step);
@@ -1112,6 +1096,7 @@ pub fn build(b: *Build) !void {
     orca_install.addPrefixedDirectoryArg("--artifacts-path=", LazyPath{ .cwd_relative = b.install_path });
     orca_install.addPrefixedDirectoryArg("--resources-path=", b.path("resources"));
     orca_install.addPrefixedDirectoryArg("--src-path=", b.path("src"));
+    orca_install.addArg(b.fmt("--target-os={s}", .{@tagName(target.result.os.tag)}));
 
     if (sdk_install_path_opt) |sdk_install_path| {
         SdkHelpers.addAbsolutePathArg(b, target, orca_install, "--sdk-path=", sdk_install_path);
@@ -1130,37 +1115,6 @@ pub fn build(b: *Build) !void {
     }
 
     b.getInstallStep().dependOn(&orca_install.step);
-
-    /////////////////////////////////////////////////////////////////
-    // zig build clean
-
-    const clean_step: *Build.Step = b.step("clean", "Delete all build artifacts and start fresh.");
-
-    const clean_paths = [_][]const u8{
-        // folders
-        "zig-out",
-        "src/ext/angle",
-        "src/ext/dawn",
-        "scripts/files",
-        "scripts/__pycache",
-
-        // files
-        "src/graphics/orca_surface_stubs.c",
-        "src/platform/orca_io_stubs.c",
-        "src/wasmbind/clock_api_bind_gen.c",
-        "src/wasmbind/core_api_bind_gen.c",
-        "src/wasmbind/core_api_stubs.c",
-        "src/wasmbind/gles_api.json",
-        "src/wasmbind/gles_api_bind_gen.c",
-        "src/wasmbind/io_api_bind_gen.c",
-        "src/wasmbind/surface_api_bind_gen.c",
-    };
-    for (clean_paths) |path| {
-        const remove_dir = b.addRemoveDirTree(b.path(path));
-        clean_step.dependOn(&remove_dir.step);
-    }
-
-    b.getUninstallStep().dependOn(clean_step);
 
     /////////////////////////////////////////////////////////////////
     // sketches

@@ -26,33 +26,33 @@
     //
     .dependencies = .{
         .@"angle-mac-arm64" = .{
-            .url = "https://github.com/orca-app/angle/releases/download/v0.0.2/angle-mac-arm64.tar.gz",
-            .hash = "N-V-__8AAOZdhAB1zj7yJOjXtHgzrZ1Q_YyJQZuGRv6MWqhv",
+            .url = "https://github.com/orca-app/angle/releases/download/release-837ff6f/angle-mac-arm64.tar.gz",
+            .hash = "N-V-__8AAIlYhAC2a7jLmhry_F7F_ZtDrwNA2eKRMSVThWK7",
             .lazy = true,
         },
         .@"angle-mac-x64" = .{
-            .url = "https://github.com/orca-app/angle/releases/download/v0.0.2/angle-mac-x64.tar.gz",
-            .hash = "N-V-__8AAPYyigA0MW5lCp2zFbN9z0cWGXJthToOk12oKM_i",
+            .url = "https://github.com/orca-app/angle/releases/download/release-837ff6f/angle-mac-x64.tar.gz",
+            .hash = "N-V-__8AAJktigBEsNeGTRH_F_ViToO1XfWU1FIwCNuMzQ5s",
             .lazy = true,
         },
         .@"angle-windows-x64" = .{
-            .url = "https://github.com/orca-app/angle/releases/download/v0.0.2/angle-windows-x64.tar.gz",
-            .hash = "N-V-__8AABdrpwDr-9mgNO3gmOMBapZ-pM0Vnrj3yGFnYL8m",
-            .lazy = false,
+            .url = "https://github.com/orca-app/angle/releases/download/release-837ff6f/angle-windows-x64.tar.gz",
+            .hash = "N-V-__8AAGktpwDwSjIMP8DbTt9x310z2gSrNapqswUlCjSj",
+            .lazy = true,
         },
         .@"dawn-mac-arm64" = .{
-            .url = "https://github.com/orca-app/dawn/releases/download/v0.0.1/dawn-mac-arm64.tar.gz",
-            .hash = "N-V-__8AADzAfQAmw0lQibRGil9hJFedkIPkmDSNAWkIZAJD",
+            .url = "https://github.com/orca-app/dawn/releases/download/release-8260be1/dawn-mac-arm64.tar.gz",
+            .hash = "N-V-__8AADzAfQA5F9FeQyGqkv2Y623QFKAuw44MoTgiYEji",
             .lazy = true,
         },
         .@"dawn-mac-x64" = .{
-            .url = "https://github.com/orca-app/dawn/releases/download/v0.0.1/dawn-mac-x64.tar.gz",
-            .hash = "N-V-__8AAASmhgCI7mjqjC-NFbqQhYFvl0Silp9fpp_pUwA0",
+            .url = "https://github.com/orca-app/dawn/releases/download/release-8260be1/dawn-mac-x64.tar.gz",
+            .hash = "N-V-__8AAASmhgBSEfzMqtGf5v6xhVlK-38AhaOWwQtTiCvd",
             .lazy = true,
         },
         .@"dawn-windows-x64" = .{
-            .url = "https://github.com/orca-app/dawn/releases/download/v0.0.1/dawn-windows-x64.tar.gz",
-            .hash = "N-V-__8AAMY6SwAOoVK_ghbG4dWiXMsJxmKJKj0KYqDuzsBv",
+            .url = "https://github.com/orca-app/dawn/releases/download/release-8260be1/dawn-windows-x64.tar.gz",
+            .hash = "N-V-__8AAFgqSwAoOlOfK8ZzIHcOlfAwAKfuQLTHGrLS7Nzj",
             .lazy = true,
         },
     },

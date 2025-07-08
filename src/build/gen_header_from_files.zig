@@ -109,7 +109,8 @@ pub fn main() !void {
         defer allocator.free(file_contents);
 
         const input_path_filename: []const u8 = std.fs.path.basename(input_path);
-        const input_path_relative: []u8 = try allocator.dupe(u8, std.mem.trimLeft(u8, input_path, opts.root));
+        const input_path_relative: []u8 = try allocator.dupe(u8, input_path[opts.root.len + 1 ..]); // +1 to remove the trailing /
+
         std.mem.replaceScalar(u8, input_path_relative, '\\', '/');
         const input_path_no_ext: []const u8 = basenameNoExtension(input_path_filename);
 
