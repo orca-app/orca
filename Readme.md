@@ -98,7 +98,7 @@ The following additional resources may also help you familiarize yourself with O
 
 ## Building Orca from source
 
-See [./doc/mkdocs/docs/building.md](Building.md).
+See [Building.md](./doc/mkdocs/docs/building.md).
 
 
 ## FAQ
