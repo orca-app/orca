@@ -76,22 +76,6 @@ fn homePath(target: Build.ResolvedTarget, b: *Build) []const u8 {
     return HOME_PATH;
 }
 
-fn stageAngleDawnArtifacts(b: *Build, target: Build.ResolvedTarget, update_step: *Step.UpdateSourceFiles, staging_path: []const u8, angle_lib_path: LazyPath, dawn_lib_path: LazyPath) !void {
-    if (target.result.os.tag == .windows) {
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "d3dcompiler_47.dll"), b.pathJoin(&.{ staging_path, "d3dcompiler_47.dll" }));
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "libEGL.dll"), b.pathJoin(&.{ staging_path, "libEGL.dll" }));
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "libEGL.dll.lib"), b.pathJoin(&.{ staging_path, "libEGL.dll.lib" }));
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "libGLESv2.dll"), b.pathJoin(&.{ staging_path, "libGLESv2.dll" }));
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "libGLESv2.dll.lib"), b.pathJoin(&.{ staging_path, "libGLESv2.dll.lib" }));
-        update_step.addCopyFileToSource(try dawn_lib_path.join(b.allocator, "webgpu.dll"), b.pathJoin(&.{ staging_path, "webgpu.dll" }));
-        update_step.addCopyFileToSource(try dawn_lib_path.join(b.allocator, "webgpu.lib"), b.pathJoin(&.{ staging_path, "webgpu.lib" }));
-    } else if (target.result.os.tag.isDarwin()) {
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "libEGL.dylib"), b.pathJoin(&.{ staging_path, "libEGL.dylib" }));
-        update_step.addCopyFileToSource(try angle_lib_path.join(b.allocator, "libGLESv2.dylib"), b.pathJoin(&.{ staging_path, "libGLESv2.dylib" }));
-        update_step.addCopyFileToSource(try dawn_lib_path.join(b.allocator, "libwebgpu.dylib"), b.pathJoin(&.{ staging_path, "libwebgpu.dylib" }));
-    }
-}
-
 const GenerateWasmBindingsParams = struct {
     exe: *Build.Step.Compile,
     api: []const u8,
@@ -558,8 +542,8 @@ pub fn build(b: *Build) !void {
     stage_angle_dawn_src.addCopyFileToSource(try dawn_include_path.join(b.allocator, "webgpu.h"), "src/ext/dawn/include/webgpu.h");
 
     // copy angle + dawn libs to output directory
-    const stage_angle_dawn_artifacts = b.addUpdateSourceFiles();
-    try stageAngleDawnArtifacts(b, target, stage_angle_dawn_artifacts, b.exe_dir, angle_lib_path, dawn_lib_path);
+    const install_angle_libs = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = .bin, .install_subdir = "" });
+    const install_dawn_libs = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = .bin, .install_subdir = "" });
 
     // generate wasm bindings
 
@@ -722,8 +706,9 @@ pub fn build(b: *Build) !void {
         .flags = orca_platform_compile_flags.items,
     });
 
-    orca_platform_lib.step.dependOn(&stage_angle_dawn_artifacts.step);
     orca_platform_lib.step.dependOn(&stage_angle_dawn_src.step);
+    orca_platform_lib.step.dependOn(&install_angle_libs.step);
+    orca_platform_lib.step.dependOn(&install_dawn_libs.step);
 
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
@@ -820,7 +805,8 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibC();
 
-    orca_runtime_exe.step.dependOn(&stage_angle_dawn_artifacts.step);
+    orca_runtime_exe.step.dependOn(&install_angle_libs.step);
+    orca_runtime_exe.step.dependOn(&install_dawn_libs.step);
 
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_core.step);
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_surface.step);
@@ -1017,7 +1003,9 @@ pub fn build(b: *Build) !void {
         .flags = wasm_sdk_flags,
     });
 
-    wasm_sdk_obj.step.dependOn(&stage_angle_dawn_artifacts.step);
+    wasm_sdk_obj.step.dependOn(&install_angle_libs.step);
+    wasm_sdk_obj.step.dependOn(&install_dawn_libs.step);
+
     wasm_sdk_obj.step.dependOn(&stage_angle_dawn_src.step);
 
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_core.step);
@@ -1276,8 +1264,13 @@ pub fn build(b: *Build) !void {
             stage_sketch_dependency_artifacts.addCopyFileToSource(src, dest);
         }
 
-        try stageAngleDawnArtifacts(b, target, stage_sketch_dependency_artifacts, sketches_install_path, angle_lib_path, dawn_lib_path);
         sketches.dependOn(&stage_sketch_dependency_artifacts.step);
+
+        const sketches_install_dir: Build.InstallDir = .{ .custom = "sketches" };
+        const install_angle_libs_sketches = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = sketches_install_dir, .install_subdir = "" });
+        const install_dawn_libs_sketches = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = sketches_install_dir, .install_subdir = "" });
+        sketches.dependOn(&install_angle_libs_sketches.step);
+        sketches.dependOn(&install_dawn_libs_sketches.step);
     }
 
     const sketches_folders: []const []const u8 = &.{
@@ -1382,20 +1375,6 @@ pub fn build(b: *Build) !void {
         },
     };
 
-    const tests_install_opts: Build.Step.InstallArtifact.Options = .{
-        .dest_dir = .{ .override = .{ .custom = "tests" } },
-    };
-
-    const orca_platform_tests_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
-    tests.dependOn(&orca_platform_tests_install.step);
-
-    const stage_test_dependency_artifacts = b.addUpdateSourceFiles();
-    {
-        const tests_install_path = b.pathJoin(&.{ b.install_path, "tests" });
-        try stageAngleDawnArtifacts(b, target, stage_sketch_dependency_artifacts, tests_install_path, angle_lib_path, dawn_lib_path);
-        tests.dependOn(&stage_test_dependency_artifacts.step);
-    }
-
     for (test_configs) |config| {
         // TODO add support for building wasm samples
         if (config.wasm) {
@@ -1423,6 +1402,10 @@ pub fn build(b: *Build) !void {
             test_exe.linkSystemLibrary("shlwapi");
         }
 
+        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+            .dest_dir = .{ .override = .{ .custom = "tests" } },
+        };
+
         const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_exe, tests_install_opts);
         tests.dependOn(&install.step);
 
@@ -1432,11 +1415,19 @@ pub fn build(b: *Build) !void {
                 const fail = b.addFail("Running is currently not supported for wasm tests.");
                 tests.dependOn(&fail.step);
             } else {
+                const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+
+                const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+                const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+                const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+
                 const test_dir_path = b.path(b.pathJoin(&.{ "tests", config.name }));
 
                 const run_test = b.addRunArtifact(test_exe);
                 run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
-                run_test.step.dependOn(&stage_test_dependency_artifacts.step);
+                run_test.step.dependOn(&install_orca_platform_tests.step);
+                run_test.step.dependOn(&install_angle_libs_tests.step);
+                run_test.step.dependOn(&install_dawn_libs_tests.step);
                 run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
 
                 tests.dependOn(&run_test.step);

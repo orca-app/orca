@@ -58,11 +58,9 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # Disable tests on Windows for now due to dumb problems with how the CI runner
-      # runs tests differently from local machines
-      # - name: Build and run tests
-      #   run: |
-      #     zig build test
+      - name: Build and run tests
+        run: |
+          zig build test
 
       - name: Build sketches
         run: |
