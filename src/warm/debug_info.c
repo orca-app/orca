@@ -159,7 +159,7 @@ typedef enum wa_debug_loc_error
 
 typedef oc_result(dw_stack_value, wa_debug_loc_error) dw_stack_value_result;
 
-dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_value* locals, wa_debug_function* funcInfo, dw_expr expr)
+dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_call_frame* frame, wa_debug_function* funcInfo, dw_expr expr)
 {
     u64 sp = 0;
     u64 pc = 0;
@@ -199,7 +199,7 @@ dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_va
                     return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
                 }
 
-                dw_stack_value_result frameBaseResult = wa_interpret_dwarf_expr(interpreter, locals, funcInfo, frameBaseLoc->entries[0].expr);
+                dw_stack_value_result frameBaseResult = wa_interpret_dwarf_expr(interpreter, frame, funcInfo, frameBaseLoc->entries[0].expr);
                 dw_stack_value frameBase = oc_catch(frameBaseResult)
                 {
                     return frameBaseResult;
@@ -214,7 +214,7 @@ dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_va
                 if(frameBase.type == DW_STACK_VALUE_LOCAL)
                 {
                     frameBase.type = DW_STACK_VALUE_ADDRESS;
-                    frameBase.valU32 = locals[frameBase.valU32].valI32;
+                    frameBase.valU32 = frame->locals[frameBase.valU32].valI32;
                 }
                 //TODO: otherwise load anyway???
 
@@ -299,7 +299,7 @@ end:
     return oc_wrap_value(dw_stack_value_result, stack[sp - 1]);
 }
 
-oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_value* locals, wa_debug_function* funcInfo, wa_debug_variable* var)
+oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_call_frame* frame, wa_debug_function* funcInfo, wa_debug_variable* var)
 {
     dw_loc* loc = oc_catch(var->loc)
     {
@@ -317,7 +317,7 @@ oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter
     {
         dw_loc_entry* entry = &loc->entries[entryIndex];
 
-        dw_stack_value val = oc_catch(wa_interpret_dwarf_expr(interpreter, locals, funcInfo, entry->expr))
+        dw_stack_value val = oc_catch(wa_interpret_dwarf_expr(interpreter, frame, funcInfo, entry->expr))
         {
             return (oc_str8){ 0 };
         }

@@ -393,6 +393,7 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
     try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
     try orca_tool_compile_flags.append("-fno-sanitize=undefined"); // seems to be some UB in stb_image when resizing icons :(
+    try orca_tool_compile_flags.append("-Werror");
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
@@ -644,6 +645,7 @@ pub fn build(b: *Build) !void {
     var orca_platform_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_platform_compile_flags.deinit();
     try orca_platform_compile_flags.append("-std=c11");
+    try orca_platform_compile_flags.append("-Werror");
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
     try orca_platform_compile_flags.append("-D_USE_MATH_DEFINES");
     if (optimize == .Debug) {
@@ -658,7 +660,6 @@ pub fn build(b: *Build) !void {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
     // }
-
     const orca_platform_lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "orca_platform",
@@ -768,6 +769,7 @@ pub fn build(b: *Build) !void {
 
     var warm_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     try warm_compile_flags.append("-std=c11");
+    try warm_compile_flags.append("-Werror");
     try warm_compile_flags.append("-g");
     try warm_compile_flags.append("-O0");
     try warm_compile_flags.append("-fno-sanitize=undefined");
@@ -788,6 +790,7 @@ pub fn build(b: *Build) !void {
         try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
     }
     try orca_runtime_compile_flags.append("-std=c11");
+    try orca_runtime_compile_flags.append("-Werror");
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",

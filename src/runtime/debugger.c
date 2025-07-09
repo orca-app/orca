@@ -356,7 +356,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     return value;
 }
 
-oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_value* locals, wa_warm_loc warmLoc)
+oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_call_frame* frame, wa_warm_loc warmLoc)
 {
     oc_list list = { 0 };
 
@@ -393,7 +393,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
 
             if(!shadowed)
             {
-                oc_str8 data = wa_debug_variable_get_value(arena, interpreter, locals, funcInfo, var);
+                oc_str8 data = wa_debug_variable_get_value(arena, interpreter, frame, funcInfo, var);
 
                 oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
                 oc_list_push_back(&list, &value->listElt);
@@ -1017,10 +1017,9 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
             .codeIndex = (frameIndex == interpreter->controlStackTop) ? interpreter->pc - func->code
                                                                       : interpreter->controlStack[frameIndex + 1].returnPC - 3 - func->code,
         };
-        wa_value* locals = (frameIndex == interpreter->controlStackTop) ? interpreter->locals
-                                                                        : interpreter->controlStack[frameIndex + 1].returnFrame;
+        wa_call_frame* frame = &interpreter->controlStack[frameIndex];
 
-        debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, locals, warmLoc);
+        debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, frame, warmLoc);
     }
 
     //NOTE: load globals from the current compile unit
@@ -1242,17 +1241,15 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
     wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
     u32 funcIndex = func - interpreter->instance->functions;
     u32 codeIndex = 0;
-    wa_value* locals = 0;
+    wa_value* locals = interpreter->controlStack[debugger->selectedFrame].locals;
 
     if(debugger->selectedFrame == interpreter->controlStackTop)
     {
         codeIndex = interpreter->pc - func->code;
-        locals = interpreter->locals;
     }
     else
     {
         codeIndex = interpreter->controlStack[debugger->selectedFrame + 1].returnPC - 3 - func->code;
-        locals = interpreter->controlStack[debugger->selectedFrame + 1].returnFrame;
     }
 
     for(u64 regIndex = 0; regIndex < func->maxRegCount; regIndex++)

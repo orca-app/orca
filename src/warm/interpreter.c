@@ -31,9 +31,10 @@ wa_status wa_interpreter_init(wa_interpreter* interpreter,
     interpreter->retCount = retCount;
     interpreter->returns = returns;
     interpreter->pc = code;
-    interpreter->controlStack[0] = (wa_control){
+    interpreter->controlStack[0] = (wa_call_frame){
         .instance = instance,
         .func = func,
+        .locals = interpreter->localsBuffer,
     };
     interpreter->controlStackTop = 0;
 
@@ -448,11 +449,11 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
-                    interpreter->controlStack[interpreter->controlStackTop] = (wa_control){
+                    interpreter->controlStack[interpreter->controlStackTop] = (wa_call_frame){
                         .instance = calleeInstance,
                         .func = callee,
                         .returnPC = interpreter->pc + 2,
-                        .returnFrame = interpreter->locals,
+                        .locals = interpreter->locals + maxUsedSlot,
                     };
 
                     interpreter->locals += maxUsedSlot;
@@ -529,11 +530,11 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                         return (WA_TRAP_STACK_OVERFLOW);
                     }
 
-                    interpreter->controlStack[interpreter->controlStackTop] = (wa_control){
+                    interpreter->controlStack[interpreter->controlStackTop] = (wa_call_frame){
                         .instance = calleeInstance,
                         .func = callee,
                         .returnPC = interpreter->pc + 4,
-                        .returnFrame = interpreter->locals,
+                        .locals = interpreter->locals + maxUsedSlot,
                     };
 
                     interpreter->locals += maxUsedSlot;
@@ -572,14 +573,15 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                     goto end;
                 }
 
-                wa_control control = interpreter->controlStack[interpreter->controlStackTop];
+                wa_call_frame frame = interpreter->controlStack[interpreter->controlStackTop];
 
-                interpreter->locals = control.returnFrame;
-                interpreter->pc = control.returnPC;
+                interpreter->pc = frame.returnPC;
 
                 interpreter->controlStackTop--;
 
                 instance = interpreter->controlStack[interpreter->controlStackTop].instance;
+                interpreter->locals = interpreter->controlStack[interpreter->controlStackTop].locals;
+
                 if(instance->memories)
                 {
                     memory = instance->memories[0];
@@ -588,7 +590,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                         memPtr = memory->ptr;
                     }
                 }
-                if(control.returnTrap)
+                if(frame.returnTrap)
                 {
                     return WA_TRAP_STEP;
                 }

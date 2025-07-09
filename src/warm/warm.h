@@ -331,14 +331,14 @@ wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc
 // Interpreter
 //------------------------------------------------------------------------
 
-typedef struct wa_control
+typedef struct wa_call_frame
 {
     wa_instance* instance;
     wa_func* func;
     wa_code* returnPC;
-    wa_value* returnFrame;
+    wa_value* locals;
     bool returnTrap;
-} wa_control;
+} wa_call_frame;
 
 enum
 {
@@ -356,7 +356,7 @@ typedef struct wa_interpreter
     u32 retCount;
     wa_value* returns;
 
-    wa_control controlStack[WA_CONTROL_STACK_SIZE];
+    wa_call_frame controlStack[WA_CONTROL_STACK_SIZE];
     u32 controlStackTop;
 
     wa_value* localsBuffer;
