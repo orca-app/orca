@@ -10,31 +10,33 @@ const CompileStep = std.Build.Step.Compile;
 
 const MACOS_VERSION_MIN = "13.0.0";
 
-const CSources = struct {
+const SourceFileCollector = struct {
     files: std.ArrayListUnmanaged([]const u8),
+    extension: []const u8,
     b: *Build,
 
-    fn init(b: *Build) CSources {
+    fn init(b: *Build, extension: []const u8) SourceFileCollector {
         return .{
             .files = .empty,
+            .extension = extension,
             .b = b,
         };
     }
 
-    fn collect(sources: *CSources, path: []const u8) !void {
+    fn collect(sources: *SourceFileCollector, path: []const u8) !void {
         const path_from_root = sources.b.pathFromRoot(path); // ensures if the user is in a subdir the path is correct
         const cwd: std.fs.Dir = sources.b.build_root.handle;
         const dir: std.fs.Dir = try cwd.openDir(path_from_root, .{ .iterate = true });
         var iter: std.fs.Dir.Iterator = dir.iterate();
         while (try iter.next()) |entry| {
-            if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".c")) {
+            if (entry.kind == .file and std.mem.endsWith(u8, entry.name, sources.extension)) {
                 const filepath = try std.fs.path.resolve(sources.b.allocator, &.{ path, entry.name });
                 try sources.files.append(sources.b.allocator, filepath);
             }
         }
     }
 
-    fn deinit(sources: *CSources) void {
+    fn deinit(sources: *SourceFileCollector) void {
         for (sources.files.items) |path| {
             sources.b.allocator.free(path);
         }
@@ -133,7 +135,7 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////
     // zlib
 
-    var z_sources = CSources.init(b);
+    var z_sources = SourceFileCollector.init(b, ".c");
     defer z_sources.deinit();
     try z_sources.collect("src/ext/zlib/");
 
@@ -167,7 +169,7 @@ pub fn build(b: *Build) !void {
         .link_libc = true,
     });
 
-    var curl_sources = CSources.init(b);
+    var curl_sources = SourceFileCollector.init(b, ".c");
     try curl_sources.collect("src/ext/curl/lib");
     try curl_sources.collect("src/ext/curl/lib/vauth");
     try curl_sources.collect("src/ext/curl/lib/vtls");
@@ -931,7 +933,7 @@ pub fn build(b: *Build) !void {
         "src/orca-libc/src/string",
     };
 
-    var wasm_libc_sources = CSources.init(b);
+    var wasm_libc_sources = SourceFileCollector.init(b, ".c");
     defer wasm_libc_sources.deinit();
 
     var wasm_libc_objs: std.ArrayList(*Build.Step.Compile) = .init(b.allocator);
@@ -1131,7 +1133,7 @@ pub fn build(b: *Build) !void {
         const all_samples = [_]SampleConfig{
             .{ .name = "breakout", .has_icon = true,  .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
             .{ .name = "clock",    .has_icon = true,  .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
-            // .{ .name = "fluid",    .has_icon = true,  .has_resources = false, .has_shaders = true,  .files = &.{"src/main.c"} },
+            .{ .name = "fluid",    .has_icon = true,  .has_resources = false, .has_shaders = true,  .files = &.{"main.c"} },
             .{ .name = "microui",  .has_icon = false, .has_resources = true,  .has_shaders = false, .files = &.{"main.c", "microui/microui.c"} },
             .{ .name = "triangle", .has_icon = false, .has_resources = false, .has_shaders = false, .files = &.{"main.c"} },
             .{ .name = "ui",       .has_icon = false, .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
@@ -1167,6 +1169,27 @@ pub fn build(b: *Build) !void {
                 .files = files.items,
                 .flags = &.{},
             });
+
+            if (config.has_shaders) {
+                var shader_sources = SourceFileCollector.init(b, ".glsl");
+                const path = b.pathJoin(&.{ "samples", config.name, "src", "shaders" });
+                try shader_sources.collect(path);
+                std.debug.assert(shader_sources.files.items.len > 0);
+
+                const run_gen_glsl_header: *Build.Step.Run = b.addRunArtifact(gen_header_exe);
+                for (shader_sources.files.items) |shader_path| {
+                    run_gen_glsl_header.addPrefixedFileArg("--file=", b.path(shader_path));
+                }
+                run_gen_glsl_header.addArg("--namespace=glsl_");
+                run_gen_glsl_header.addPrefixedDirectoryArg("--root=", b.path(""));
+                const glsl_header_path = run_gen_glsl_header.addPrefixedOutputFileArg(
+                    "--output=",
+                    b.fmt("samples/{s}/generated_headers/glsl_shaders.h", .{config.name}),
+                );
+
+                sample_wasm.step.dependOn(&run_gen_glsl_header.step);
+                sample_wasm.addIncludePath(glsl_header_path.dirname());
+            }
 
             // Bundling and running samples unavailable when cross-compiling
             // NOTE - we could make building available when cross-compiling, would just need to ensure
