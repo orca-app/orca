@@ -68,22 +68,36 @@ bool oc_sys_isdir(oc_str8 path)
 
 bool oc_sys_mkdirs(oc_str8 path)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
-    const char* cpath = oc_str8_to_cstring(scratch.arena, path);
+    bool success = true;
 
-    int result = mkdir(cpath, S_IRWXU | S_IRWXG | S_IRWXO);
+    if (path.len > 0) {
+        oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_scratch_end(scratch);
+        // iterate through each path component to ensure we create the whole path
+        for (const char* begin = path.ptr; begin;) {
+            begin = strchr(*begin == '/' ? begin + 1 : begin, '/');
 
-    if(result)
-    {
-        snprintf(oc_sys_err.msg, OC_SYS_MAX_ERROR,
-                 "failed to create directories \"%.*s\"", oc_str8_ip(path));
-        oc_sys_err.code = result;
-        return false;
+            oc_str8 slice = oc_str8_slice(path, 0, (begin == NULL) ? path.len : begin - path.ptr);
+
+            if (!oc_sys_isdir(slice)) {
+                const char* cpath = oc_str8_to_cstring(scratch.arena, slice);
+
+                int result = mkdir(cpath, S_IRWXU | S_IRWXG | S_IRWXO);
+                if(result)
+                {
+                    snprintf(oc_sys_err.msg, OC_SYS_MAX_ERROR,
+                             "failed to create directories \"%.*s\"", oc_str8_ip(path));
+                    oc_sys_err.code = result;
+                    success = false;
+                    break;
+                }
+            }
+        }
+
+        oc_scratch_end(scratch);
     }
 
-    return true;
+    return success;
 }
 
 int remove_callback(const char* fpath, const struct stat* sb, int typeflag, struct FTW* ftwbuf)

@@ -21,10 +21,10 @@ The build system is setup as a one-click system to build everything needed and i
 
 #### Installing a dev version of the tooling and SDK
 
-- If you have not yet setup Orca locally yet and added it to your path, you'll need to specify the directory to which it will install by running `zig build -Dsdk-path=<orca_install_path>`
+- If you have not yet setup Orca locally and added it to your path, you'll need to specify the directory to which it will install by running `zig build -Dsdk-path=<orca_install_path>`
 
 - Make sure `<orca_install_path>` is in your `PATH` environment variable.
 
-- Once you have the Orca tool in your `PATH`, you can install new dev versions to the same location by simply running `zig build`. 
- 
+- Once you have the Orca tool in your `PATH`, you can install new dev versions to the same location by simply running `zig build`.
+
 You can then use this dev version normally through the `orca` command line tool.

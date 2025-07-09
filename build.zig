@@ -10,31 +10,33 @@ const CompileStep = std.Build.Step.Compile;
 
 const MACOS_VERSION_MIN = "13.0.0";
 
-const CSources = struct {
+const SourceFileCollector = struct {
     files: std.ArrayListUnmanaged([]const u8),
+    extension: []const u8,
     b: *Build,
 
-    fn init(b: *Build) CSources {
+    fn init(b: *Build, extension: []const u8) SourceFileCollector {
         return .{
             .files = .empty,
+            .extension = extension,
             .b = b,
         };
     }
 
-    fn collect(sources: *CSources, path: []const u8) !void {
+    fn collect(sources: *SourceFileCollector, path: []const u8) !void {
         const path_from_root = sources.b.pathFromRoot(path); // ensures if the user is in a subdir the path is correct
         const cwd: std.fs.Dir = sources.b.build_root.handle;
         const dir: std.fs.Dir = try cwd.openDir(path_from_root, .{ .iterate = true });
         var iter: std.fs.Dir.Iterator = dir.iterate();
         while (try iter.next()) |entry| {
-            if (entry.kind == .file and std.mem.endsWith(u8, entry.name, ".c")) {
+            if (entry.kind == .file and std.mem.endsWith(u8, entry.name, sources.extension)) {
                 const filepath = try std.fs.path.resolve(sources.b.allocator, &.{ path, entry.name });
                 try sources.files.append(sources.b.allocator, filepath);
             }
         }
     }
 
-    fn deinit(sources: *CSources) void {
+    fn deinit(sources: *SourceFileCollector) void {
         for (sources.files.items) |path| {
             sources.b.allocator.free(path);
         }
@@ -133,7 +135,7 @@ pub fn build(b: *Build) !void {
     /////////////////////////////////////////////////////////
     // zlib
 
-    var z_sources = CSources.init(b);
+    var z_sources = SourceFileCollector.init(b, ".c");
     defer z_sources.deinit();
     try z_sources.collect("src/ext/zlib/");
 
@@ -167,7 +169,7 @@ pub fn build(b: *Build) !void {
         .link_libc = true,
     });
 
-    var curl_sources = CSources.init(b);
+    var curl_sources = SourceFileCollector.init(b, ".c");
     try curl_sources.collect("src/ext/curl/lib");
     try curl_sources.collect("src/ext/curl/lib/vauth");
     try curl_sources.collect("src/ext/curl/lib/vtls");
@@ -390,6 +392,7 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
     try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
+    try orca_tool_compile_flags.append("-fno-sanitize=undefined"); // seems to be some UB in stb_image when resizing icons :(
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
@@ -846,11 +849,8 @@ pub fn build(b: *Build) !void {
     // zig fmt: off
     const libc_flags: []const []const u8 = &.{
         // need to provide absolute paths to these since we're overriding the default zig lib dir
-        b.fmt("-I{s}", .{b.pathFromRoot("src")}),
         "-isystem", b.pathFromRoot("src/orca-libc/src/include"),
         "-isystem", b.pathFromRoot("src/orca-libc/src/include/private"),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/arch")}),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/src/internal")}),
 
         // warnings
         "-Wall",
@@ -893,6 +893,9 @@ pub fn build(b: *Build) !void {
             .link_libc = false,
         }),
     });
+    dummy_crt_obj.addIncludePath(b.path("src"));
+    dummy_crt_obj.addIncludePath(b.path("src/orca-libc/src/arch"));
+    dummy_crt_obj.addIncludePath(b.path("src/orca-libc/src/internal"));
     dummy_crt_obj.addCSourceFiles(.{
         .files = &.{"src/orca-libc/src/crt/crt1.c"},
         .flags = libc_flags,
@@ -932,7 +935,7 @@ pub fn build(b: *Build) !void {
         "src/orca-libc/src/string",
     };
 
-    var wasm_libc_sources = CSources.init(b);
+    var wasm_libc_sources = SourceFileCollector.init(b, ".c");
     defer wasm_libc_sources.deinit();
 
     var wasm_libc_objs: std.ArrayList(*Build.Step.Compile) = .init(b.allocator);
@@ -957,6 +960,9 @@ pub fn build(b: *Build) !void {
                 }),
                 .zig_lib_dir = b.path("src/orca-libc"), // ensures c stdlib headers bundled with zig are ignored
             });
+            obj.addIncludePath(b.path("src"));
+            obj.addIncludePath(b.path("src/orca-libc/src/arch"));
+            obj.addIncludePath(b.path("src/orca-libc/src/internal"));
             obj.addCSourceFiles(.{
                 .files = &.{filepath},
                 .flags = libc_flags,
@@ -991,17 +997,8 @@ pub fn build(b: *Build) !void {
     // Orca wasm SDK
 
     const wasm_sdk_flags: []const []const u8 = &.{
-        // "-Isrc",
-        // "-Isrc/ext",
-        // "-Isrc/orca-libc/include",
-        b.fmt("-I{s}", .{b.pathFromRoot("src")}),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/ext")}),
-        b.fmt("-I{s}", .{b.pathFromRoot("src/orca-libc/include")}),
         "--no-standard-libraries",
         "-D__ORCA__",
-        // "-Wl,--no-entry",
-        // "-Wl,--export-dynamic",
-        // "-Wl,--relocatable"
     };
 
     const wasm_sdk_obj = b.addObject(.{
@@ -1014,6 +1011,9 @@ pub fn build(b: *Build) !void {
         }),
         .zig_lib_dir = b.path("src/orca-libc"),
     });
+    wasm_sdk_obj.addIncludePath(b.path("src"));
+    wasm_sdk_obj.addIncludePath(b.path("src/ext"));
+    wasm_sdk_obj.addIncludePath(b.path("src/orca-libc/include"));
     wasm_sdk_obj.addCSourceFile(.{
         .file = b.path("src/orca.c"),
         .flags = wasm_sdk_flags,
@@ -1117,9 +1117,136 @@ pub fn build(b: *Build) !void {
     b.getInstallStep().dependOn(&orca_install.step);
 
     /////////////////////////////////////////////////////////////////
+    // samples
+
+    const samples = b.step("samples", "Build all samples into  (demo Orca apps)");
+    {
+        const SampleConfig = struct {
+            name: []const u8,
+            has_icon: bool,
+            has_resources: bool,
+            has_shaders: bool,
+            files: []const []const u8,
+        };
+        // zig fmt: off
+        const all_samples = [_]SampleConfig{
+            .{ .name = "breakout", .has_icon = true,  .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
+            .{ .name = "clock",    .has_icon = true,  .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
+            .{ .name = "fluid",    .has_icon = true,  .has_resources = false, .has_shaders = true,  .files = &.{"main.c"} },
+            .{ .name = "microui",  .has_icon = false, .has_resources = true,  .has_shaders = false, .files = &.{"main.c", "microui/microui.c"} },
+            .{ .name = "triangle", .has_icon = false, .has_resources = false, .has_shaders = false, .files = &.{"main.c"} },
+            .{ .name = "ui",       .has_icon = false, .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
+        };
+        // zig fmt: on
+
+        for (all_samples) |config| {
+            var files: std.ArrayList([]const u8) = .init(b.allocator);
+            try files.ensureTotalCapacity(config.files.len);
+            for (config.files) |shortpath| {
+                const path = b.pathJoin(&.{ "samples", config.name, "src", shortpath });
+                files.appendAssumeCapacity(path);
+            }
+
+            const sample_wasm = b.addExecutable(.{
+                .name = "module",
+                .linkage = .static,
+                .root_module = b.createModule(.{
+                    .target = wasm_target,
+                    .optimize = wasm_optimize,
+                    .single_threaded = true,
+                    .link_libc = false,
+                }),
+            });
+            sample_wasm.entry = .disabled;
+            sample_wasm.rdynamic = true;
+            sample_wasm.addIncludePath(b.path("src"));
+            sample_wasm.addIncludePath(b.path("src/ext"));
+            sample_wasm.addIncludePath(b.path("src/orca-libc/include"));
+            sample_wasm.linkLibrary(wasm_sdk_lib);
+            sample_wasm.linkLibrary(wasm_libc_lib);
+            sample_wasm.addCSourceFiles(.{
+                .files = files.items,
+                .flags = &.{},
+            });
+
+            if (config.has_shaders) {
+                var shader_sources = SourceFileCollector.init(b, ".glsl");
+                const path = b.pathJoin(&.{ "samples", config.name, "src", "shaders" });
+                try shader_sources.collect(path);
+                std.debug.assert(shader_sources.files.items.len > 0);
+
+                const run_gen_glsl_header: *Build.Step.Run = b.addRunArtifact(gen_header_exe);
+                for (shader_sources.files.items) |shader_path| {
+                    run_gen_glsl_header.addPrefixedFileArg("--file=", b.path(shader_path));
+                }
+                run_gen_glsl_header.addArg("--namespace=glsl_");
+                run_gen_glsl_header.addPrefixedDirectoryArg("--root=", b.path(""));
+                const glsl_header_path = run_gen_glsl_header.addPrefixedOutputFileArg(
+                    "--output=",
+                    b.fmt("samples/{s}/generated_headers/glsl_shaders.h", .{config.name}),
+                );
+
+                sample_wasm.step.dependOn(&run_gen_glsl_header.step);
+                sample_wasm.addIncludePath(glsl_header_path.dirname());
+            }
+
+            // Bundling and running samples unavailable when cross-compiling
+            // NOTE - we could make building available when cross-compiling, would just need to ensure
+            //        a native version of the orca CLI was installed somewhere (maybe even in zig-out)
+            if (target.result.os.tag == b.graph.host.result.os.tag) {
+                const bundle: *Step.Run = b.addSystemCommand(&.{"orca"});
+                bundle.addArg("bundle");
+                bundle.addArgs(&.{ "--name", config.name });
+                if (config.has_icon) {
+                    const icon_path = b.pathJoin(&.{ "samples", config.name, "icon.png" });
+                    bundle.addArg("--icon");
+                    bundle.addFileArg(b.path(icon_path));
+                }
+                if (config.has_resources) {
+                    const resource_path = b.pathJoin(&.{ "samples", config.name, "data" });
+                    bundle.addArg("--resource-dir");
+                    bundle.addDirectoryArg(b.path(resource_path));
+                }
+
+                const output_path = b.getInstallPath(.{ .custom = "samples" }, "");
+                bundle.addArgs(&.{ "--out-dir", output_path });
+                bundle.addFileArg(sample_wasm.getEmittedBin());
+
+                // NOTE This dependency is currently necessary because only the package-sdk command can put all the
+                //      needed files in place to allow the orca CLI to run properly.
+                // TODO Change the organization of zig-out/ to match how the orca package is organized so we can run
+                //      the CLI tool locally without needing to install to the orca system directory.
+                bundle.step.dependOn(&orca_install.step);
+
+                samples.dependOn(&bundle.step);
+
+                const run_sample = Step.Run.create(b, b.fmt("run sample {s}", .{config.name}));
+                run_sample.step.dependOn(&bundle.step);
+
+                if (target.result.os.tag == .windows) {
+                    const exe_path = b.pathJoin(&.{ output_path, config.name, "bin", b.fmt("{s}.exe", .{config.name}) });
+                    run_sample.addArg(exe_path);
+                } else if (target.result.os.tag.isDarwin()) {
+                    const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{config.name}) });
+                    run_sample.addArgs(&.{ "open", app_path });
+                } else {
+                    @panic("Unsupported OS");
+                }
+
+                const run_sample_step_name = b.fmt("sample-{s}", .{config.name});
+                const run_sample_step_description = b.fmt("Build, bundle, and run the {s} sample", .{config.name});
+                const run_sample_step = b.step(run_sample_step_name, run_sample_step_description);
+                run_sample_step.dependOn(&run_sample.step);
+            } else {
+                samples.dependOn(&sample_wasm.step);
+            }
+        }
+    }
+
+    /////////////////////////////////////////////////////////////////
     // sketches
 
-    const sketches = b.step("sketches", "Build all sketches into build/sketches");
+    const sketches = b.step("sketches", "Build all sketches");
 
     const sketches_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .{ .custom = "sketches" } },
@@ -1287,9 +1414,10 @@ pub fn build(b: *Build) !void {
                 .link_libc = true,
             }),
         });
+        test_exe.addIncludePath(b.path("src"));
         test_exe.addCSourceFiles(.{
             .files = &.{test_source},
-            .flags = &.{b.fmt("-I{s}", .{b.pathFromRoot("src")})},
+            .flags = &.{},
         });
         test_exe.linkLibrary(orca_platform_lib);
 
