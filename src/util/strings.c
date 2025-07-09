@@ -20,6 +20,11 @@ oc_str8 oc_str8_from_buffer(u64 len, char* buffer)
 
 oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end)
 {
+    if(!s.ptr)
+    {
+        OC_DEBUG_ASSERT(s.len == 0);
+        return (oc_str8){ 0 };
+    }
     end = oc_max(start, end);
     start = oc_min(start, s.len);
     end = oc_min(end, s.len);

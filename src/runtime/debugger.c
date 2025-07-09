@@ -356,7 +356,7 @@ oc_debugger_value* debugger_build_value_tree(oc_arena* arena, oc_str8 name, wa_t
     return value;
 }
 
-oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_warm_loc warmLoc)
+oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter, wa_value* locals, wa_warm_loc warmLoc)
 {
     oc_list list = { 0 };
 
@@ -393,7 +393,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
 
             if(!shadowed)
             {
-                oc_str8 data = wa_debug_variable_get_value(arena, interpreter, funcInfo, var);
+                oc_str8 data = wa_debug_variable_get_value(arena, interpreter, locals, funcInfo, var);
 
                 oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
                 oc_list_push_back(&list, &value->listElt);
@@ -418,7 +418,7 @@ oc_list debugger_build_globals_tree(oc_arena* arena, wa_debug_unit* unit, wa_int
     {
         wa_debug_variable* var = &unit->globals[globalIndex];
 
-        oc_str8 data = wa_debug_variable_get_value(arena, interpreter, 0, var);
+        oc_str8 data = wa_debug_variable_get_value(arena, interpreter, 0, 0, var);
         oc_debugger_value* value = debugger_build_value_tree(arena, var->name, var->type, data);
         oc_list_push_back(&list, &value->listElt);
     }
@@ -1017,7 +1017,10 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
             .codeIndex = (frameIndex == interpreter->controlStackTop) ? interpreter->pc - func->code
                                                                       : interpreter->controlStack[frameIndex + 1].returnPC - 3 - func->code,
         };
-        debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, warmLoc);
+        wa_value* locals = (frameIndex == interpreter->controlStackTop) ? interpreter->locals
+                                                                        : interpreter->controlStack[frameIndex + 1].returnFrame;
+
+        debugger->locals[frameIndex] = debugger_build_locals_tree(&debugger->debugArena, interpreter, locals, warmLoc);
     }
 
     //NOTE: load globals from the current compile unit

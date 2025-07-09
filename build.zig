@@ -1005,7 +1005,7 @@ pub fn build(b: *Build) !void {
         .name = "orca_wasm",
         .root_module = b.createModule(.{
             .target = wasm_target,
-            .optimize = wasm_optimize,
+            .optimize = .ReleaseFast,
             .single_threaded = true,
             .link_libc = false,
         }),
