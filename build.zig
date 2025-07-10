@@ -387,6 +387,7 @@ pub fn build(b: *Build) !void {
 
     var orca_tool_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_tool_compile_flags.deinit();
+    try orca_tool_compile_flags.append("-Werror");
     try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
     try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
@@ -644,6 +645,7 @@ pub fn build(b: *Build) !void {
     var orca_platform_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_platform_compile_flags.deinit();
     try orca_platform_compile_flags.append("-std=c11");
+    try orca_platform_compile_flags.append("-Werror");
     try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
     try orca_platform_compile_flags.append("-D_USE_MATH_DEFINES");
     if (optimize == .Debug) {
@@ -789,6 +791,7 @@ pub fn build(b: *Build) !void {
 
     var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_runtime_compile_flags.deinit();
+    try orca_runtime_compile_flags.append("-Werror");
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0");
     if (optimize == .Debug) {
