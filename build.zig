@@ -151,6 +151,7 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
+        .sanitize_c = false,
     });
 
     var curl_sources = SourceFileCollector.init(b, ".c");
@@ -163,7 +164,7 @@ pub fn build(b: *Build) !void {
     for (curl_sources.files.items) |path| {
         curl_mod.addCSourceFile(.{
             .file = b.path(path),
-            .flags = &.{ "-std=gnu89", "-fno-sanitize=undefined" },
+            .flags = &.{"-std=gnu89"},
         });
     }
 
@@ -377,7 +378,6 @@ pub fn build(b: *Build) !void {
     try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
     try orca_tool_compile_flags.append("-DCURL_STATICLIB");
     try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
-    try orca_tool_compile_flags.append("-fno-sanitize=undefined"); // seems to be some UB in stb_image when resizing icons :(
 
     if (optimize == .Debug) {
         try orca_tool_compile_flags.append("-DOC_DEBUG");
@@ -386,8 +386,11 @@ pub fn build(b: *Build) !void {
 
     const orca_tool_exe = b.addExecutable(.{
         .name = "orca_tool",
-        .target = target,
-        .optimize = optimize,
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .sanitize_c = false, // seems to be some UB in stb_image when resizing icons :(
+        }),
     });
     orca_tool_exe.addIncludePath(b.path("src/"));
     orca_tool_exe.addIncludePath(b.path("src/tool"));
@@ -735,6 +738,7 @@ pub fn build(b: *Build) !void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            .sanitize_c = false,
         }),
     });
 
@@ -758,7 +762,6 @@ pub fn build(b: *Build) !void {
     };
 
     var wasm3_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    try wasm3_compile_flags.append("-fno-sanitize=undefined");
     if (target.result.os.tag.isDarwin()) {
         try wasm3_compile_flags.append("-foptimize-sibling-calls");
         try wasm3_compile_flags.append("-Wno-extern-initializer");
