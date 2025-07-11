@@ -1187,6 +1187,10 @@ pub fn build(b: *Build) !void {
             //        a native version of the orca CLI was installed somewhere (maybe even in zig-out)
             if (target.result.os.tag == b.graph.host.result.os.tag) {
                 const bundle: *Step.Run = b.addSystemCommand(&.{"orca"});
+                if (sdk_install_path_opt) |sdk_install_path| {
+                    bundle.setCwd(LazyPath{ .cwd_relative = sdk_install_path });
+                }
+
                 bundle.addArg("bundle");
                 bundle.addArgs(&.{ "--name", config.name });
                 if (config.has_icon) {
