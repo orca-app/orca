@@ -77,6 +77,7 @@ typedef struct oc_list
 {
     oc_list_elt* first;
     oc_list_elt* last;
+    u64 len;
 } oc_list;
 
 ORCA_API bool oc_list_empty(oc_list list);
