@@ -4129,8 +4129,8 @@ Sam James (11 Nov 2023)
     213 |   p = calloc(sizeof(struct per_transfer), 1);
         |     ^
   src/var.c: In function ‘addvariable’:
-  src/var.c:361:5: warning: allocation of insufficient size ‘1’ for type �
-  �struct var’ with size ‘32’ [-Walloc-size]
+  src/var.c:361:5: warning: allocation of insufficient size ‘1’ for type �
+  �struct var’ with size ‘32’ [-Walloc-size]
     361 |   p = calloc(sizeof(struct var), 1);
         |     ^
   ```
@@ -5177,7 +5177,7 @@ Stefan Eissing (25 Oct 2023)
   Use of `SEND_HOLD` is no longer necessary in the filters.
 
   All filters are adapted for the changed method. The handling in
-  `multi.c` has been adjusted, but its state handling the the protocol
+  `multi.c` has been adjusted, but its state handling the protocol
   handlers' `getsocks` method are untouched.
 
   The most affected filters are http/2, ngtcp2, quiche and h2-proxy. TLS
