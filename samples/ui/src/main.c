@@ -467,14 +467,14 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                     static oc_color unselectedBgColor = { 0 };
                     static oc_color unselectedBorderColor = { 0.976, 0.976, 0.976, 0.35 };
                     static f32 unselectedBorderSize = 1;
-                    static oc_str8 unselectedWhenStatus = OC_STR8("");
+                    static oc_str8 unselectedWhenStatus = OC_STR8_LIT("");
 
                     static f32 selectedWidth = 16;
                     static f32 selectedHeight = 16;
                     static f32 selectedRoundness = 8;
                     static oc_color selectedCenterColor = { 1, 1, 1, 1 };
                     static oc_color selectedBgColor = { 0.33, 0.66, 1, 1 };
-                    static oc_str8 selectedWhenStatus = OC_STR8("");
+                    static oc_str8 selectedWhenStatus = OC_STR8_LIT("");
 
                     static oc_color labelFontColor = { 0.976, 0.976, 0.976, 1 };
                     static oc_font* labelFont = &fontRegular;

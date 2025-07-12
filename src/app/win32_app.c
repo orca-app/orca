@@ -144,6 +144,8 @@ void oc_init_keys()
     oc_appData.scanCodes[0x04A] = OC_SCANCODE_KP_SUBTRACT;
 }
 
+_Static_assert(OC_SCANCODE_COUNT == 349, "hmmm");
+
 void oc_win32_update_keyboard_layout()
 {
     memcpy(oc_appData.keyMap, oc_defaultKeyMap, sizeof(oc_key_code) * OC_SCANCODE_COUNT);
@@ -245,7 +247,7 @@ void oc_init()
             hr = ID3D11Device_QueryInterface(d3d11Device, &IID_IDXGIDevice, (void**)&dxgiDevice);
             OC_ASSERT(hr == S_OK, "Failed to initialize Direct Composition: couldn't get DXGI device");
 
-            hr = DCompositionCreateDevice(dxgiDevice, &IID_IDCompositionDevice, &oc_appData.win32.dcompDevice);
+            hr = DCompositionCreateDevice(dxgiDevice, &IID_IDCompositionDevice, (void**)&oc_appData.win32.dcompDevice);
             OC_ASSERT(hr == S_OK, "Failed to create DirectComposition device");
 
             IDXGIDevice_Release(dxgiDevice);
@@ -265,7 +267,7 @@ void oc_terminate()
     }
 }
 
-static oc_key_code oc_convert_win32_key(int code)
+static oc_scan_code oc_convert_win32_key(int code)
 {
     return (oc_appData.scanCodes[code]);
 }
@@ -293,7 +295,7 @@ static oc_keymod_flags oc_get_mod_keys()
     return (mods);
 }
 
-static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action action, oc_key_code button)
+static void oc_win32_process_mouse_event(oc_window_data* window, oc_key_action action, oc_mouse_button button)
 {
     if(action == OC_KEY_PRESS)
     {
@@ -565,8 +567,8 @@ LRESULT oc_win32_win_proc(HWND windowHandle, UINT message, WPARAM wParam, LPARAM
                 event.mouse.deltaX = event.mouse.x - oc_appData.win32.lastMousePos.x;
                 event.mouse.deltaY = event.mouse.y - oc_appData.win32.lastMousePos.y;
             }
-            if(abs(event.mouse.x - oc_appData.win32.lastMousePos.x) > GetSystemMetrics(SM_CXDOUBLECLK) / 2
-               || abs(event.mouse.y - oc_appData.win32.lastMousePos.y) > GetSystemMetrics(SM_CYDOUBLECLK) / 2)
+            if(abs((int)(event.mouse.x - oc_appData.win32.lastMousePos.x)) > GetSystemMetrics(SM_CXDOUBLECLK) / 2
+               || abs((int)(event.mouse.y - oc_appData.win32.lastMousePos.y)) > GetSystemMetrics(SM_CYDOUBLECLK) / 2)
             {
                 for(int i = 0; i < OC_MOUSE_BUTTON_COUNT; i++)
                 {
@@ -779,7 +781,7 @@ i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc
 //WARN: the following header pulls in objbase.h (even with WIN32_LEAN_AND_MEAN), which
 //      #defines interface to struct... so make sure to #undef interface since it's a
 //      name we want to be able to use throughout the codebase
-#include <ShellScalingApi.h>
+#include <shellscalingapi.h>
 #undef interface
 
 oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
@@ -1216,7 +1218,7 @@ void oc_window_center(oc_window window)
             MONITORINFO monitorInfo = { .cbSize = sizeof(MONITORINFO) };
             GetMonitorInfoW(monitor, &monitorInfo);
 
-            int dpiX, dpiY;
+            UINT dpiX, dpiY;
             GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &dpiX, &dpiY);
             f32 scaleX = dpiX / 96.;
             f32 scaleY = dpiY / 96.;
@@ -1457,7 +1459,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                     hr = ((IFileOpenDialog*)dialog)->lpVtbl->GetResults((IFileOpenDialog*)dialog, &array);
                     if(SUCCEEDED(hr))
                     {
-                        int count = 0;
+                        DWORD count = 0;
                         array->lpVtbl->GetCount(array, &count);
                         for(int itemIndex = 0; itemIndex < count; itemIndex++)
                         {
@@ -1565,7 +1567,6 @@ int oc_alert_popup(oc_str8 title,
         .dwFlags = 0,
         .dwCommonButtons = 0,
         .pszWindowTitle = titleWide,
-        .hMainIcon = 0,
         .pszMainIcon = TD_WARNING_ICON,
         .pszMainInstruction = messageWide,
         .pszContent = NULL,

@@ -4,8 +4,6 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dwmapi.h>
-
-#define _USE_MATH_DEFINES
 #include <math.h>
 #include <string.h>
 #include <stddef.h>

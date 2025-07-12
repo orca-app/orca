@@ -12,6 +12,7 @@
 #define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
 
+#define OC_GRAPHICS_ENABLE_WEBGPU 1
 #include "orca.h"
 #include "graphics/wgpu_surface.h"
 

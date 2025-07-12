@@ -134,9 +134,9 @@ int main()
     }
 
     int fontIndex = 0;
-    oc_font fonts[FONT_COUNT] = { create_font("../../resources/OpenSansLatinSubset.ttf"),
-                                  create_font("../../resources/CMUSerif-Roman.ttf"),
-                                  create_font("../../resources/Courier.ttf") };
+    oc_font fonts[FONT_COUNT] = { create_font("resources/OpenSansLatinSubset.ttf"),
+                                  create_font("resources/CMUSerif-Roman.ttf"),
+                                  create_font("resources/Courier.ttf") };
 
     oc_font_metrics extents[FONT_COUNT];
     f32 fontScales[FONT_COUNT];

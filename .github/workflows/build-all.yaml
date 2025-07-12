@@ -1,11 +1,25 @@
 name: build-all
 
 on:
+  workflow_dispatch:
+    inputs:
+      version:
+        type: string
+        required: false
+      ignore-cache:
+        required: false
+        type: string
+        default: false
   workflow_call:
     inputs:
       version:
         type: string
         required: false
+      ignore-cache:
+        required: false
+        type: string
+        default: false
+
   push:
     branches:
       - main
@@ -14,163 +28,114 @@ on:
       - main
 
 jobs:
-  build-dawn-mac:
-    uses: ./.github/workflows/build-dawn-mac.yaml
-
-  build-dawn-win:
-    uses: ./.github/workflows/build-dawn-win.yaml
-
-  build-angle-mac:
-    uses: ./.github/workflows/build-angle-mac.yaml
-
-  build-angle-win:
-    uses: ./.github/workflows/build-angle-win.yaml
+  determine-version:
+    runs-on: ubuntu-latest
+    outputs:
+       version: ${{ steps.determine-version.outputs.version }}
+    steps:
+      - name: Determine version
+        id: determine-version
+        run: |
+          if [ "${{ inputs.version }}" != '' ] ; then
+            echo Selecting version: ${{ inputs.version }}
+            echo "version='${{ inputs.version }}'" >> "$GITHUB_OUTPUT"
+          else
+            echo Selecting version: ${{ github.ref_name }}
+            echo "version='${{ github.ref_name }}'" >> "$GITHUB_OUTPUT"
+          fi
 
   build-win:
-    needs: [build-dawn-win, build-angle-win]
+    needs: [determine-version]
     runs-on: windows-2022
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifact
-
-      - name: Copy Dawn
-        shell: cmd
+      - name: Build and run tests
         run: |
-          xcopy artifact\dawn-windows-x64 build\dawn.out\ /s /y
+          zig build test
 
-      - name: Copy Angle
-        shell: cmd
+      - name: Build sketches
         run: |
-          xcopy artifact\angle-windows-x64 build\angle.out\ /s /y
+          zig build sketches
 
-      - name: Build
-        shell: cmd
+      - name: Build and Package
         run: |
-          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat"
-          orcadev.bat build --release --version ${{github.ref_name}} || exit 1
-
-      - name: Package
-        shell: cmd
-        run: |
-          if [${{ inputs.version }}]==[] (
-            orcadev.bat install orca dev-dependencies || exit 1
-            tar --format=ustar -cvzf orca-windows.tar.gz orca
-            tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
-          ) else (
-            orcadev.bat install --version ${{ inputs.version }} orca dev-dependencies || exit 1
-            tar --format=ustar -cvzf orca-windows.tar.gz orca
-            tar --format=ustar -cvzf dev-dependencies-windows.tar.gz dev-dependencies
-          )
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }} --summary all
+          tar --format=ustar -cvzf orca-windows-x64.tar.gz orca
 
       - uses: actions/upload-artifact@v4
         with:
-          name: orca-windows
-          path: orca-windows.tar.gz
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dev-dependencies-windows
-          path: dev-dependencies-windows.tar.gz
+          name: orca-windows-x64
+          path: orca-windows-x64.tar.gz
 
   build-macos-x64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [determine-version]
     runs-on: macos-13
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifact
-
-      - name: Copy Dawn
+      - name: Build and run tests
         run: |
-          mkdir -p build
-          cp -r artifact/dawn-mac-x64 build/dawn.out
+          zig build test
 
-      - name: Copy Angle
+      - name: Build sketches
         run: |
-          mkdir -p build
-          cp -r artifact/angle-mac-x64 build/angle.out
+          zig build sketches
 
-      - name: Build
+      - name: Build and Package
         run: |
-          ./orcadev build --release --version ${{github.ref_name}}
-
-      - name: Package
-        run: |
-          if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca dev-dependencies
-          else
-            ./orcadev install orca dev-dependencies
-          fi
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }} --summary all
           tar --format=ustar -czf orca-mac-x64.tar.gz orca
-          tar --format=ustar -czf dev-dependencies-mac-x64.tar.gz dev-dependencies
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-mac-x64
           path: orca-mac-x64.tar.gz
 
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dev-dependencies-mac-x64
-          path: dev-dependencies-mac-x64.tar.gz
-
   build-macos-arm64:
-    needs: [build-dawn-mac, build-angle-mac]
+    needs: [determine-version]
     runs-on: macos-14
     steps:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
 
+      - uses: mlugg/setup-zig@v1
+        with:
+          version: 0.14.0
+
       - uses: actions/checkout@v4
 
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifact
-
-      - name: Copy Dawn
+      - name: Build and run tests
         run: |
-          mkdir -p build
-          cp -r artifact/dawn-mac-arm64 build/dawn.out
+          zig build test
 
-      - name: Copy Angle
+      - name: Build sketches
         run: |
-          mkdir -p build
-          cp -r artifact/angle-mac-arm64 build/angle.out
+          zig build sketches
 
-      - name: Build
+      - name: Build and Package
         run: |
-          ./orcadev build --release --version ${{github.ref_name}}
-
-      - name: Package
-        run: |
-          if [ "${{ inputs.version }}" != '' ] ; then
-            ./orcadev install --version ${{ inputs.version }} orca dev-dependencies
-          else
-            ./orcadev install orca dev-dependencies
-          fi
+          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }} --summary all
           tar --format=ustar -czf orca-mac-arm64.tar.gz orca
-          tar --format=ustar -czf dev-dependencies-mac-arm64.tar.gz dev-dependencies
 
       - uses: actions/upload-artifact@v4
         with:
           name: orca-mac-arm64
           path: orca-mac-arm64.tar.gz
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dev-dependencies-mac-arm64
-          path: dev-dependencies-mac-arm64.tar.gz

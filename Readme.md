@@ -26,14 +26,15 @@ The Orca command-line tools must be installed to your system in order to use the
 ### Requirements
 
 - Windows 10 or later, or Mac 13 or later (Linux is not yet supported)
+
 - Clang version 11.0 or newer
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
-- **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases). 
+- **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't yet ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases). 
 
 ### Installation Instructions
 
-Download the orca tool and SDK from https://github.com/orca-app/orca/releases/latest, and put the orca folder where you want orca to be installed.
+Download the orca tool and SDK from [https://github.com/orca-app/orca/releases/latest](https://github.com/orca-app/orca/releases/latest), and put the orca folder where you want orca to be installed.
 
 - **Windows:**  
 	- Download `orca-windows.tar.gz`  
@@ -47,7 +48,7 @@ Download the orca tool and SDK from https://github.com/orca-app/orca/releases/la
 	- Download `orca-mac-x64.tar.gz`  
 	- Extract: `tar -xzf orca-mac-x64.tar.gz`
 
-Add the orca directory to your PATH environment variable:  
+Add the orca tool directory to your PATH environment variable:  
 
 - **Windows Instructions:** [https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))
 - **Mac Instructions:** [https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac](https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac)
@@ -83,7 +84,7 @@ Orca apps are WebAssembly modules that use the Orca APIs. The process for creati
 1. Compile a WebAssembly module using your language and toolchain of choice.
 2. Bundle the WebAssembly module into a native executable using the Orca command-line tools.
 
-For a more thorough overview, please read the [Quick Start Guide](./doc/QuickStart.md), which will walk you through building a simple application.
+For a more thorough overview, please read the [Quick Start Guide](./doc/mkdocs/docs/QuickStart.md), which will walk you through building a simple application.
 
 The following additional resources may also help you familiarize yourself with Orca and its APIs:
 
@@ -93,11 +94,11 @@ The following additional resources may also help you familiarize yourself with O
 	- [`triangle`](./samples/triangle) shows how to draw a spinning triangle using the GLES API.
 	- [`fluid`](./samples/fluid) is a fluid simulation using a more complex GLES setup.
 	- [`ui`](./samples/ui) showcases the UI API and Orca's default UI widgets.
-- The [API Cheatsheets](./doc/cheatsheets) provide a list of Orca API functions, grouped by topic.
+- The [Online Documentation](https://docs.orca-app.dev) provide a list of Orca API functions, grouped by topic.
 
 ## Building Orca from source
 
-See [./doc/building.md](./doc/building.md).
+See [Building.md](./doc/mkdocs/docs/building.md).
 
 
 ## FAQ
