@@ -46,7 +46,7 @@ def type_struct_or_union(entries, decl, tu):
                 "type": type_from_ast(entries, child.type, tu)
             }
 
-            #NOTE: fields whose type is anonymous have two decl, one for the _anonymous type_ and one the the _named field_.
+            #NOTE: fields whose type is anonymous have two decl, one for the _anonymous type_ and one the _named field_.
             #      so for example, a field:
             #
             #      struct { int x; } foo;

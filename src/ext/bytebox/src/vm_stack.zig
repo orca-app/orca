@@ -1650,7 +1650,7 @@ const InstructionFuncs = struct {
 
         var next: FuncCallData = undefined;
 
-        // determine if this is a a scope or function call exit
+        // determine if this is a scope or function call exit
         const top_label: *const Label = stack.topLabel();
         const frame_label: *const Label = stack.frameLabel();
         if (top_label != frame_label) {

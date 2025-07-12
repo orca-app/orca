@@ -833,7 +833,7 @@ extern "C"
   The main declaration needed is the mallinfo struct that is returned
   (by-copy) by mallinfo().  The SVID/XPG malloinfo struct contains a
   bunch of fields that are not even meaningful in this version of
-  malloc.  These fields are are instead filled by mallinfo() with
+  malloc.  These fields are instead filled by mallinfo() with
   other numbers that might be of interest.
 
   HAVE_USR_INCLUDE_MALLOC_H should be set if you have a
@@ -2793,7 +2793,7 @@ INTERNAL_SIZE_T s;
     always true of any allocated chunk; i.e., that each allocated
     chunk borders either a previously allocated and still in-use
     chunk, or the base of its memory arena. This is ensured
-    by making all allocations from the the `lowest' part of any found
+    by making all allocations from the `lowest' part of any found
     chunk.  This does not necessarily hold however for chunks
     recycled via fastbins.
   */
