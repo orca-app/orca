@@ -343,3 +343,31 @@ oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* tab
     }
     return (cmp);
 }
+
+oc_io_cmp oc_io_close(oc_file_slot* slot, oc_io_req* req, oc_file_table* table)
+{
+    oc_io_cmp cmp = { 0 };
+    if(slot->fd >= 0)
+    {
+        oc_io_raw_close(slot->fd);
+    }
+    oc_file_slot_recycle(table, slot);
+    return (cmp);
+}
+
+static oc_io_cmp oc_io_fstat(oc_file_slot* slot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+
+    if(req->size < sizeof(oc_file_status))
+    {
+        cmp.error = OC_IO_ERR_ARG;
+    }
+    else
+    {
+        slot->error = oc_io_raw_fstat(slot->fd, (oc_file_status*)req->buffer);
+        cmp.error = slot->error;
+    }
+    return (cmp);
+}
+

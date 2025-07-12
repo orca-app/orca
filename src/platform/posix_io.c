@@ -462,45 +462,6 @@ bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_fla
     return (result);
 }
 
-oc_io_cmp oc_io_close(oc_file_slot* slot, oc_io_req* req, oc_file_table* table)
-{
-    oc_io_cmp cmp = { 0 };
-    if(slot->fd >= 0)
-    {
-        close(slot->fd);
-    }
-    oc_file_slot_recycle(table, slot);
-    return (cmp);
-}
-
-oc_io_cmp oc_io_fstat(oc_file_slot* slot, oc_io_req* req)
-{
-    oc_io_cmp cmp = { 0 };
-
-    if(req->size < sizeof(oc_file_status))
-    {
-        cmp.error = OC_IO_ERR_ARG;
-    }
-    else
-    {
-        struct stat s;
-        if(fstat(slot->fd, &s))
-        {
-            slot->error = oc_io_raw_last_error();
-            cmp.error = slot->error;
-        }
-        else
-        {
-            oc_file_status* status = (oc_file_status*)req->buffer;
-            status->perm = oc_io_convert_perm_from_stat(s.st_mode);
-            status->type = oc_io_convert_type_from_stat(s.st_mode);
-            status->size = s.st_size;
-            //TODO: times
-        }
-    }
-    return (cmp);
-}
-
 oc_io_cmp oc_io_seek(oc_file_slot* slot, oc_io_req* req)
 {
     oc_io_cmp cmp = { 0 };

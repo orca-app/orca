@@ -423,33 +423,6 @@ oc_io_raw_read_link_result oc_io_raw_read_link_at(oc_arena* arena, oc_file_desc 
     return (result);
 }
 
-static oc_io_cmp oc_io_close(oc_file_slot* slot, oc_io_req* req, oc_file_table* table)
-{
-    oc_io_cmp cmp = { 0 };
-    if(slot->fd)
-    {
-        CloseHandle(slot->fd);
-    }
-    oc_file_slot_recycle(table, slot);
-    return (cmp);
-}
-
-static oc_io_cmp oc_io_fstat(oc_file_slot* slot, oc_io_req* req)
-{
-    oc_io_cmp cmp = { 0 };
-
-    if(req->size < sizeof(oc_file_status))
-    {
-        cmp.error = OC_IO_ERR_ARG;
-    }
-    else
-    {
-        slot->error = oc_io_raw_fstat(slot->fd, (oc_file_status*)req->buffer);
-        cmp.error = slot->error;
-    }
-    return (cmp);
-}
-
 static oc_io_cmp oc_io_seek(oc_file_slot* slot, oc_io_req* req)
 {
     oc_io_cmp cmp = { 0 };

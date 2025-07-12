@@ -71,6 +71,8 @@ enum oc_io_op_enum
 
     OC_OC_IO_ERROR,
     //...
+
+    OC_IO_OP_MAX,
 };
 
 typedef struct oc_io_req

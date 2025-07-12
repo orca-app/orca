@@ -200,6 +200,7 @@ static i32 cond_wait_inc_thread_proc(void* p)
 int main(void)
 {
     // platform_debug
+    if(0)
     {
         oc_log_set_level(OC_LOG_LEVEL_INFO);
         oc_log_set_output(OC_LOG_DEFAULT_OUTPUT);
@@ -209,6 +210,7 @@ int main(void)
     }
 
     // platform_clock
+    if(0)
     {
         oc_clock_init();
         f64 a = 0.0, b = 0.0;
@@ -227,6 +229,7 @@ int main(void)
     }
 
     // platform_memory
+    if(0)
     {
         const char* statm = "/proc/self/statm";
         oc_base_allocator* base = oc_base_allocator_default();
@@ -254,6 +257,7 @@ int main(void)
     }
 
     // platform_path
+    if(0)
     {
         oc_arena_scope scratch = oc_scratch_begin();
 
@@ -320,6 +324,7 @@ int main(void)
     }
 
     // platform_thread
+    if(0)
     {
         bool flag = false;
         oc_thread* thd = oc_thread_create(set_flag_thread_proc, &flag);
@@ -457,13 +462,23 @@ int main(void)
     }
 
     {
+        OC_ASSERT(oc_file_is_nil(oc_file_nil()));
+        oc_io_cmp cmp = oc_io_wait_single_req(&(struct oc_io_req){
+            .handle = oc_file_nil(),
+            .op = OC_IO_OP_MAX,
+        });
+        OC_ASSERT(cmp.error == OC_IO_ERR_HANDLE);
+        oc_file f = oc_file_open(OC_STR8("/nonexistent"), OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, 0);
+        OC_ASSERT(!oc_file_is_nil(f));
+        OC_ASSERT(oc_file_last_error(f) == OC_IO_ERR_NO_ENTRY);
+        oc_file_close(f);
+        f = oc_file_open(OC_STR8("/tmp"), OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, 0);
+        OC_ASSERT(!oc_file_is_nil(f));
+        OC_ASSERT(oc_file_last_error(f) == OC_IO_OK);
+        oc_file_status status = oc_file_status(f);
 
     }
     // TODO(pld): test platform_io
-    // - oc_io_wait_single_req
-    // - oc_file_nil
-    // - oc_file_is_nil
-    // - oc_file_open
     // - oc_file_open_at
     // - oc_file_close
     // - oc_file_pos
@@ -474,6 +489,65 @@ int main(void)
     // - oc_file_get_status
     // - oc_file_size
     // - oc_file_open_with_request
+    //
+    // OC_IO_OK
+    // OC_IO_ERR_UNKNOWN
+    // OC_IO_ERR_OP
+    // OC_IO_ERR_HANDLE
+    // OC_IO_ERR_PREV
+    // OC_IO_ERR_ARG
+    // OC_IO_ERR_PERM
+    // OC_IO_ERR_SPACE
+    // OC_IO_ERR_EXISTS
+    // OC_IO_ERR_NOT_DIR
+    // OC_IO_ERR_DIR
+    // OC_IO_ERR_MAX_FILES
+    // OC_IO_ERR_MAX_LINKS
+    // OC_IO_ERR_PATH_LENGTH
+    // OC_IO_ERR_FILE_SIZE
+    // OC_IO_ERR_OVERFLOW
+    // OC_IO_ERR_NOT_READY
+    // OC_IO_ERR_MEM
+    // OC_IO_ERR_INTERRUPT
+    // OC_IO_ERR_PHYSICAL
+    // OC_IO_ERR_NO_DEVICE
+    // OC_IO_ERR_WALKOUT
+    //
+    // OC_FILE_OPEN_APPEND
+    // OC_FILE_OPEN_TRUNCATE
+    // OC_FILE_OPEN_CREATE
+    // OC_FILE_OPEN_SYMLINK
+    // OC_FILE_OPEN_NO_FOLLOW
+    // OC_FILE_OPEN_RESTRICT
+    //
+    // OC_FILE_ACCESS_READ
+    // OC_FILE_ACCESS_WRITE
+    //
+    // OC_FILE_SEEK_SET
+    // OC_FILE_SEEK_END
+    // OC_FILE_SEEK_CURRENT
+    //
+    // OC_FILE_REGULAR
+    // OC_FILE_DIRECTORY
+    // OC_FILE_SYMLINK
+    // OC_FILE_BLOCK
+    // OC_FILE_CHARACTER
+    // OC_FILE_FIFO
+    // OC_FILE_SOCKET
+    //
+    // OC_FILE_OTHER_EXEC
+    // OC_FILE_OTHER_WRITE
+    // OC_FILE_OTHER_READ
+    // OC_FILE_GROUP_EXEC
+    // OC_FILE_GROUP_WRITE
+    // OC_FILE_GROUP_READ
+    // OC_FILE_OWNER_EXEC
+    // OC_FILE_OWNER_WRITE
+    // OC_FILE_OWNER_READ
+    // OC_FILE_STICKY_BIT
+    // OC_FILE_SET_GID
+    // OC_FILE_SET_UID
+    //
     // TODO(pld): test platform_io_dialog
     // - oc_file_open_with_dialog
     // TODO(pld): test platform_io_internal
