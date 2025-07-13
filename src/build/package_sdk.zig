@@ -230,7 +230,25 @@ pub fn main() !void {
         "libGLESv2.dylib",
         "libwebgpu.dylib",
     };
-    const bin_files = if (opts.target_os == .windows) bin_files_windows else bin_files_macos;
+    const bin_files_linux: []const []const u8 = &.{
+        "orca_tool",
+        "orca_runtime",
+        "liborca_platform.so",
+        "liborca_wasm.a",
+        "libEGL.so",
+        "libGLESv2.so",
+        "libwebgpu.so",
+    };
+    var bin_files: []const []const u8 = undefined;
+    if (opts.target_os == .windows) {
+        bin_files = bin_files_windows;
+    } else if (opts.target_os.isDarwin()) {
+        bin_files = bin_files_macos;
+    } else if (opts.target_os == .linux) {
+        bin_files = bin_files_linux;
+    } else {
+        @panic("Unsupported OS");
+    }
     try copyFolder(opts.arena, dest_bin_path, src_bin_path, &.{ .required_filenames = bin_files });
 
     const src_paths: []const []const u8 = &.{

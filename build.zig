@@ -7,6 +7,7 @@ const Module = Build.Module;
 const ModuleImport = Module.Import;
 const CrossTarget = std.zig.CrossTarget;
 const CompileStep = std.Build.Step.Compile;
+const fs = std.fs;
 
 const MACOS_VERSION_MIN = "13.0.0";
 
@@ -63,7 +64,7 @@ fn homePath(target: Build.ResolvedTarget, b: *Build) []const u8 {
                     HOME_PATH = b.pathJoin(&.{ home_drive, home_path });
                 }
             }
-        } else if (target.result.os.tag.isDarwin()) {
+        } else if (target.result.os.tag.isDarwin() or target.result.os.tag == .linux) {
             if (envmap.get("HOME")) |path| {
                 HOME_PATH = b.allocator.dupe(u8, path) catch @panic("OOM");
             } else {
@@ -415,6 +416,8 @@ pub fn build(b: *Build) !void {
         orca_tool_exe.linkFramework("CoreServices");
         orca_tool_exe.linkFramework("SystemConfiguration");
         orca_tool_exe.linkFramework("Security");
+    } else if (target.result.os.tag == .linux) {
+        // TODO(pld)
     }
 
     orca_tool_exe.step.dependOn(&curl_lib.step);
@@ -459,6 +462,11 @@ pub fn build(b: *Build) !void {
                 angle_lib_path = angle_dep.path("lib");
             }
         }
+    } else if (false and target.result.os.tag == .linux) {
+        if (b.lazyDependency("angle-linux-x64", .{})) |angle_dep| {
+            angle_include_path = angle_dep.path("include");
+            angle_lib_path = angle_dep.path("lib");
+        }
     } else {
         const fail = b.addFail("Angle not configured for this platform.");
         b.getInstallStep().dependOn(&fail.step);
@@ -490,6 +498,11 @@ pub fn build(b: *Build) !void {
                 dawn_include_path = dawn_dep.path("include");
                 dawn_lib_path = dawn_dep.path("lib");
             }
+        }
+    } else if (false and target.result.os.tag == .linux) {
+        if (b.lazyDependency("dawn-linux-x64", .{})) |dawn_dep| {
+            dawn_include_path = dawn_dep.path("include");
+            dawn_lib_path = dawn_dep.path("lib");
         }
     } else {
         const fail = b.addFail("Dawn not configured for this platform.");
@@ -701,6 +714,20 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
 
         try orca_platform_files.append("src/orca.m");
+    } else if (target.result.os.tag == .linux) {
+        //orca_platform_lib.linkLibC();
+        orca_platform_lib.linkSystemLibrary("EGL");
+        orca_platform_lib.linkSystemLibrary("GLESv2");
+        orca_platform_lib.linkSystemLibrary("webgpu");
+        // TODO(pld): package deps
+        orca_platform_lib.linkSystemLibrary("X11");
+        orca_platform_lib.linkSystemLibrary("xcb");
+        orca_platform_lib.linkSystemLibrary("X11-xcb");
+        orca_platform_lib.linkSystemLibrary("c");
+        orca_platform_lib.addIncludePath(LazyPath{ .cwd_relative = "/usr/include" });
+        orca_platform_lib.addLibraryPath(LazyPath{ .cwd_relative = "/usr/lib/x86_64-linux-gnu" });
+        orca_platform_lib.root_module.addRPathSpecial("$ORIGIN");
+        orca_platform_lib.each_lib_rpath = false;
     }
 
     orca_platform_lib.addCSourceFiles(.{
@@ -797,15 +824,26 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.addIncludePath(angle_include_path);
     orca_runtime_exe.addIncludePath(b.path("src/ext/wasm3/source"));
 
-    orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
-
     orca_runtime_exe.addCSourceFiles(.{
         .files = &.{"src/runtime.c"},
         .flags = orca_runtime_compile_flags.items,
     });
 
     orca_runtime_exe.linkLibrary(wasm3_lib);
-    orca_runtime_exe.linkLibrary(orca_platform_lib);
+    if (target.result.os.tag == .windows) {
+        orca_runtime_exe.linkLibrary(orca_platform_lib);
+    } else if (target.result.os.tag.isDarwin()) {
+        orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
+        orca_runtime_exe.linkLibrary(orca_platform_lib);
+    } else if (target.result.os.tag == .linux) {
+        orca_runtime_exe.step.dependOn(&orca_platform_lib.step);
+        orca_runtime_exe.addLibraryPath(orca_platform_lib.getEmittedBinDirectory());
+        orca_runtime_exe.linkSystemLibrary(orca_platform_lib.name);
+        orca_runtime_exe.root_module.addRPathSpecial("$ORIGIN");
+        orca_runtime_exe.each_lib_rpath = false;
+    } else {
+        @panic("Unsupported OS");
+    }
     orca_runtime_exe.linkLibC();
 
     orca_runtime_exe.step.dependOn(&install_angle_libs.step);
@@ -1218,6 +1256,9 @@ pub fn build(b: *Build) !void {
                 } else if (target.result.os.tag.isDarwin()) {
                     const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{config.name}) });
                     run_sample.addArgs(&.{ "open", app_path });
+                } else if (target.result.os.tag == .linux) {
+                    const exe_path = b.pathJoin(&.{ output_path, config.name, "bin", b.fmt("{s}", .{config.name}) });
+                    run_sample.addArg(exe_path);
                 } else {
                     @panic("Unsupported OS");
                 }
@@ -1300,6 +1341,7 @@ pub fn build(b: *Build) !void {
         "triangleMetal",
         // "triangleWGPU", // bitrotted
         // "ui", // bitrotted
+        "linux",
     };
 
     for (sketches_folders) |sketch| {
@@ -1309,6 +1351,9 @@ pub fn build(b: *Build) !void {
         }
 
         if (std.mem.eql(u8, "triangleMetal", sketch) and target.result.os.tag.isDarwin() == false) {
+            continue;
+        }
+        if (std.mem.eql(u8, "linux", sketch) and target.result.os.tag != .linux) {
             continue;
         }
 
@@ -1333,7 +1378,16 @@ pub fn build(b: *Build) !void {
             .files = &.{sketch_source},
             .flags = flags,
         });
-        sketch_exe.linkLibrary(orca_platform_lib);
+
+        if (target.result.os.tag == .linux) {
+            sketch_exe.step.dependOn(&orca_platform_lib.step);
+            sketch_exe.addLibraryPath(orca_platform_lib.getEmittedBinDirectory());
+            sketch_exe.linkSystemLibrary(orca_platform_lib.name);
+            sketch_exe.root_module.addRPathSpecial("$ORIGIN");
+            sketch_exe.each_lib_rpath = false;
+        } else {
+            sketch_exe.linkLibrary(orca_platform_lib);
+        }
 
         const install: *Build.Step.InstallArtifact = b.addInstallArtifact(sketch_exe, sketches_install_opts);
         sketches.dependOn(&install.step);

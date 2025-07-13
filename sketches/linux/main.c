@@ -83,7 +83,7 @@ static i32 set_flag_thread_proc(void* p)
     return 1;
 }
 
-static i64 gettid(void)
+pid_t gettid(void)
 {
     return (i64)syscall(SYS_gettid);
 }
@@ -200,7 +200,7 @@ static i32 cond_wait_inc_thread_proc(void* p)
 int main(void)
 {
     // platform_debug
-    if(0)
+    if(1)
     {
         oc_log_set_level(OC_LOG_LEVEL_INFO);
         oc_log_set_output(OC_LOG_DEFAULT_OUTPUT);
@@ -210,7 +210,7 @@ int main(void)
     }
 
     // platform_clock
-    if(0)
+    if(1)
     {
         oc_clock_init();
         f64 a = 0.0, b = 0.0;
@@ -229,7 +229,7 @@ int main(void)
     }
 
     // platform_memory
-    if(0)
+    if(1)
     {
         const char* statm = "/proc/self/statm";
         oc_base_allocator* base = oc_base_allocator_default();
@@ -257,7 +257,7 @@ int main(void)
     }
 
     // platform_path
-    if(0)
+    if(1)
     {
         oc_arena_scope scratch = oc_scratch_begin();
 
@@ -316,15 +316,15 @@ int main(void)
         }
         OC_ASSERT(oc_path_is_absolute(OC_STR8("/tmp/a/b/c")));
         OC_ASSERT(!oc_path_is_absolute(OC_STR8("../hello")));
-        OC_ASSERT(oc_str8_eq(oc_path_executable(scratch.arena), OC_STR8("/tmp/main")));
+        OC_ASSERT(oc_str8_eq(oc_path_executable(scratch.arena), OC_STR8("/tmp/zig-out-orca/sketches/linux")));
         OC_ASSERT(oc_str8_eq(oc_path_canonical(scratch.arena, OC_STR8("../../../../bin/bash")), OC_STR8("/bin/bash")));
-        OC_ASSERT(oc_str8_eq(oc_path_executable_relative(scratch.arena, OC_STR8("../bin/bash")), OC_STR8("/tmp/../bin/bash")));
+        OC_ASSERT(oc_str8_eq(oc_path_executable_relative(scratch.arena, OC_STR8("../../../bin/bash")), OC_STR8("/tmp/zig-out-orca/sketches/../../../bin/bash")));
 
         oc_scratch_end(scratch);
     }
 
     // platform_thread
-    if(0)
+    if(1)
     {
         bool flag = false;
         oc_thread* thd = oc_thread_create(set_flag_thread_proc, &flag);
@@ -461,6 +461,7 @@ int main(void)
         }
     }
 
+    #if 0
     {
         OC_ASSERT(oc_file_is_nil(oc_file_nil()));
         oc_io_cmp cmp = oc_io_wait_single_req(&(struct oc_io_req){
@@ -478,6 +479,7 @@ int main(void)
         oc_file_status status = oc_file_status(f);
 
     }
+    #endif
     // TODO(pld): test platform_io
     // - oc_file_open_at
     // - oc_file_close
