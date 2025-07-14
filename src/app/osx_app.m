@@ -716,7 +716,11 @@ void oc_install_keyboard_layout_listener()
 - (BOOL)windowShouldClose:(id)sender
 {
     OCWindow* ocWindow = (OCWindow*)mpWindow->osx.nsWindow;
+
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     CVDisplayLinkStop(ocWindow->displayLink);
+    #pragma clang diagnostic pop
 
     mpWindow->shouldClose = true;
 
@@ -2168,11 +2172,14 @@ static CVReturn oc_display_link_callback(
 
             if(selectedDisplay)
             {
+                #pragma clang diagnostic push
+                #pragma clang diagnostic ignored "-Wdeprecated-declarations"
                 CGDirectDisplayID currentDisplay = CVDisplayLinkGetCurrentCGDisplay(ocWindow->displayLink);
                 if(currentDisplay != *selectedDisplay)
                 {
                     CVDisplayLinkSetCurrentCGDisplay(ocWindow->displayLink, *selectedDisplay);
                 }
+                #pragma clang diagnostic pop
             }
         }
     }
@@ -2201,6 +2208,8 @@ void oc_vsync_wait(oc_window window)
 
     CVReturn ret;
 
+    #pragma clang diagnostic push
+    #pragma clang diagnostic ignored "-Wdeprecated-declarations"
     if((ret = CVDisplayLinkCreateWithActiveCGDisplays(&ocWindow->displayLink)) != kCVReturnSuccess)
     {
         oc_log_error("CVDisplayLinkCreateWithActiveCGDisplays error: %d\n", ret);
@@ -2222,4 +2231,5 @@ void oc_vsync_wait(oc_window window)
     {
         oc_log_error("CVDisplayLinkStart ret: %d\n", ret);
     }
+    #pragma clang diagnostic pop
 }
