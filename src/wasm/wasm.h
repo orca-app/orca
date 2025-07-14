@@ -11,10 +11,6 @@
     #error OC_WASM_BACKEND_WASM3 must be defined to 0 or 1
 #endif
 
-#ifndef OC_WASM_BACKEND_BYTEBOX
-    #error OC_WASM_BACKEND_BYTEBOX must be defined to 0 or 1
-#endif
-
 typedef enum oc_wasm_status
 {
     OC_WASM_STATUS_SUCCESS,
