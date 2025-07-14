@@ -24,8 +24,6 @@
 #include "wasm/wasm.c"
 #if OC_WASM_BACKEND_WASM3
     #include "wasm/backend_wasm3.c"
-#elif OC_WASM_BACKEND_BYTEBOX
-    #include "wasm/backend_bytebox.c"
 #else
     #error "Unknown wasm backend"
 #endif

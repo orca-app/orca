@@ -778,7 +778,6 @@ pub fn build(b: *Build) !void {
     defer orca_runtime_compile_flags.deinit();
     try orca_runtime_compile_flags.append("-Werror");
     try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
-    try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_BYTEBOX=0");
     if (optimize == .Debug) {
         try orca_runtime_compile_flags.append("-DOC_DEBUG");
         try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
