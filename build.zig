@@ -6,7 +6,6 @@ const Step = Build.Step;
 const Module = Build.Module;
 const ModuleImport = Module.Import;
 const CrossTarget = std.zig.CrossTarget;
-const CompileStep = std.Build.Step.Compile;
 
 const MACOS_VERSION_MIN = "13.0.0";
 
@@ -104,6 +103,131 @@ fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.St
     copy_outputs_to_src.step.dependOn(&run.step);
 
     return copy_outputs_to_src;
+}
+
+const OrcaAppBuildParams = struct {
+    name: []const u8,
+    sources: []const []const u8,
+    install: []const u8, // Orca app will be bundled to zig-out/{install}/{name}
+
+    icon_path: ?[]const u8 = null,
+    resource_path: ?[]const u8 = null,
+    shaders: ?[]const []const u8 = null,
+    create_run_step: bool = false, // if false or the target is not the host platform, no run step will be generated
+};
+
+const OrcaAppBuildSteps = struct {
+    build_or_bundle: *Step,
+    run: ?*Step.Run,
+};
+
+fn buildOrcaApp(
+    b: *Build,
+    target: Build.ResolvedTarget,
+    wasm_sdk_lib: *Step.Compile,
+    wasm_libc_lib: *Step.Compile,
+    gen_header_exe: *Step.Compile,
+    orca_install: *Step,
+    params: OrcaAppBuildParams,
+) OrcaAppBuildSteps {
+    var wasm_target_query: std.Target.Query = .{
+        .cpu_arch = std.Target.Cpu.Arch.wasm32,
+        .os_tag = std.Target.Os.Tag.freestanding,
+    };
+    wasm_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.bulk_memory));
+    wasm_target_query.cpu_features_add.addFeature(@intFromEnum(std.Target.wasm.Feature.nontrapping_fptoint));
+
+    const wasm_target: Build.ResolvedTarget = b.resolveTargetQuery(wasm_target_query);
+    const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
+
+    const wasm_module = b.addExecutable(.{
+        .name = "module",
+        .linkage = .static,
+        .root_module = b.createModule(.{
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .single_threaded = true,
+            .link_libc = false,
+            .strip = true, // setting to true removes all embedded DWARF info
+        }),
+    });
+    wasm_module.entry = .disabled;
+    wasm_module.rdynamic = true;
+    wasm_module.addIncludePath(b.path("src"));
+    wasm_module.addIncludePath(b.path("src/ext"));
+    wasm_module.addIncludePath(b.path("src/orca-libc/include"));
+    wasm_module.linkLibrary(wasm_sdk_lib);
+    wasm_module.linkLibrary(wasm_libc_lib);
+    wasm_module.addCSourceFiles(.{
+        .files = params.sources,
+        .flags = &.{},
+    });
+
+    if (params.shaders) |shaders| {
+        const run_gen_glsl_header: *Build.Step.Run = b.addRunArtifact(gen_header_exe);
+        for (shaders) |shader_path| {
+            run_gen_glsl_header.addPrefixedFileArg("--file=", b.path(shader_path));
+        }
+        run_gen_glsl_header.addArg("--namespace=glsl_");
+        run_gen_glsl_header.addPrefixedDirectoryArg("--root=", b.path(""));
+        const glsl_header_path = run_gen_glsl_header.addPrefixedOutputFileArg(
+            "--output=",
+            b.fmt("apps/{s}/generated_headers/glsl_shaders.h", .{params.name}),
+        );
+
+        wasm_module.step.dependOn(&run_gen_glsl_header.step);
+        wasm_module.addIncludePath(glsl_header_path.dirname());
+    }
+
+    // Bundling and running unavailable when cross-compiling
+    // NOTE - we could make building available when cross-compiling, would just need to ensure
+    //        a native version of the orca CLI was installed somewhere (maybe even in zig-out)
+    if (params.create_run_step and target.result.os.tag == b.graph.host.result.os.tag) {
+        const bundle: *Step.Run = b.addSystemCommand(&.{"orca"});
+        bundle.addArg("bundle");
+        bundle.addArgs(&.{ "--name", params.name });
+        if (params.icon_path) |icon_path| {
+            bundle.addArg("--icon");
+            bundle.addFileArg(b.path(icon_path));
+        }
+        if (params.resource_path) |resource_path| {
+            bundle.addArg("--resource-dir");
+            bundle.addDirectoryArg(b.path(resource_path));
+        }
+
+        const output_path = b.getInstallPath(.{ .custom = params.install }, "");
+        bundle.addArgs(&.{ "--out-dir", output_path });
+        bundle.addFileArg(wasm_module.getEmittedBin());
+
+        // NOTE This dependency is currently necessary because only the package-sdk command can put all the
+        //      needed files in place to allow the orca CLI to run properly.
+        // TODO Change the organization of zig-out/ to match how the orca package is organized so we can run
+        //      the CLI tool locally without needing to install to the orca system directory.
+        bundle.step.dependOn(orca_install);
+
+        const run_app = Step.Run.create(b, b.fmt("run {s}", .{params.name}));
+        run_app.step.dependOn(&bundle.step);
+
+        if (target.result.os.tag == .windows) {
+            const exe_path = b.pathJoin(&.{ output_path, params.name, "bin", b.fmt("{s}.exe", .{params.name}) });
+            run_app.addArg(exe_path);
+        } else if (target.result.os.tag.isDarwin()) {
+            const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{params.name}) });
+            run_app.addArgs(&.{ "open", app_path });
+        } else {
+            @panic("Unsupported OS");
+        }
+
+        return OrcaAppBuildSteps{
+            .build_or_bundle = &bundle.step,
+            .run = run_app,
+        };
+    } else {
+        return OrcaAppBuildSteps{
+            .build_or_bundle = &wasm_module.step,
+            .run = null,
+        };
+    }
 }
 
 pub fn build(b: *Build) !void {
@@ -1117,119 +1241,55 @@ pub fn build(b: *Build) !void {
             has_icon: bool,
             has_resources: bool,
             has_shaders: bool,
-            files: []const []const u8,
+            sources: []const []const u8,
         };
         // zig fmt: off
         const all_samples = [_]SampleConfig{
-            .{ .name = "breakout", .has_icon = true,  .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
-            .{ .name = "clock",    .has_icon = true,  .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
-            .{ .name = "fluid",    .has_icon = true,  .has_resources = false, .has_shaders = true,  .files = &.{"main.c"} },
-            .{ .name = "microui",  .has_icon = false, .has_resources = true,  .has_shaders = false, .files = &.{"main.c", "microui/microui.c"} },
-            .{ .name = "triangle", .has_icon = false, .has_resources = false, .has_shaders = false, .files = &.{"main.c"} },
-            .{ .name = "ui",       .has_icon = false, .has_resources = true,  .has_shaders = false, .files = &.{"main.c"} },
+            .{ .name = "breakout", .has_icon = true,  .has_resources = true,  .has_shaders = false, .sources = &.{"main.c"} },
+            .{ .name = "clock",    .has_icon = true,  .has_resources = true,  .has_shaders = false, .sources = &.{"main.c"} },
+            .{ .name = "fluid",    .has_icon = true,  .has_resources = false, .has_shaders = true,  .sources = &.{"main.c"} },
+            .{ .name = "microui",  .has_icon = false, .has_resources = true,  .has_shaders = false, .sources = &.{"main.c", "microui/microui.c"} },
+            .{ .name = "triangle", .has_icon = false, .has_resources = false, .has_shaders = false, .sources = &.{"main.c"} },
+            .{ .name = "ui",       .has_icon = false, .has_resources = true,  .has_shaders = false, .sources = &.{"main.c"} },
         };
         // zig fmt: on
 
         for (all_samples) |config| {
-            var files: std.ArrayList([]const u8) = .init(b.allocator);
-            try files.ensureTotalCapacity(config.files.len);
-            for (config.files) |shortpath| {
+            var sources: std.ArrayList([]const u8) = .init(b.allocator);
+            try sources.ensureTotalCapacity(config.sources.len);
+            for (config.sources) |shortpath| {
                 const path = b.pathJoin(&.{ "samples", config.name, "src", shortpath });
-                files.appendAssumeCapacity(path);
+                sources.appendAssumeCapacity(path);
             }
 
-            const sample_wasm = b.addExecutable(.{
-                .name = "module",
-                .linkage = .static,
-                .root_module = b.createModule(.{
-                    .target = wasm_target,
-                    .optimize = wasm_optimize,
-                    .single_threaded = true,
-                    .link_libc = false,
-                }),
-            });
-            sample_wasm.entry = .disabled;
-            sample_wasm.rdynamic = true;
-            sample_wasm.addIncludePath(b.path("src"));
-            sample_wasm.addIncludePath(b.path("src/ext"));
-            sample_wasm.addIncludePath(b.path("src/orca-libc/include"));
-            sample_wasm.linkLibrary(wasm_sdk_lib);
-            sample_wasm.linkLibrary(wasm_libc_lib);
-            sample_wasm.addCSourceFiles(.{
-                .files = files.items,
-                .flags = &.{},
-            });
+            const icon_path = if (config.has_icon) b.pathJoin(&.{ "samples", config.name, "icon.png" }) else null;
+            const resource_path = if (config.has_resources) b.pathJoin(&.{ "samples", config.name, "data" }) else null;
 
+            var shader_sources = SourceFileCollector.init(b, ".glsl");
             if (config.has_shaders) {
-                var shader_sources = SourceFileCollector.init(b, ".glsl");
                 const path = b.pathJoin(&.{ "samples", config.name, "src", "shaders" });
                 try shader_sources.collect(path);
                 std.debug.assert(shader_sources.files.items.len > 0);
-
-                const run_gen_glsl_header: *Build.Step.Run = b.addRunArtifact(gen_header_exe);
-                for (shader_sources.files.items) |shader_path| {
-                    run_gen_glsl_header.addPrefixedFileArg("--file=", b.path(shader_path));
-                }
-                run_gen_glsl_header.addArg("--namespace=glsl_");
-                run_gen_glsl_header.addPrefixedDirectoryArg("--root=", b.path(""));
-                const glsl_header_path = run_gen_glsl_header.addPrefixedOutputFileArg(
-                    "--output=",
-                    b.fmt("samples/{s}/generated_headers/glsl_shaders.h", .{config.name}),
-                );
-
-                sample_wasm.step.dependOn(&run_gen_glsl_header.step);
-                sample_wasm.addIncludePath(glsl_header_path.dirname());
             }
 
-            // Bundling and running samples unavailable when cross-compiling
-            // NOTE - we could make building available when cross-compiling, would just need to ensure
-            //        a native version of the orca CLI was installed somewhere (maybe even in zig-out)
-            if (target.result.os.tag == b.graph.host.result.os.tag) {
-                const bundle: *Step.Run = b.addSystemCommand(&.{"orca"});
-                bundle.addArg("bundle");
-                bundle.addArgs(&.{ "--name", config.name });
-                if (config.has_icon) {
-                    const icon_path = b.pathJoin(&.{ "samples", config.name, "icon.png" });
-                    bundle.addArg("--icon");
-                    bundle.addFileArg(b.path(icon_path));
-                }
-                if (config.has_resources) {
-                    const resource_path = b.pathJoin(&.{ "samples", config.name, "data" });
-                    bundle.addArg("--resource-dir");
-                    bundle.addDirectoryArg(b.path(resource_path));
-                }
+            const steps = buildOrcaApp(b, target, wasm_sdk_lib, wasm_libc_lib, gen_header_exe, &orca_install.step, .{
+                .name = config.name,
+                .sources = sources.items,
+                .install = "samples",
 
-                const output_path = b.getInstallPath(.{ .custom = "samples" }, "");
-                bundle.addArgs(&.{ "--out-dir", output_path });
-                bundle.addFileArg(sample_wasm.getEmittedBin());
+                .icon_path = icon_path,
+                .resource_path = resource_path,
+                .shaders = if (shader_sources.files.items.len > 0) shader_sources.files.items else null,
+                .create_run_step = true,
+            });
 
-                // NOTE This dependency is currently necessary because only the package-sdk command can put all the
-                //      needed files in place to allow the orca CLI to run properly.
-                // TODO Change the organization of zig-out/ to match how the orca package is organized so we can run
-                //      the CLI tool locally without needing to install to the orca system directory.
-                bundle.step.dependOn(&orca_install.step);
+            samples.dependOn(steps.build_or_bundle);
 
-                samples.dependOn(&bundle.step);
-
-                const run_sample = Step.Run.create(b, b.fmt("run sample {s}", .{config.name}));
-                run_sample.step.dependOn(&bundle.step);
-
-                if (target.result.os.tag == .windows) {
-                    const exe_path = b.pathJoin(&.{ output_path, config.name, "bin", b.fmt("{s}.exe", .{config.name}) });
-                    run_sample.addArg(exe_path);
-                } else if (target.result.os.tag.isDarwin()) {
-                    const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{config.name}) });
-                    run_sample.addArgs(&.{ "open", app_path });
-                } else {
-                    @panic("Unsupported OS");
-                }
-
+            if (steps.run) |run_sample| {
                 const run_sample_step_name = b.fmt("sample-{s}", .{config.name});
                 const run_sample_step_description = b.fmt("Build, bundle, and run the {s} sample", .{config.name});
                 const run_sample_step = b.step(run_sample_step_name, run_sample_step_description);
                 run_sample_step.dependOn(&run_sample.step);
-            } else {
-                samples.dependOn(&sample_wasm.step);
             }
         }
     }
@@ -1246,10 +1306,7 @@ pub fn build(b: *Build) !void {
     const orca_platform_sketches_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, sketches_install_opts);
     sketches.dependOn(&orca_platform_sketches_install.step);
 
-    const stage_sketch_dependency_artifacts = b.addUpdateSourceFiles();
     {
-        const sketches_install_path = b.pathJoin(&.{ b.install_path, "sketches" });
-
         const resources: []const []const u8 = &.{
             "resources/CMUSerif-Roman.ttf",
             "resources/Courier.ttf",
@@ -1263,12 +1320,14 @@ pub fn build(b: *Build) !void {
             "resources/triceratops.png",
         };
 
+        const sketches_install_path = b.pathJoin(&.{ b.install_path, "sketches" });
+
+        const stage_sketch_dependency_artifacts = b.addUpdateSourceFiles();
         for (resources) |resource| {
             const src = b.path(b.pathJoin(&.{ "sketches", resource }));
             const dest = b.pathJoin(&.{ sketches_install_path, resource });
             stage_sketch_dependency_artifacts.addCopyFileToSource(src, dest);
         }
-
         sketches.dependOn(&stage_sketch_dependency_artifacts.step);
 
         const sketches_install_dir: Build.InstallDir = .{ .custom = "sketches" };
@@ -1348,9 +1407,9 @@ pub fn build(b: *Build) !void {
 
     const TestConfig = struct {
         name: []const u8,
-        testfile: []const u8 = "main.c",
         run: bool = false,
         wasm: bool = false,
+        wasm_has_resources: bool = false,
     };
 
     // several tests require UI interactions so we won't run them all automatically, but configure
@@ -1372,62 +1431,74 @@ pub fn build(b: *Build) !void {
         },
         .{
             .name = "perf",
-            .testfile = "driver.c",
         },
         .{
-            .name = "wasm_tests",
+            .name = "wasm_stdio",
+            .run = true,
             .wasm = true,
+            .wasm_has_resources = true,
         },
     };
 
     for (test_configs) |config| {
-        // TODO add support for building wasm samples
+        const test_source: []const u8 = b.pathJoin(&.{ "tests", config.name, "main.c" });
+
         if (config.wasm) {
-            continue;
-        }
+            const test_resources: ?[]const u8 =
+                if (config.wasm_has_resources) b.pathJoin(&.{ "tests", config.name, "data" }) else null;
 
-        const test_source: []const u8 = b.pathJoin(&.{ "tests", config.name, config.testfile });
+            const steps = buildOrcaApp(b, target, wasm_sdk_lib, wasm_libc_lib, gen_header_exe, &orca_install.step, .{
+                .name = config.name,
+                .sources = &.{test_source},
+                .install = "tests",
 
-        const test_exe: *Build.Step.Compile = b.addExecutable(.{
-            .name = config.name,
-            .root_module = b.createModule(.{
-                .target = target,
-                .optimize = optimize,
-                .link_libc = true,
-            }),
-        });
-        test_exe.addIncludePath(b.path("src"));
-        test_exe.addCSourceFiles(.{
-            .files = &.{test_source},
-            .flags = &.{},
-        });
-        test_exe.linkLibrary(orca_platform_lib);
+                .resource_path = test_resources,
+                .create_run_step = true,
+            });
 
-        if (target.result.os.tag == .windows) {
-            test_exe.linkSystemLibrary("shlwapi");
-        }
-
-        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
-            .dest_dir = .{ .override = .{ .custom = "tests" } },
-        };
-
-        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_exe, tests_install_opts);
-        tests.dependOn(&install.step);
-
-        if (config.run) {
-            if (config.wasm) {
-                // TODO add support for running wasm tests
-                const fail = b.addFail("Running is currently not supported for wasm tests.");
-                tests.dependOn(&fail.step);
+            if (config.run) {
+                if (steps.run) |run| {
+                    run.addArg("--test");
+                    tests.dependOn(&run.step);
+                }
             } else {
-                const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+                tests.dependOn(steps.build_or_bundle);
+            }
+        } else {
+            const test_exe = b.addExecutable(.{
+                .name = config.name,
+                .root_module = b.createModule(.{
+                    .target = target,
+                    .optimize = optimize,
+                    .link_libc = true,
+                }),
+            });
+            test_exe.addIncludePath(b.path("src"));
+            test_exe.addCSourceFiles(.{
+                .files = &.{test_source},
+                .flags = &.{},
+            });
+            test_exe.linkLibrary(orca_platform_lib);
 
-                const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
-                const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
-                const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+            if (target.result.os.tag == .windows) {
+                test_exe.linkSystemLibrary("shlwapi");
+            }
 
-                const test_dir_path = b.path(b.pathJoin(&.{ "tests", config.name }));
+            const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+                .dest_dir = .{ .override = .{ .custom = "tests" } },
+            };
 
+            const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_exe, tests_install_opts);
+
+            const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+
+            const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+            const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+            const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+
+            const test_dir_path = b.path(b.pathJoin(&.{ "tests", config.name }));
+
+            if (config.run) {
                 const run_test = b.addRunArtifact(test_exe);
                 run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
                 run_test.step.dependOn(&install_orca_platform_tests.step);
@@ -1436,6 +1507,8 @@ pub fn build(b: *Build) !void {
                 run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
 
                 tests.dependOn(&run_test.step);
+            } else {
+                tests.dependOn(&install.step);
             }
         }
     }
