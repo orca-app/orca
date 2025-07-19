@@ -11,18 +11,12 @@
 #include <stdio.h>
 #include <errno.h>
 
-const oc_str8 REGULAR_TXT_CONTENTS = OC_STR8("Hello from regular.txt");
+const oc_str8 REGULAR_TXT_CONTENTS = OC_STR8_LIT("Hello from regular.txt");
 
 oc_file oc_file_from_filep(FILE* f)
 {
     unsigned long long handle = *(unsigned long long*)f;
     return (oc_file){ .h = handle };
-}
-
-void force_close_file_no_flush(FILE* file)
-{
-    oc_file_close(oc_file_from_filep(file));
-    free(file);
 }
 
 int check_string(FILE* f, oc_str8 test_string)
@@ -616,21 +610,22 @@ int test_setbuf(void)
 {
     {
         oc_str8 filename = OC_STR8("setbuf_test1.txt");
-        oc_str8 test_string = OC_STR8("We shouldn't see this be written to disk because we'll close the file without flushing.");
+        oc_str8 test_string = OC_STR8("We shouldn't see this be written to disk because we'll try to read the file without flushing it.");
 
         FILE* f = fopen(filename.ptr, "w");
         fwrite(test_string.ptr, 1, test_string.len, f);
 
-        force_close_file_no_flush(f);
-
-        f = fopen(filename.ptr, "r");
-        fseek(f, 0, SEEK_END);
-        long int pos = ftell(f);
+        FILE* f2 = fopen(filename.ptr, "r");
+        fseek(f2, 0, SEEK_END);
+        long int pos = ftell(f2);
         if(pos > 0)
         {
             oc_log_error("Shouldn't see any data written to disk, but got size: %d", (int)pos);
             return (-1);
         }
+
+        fclose(f);
+        fclose(f2);
 
         // BUFSIZ ensures we don't see any data written to disk because it's exactly the size of the default buffer
         char test_bulk_data[BUFSIZ];
@@ -638,33 +633,36 @@ int test_setbuf(void)
         f = fopen(filename.ptr, "w");
         fwrite(test_bulk_data, 1, sizeof(test_bulk_data), f);
 
-        force_close_file_no_flush(f);
-
-        f = fopen(filename.ptr, "r");
-        fseek(f, 0, SEEK_END);
-        pos = ftell(f);
+        f2 = fopen(filename.ptr, "r");
+        fseek(f2, 0, SEEK_END);
+        pos = ftell(f2);
         if(pos > 0)
         {
             oc_log_error("Shouldn't see any data written to disk, but got size: %d", (int)pos);
             return (-1);
         }
+
+        fclose(f);
+        fclose(f2);
     }
 
     {
         oc_str8 filename = OC_STR8("setbuf_test2.txt");
-        oc_str8 test_string = OC_STR8("We SHOULD see this be written to disk because even though we'll close the file without flushing, it has no buffering.");
+        oc_str8 test_string = OC_STR8("We SHOULD see this be written to disk because even though we don't flush the file, it has no buffering.");
 
         FILE* f = fopen(filename.ptr, "w");
         setbuf(f, NULL);
         fwrite(test_string.ptr, 1, test_string.len, f);
-        force_close_file_no_flush(f);
 
-        f = fopen(filename.ptr, "r");
-        if(check_string(f, test_string))
+        FILE* f2 = fopen(filename.ptr, "r");
+        if(check_string(f2, test_string))
         {
             oc_log_error("Unbuffered FILE should forward all writes immediately to disk");
             return (-1);
         }
+
+        fclose(f);
+        fclose(f2);
 
         // BUFSIZ + 1 should trigger a write to disk
         char test_bulk_data[BUFSIZ + 1];
@@ -672,11 +670,9 @@ int test_setbuf(void)
         f = fopen(filename.ptr, "w");
         fwrite(test_bulk_data, 1, sizeof(test_bulk_data), f);
 
-        force_close_file_no_flush(f);
-
-        f = fopen(filename.ptr, "r");
-        fseek(f, 0, SEEK_END);
-        long int pos = ftell(f);
+        f2 = fopen(filename.ptr, "r");
+        fseek(f2, 0, SEEK_END);
+        long int pos = ftell(f2);
         if(pos == 0)
         {
             oc_log_error("Should have flushed some data to disk");
@@ -686,7 +682,7 @@ int test_setbuf(void)
 
     {
         oc_str8 filename = OC_STR8("setbuf_test3.txt");
-        oc_str8 test_string = OC_STR8("We SHOULD see at least some of this data be written to disk because even though we'll close the file without flushing, this string is longer than the buffer.");
+        oc_str8 test_string = OC_STR8("We SHOULD see at least some of this data be written to disk because even though we won't flush the file, this string is longer than the buffer.");
 
         char file_buffer[32] = { 0 };
 
@@ -698,7 +694,7 @@ int test_setbuf(void)
         {
             int chunk_size = 10;
             int chunk_size_clamped = (test_string.len > pos + chunk_size) ? chunk_size : (pos + chunk_size) - test_string.len;
-            int written = (int)fwrite(test_string.ptr + written, 1, chunk_size_clamped, f);
+            int written = (int)fwrite(test_string.ptr + pos, 1, chunk_size_clamped, f);
             if(written <= 0)
             {
                 oc_log_error("error writing to file");
@@ -714,16 +710,18 @@ int test_setbuf(void)
             oc_log_error("the file should have used our custom buffer");
             return (-1);
         }
-        force_close_file_no_flush(f);
 
-        f = fopen(filename.ptr, "r");
-        fseek(f, 0, SEEK_END);
-        long int pos = ftell(f);
+        FILE* f2 = fopen(filename.ptr, "r");
+        fseek(f2, 0, SEEK_END);
+        long int pos = ftell(f2);
         if(pos <= 0)
         {
             oc_log_error("Should see some data because of the short buffer that should get flushed when full");
             return (-1);
         }
+
+        fclose(f);
+        fclose(f2);
     }
 
     return (0);

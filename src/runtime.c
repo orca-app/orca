@@ -28,7 +28,7 @@
     #error "Unknown wasm backend"
 #endif
 
-static const char* s_test_wasm_module_path = NULL;
+static bool s_is_test_module = false;
 
 oc_font orca_font_create(const char* resourcePath)
 {
@@ -501,10 +501,6 @@ i32 orca_runloop(void* user)
         oc_arena_scope scratch = oc_scratch_begin();
 
         oc_str8 modulePath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/wasm/module.wasm"));
-        if(s_test_wasm_module_path)
-        {
-            modulePath = oc_str8_push_copy(scratch.arena, OC_STR8(s_test_wasm_module_path));
-        }
 
         FILE* file = fopen(modulePath.ptr, "rb");
         if(!file)
@@ -636,7 +632,7 @@ i32 orca_runloop(void* user)
 
     oc_wasm_function_handle** exports = app->env.exports;
 
-    if(s_test_wasm_module_path)
+    if(s_is_test_module)
     {
         oc_wasm_val returnCode = { 0 };
         if(exports[OC_EXPORT_ON_TEST])
@@ -982,9 +978,9 @@ int main(int argc, char** argv)
 {
     if(argc > 1)
     {
-        if(strstr(argv[1], "--test="))
+        if(strstr(argv[1], "--test"))
         {
-            s_test_wasm_module_path = argv[1] + sizeof("--test=") - 1;
+            s_is_test_module = true;
         }
     }
 
@@ -998,7 +994,7 @@ int main(int argc, char** argv)
     app->debugOverlay.maxEntries = 200;
     oc_arena_init(&app->debugOverlay.logArena);
 
-    if(s_test_wasm_module_path == NULL)
+    if(s_is_test_module == false)
     {
         //NOTE: create window and surfaces
         oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
@@ -1041,7 +1037,7 @@ int main(int argc, char** argv)
     i64 exitCode = 0;
     oc_thread_join(runloopThread, &exitCode);
 
-    if(s_test_wasm_module_path == NULL)
+    if(s_is_test_module == false)
     {
         oc_canvas_context_destroy(app->debugOverlay.context);
         oc_surface_destroy(app->debugOverlay.surface);
