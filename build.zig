@@ -212,8 +212,8 @@ fn buildOrcaApp(
             const exe_path = b.pathJoin(&.{ output_path, params.name, "bin", b.fmt("{s}.exe", .{params.name}) });
             run_app.addArg(exe_path);
         } else if (target.result.os.tag.isDarwin()) {
-            const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{params.name}) });
-            run_app.addArgs(&.{ "open", app_path }); // TODO fixme
+            const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{params.name}), "Contents", "MacOS", "orca_runtime" });
+            run_app.addArg(app_path);
         } else {
             @panic("Unsupported OS");
         }
