@@ -254,6 +254,7 @@ pub fn build(b: *Build) !void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
+            .sanitize_c = false,
         }),
     });
     z_lib.addIncludePath(b.path("src/ext/zlib/"));
