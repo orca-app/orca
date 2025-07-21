@@ -60,7 +60,9 @@ jobs:
 
       - name: Build and run tests
         run: |
-          zig build test
+          mkdir orca
+          $env:PATH += Convert-Path orca
+          zig build test -Dsdk-path=orca
 
       - name: Build sketches
         run: |
@@ -92,7 +94,9 @@ jobs:
 
       - name: Build and run tests
         run: |
-          zig build test
+          mkdir orca
+          export PATH=$PATH:$(realpath orca)
+          zig build test -Dsdk-path=orca
 
       - name: Build sketches
         run: |
@@ -124,7 +128,9 @@ jobs:
 
       - name: Build and run tests
         run: |
-          zig build test
+          mkdir orca
+          export PATH=$PATH:$(realpath orca)
+          zig build test -Dsdk-path=orca
 
       - name: Build sketches
         run: |
