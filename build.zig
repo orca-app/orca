@@ -115,6 +115,7 @@ const OrcaAppBuildParams = struct {
     resource_path: ?[]const u8 = null,
     shaders: ?[]const []const u8 = null,
     create_run_step: bool = false, // if false or the target is not the host platform, no run step will be generated
+    is_test: bool = false,
 };
 
 const OrcaAppBuildSteps = struct {
@@ -183,7 +184,7 @@ fn buildOrcaApp(
 
     // Bundling and running unavailable when cross-compiling
     // TODO - we could make building available when cross-compiling, would just need to build
-    //        a host-native version of the toolchain
+    //        a host-native version of the orca toolchain
     if (params.create_run_step and target.result.os.tag == b.graph.host.result.os.tag) {
         const bundle: *Step.Run = b.addSystemCommand(&.{orca_tool_path});
         bundle.addArg("bundle");
@@ -212,8 +213,15 @@ fn buildOrcaApp(
             const exe_path = b.pathJoin(&.{ output_path, params.name, "bin", b.fmt("{s}.exe", .{params.name}) });
             run_app.addArg(exe_path);
         } else if (target.result.os.tag.isDarwin()) {
-            const app_path = b.pathJoin(&.{ output_path, b.fmt("{s}.app", .{params.name}) });
-            run_app.addArgs(&.{ "open", app_path }); // TODO fixme
+            const app_path = b.pathJoin(&.{
+                output_path,
+                b.fmt("{s}.app", .{params.name}),
+                "Contents",
+                "MacOS",
+                "orca_runtime",
+            });
+            const args: []const []const u8 = if (params.is_test) &.{ app_path, "--test" } else &.{app_path};
+            run_app.addArgs(args);
         } else {
             @panic("Unsupported OS");
         }
