@@ -28,7 +28,7 @@
     X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", "", "ii")       \
     X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", "", "i")        \
     X(OC_EXPORT_TERMINATE, "oc_on_terminate", "", "")         \
-    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_stub", "i", "iI")
+    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_aligned_stub", "i", "iIi")
 
 typedef enum
 {

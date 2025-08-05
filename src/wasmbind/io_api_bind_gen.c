@@ -44,6 +44,18 @@ void oc_file_open_with_dialog_bridge_stub(const i64* restrict _params, i64* rest
 	*__retPtr = oc_file_open_with_dialog_bridge(arena, rights, flags, desc);
 }
 
+void oc_file_listdir_bridge_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* wasm)
+{
+	oc_wasm_file_list* __retPtr = (oc_wasm_file_list*)((char*)_mem + *(i32*)&_params[0]);
+	{
+		OC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < oc_wasm_mem_size(wasm)), "return pointer is out of bounds");
+		OC_ASSERT_DIALOG((char*)__retPtr + sizeof(oc_wasm_file_list) <= ((char*)_mem + oc_wasm_mem_size(wasm)), "return pointer is out of bounds");
+	}
+	i32 arena = (i32)*(i32*)&_params[1];
+	oc_file directory = *(oc_file*)((char*)_mem + *(u32*)&_params[2]);
+	*__retPtr = oc_file_listdir_bridge(arena, directory);
+}
+
 int bindgen_link_io_api(oc_wasm* wasm)
 {
 	oc_wasm_status status;
@@ -102,6 +114,25 @@ int bindgen_link_io_api(oc_wasm* wasm)
 		if(oc_wasm_status_is_fail(status))
 		{
 			oc_log_error("Couldn't link function oc_file_open_with_dialog_argptr_stub (%s)\n", oc_wasm_status_str8(status).ptr);
+			ret = -1;
+		}
+	}
+
+	{
+		oc_wasm_valtype paramTypes[] = {OC_WASM_VALTYPE_I32, OC_WASM_VALTYPE_I32, OC_WASM_VALTYPE_I32, };
+		oc_wasm_valtype returnTypes[1];
+
+		oc_wasm_binding binding = {0};
+		binding.importName = OC_STR8("oc_file_listdir_argptr_stub");
+		binding.proc = oc_file_listdir_bridge_stub;
+		binding.countParams = 3;
+		binding.countReturns = 0;
+		binding.params = paramTypes;
+		binding.returns = returnTypes;
+		status = oc_wasm_add_binding(wasm, &binding);
+		if(oc_wasm_status_is_fail(status))
+		{
+			oc_log_error("Couldn't link function oc_file_listdir_argptr_stub (%s)\n", oc_wasm_status_str8(status).ptr);
 			ret = -1;
 		}
 	}

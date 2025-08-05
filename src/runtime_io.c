@@ -145,7 +145,7 @@ oc_wasm_file_open_with_dialog_result oc_file_open_with_dialog_bridge(oc_wasm_add
 
     oc_list_for(nativeResult.selection, elt, oc_file_open_with_dialog_elt, listElt)
     {
-        oc_wasm_addr wasmEltAddr = oc_wasm_arena_push(wasmArena, sizeof(oc_wasm_file_open_with_dialog_elt));
+        oc_wasm_addr wasmEltAddr = oc_wasm_arena_push_type(wasmArena, oc_wasm_file_open_with_dialog_elt);
         oc_wasm_file_open_with_dialog_elt* wasmElt = oc_wasm_address_to_ptr(wasmEltAddr, sizeof(oc_wasm_file_open_with_dialog_elt));
         wasmElt->file = elt->file;
 
@@ -154,4 +154,43 @@ oc_wasm_file_open_with_dialog_result oc_file_open_with_dialog_bridge(oc_wasm_add
 
     oc_scratch_end(scratch);
     return (result);
+}
+
+typedef struct oc_wasm_file_listdir_elt
+{
+    oc_wasm_list_elt listElt;
+    oc_wasm_str8 basename;
+    oc_file_type type;
+} oc_wasm_file_listdir_elt;
+
+typedef struct oc_wasm_file_list
+{
+    oc_wasm_list list;
+    u64 eltCount;
+} oc_wasm_file_list;
+
+oc_wasm_file_list oc_file_listdir_bridge(oc_wasm_addr wasmArena, oc_file directory)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_runtime* orca = oc_runtime_get();
+    oc_file_list nativeList = oc_file_listdir_for_table(scratch.arena, directory, &orca->fileTable);
+
+    oc_wasm_file_list wasmList = { 0 };
+    wasmList.eltCount = nativeList.eltCount;
+    if (oc_file_last_error(directory) == OC_IO_OK)
+    {
+        oc_file_list_for(nativeList, nativeElt)
+        {
+            oc_wasm_addr wasmEltAddr = oc_wasm_arena_push_type(wasmArena, oc_wasm_file_listdir_elt);
+            oc_wasm_file_listdir_elt* wasmElt = oc_wasm_address_to_ptr(wasmEltAddr, sizeof(oc_wasm_file_listdir_elt));
+            oc_wasm_list_push_back(&wasmList.list, &wasmElt->listElt);
+
+            wasmElt->basename = oc_wasm_str8_from_native(wasmArena, nativeElt->basename);
+            wasmElt->type = nativeElt->type;
+        }
+    }
+
+    oc_scratch_end(scratch);
+    return (wasmList);
 }

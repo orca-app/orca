@@ -10,7 +10,7 @@
 //This is used to pass raw events from the runtime
 ORCA_EXPORT oc_event oc_rawEvent;
 
-ORCA_EXPORT void* oc_arena_push_stub(oc_arena* arena, u64 size)
+ORCA_EXPORT void* oc_arena_push_aligned_stub(oc_arena* arena, u64 size, u32 alignment)
 {
-    return (oc_arena_push(arena, size));
+    return (oc_arena_push_aligned(arena, size, alignment));
 }

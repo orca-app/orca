@@ -141,21 +141,39 @@ void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt)
     list->last = eltAddr;
 }
 
+oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString)
+{
+    oc_wasm_str8 wasmString;
+    wasmString.len = nativeString.len;
+    wasmString.ptr = oc_wasm_arena_push(arena, nativeString.len);
+
+    char* wasmBuffer = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len);
+    memcpy(wasmBuffer, nativeString.ptr, wasmString.len);
+
+    return wasmString;
+}
+
 //------------------------------------------------------------------------------------
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------
 
 oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
 {
+    return oc_wasm_arena_push_aligned(arena, size, 1);
+}
+
+oc_wasm_addr oc_wasm_arena_push_aligned(oc_wasm_addr arena, u64 size, u32 alignment)
+{
     oc_wasm_env* env = oc_runtime_get_env();
 
-    oc_wasm_val params[2];
+    oc_wasm_val params[3];
     params[0].I32 = arena;
     params[1].I64 = size;
+    params[2].I32 = alignment;
 
     oc_wasm_val returns[1];
 
-    oc_wasm_status status = oc_wasm_function_call(env->wasm, env->exports[OC_EXPORT_ARENA_PUSH], params, 2, returns, 1);
+    oc_wasm_status status = oc_wasm_function_call(env->wasm, env->exports[OC_EXPORT_ARENA_PUSH], params, 3, returns, 1);
     OC_WASM_TRAP(status);
 
     static_assert(sizeof(oc_wasm_addr) == sizeof(i32), "wasm addres should be 32 bits");

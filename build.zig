@@ -1475,6 +1475,12 @@ pub fn build(b: *Build) !void {
             .wasm = true,
             .wasm_has_resources = true,
         },
+        .{
+            .name = "wasm_fileio",
+            .run = true,
+            .wasm = true,
+            .wasm_has_resources = true,
+        },
     };
 
     for (test_configs) |config| {

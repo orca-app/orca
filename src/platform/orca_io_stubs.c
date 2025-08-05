@@ -27,3 +27,12 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog(oc_arena* arena, oc_fil
 	return(__ret);
 }
 
+void ORCA_IMPORT(oc_file_listdir_argptr_stub) (oc_file_list* __retArg, oc_arena* arena, oc_file* directory);
+
+oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory)
+{
+	oc_file_list __ret;
+	oc_file_listdir_argptr_stub(&__ret, arena, &directory);
+	return(__ret);
+}
+
