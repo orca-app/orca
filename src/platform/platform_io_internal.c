@@ -343,3 +343,8 @@ oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* tab
     }
     return (cmp);
 }
+
+oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory)
+{
+    return oc_file_listdir_for_table(arena, directory, &oc_globalFileTable);
+}

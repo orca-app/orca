@@ -10393,6 +10393,86 @@
                             }
                         }
                     ]
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_list",
+                    "doc": "An type describing a list of enumerated files in a given directory.",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "list",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list"
+                                }
+                            },
+                            {
+                                "name": "eltCount",
+                                "type": {
+                                    "kind": "u64"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_listdir_elt",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "listElt",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list_elt"
+                                }
+                            },
+                            {
+                                "name": "basename",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_str8"
+                                }
+                            },
+                            {
+                                "name": "type",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_type"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_file_listdir",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_file_list"
+                    },
+                    "params": [
+                        {
+                            "name": "arena",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        },
+                        {
+                            "name": "directory",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        }
+                    ]
                 }
             ]
         },
