@@ -615,8 +615,10 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
     oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
     if(slot && !slot->fatal)
     {
+        oc_arena_scope scratch = oc_scratch_begin();
+
         // Windows uses a trailing \* to determine it should enumerate all files in the folder
-        oc_str16 dirPathW = win32_get_path_at_null_terminated(arena, slot->fd, OC_STR8("\\*"));
+        oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.arena, slot->fd, OC_STR8("\\*"));
 
         WIN32_FIND_DATAW entry = {0};
 
@@ -635,7 +637,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                 }
 
                 oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
-                oc_list_push_front(&list.list, &elt->listElt);
+                oc_list_push_back(&list.list, &elt->listElt);
 
                 ++list.eltCount;
 
@@ -663,6 +665,8 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 
             FindClose(handle);
         }
+
+        oc_scratch_end(scratch);
     }
 
     return list;
