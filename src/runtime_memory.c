@@ -143,9 +143,10 @@ void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt)
 
 oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString)
 {
-    oc_wasm_str8 wasmString;
-    wasmString.len = nativeString.len;
-    wasmString.ptr = oc_wasm_arena_push(arena, nativeString.len);
+    oc_wasm_str8 wasmString = {
+        .len = nativeString.len,
+        .ptr = oc_wasm_arena_push(arena, nativeString.len),
+    };
 
     char* wasmBuffer = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len);
     memcpy(wasmBuffer, nativeString.ptr, wasmString.len);

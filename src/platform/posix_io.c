@@ -614,7 +614,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                 }
 
                 oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
-                oc_list_push_front(&list.list, &elt->listElt);
+                oc_list_push_back(&list.list, &elt->listElt);
                 ++list.eltCount;
 
                 oc_file_type type = OC_FILE_UNKNOWN;
