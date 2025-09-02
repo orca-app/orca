@@ -63,6 +63,8 @@ ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_a
                                                                             oc_file_dialog_desc* desc,
                                                                             oc_file_table* table);
 
+ORCA_API oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table);
+
 //-----------------------------------------------------------------------
 // raw io primitives
 //-----------------------------------------------------------------------

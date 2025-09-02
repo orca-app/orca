@@ -56,6 +56,22 @@ void oc_file_open_with_dialog_bridge_stub(wa_interpreter* interpreter, wa_value*
 	*__retPtr = oc_file_open_with_dialog_bridge(arena, rights, flags, desc);
 }
 
+void oc_file_listdir_bridge_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)
+{
+	wa_instance* instance = wa_interpreter_current_instance(interpreter);
+	oc_str8 memStr8 = wa_instance_get_memory_str8(instance);
+ 	char* _mem = memStr8.ptr;
+ 	u32 _memSize = memStr8.len;
+	oc_wasm_file_list* __retPtr = (oc_wasm_file_list*)((char*)_mem + *(i32*)&_params[0]);
+	{
+		OC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < _memSize), "return pointer is out of bounds");
+		OC_ASSERT_DIALOG((char*)__retPtr + sizeof(oc_wasm_file_list) <= ((char*)_mem + _memSize), "return pointer is out of bounds");
+	}
+	i32 arena = (i32)*(i32*)&_params[1];
+	oc_file directory = *(oc_file*)((char*)_mem + *(u32*)&_params[2]);
+	*__retPtr = oc_file_listdir_bridge(arena, directory);
+}
+
 int bindgen_link_io_api(oc_arena* arena, wa_import_package* package)
 {
 	wa_status status;
@@ -100,6 +116,21 @@ int bindgen_link_io_api(oc_arena* arena, wa_import_package* package)
 		binding.kind = WA_BINDING_HOST_FUNCTION;
 		binding.hostFunction.proc = oc_file_open_with_dialog_bridge_stub;
 		binding.hostFunction.type.paramCount = 5;
+		binding.hostFunction.type.returnCount = 0;
+		binding.hostFunction.type.params = paramTypes;
+		binding.hostFunction.type.returns = returnTypes;
+		wa_import_package_push_binding(arena, package, &binding);
+	}
+
+	{
+		wa_value_type paramTypes[] = {WA_TYPE_I32, WA_TYPE_I32, WA_TYPE_I32, };
+		wa_value_type returnTypes[1];
+
+		wa_import_binding binding = {0};
+		binding.name = OC_STR8("oc_file_listdir_argptr_stub");
+		binding.kind = WA_BINDING_HOST_FUNCTION;
+		binding.hostFunction.proc = oc_file_listdir_bridge_stub;
+		binding.hostFunction.type.paramCount = 3;
 		binding.hostFunction.type.returnCount = 0;
 		binding.hostFunction.type.params = paramTypes;
 		binding.hostFunction.type.returns = returnTypes;

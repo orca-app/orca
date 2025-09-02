@@ -58,11 +58,11 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # Disable tests on Windows for now due to dumb problems with how the CI runner
-      # runs tests differently from local machines
-      # - name: Build and run tests
-      #   run: |
-      #     zig build test
+      - name: Build and run tests
+        run: |
+          mkdir orca
+          $env:PATH += Convert-Path orca
+          zig build test -Dsdk-path=orca
 
       - name: Build sketches
         run: |
@@ -94,7 +94,9 @@ jobs:
 
       - name: Build and run tests
         run: |
-          zig build test
+          mkdir orca
+          export PATH=$PATH:$(realpath orca)
+          zig build test -Dsdk-path=orca
 
       - name: Build sketches
         run: |
@@ -126,7 +128,9 @@ jobs:
 
       - name: Build and run tests
         run: |
-          zig build test
+          mkdir orca
+          export PATH=$PATH:$(realpath orca)
+          zig build test -Dsdk-path=orca
 
       - name: Build sketches
         run: |

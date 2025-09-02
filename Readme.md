@@ -9,7 +9,13 @@
 
 ![Example Orca apps](doc/images/orca-apps-lg.webp)
 
-Orca is a development platform and runtime environment for cross-platform, sandboxed graphical applications. In this early MVP you can:
+Orca is a development and runtime environment for building and distributing portable graphical applications. Orca applications can be written in C, Odin, or Zig (or any language that can compile to WebAssembly and has bindings for the Orca SDK), and run on our custom runtime outside the browser. The goal is to provide the same benefits as web apps, such as ease of distribution, portability and sandboxing, without the weight of a whole web browser and the complexity brought by the web stack.
+
+But more than a portability layer, Orca's goal is to provide a better development and deployment platform, where you can interactively build apps in a live, observable environment, and share them as easily as sending a URL.
+
+To learn more about the project and its goals, read the [announcement post](https://orca-app.dev/posts/230607/orca_announcement.html).
+
+**In this very early MVP you can:**
 
 - Receive mouse and keyboard input.
 - Draw paths, images and text using a 2D vector graphics API.
@@ -17,7 +23,14 @@ Orca is a development platform and runtime environment for cross-platform, sandb
 - Build user interfaces using our UI API and default widgets.
 - Read and write files using a capability-based API.
 
-To learn more about the project and its goals, read the [announcement post](https://orca-app.dev/posts/230607/orca_announcement.html).
+
+## Useful Links
+
+- [Orca website](https://orca-app.dev)
+- [Orca Documentation](https://docs.orca-app.dev)
+- [Orca Discord Server](https://discord.gg/t9GFHbh6)
+- [Newsletter](https://orca-app.dev/newsletter.html)
+- [Sponsor](https://github.com/sponsors/orca-app)
 
 ## Installing
 
@@ -25,7 +38,7 @@ The Orca command-line tools must be installed to your system in order to use the
 
 ### Requirements
 
-- Windows 10 or later, or Mac 13 or later (Linux is not yet supported)
+- Windows 10 or later, or Mac 14 or later (Linux is not yet supported)
 
 - Clang version 11.0 or newer
 	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
@@ -98,14 +111,36 @@ The following additional resources may also help you familiarize yourself with O
 
 ## Building Orca from source
 
-See [./doc/mkdocs/docs/building.md](Building.md).
+See [Building.md](./doc/mkdocs/docs/building.md).
+
+## Supporting
+
+You can support Orca by donating monthly through [Github Sponsors](https://github.com/sponsors/orca-app). 
+
+## Contributing
+
+We welcome contributions of all kinds from everyone!
+
+Before contributing to the Orca project, please note that the design and implementation of Orca is ultimately decided by me (Martin Fouilleul), and that I have the last word on everything that goes into the project. Since your time is valuable, I kindly ask you to get in touch and discuss the tasks you intend to tackle _before_ expanding substantial amounts of work in a PR or proposal, to avoid duplicated or wasted efforts. 
+
+You can help us in a variety of ways:
+
+- A good way to start contributing is by trying to make a small Orca app and sending us feedback. 
+- Spread the word around you and make more people aware of Orca.
+- Submit bug reports and feature proposals.
+- Contribute code changes. Issues labeled as [`good first issue`](https://github.com/orca-app/orca/issues?q=state%3Aopen%20label%3A%22good%20first%20issue%22) are a good starting point to familiarize yourself with the internals of Orca.
+- You can also contribute by fleshing out the [documentation](https://docs.orca-app.dev/documentation/).
+
+Please read [Contributing](./Contributing.md) for more information and guidelines on how you can help!
+
+**Do not use LLMs to submit issues, comments or PRs.**
 
 
 ## FAQ
 
 **What platforms does Orca support?**
 
-We currently support Windows 10 and up, and macOS 13 and up. We plan to expand to more platforms in the future.
+We currently support Windows 10 and up, and macOS 14 and up. We plan to expand to more platforms in the future.
 
 **What languages can I use with Orca?**
 

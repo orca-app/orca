@@ -153,7 +153,7 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 // VM runloop
 //------------------------------------------------------------------------
 
-static const char* s_test_wasm_module_path = NULL;
+static bool s_is_test_module = false;
 
 #include "bridges.c"
 #include "bridge_io.c"
@@ -247,10 +247,6 @@ i32 vm_runloop(void* user)
         oc_arena_scope scratch = oc_scratch_begin();
 
         oc_str8 modulePath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/wasm/module.wasm"));
-        if(s_test_wasm_module_path)
-        {
-            modulePath = oc_str8_push_copy(scratch.arena, OC_STR8(s_test_wasm_module_path));
-        }
 
         //TODO: change for platform layer file IO functions
         FILE* file = fopen(modulePath.ptr, "rb");
@@ -395,7 +391,7 @@ i32 vm_runloop(void* user)
     wa_func** exports = app->env.exports;
 
     //NOTE: tests
-    if(s_test_wasm_module_path)
+    if(s_is_test_module)
     {
         wa_value returnCode = { 0 };
         if(exports[OC_EXPORT_ON_TEST])
@@ -850,9 +846,9 @@ int main(int argc, char** argv)
 {
     if(argc > 1)
     {
-        if(strstr(argv[1], "--test="))
+        if(strstr(argv[1], "--test"))
         {
-            s_test_wasm_module_path = argv[1] + sizeof("--test=") - 1;
+            s_is_test_module = true;
         }
     }
 
@@ -866,7 +862,7 @@ int main(int argc, char** argv)
     app->debugOverlay.maxEntries = 200;
     oc_arena_init(&app->debugOverlay.logArena);
 
-    if(s_test_wasm_module_path == NULL)
+    if(s_is_test_module == false)
     {
         //NOTE: create window and surfaces
         oc_rect windowRect = { .x = 100, .y = 100, .w = 810, .h = 610 };
@@ -901,7 +897,7 @@ int main(int argc, char** argv)
     i64 exitCode = 0;
     oc_thread_join(controlThread, &exitCode);
 
-    if(s_test_wasm_module_path == NULL)
+    if(s_is_test_module == false)
     {
         oc_canvas_context_destroy(app->debugOverlay.context);
         oc_surface_destroy(app->debugOverlay.surface);

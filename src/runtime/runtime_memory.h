@@ -88,8 +88,12 @@ typedef struct oc_wasm_str8_list
 
 #define oc_wasm_str8_to_native(wasmString) ((oc_str8){ .ptr = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len), .len = wasmString.len })
 
+oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString);
+
 //------------------------------------------------------------------------------------
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------
 
 oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size);
+oc_wasm_addr oc_wasm_arena_push_aligned(oc_wasm_addr arena, u64 size, u32 alignment);
+#define oc_wasm_arena_push_type(arena, type) (oc_wasm_arena_push_aligned(arena, sizeof(type), _Alignof(type)))

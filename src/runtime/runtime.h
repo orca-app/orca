@@ -155,7 +155,7 @@ typedef struct oc_debugger
     X(OC_EXPORT_FRAME_RESIZE, "oc_on_resize", (WA_TYPE_I32, WA_TYPE_I32), ())                             \
     X(OC_EXPORT_RAW_EVENT, "oc_on_raw_event", (WA_TYPE_F32), ())                                          \
     X(OC_EXPORT_TERMINATE, "oc_on_terminate", (), ())                                                     \
-    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_stub", (WA_TYPE_I32, WA_TYPE_I64), (WA_TYPE_I32))
+    X(OC_EXPORT_ARENA_PUSH, "oc_arena_push_aligned_stub", (WA_TYPE_I32, WA_TYPE_I64, WA_TYPE_I32), (WA_TYPE_I32))
 
 typedef enum oc_export_kind
 {
