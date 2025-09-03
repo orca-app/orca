@@ -277,7 +277,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
             case WA_INSTR_i64_load8_u:
             {
                 WA_CHECK_READ_ACCESS(u8);
-                *(u32*)&L2.valI64 = (u64) * (u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
+                *(u64*)&L2.valI64 = (u64) * (u8*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
                 interpreter->pc += 3;
             }
             break;
@@ -293,7 +293,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
             case WA_INSTR_i64_load16_u:
             {
                 WA_CHECK_READ_ACCESS(u16);
-                *(u32*)&L2.valI64 = (u64) * (u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
+                *(i64*)&L2.valI64 = (u64) * (u16*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
                 interpreter->pc += 3;
             }
             break;
@@ -309,7 +309,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
             case WA_INSTR_i64_load32_u:
             {
                 WA_CHECK_READ_ACCESS(u32);
-                *(u32*)&L2.valI64 = (u64) * (u32*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
+                *(u64*)&L2.valI64 = (u64) * (u32*)&memPtr[I0.memArg.offset + (u32)L1.valI32];
                 interpreter->pc += 3;
             }
             break;

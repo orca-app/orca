@@ -111,6 +111,7 @@ void wa_print_code(wa_module* module)
     {
         wa_func* func = &module->functions[funcIndex];
 
+        /*
         for(u64 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)
         {
             wa_export* export = &module->exports[exportIndex];
@@ -120,6 +121,9 @@ void wa_print_code(wa_module* module)
                 break;
             }
         }
+        */
+        printf("\n%.*s:\n", oc_str8_ip(module->functionNames[funcIndex].name));
+
         wa_print_bytecode(func->codeLen, func->code);
     }
     printf("\n");
