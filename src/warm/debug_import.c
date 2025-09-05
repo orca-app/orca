@@ -863,6 +863,7 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
     info->wasmToWarmMapLen = 4096;
     info->wasmToWarmMap = oc_arena_push_array(module->arena, oc_list, 4096);
 
+#if WA_ENABLE_DEBUGGER
     //NOTE: get dwarf sections
     dw_sections dwarfSections = { 0 };
 
@@ -928,6 +929,8 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
     wa_debug_info_import_variables(module, info, &dwarf);
 
     oc_scratch_end(scratch);
+
+#endif // WA_ENABLE_DEBUGGER
 
     return info;
 }

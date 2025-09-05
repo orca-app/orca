@@ -289,3 +289,5 @@ wa_breakpoint* wa_interpreter_find_breakpoint_line(wa_interpreter* interpreter, 
 wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, wa_line_loc* loc);
 
 void wa_interpreter_remove_breakpoint(wa_interpreter* interpreter, wa_breakpoint* bp);
+
+#define WA_ENABLE_DEBUGGER 0

@@ -759,7 +759,9 @@ i32 control_runloop(void* user)
                             {
                                 if(event->key.mods & OC_KEYMOD_SHIFT)
                                 {
+#if WA_ENABLE_DEBUGGER //-------------------------------------------------------------
                                     oc_debugger_open(app);
+#endif //-----------------------------------------------------------------------------
                                 }
                                 else
                                 {
