@@ -215,7 +215,9 @@ pub fn main() !void {
     const bin_files_windows: []const []const u8 = &.{
         "orca_tool.exe",
         "orca_platform.dll",
+        "orca_platform.pdb",
         "orca_runtime.exe",
+        "orca_runtime.pdb",
         "liborca_wasm.a",
         "libEGL.dll",
         "libGLESv2.dll",

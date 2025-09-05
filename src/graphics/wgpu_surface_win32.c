@@ -37,6 +37,7 @@ i32 oc_wgpu_surface_destroy_callback(void* user)
     }
     oc_surface_base_cleanup(base);
     free(surface);
+    return 0;
 }
 
 void oc_wgpu_surface_destroy(oc_surface_base* base)

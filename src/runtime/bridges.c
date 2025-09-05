@@ -209,7 +209,7 @@ oc_surface oc_bridge_gles_surface_create(void)
 #if OC_PLATFORM_WINDOWS
     //NOTE(martin): on windows we set all surfaces to non-synced, and do a single "manual" wait.
     //              on macOS each surface is individually synced to the monitor refresh rate but don't block each other
-    oc_gles_surface_swap_interval(data->surface, 0);
+    oc_gles_surface_swap_interval(surface, 0);
 #endif
     return (surface);
 }
