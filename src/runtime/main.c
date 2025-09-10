@@ -789,7 +789,8 @@ i32 control_runloop(void* user)
             debugger_ui(&app->debugger, &app->env);
         }
 
-        if(!app->quit)
+        //TODO: properly check if running in test mode here (instead of testing if ui context is not null)
+        if(!app->quit && app->debugOverlay.ui)
         {
             overlay_ui(&app->debugOverlay);
         }
