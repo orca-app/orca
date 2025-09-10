@@ -409,6 +409,7 @@ i32 vm_runloop(void* user)
             returnCode.valI32 = 1;
             oc_log_error("Failed to find oc_on_test() hook - unable to run tests.\n");
         }
+        app->quit = true;
         oc_request_quit();
         return returnCode.valI32;
     }
