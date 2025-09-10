@@ -14,38 +14,6 @@
 // Interpreter
 //-------------------------------------------------------------------------------
 
-wa_status wa_interpreter_init(wa_interpreter* interpreter,
-                              wa_instance* instance,
-                              wa_func* func,
-                              wa_func_type* type,
-                              wa_code* code,
-                              u32 argCount,
-                              wa_value* args,
-                              u32 retCount,
-                              wa_value* returns)
-{
-    interpreter->instance = instance;
-    interpreter->code = code;
-    interpreter->argCount = argCount;
-    interpreter->args = args;
-    interpreter->retCount = retCount;
-    interpreter->returns = returns;
-    interpreter->pc = code;
-    interpreter->controlStack[0] = (wa_call_frame){
-        .instance = instance,
-        .func = func,
-        .locals = interpreter->localsBuffer,
-    };
-    interpreter->controlStackTop = 0;
-
-    interpreter->terminated = false;
-
-    interpreter->locals = interpreter->localsBuffer;
-    memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
-
-    return WA_OK;
-}
-
 bool wa_check_function_type(wa_func_type* t1, wa_func_type* t2)
 {
     if(t1->paramCount != t2->paramCount || t1->returnCount != t2->returnCount)
@@ -478,9 +446,24 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 {
                     wa_value* saveLocals = interpreter->locals;
                     interpreter->locals += I1.valI64;
+
+                    interpreter->controlStackTop++;
+                    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE)
+                    {
+                        return (WA_TRAP_STACK_OVERFLOW);
+                    }
+                    interpreter->controlStack[interpreter->controlStackTop] = (wa_call_frame){
+                        .native = true,
+                        .locals = interpreter->locals,
+                        .returnPC = interpreter->pc + 2,
+                    };
+
                     callee->proc(interpreter, interpreter->locals, interpreter->locals, callee->user);
-                    interpreter->pc += 2;
+
+                    interpreter->pc = interpreter->controlStack[interpreter->controlStackTop].returnPC;
                     interpreter->locals = saveLocals;
+
+                    interpreter->controlStackTop--;
                 }
             }
             break;
@@ -568,20 +551,24 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
             case WA_INSTR_return:
             {
-                if(!interpreter->controlStackTop)
-                {
-                    goto end;
-                }
+                OC_ASSERT(interpreter->controlStackTop);
 
                 wa_call_frame frame = interpreter->controlStack[interpreter->controlStackTop];
 
                 interpreter->pc = frame.returnPC;
-
                 interpreter->controlStackTop--;
 
                 instance = interpreter->controlStack[interpreter->controlStackTop].instance;
                 interpreter->locals = interpreter->controlStack[interpreter->controlStackTop].locals;
 
+                if(interpreter->controlStack[interpreter->controlStackTop].native)
+                {
+                    for(u32 retIndex = 0; retIndex < frame.retCount; retIndex++)
+                    {
+                        frame.returns[retIndex] = frame.locals[retIndex];
+                    }
+                    return WA_OK;
+                }
                 if(instance->memories)
                 {
                     memory = instance->memories[0];
@@ -2175,13 +2162,19 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
 end:
     interpreter->terminated = true;
-    for(u32 retIndex = 0; retIndex < interpreter->retCount; retIndex++)
-    {
-        interpreter->returns[retIndex] = interpreter->locals[retIndex];
-    }
 
     return WA_OK;
 }
+
+wa_status wa_interpreter_init(wa_interpreter* interpreter,
+                              wa_instance* instance,
+                              wa_func* func,
+                              wa_func_type* type,
+                              wa_code* code,
+                              u32 argCount,
+                              wa_value* args,
+                              u32 retCount,
+                              wa_value* returns);
 
 wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      wa_func* func,
@@ -2195,6 +2188,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
     oc_arena_scope scratch = oc_scratch_begin();
     wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
     wa_interpreter_init(interpreter, instance, func, type, code, argCount, args, retCount, returns);
+
     wa_status status = wa_interpreter_run(interpreter, false);
 
     wa_interpreter_destroy(interpreter);
@@ -2202,45 +2196,6 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
 
     return status;
 }
-
-/*
-wa_status wa_instance_invoke(wa_instance* instance,
-                             wa_func* func,
-                             u32 argCount,
-                             wa_value* args,
-                             u32 retCount,
-                             wa_value* returns)
-{
-    if(argCount != func->type->paramCount || retCount != func->type->returnCount)
-    {
-        return WA_FAIL_INVALID_ARGS;
-    }
-
-    if(func->code)
-    {
-        return (wa_instance_interpret_expr(instance, func, func->type, func->code, argCount, args, retCount, returns));
-    }
-    else if(func->extInstance)
-    {
-        wa_func* extFunc = &func->extInstance->functions[func->extIndex];
-        return wa_instance_invoke(func->extInstance, extFunc, argCount, args, retCount, returns);
-    }
-    else
-    {
-        /////////////////////////////////////////////////////
-        //TODO: temporary
-        /////////////////////////////////////////////////////
-
-        wa_interpreter interpreter = {
-            .instance = instance,
-        };
-
-        //TODO: host proc should return a status
-        func->proc(&interpreter, args, returns, func->user);
-        return WA_OK;
-    }
-}
-*/
 
 //-------------------------------------------------------------------------
 // interpreter API
@@ -2251,12 +2206,17 @@ wa_interpreter* wa_interpreter_create(oc_arena* arena)
     wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
 
     oc_base_allocator* alloc = oc_base_allocator_default();
-
     //TODO: should we rather allocate it in arena?
     interpreter->localsBuffer = oc_base_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
     oc_base_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 
+    interpreter->locals = interpreter->localsBuffer;
     oc_arena_init(&interpreter->arena);
+
+    interpreter->controlStack[0] = (wa_call_frame){
+        .native = true,
+        .locals = interpreter->locals,
+    };
 
     return (interpreter);
 }
@@ -2269,12 +2229,51 @@ void wa_interpreter_destroy(wa_interpreter* interpreter)
     oc_arena_init(&interpreter->arena);
 }
 
+wa_status wa_interpreter_init(wa_interpreter* interpreter,
+                              wa_instance* instance,
+                              wa_func* func,
+                              wa_func_type* type,
+                              wa_code* code,
+                              u32 argCount,
+                              wa_value* args,
+                              u32 retCount,
+                              wa_value* returns)
+{
+    interpreter->controlStackTop++;
+    if(interpreter->controlStackTop >= WA_CONTROL_STACK_SIZE)
+    {
+        return (WA_TRAP_STACK_OVERFLOW);
+    }
+
+    interpreter->controlStack[interpreter->controlStackTop] = (wa_call_frame){
+        .instance = instance,
+        .func = func,
+        .returnPC = 0,
+        .locals = interpreter->locals,
+        .retCount = retCount,
+        .returns = returns,
+    };
+
+    interpreter->pc = code;
+    interpreter->instance = instance;
+
+    if(interpreter->locals - interpreter->localsBuffer + WA_MAX_SLOT_COUNT >= WA_LOCALS_BUFFER_SIZE)
+    {
+        return (WA_TRAP_STACK_OVERFLOW);
+    }
+
+    interpreter->terminated = false;
+
+    memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
+
+    return WA_OK;
+}
+
 wa_instance* wa_interpreter_current_instance(wa_interpreter* interpreter)
 {
     return (interpreter->instance);
 }
 
-//TODO
 wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
                                 wa_instance* instance,
                                 wa_func* function,
@@ -2291,6 +2290,27 @@ wa_status wa_interpreter_invoke(wa_interpreter* interpreter,
     if(function->code)
     {
         wa_interpreter_init(interpreter, instance, function, function->type, function->code, argCount, args, retCount, returns);
+
+        /*
+        interpreter->instance = instance;
+        interpreter->argCount = argCount;
+        interpreter->args = args;
+        interpreter->retCount = retCount;
+        interpreter->returns = returns;
+        interpreter->pc = function->code;
+        interpreter->controlStack[0] = (wa_call_frame){
+            .instance = instance,
+            .func = func,
+            .locals = interpreter->localsBuffer,
+        };
+        interpreter->controlStackTop = 0;
+
+        interpreter->terminated = false;
+
+        interpreter->locals = interpreter->localsBuffer;
+        memcpy(interpreter->locals, args, argCount * sizeof(wa_value));
+*/
+
         wa_status status = wa_interpreter_run(interpreter, false);
 
         return status;
@@ -2330,20 +2350,27 @@ void wa_print_stack_trace(wa_interpreter* interpreter)
 {
     for(u32 level = 0; level <= interpreter->controlStackTop; level++)
     {
-        wa_func* func = interpreter->controlStack[level].func;
-        u64 addr = 0;
-        if(level == interpreter->controlStackTop)
+        if(interpreter->controlStack[level].native)
         {
-            addr = interpreter->pc - func->code;
+            printf("[%i] ...native code...\n", level);
         }
         else
         {
-            addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
-        }
-        u32 functionIndex = func - interpreter->instance->functions;
-        oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
+            wa_func* func = interpreter->controlStack[level].func;
+            u64 addr = 0;
+            if(level == interpreter->controlStackTop)
+            {
+                addr = interpreter->pc - func->code;
+            }
+            else
+            {
+                addr = interpreter->controlStack[level + 1].returnPC - 2 - func->code;
+            }
+            u32 functionIndex = func - interpreter->instance->functions;
+            oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
 
-        printf("[%i] %.*s + 0x%08llx\n", level, oc_str8_ip(name), addr);
+            printf("[%i] %.*s + 0x%08llx\n", level, oc_str8_ip(name), addr);
+        }
     }
 }
 

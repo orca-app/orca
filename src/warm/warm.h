@@ -338,6 +338,9 @@ typedef struct wa_call_frame
     wa_code* returnPC;
     wa_value* locals;
     bool returnTrap;
+    u32 retCount;
+    wa_value* returns;
+    bool native;
 } wa_call_frame;
 
 enum
@@ -349,12 +352,6 @@ enum
 typedef struct wa_interpreter
 {
     wa_instance* instance;
-    wa_code* code;
-
-    u32 argCount;
-    wa_value* args;
-    u32 retCount;
-    wa_value* returns;
 
     wa_call_frame controlStack[WA_CONTROL_STACK_SIZE];
     u32 controlStackTop;
