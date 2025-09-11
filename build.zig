@@ -1453,6 +1453,23 @@ pub fn build(b: *Build) !void {
 
     const tests = b.step("test", "Build and run all tests");
 
+    // warm testsuite
+    const wasm_tests_convert_exe = b.addExecutable(.{
+        .name = "wast_convert",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/warm/convert.zig"),
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+
+    const wasm_tests_convert = b.addRunArtifact(wasm_tests_convert_exe);
+    wasm_tests_convert.addPrefixedFileArg("--tests=", b.path("tests/warm/core"));
+    wasm_tests_convert.addPrefixedFileArg("--out=", b.path("tests/warm/testsuite"));
+
+    tests.dependOn(&wasm_tests_convert.step);
+
+    // api tests
     const TestConfig = struct {
         name: []const u8,
         run: bool = false,

@@ -9,13 +9,10 @@ parser.add_argument("testsuite")
 
 args = parser.parse_args()
 
-jsonFiles = []
-
 for wast in glob.glob(os.path.join(args.testsuite, "*.wast")):
     jsonPath = os.path.join(os.path.splitext(wast)[0] + ".json")
     try:
         subprocess.run(['wast2json', wast, '-o', jsonPath], check=True)
-        jsonFiles.append(jsonPath)
 
     except subprocess.CalledProcessError:
-        print(f"ERROR: Couldn't convert {wast}")
+        print(f"ERROR: Couldn't convert {wast} to json")
