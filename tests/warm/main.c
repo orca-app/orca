@@ -1,3 +1,5 @@
+#define OC_NO_APP_LAYER
+#include "orca.c"
 
 #include "warm_test.c"
 #include "warm/warm.h"

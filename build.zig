@@ -1464,10 +1464,39 @@ pub fn build(b: *Build) !void {
     });
 
     const wasm_tests_convert = b.addRunArtifact(wasm_tests_convert_exe);
-    wasm_tests_convert.addPrefixedFileArg("--tests=", b.path("tests/warm/core"));
-    wasm_tests_convert.addPrefixedFileArg("--out=", b.path("tests/warm/testsuite"));
+    wasm_tests_convert.addPrefixedDirectoryArg("--tests=", b.path("tests/warm/core"));
+    const wasm_tests_dir = wasm_tests_convert.addPrefixedOutputDirectoryArg("--out=", "warm/testsuite");
 
-    tests.dependOn(&wasm_tests_convert.step);
+    const wasm_tests_install_dir: Build.InstallDir = .{ .custom = "tests/warm/core" };
+    _ = b.addInstallDirectory(.{ .source_dir = wasm_tests_dir, .install_dir = wasm_tests_install_dir, .install_subdir = "" });
+
+    const warm_test_exe = b.addExecutable(.{
+        .name = "warm-test",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+    warm_test_exe.addIncludePath(b.path("src"));
+    warm_test_exe.addIncludePath(b.path("tests/warm"));
+    warm_test_exe.addCSourceFiles(.{
+        .files = &.{
+            "tests/warm/main.c",
+        },
+        .flags = &.{},
+    });
+    warm_test_exe.linkLibrary(warm_lib);
+
+    const warm_test_install = b.addInstallArtifact(warm_test_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "tests/warm" } },
+    });
+
+    const warm_test = b.addRunArtifact(warm_test_exe);
+    warm_test.addArg("test");
+    warm_test.addDirectoryArg(wasm_tests_dir);
+
+    tests.dependOn(&warm_test.step);
+    tests.dependOn(&warm_test_install.step);
 
     // api tests
     const TestConfig = struct {
