@@ -1487,6 +1487,11 @@ pub fn build(b: *Build) !void {
     });
     warm_test_exe.linkLibrary(warm_lib);
 
+    if (target.result.os.tag == .windows) {
+        warm_test_exe.linkSystemLibrary("user32");
+        warm_test_exe.linkSystemLibrary("shlwapi");
+    }
+
     const warm_test_install = b.addInstallArtifact(warm_test_exe, .{
         .dest_dir = .{ .override = .{ .custom = "tests/warm" } },
     });
