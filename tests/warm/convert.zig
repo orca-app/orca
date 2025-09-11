@@ -75,7 +75,8 @@ pub fn main() !void {
 
         const result = try std.process.Child.run(.{
             .allocator = allocator,
-            .argv = &.{ "wast2json", wastPath, "-o", outPath },
+            .argv = &.{ "wasm-tools", "json-from-wast", "-o", outPath, "--wasm-dir", opts.output_dir, wastPath },
+            //.argv = &.{ "wast2json", "-o", outPath, wastPath },
         });
         std.debug.print("{s}{s}", .{ result.stdout, result.stderr });
     }
