@@ -1468,7 +1468,7 @@ pub fn build(b: *Build) !void {
     const wasm_tests_dir = wasm_tests_convert.addPrefixedOutputDirectoryArg("--out=", "warm/testsuite");
 
     const wasm_tests_install_dir: Build.InstallDir = .{ .custom = "tests/warm/core" };
-    _ = b.addInstallDirectory(.{ .source_dir = wasm_tests_dir, .install_dir = wasm_tests_install_dir, .install_subdir = "" });
+    const wasm_tests_install = b.addInstallDirectory(.{ .source_dir = wasm_tests_dir, .install_dir = wasm_tests_install_dir, .install_subdir = "" });
 
     const warm_test_exe = b.addExecutable(.{
         .name = "warm-test",
@@ -1495,6 +1495,7 @@ pub fn build(b: *Build) !void {
     warm_test.addArg("test");
     warm_test.addDirectoryArg(wasm_tests_dir);
 
+    tests.dependOn(&wasm_tests_install.step);
     tests.dependOn(&warm_test.step);
     tests.dependOn(&warm_test_install.step);
 

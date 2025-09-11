@@ -11,12 +11,12 @@ wa_typed_value parse_value_64(oc_str8 string)
     wa_typed_value res = { 0 };
 
     u64 offset = 0;
-    u64 numberU64 = 0;
-    bool minus = false;
+    u64 numberI64 = 0;
+    i64 sign = 1;
 
     if(string.len && string.ptr[0] == '-')
     {
-        minus = true;
+        sign = -1;
         offset++;
     }
 
@@ -25,8 +25,8 @@ wa_typed_value parse_value_64(oc_str8 string)
         char c = string.ptr[offset];
         if(c >= '0' && c <= '9')
         {
-            numberU64 *= 10;
-            numberU64 += c - '0';
+            numberI64 *= 10;
+            numberI64 += sign * (c - '0');
             offset += 1;
         }
         else
@@ -50,7 +50,7 @@ wa_typed_value parse_value_64(oc_str8 string)
             if(c >= '0' && c <= '9')
             {
                 decimals *= 10;
-                decimals += c - '0';
+                decimals += sign * (c - '0');
                 offset += 1;
                 decimalCount += 1;
             }
@@ -60,20 +60,12 @@ wa_typed_value parse_value_64(oc_str8 string)
             }
         }
         res.type = WA_TYPE_F64;
-        res.value.valF64 = (f64)numberU64 + (f64)decimals / pow(10, decimalCount);
-        if(minus)
-        {
-            res.value.valF64 = -res.value.valF64;
-        }
+        res.value.valF64 = (f64)numberI64 + (f64)decimals / pow(10, decimalCount);
     }
     else
     {
         res.type = WA_TYPE_I64;
-        res.value.valI64 = numberU64;
-        if(minus)
-        {
-            res.value.valI64 = -res.value.valI64;
-        }
+        res.value.valI64 = numberI64;
     }
     return (res);
 }
