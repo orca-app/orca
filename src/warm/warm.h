@@ -209,8 +209,8 @@ typedef struct wa_module_toc
     wa_section dataCount;
     wa_section code;
     wa_section data;
-
     wa_section names;
+
     oc_list customSections;
 } wa_module_toc;
 

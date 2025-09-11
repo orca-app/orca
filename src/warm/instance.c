@@ -488,7 +488,6 @@ wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc
 
     wa_import_package package = {
         .name = oc_str8_push_copy(arena, name),
-        .bindingCount = module->exportCount,
     };
 
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)

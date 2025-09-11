@@ -146,10 +146,12 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 
             case 1:
                 entry = &module->toc.types;
+                entry->name = OC_STR8("types");
                 break;
 
             case 2:
                 entry = &module->toc.imports;
+                entry->name = OC_STR8("imports");
                 break;
 
             case 3:
@@ -158,38 +160,47 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
 
             case 4:
                 entry = &module->toc.tables;
+                entry->name = OC_STR8("tables");
                 break;
 
             case 5:
                 entry = &module->toc.memory;
+                entry->name = OC_STR8("memory");
                 break;
 
             case 6:
                 entry = &module->toc.globals;
+                entry->name = OC_STR8("globals");
                 break;
 
             case 7:
                 entry = &module->toc.exports;
+                entry->name = OC_STR8("exports");
                 break;
 
             case 8:
                 entry = &module->toc.start;
+                entry->name = OC_STR8("start");
                 break;
 
             case 9:
                 entry = &module->toc.elements;
+                entry->name = OC_STR8("elements");
                 break;
 
             case 10:
                 entry = &module->toc.code;
+                entry->name = OC_STR8("code");
                 break;
 
             case 11:
                 entry = &module->toc.data;
+                entry->name = OC_STR8("data");
                 break;
 
             case 12:
                 entry = &module->toc.dataCount;
+                entry->name = OC_STR8("dataCount");
                 break;
 
             default:
@@ -204,11 +215,11 @@ void wa_parse_sections(wa_parser* parser, wa_module* module)
         if(entry)
         {
             //TODO: check redeclaration
-            /*
+            if(entry->id != 0 && sectionID != 0)
             {
-                wa_parse_error(parser, "Redeclaration of %.*s.\n", oc_str8_ip(ast->label));
+                wa_parse_error(parser, "Redeclaration of section %.*s.\n", oc_str8_ip(entry->name));
             }
-            */
+
             entry->id = sectionID;
             entry->offset = wa_reader_offset(&parser->reader);
             entry->len = sectionLen;

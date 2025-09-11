@@ -1,12 +1,10 @@
 
-#include "warm.h"
-#include "wasm.h"
-#include "wasm/wasm.c"
+#include "warm/warm.h"
+#include "json.c"
 
 //-------------------------------------------------------------------------
 // test
 //-------------------------------------------------------------------------
-#include "json.c"
 
 wa_typed_value parse_value_64(oc_str8 string)
 {
@@ -407,8 +405,6 @@ wa_test_result wa_test_action(wa_test_env* env, wa_instance* instance, json_node
 
 wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-
     oc_str8 contents = { 0 };
 
     oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
@@ -419,14 +415,12 @@ wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
     }
 
     contents.len = oc_file_size(file);
-    contents.ptr = oc_arena_push(scratch.arena, contents.len);
+    contents.ptr = oc_arena_push(arena, contents.len);
 
     oc_file_read(file, contents.len, contents.ptr);
     oc_file_close(file);
 
     wa_module* module = wa_module_create(arena, contents);
-
-    oc_scratch_end(scratch);
 
     return (module);
 }

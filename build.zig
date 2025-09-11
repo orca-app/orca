@@ -957,6 +957,12 @@ pub fn build(b: *Build) !void {
         .flags = warm_compile_flags.items,
     });
 
+    const warm_install_opts: Build.Step.InstallArtifact.Options = .{
+        .dest_dir = .{ .override = .bin },
+    };
+
+    const warm_install: *Build.Step.InstallArtifact = b.addInstallArtifact(warm_lib, warm_install_opts);
+
     // orca runtime exe
 
     var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
@@ -1233,6 +1239,7 @@ pub fn build(b: *Build) !void {
     // zig build - default install step builds and installs a dev build of orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
+    build_orca.dependOn(&warm_install.step);
     build_orca.dependOn(&orca_platform_install.step);
     build_orca.dependOn(&orca_runtime_exe_install.step);
     build_orca.dependOn(&libc_install.step);
