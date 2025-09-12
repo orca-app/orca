@@ -14,7 +14,11 @@ oc_str8 oc_path_slice_directory(oc_str8 fullPath)
 
     for(i64 i = fullPath.len - 1; i >= 0; i--)
     {
+#if OC_PLATFORM_WINDOWS
+        if(fullPath.ptr[i] == '/' || fullPath.ptr[i] == '\\')
+#else
         if(fullPath.ptr[i] == '/')
+#endif
         {
             lastSlashIndex = i;
             break;
@@ -44,7 +48,11 @@ oc_str8 oc_path_slice_filename(oc_str8 fullPath)
 
     for(i64 i = fullPath.len - 1; i >= 0; i--)
     {
+#if OC_PLATFORM_WINDOWS
+        if(fullPath.ptr[i] == '/' || fullPath.ptr[i] == '\\')
+#else
         if(fullPath.ptr[i] == '/')
+#endif
         {
             lastSlashIndex = i;
             break;
@@ -60,6 +68,10 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
     oc_arena_scope tmp = oc_scratch_begin_next(arena);
     oc_str8_list split = { 0 };
     oc_str8_list_push(tmp.arena, &split, OC_STR8("/"));
+
+#if OC_PLATFORM_WINDOWS
+    oc_str8_list_push(tmp.arena, &split, OC_STR8("\\"));
+#endif
 
     oc_str8_list res = oc_str8_split(arena, path, split);
 
