@@ -1036,7 +1036,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 }
                 else
                 {
-                    URES.valI64 = __builtin_clzl(*(u64*)&OPD1.valI64);
+                    URES.valI64 = __builtin_clzll(*(u64*)&OPD1.valI64);
                 }
                 interpreter->pc += 2;
             }
@@ -1050,7 +1050,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
                 }
                 else
                 {
-                    URES.valI64 = __builtin_ctzl(*(u64*)&OPD1.valI64);
+                    URES.valI64 = __builtin_ctzll(*(u64*)&OPD1.valI64);
                 }
                 interpreter->pc += 2;
             }
@@ -1058,7 +1058,7 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
             case WA_INSTR_i64_popcnt:
             {
-                URES.valI64 = __builtin_popcountl(*(u64*)&OPD1.valI64);
+                URES.valI64 = __builtin_popcountll(*(u64*)&OPD1.valI64);
                 interpreter->pc += 2;
             }
             break;
