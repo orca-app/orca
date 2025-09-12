@@ -2226,7 +2226,7 @@ void wa_interpreter_destroy(wa_interpreter* interpreter)
     oc_base_allocator* alloc = oc_base_allocator_default();
     oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 
-    oc_arena_init(&interpreter->arena);
+    oc_arena_cleanup(&interpreter->arena);
 }
 
 wa_status wa_interpreter_init(wa_interpreter* interpreter,
