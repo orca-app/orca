@@ -55,6 +55,21 @@
             .hash = "N-V-__8AAFgqSwAoOlOfK8ZzIHcOlfAwAKfuQLTHGrLS7Nzj",
             .lazy = true,
         },
+        .@"wasm-tools-mac-x64" = .{
+            .url = "https://github.com/bytecodealliance/wasm-tools/releases/download/v1.239.0/wasm-tools-1.239.0-x86_64-macos.tar.gz",
+            .hash = "N-V-__8AAE5-JQGkWZeMOZwm6Kl4lcl_BDkpwoMG-ORDNADE",
+            .lazy = true,
+        },
+        .@"wasm-tools-mac-arm64" = .{
+            .url = "https://github.com/bytecodealliance/wasm-tools/releases/download/v1.239.0/wasm-tools-1.239.0-aarch64-macos.tar.gz",
+            .hash = "N-V-__8AAB6FHgEcmkwiK6W9fDJzYSjA9J_vESFbvpc5sHaY",
+            .lazy = true,
+        },
+        .@"wasm-tools-windows-x64" = .{
+            .url = "https://github.com/bytecodealliance/wasm-tools/releases/download/v1.239.0/wasm-tools-1.239.0-x86_64-windows.zip",
+            .hash = "N-V-__8AALP3-QA19Tht1bLBpOReUeaLBNdtO2VhAL_BljqE",
+            .lazy = true,
+        },
     },
     .paths = .{
         "build.zig",

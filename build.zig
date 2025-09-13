@@ -1453,6 +1453,27 @@ pub fn build(b: *Build) !void {
 
     const tests = b.step("test", "Build and run all tests");
 
+    // get wasm tools path
+    var wasm_tools: LazyPath = .{ .cwd_relative = "" };
+    if (target.result.os.tag == .windows) {
+        if (b.lazyDependency("wasm-tools-windows-x64", .{})) |dep| {
+            wasm_tools = dep.path("wasm-tools.exe");
+        }
+    } else if (target.result.os.tag.isDarwin()) {
+        if (target.result.cpu.arch == .aarch64) {
+            if (b.lazyDependency("wasm-tools-mac-arm64", .{})) |dep| {
+                wasm_tools = dep.path("wasm-tools");
+            }
+        } else {
+            if (b.lazyDependency("wasm-tools-mac-x64", .{})) |dep| {
+                wasm_tools = dep.path("wasm-tools");
+            }
+        }
+    } else {
+        const fail = b.addFail("wasm-tools dependency not configured for this platform.");
+        b.getInstallStep().dependOn(&fail.step);
+    }
+
     // warm testsuite
     const wasm_tests_convert_exe = b.addExecutable(.{
         .name = "wast_convert",
@@ -1464,6 +1485,7 @@ pub fn build(b: *Build) !void {
     });
 
     const wasm_tests_convert = b.addRunArtifact(wasm_tests_convert_exe);
+    wasm_tests_convert.addPrefixedFileArg("--wasm-tools=", wasm_tools);
     wasm_tests_convert.addPrefixedDirectoryArg("--tests=", b.path("tests/warm/core"));
     const wasm_tests_dir = wasm_tests_convert.addPrefixedOutputDirectoryArg("--out=", "warm/testsuite");
 

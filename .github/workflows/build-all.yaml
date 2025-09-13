@@ -56,8 +56,6 @@ jobs:
         with:
           version: 0.14.0
 
-      - uses: bytecodealliance/actions/wasm-tools/setup@v1
-
       - uses: actions/checkout@v4
 
       - name: Build and run tests
@@ -92,8 +90,6 @@ jobs:
         with:
           version: 0.14.0
 
-      - uses: bytecodealliance/actions/wasm-tools/setup@v1
-
       - uses: actions/checkout@v4
 
       - name: Build and run tests
@@ -127,8 +123,6 @@ jobs:
       - uses: mlugg/setup-zig@v1
         with:
           version: 0.14.0
-
-      - uses: bytecodealliance/actions/wasm-tools/setup@v1
 
       - uses: actions/checkout@v4
 

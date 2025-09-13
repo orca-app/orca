@@ -3,10 +3,12 @@ const std = @import("std");
 const Options = struct {
     wast_dir: []const u8,
     output_dir: []const u8,
+    wasm_tools: []const u8,
 
     fn parse(args: []const [:0]const u8) !Options {
         var wast_dir: ?[]const u8 = null;
         var output_dir: ?[]const u8 = null;
+        var wasm_tools: ?[]const u8 = null;
 
         for (args, 0..) |raw_arg, i| {
             if (i == 0) {
@@ -19,6 +21,8 @@ const Options = struct {
                 output_dir = splitIter.next();
             } else if (std.mem.eql(u8, arg, "--tests")) {
                 wast_dir = splitIter.next();
+            } else if (std.mem.eql(u8, arg, "--wasm-tools")) {
+                wasm_tools = splitIter.next();
             }
         }
 
@@ -27,6 +31,8 @@ const Options = struct {
             missing_arg = "out";
         } else if (output_dir == null) {
             missing_arg = "wast-directory";
+        } else if (wasm_tools == null) {
+            missing_arg = "wasm-tools";
         }
 
         if (missing_arg) |arg| {
@@ -37,6 +43,7 @@ const Options = struct {
         return Options{
             .wast_dir = wast_dir.?,
             .output_dir = output_dir.?,
+            .wasm_tools = wasm_tools.?,
         };
     }
 };
@@ -75,7 +82,7 @@ pub fn main() !void {
 
         const result = try std.process.Child.run(.{
             .allocator = allocator,
-            .argv = &.{ "wasm-tools", "json-from-wast", "-o", outPath, "--wasm-dir", opts.output_dir, wastPath },
+            .argv = &.{ opts.wasm_tools, "json-from-wast", "-o", outPath, "--wasm-dir", opts.output_dir, wastPath },
             //.argv = &.{ "wast2json", "-o", outPath, wastPath },
         });
         std.debug.print("{s}{s}", .{ result.stdout, result.stderr });
