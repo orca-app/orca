@@ -20,8 +20,10 @@ typedef struct oc_wgpu_surface
 
 } oc_wgpu_surface;
 
-void oc_wgpu_surface_destroy(oc_surface_base* base)
+i32 oc_wgpu_surface_destroy_callback(void* user)
 {
+    oc_surface_base* base = (oc_surface_base*)user;
+
     oc_wgpu_surface* surface = (oc_wgpu_surface*)base;
 
     wgpuSurfaceRelease(surface->wgpuSurface);
@@ -35,10 +37,27 @@ void oc_wgpu_surface_destroy(oc_surface_base* base)
     }
     oc_surface_base_cleanup(base);
     free(surface);
+    return 0;
 }
 
-oc_surface oc_wgpu_surface_create_for_window(WGPUInstance instance, oc_window window)
+void oc_wgpu_surface_destroy(oc_surface_base* base)
 {
+    oc_dispatch_on_main_thread_sync(oc_wgpu_surface_destroy_callback, base);
+}
+
+typedef struct oc_wgpu_surface_create_data
+{
+    WGPUInstance instance;
+    oc_window window;
+    oc_surface surface;
+} oc_wgpu_surface_create_data;
+
+i32 oc_wgpu_surface_create_callback(void* user)
+{
+    oc_wgpu_surface_create_data* data = (oc_wgpu_surface_create_data*)user;
+    WGPUInstance instance = data->instance;
+    oc_window window = data->window;
+
     oc_wgpu_surface* surface = 0;
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
@@ -66,7 +85,20 @@ oc_surface oc_wgpu_surface_create_for_window(WGPUInstance instance, oc_window wi
     {
         handle = oc_surface_handle_alloc((oc_surface_base*)surface);
     }
-    return (handle);
+    data->surface = handle;
+    return 0;
+}
+
+oc_surface oc_wgpu_surface_create_for_window(WGPUInstance instance, oc_window window)
+{
+    oc_wgpu_surface_create_data data = {
+        .instance = instance,
+        .window = window,
+    };
+
+    oc_dispatch_on_main_thread_sync(oc_wgpu_surface_create_callback, &data);
+
+    return (data.surface);
 }
 
 WGPUTexture oc_wgpu_surface_get_current_texture(oc_surface handle, WGPUDevice device)

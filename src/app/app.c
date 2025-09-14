@@ -24,12 +24,12 @@ void oc_init_window_handles()
     }
 }
 
-bool oc_window_handle_is_null(oc_window window)
+bool oc_window_is_nil(oc_window window)
 {
     return (window.h == 0);
 }
 
-oc_window oc_window_null_handle()
+oc_window oc_window_nil()
 {
     return ((oc_window){ .h = 0 });
 }

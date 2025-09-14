@@ -835,7 +835,6 @@ pub fn build(b: *Build) !void {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=webgpu.dll");
     // }
-
     const orca_platform_lib = b.addLibrary(.{
         .linkage = .dynamic,
         .name = "orca_platform",
@@ -917,11 +916,11 @@ pub fn build(b: *Build) !void {
 
     const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, orca_platform_install_opts);
 
-    // wasm3
+    // warm
 
-    const wasm3_lib = b.addLibrary(.{
+    const warm_lib = b.addLibrary(.{
         .linkage = .static,
-        .name = "wasm3",
+        .name = "warm",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
@@ -930,49 +929,51 @@ pub fn build(b: *Build) !void {
         }),
     });
 
-    const wasm3_sources: []const []const u8 = &.{
-        "src/ext/wasm3/source/m3_api_libc.c",
-        "src/ext/wasm3/source/m3_api_meta_wasi.c",
-        "src/ext/wasm3/source/m3_api_tracer.c",
-        "src/ext/wasm3/source/m3_api_uvwasi.c",
-        "src/ext/wasm3/source/m3_api_wasi.c",
-        "src/ext/wasm3/source/m3_bind.c",
-        "src/ext/wasm3/source/m3_code.c",
-        "src/ext/wasm3/source/m3_compile.c",
-        "src/ext/wasm3/source/m3_core.c",
-        "src/ext/wasm3/source/m3_env.c",
-        "src/ext/wasm3/source/m3_exec.c",
-        "src/ext/wasm3/source/m3_function.c",
-        "src/ext/wasm3/source/m3_info.c",
-        "src/ext/wasm3/source/m3_module.c",
-        "src/ext/wasm3/source/m3_parse.c",
-        "src/ext/wasm3/source/extensions/m3_extensions.c",
+    const warm_sources: []const []const u8 = &.{
+        "src/warm/reader.c",
+        "src/warm/instructions.c",
+        "src/warm/wa_types.c",
+        "src/warm/dwarf.c",
+        "src/warm/debug_import.c",
+        "src/warm/parser.c",
+        "src/warm/compiler.c",
+        "src/warm/module.c",
+        "src/warm/instance.c",
+        "src/warm/interpreter.c",
+        "src/warm/debug_info.c",
+        "src/warm/warm_adapter.c",
     };
 
-    var wasm3_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    if (target.result.os.tag.isDarwin()) {
-        try wasm3_compile_flags.append("-foptimize-sibling-calls");
-        try wasm3_compile_flags.append("-Wno-extern-initializer");
-        try wasm3_compile_flags.append("-Dd_m3VerboseErrorMessages");
-        try wasm3_compile_flags.append(compile_flag_min_macos_version);
-    }
+    var warm_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
+    try warm_compile_flags.append("-std=c11");
+    try warm_compile_flags.append("-Werror");
+    try warm_compile_flags.append("-g");
+    try warm_compile_flags.append("-O0");
+    try warm_compile_flags.append("-fno-sanitize=undefined");
 
-    wasm3_lib.addIncludePath(b.path("src/ext/wasm3/source"));
-    wasm3_lib.addCSourceFiles(.{
-        .files = wasm3_sources,
-        .flags = wasm3_compile_flags.items,
+    warm_lib.addIncludePath(b.path("src"));
+    warm_lib.addCSourceFiles(.{
+        .files = warm_sources,
+        .flags = warm_compile_flags.items,
     });
+
+    const warm_install_opts: Build.Step.InstallArtifact.Options = .{
+        .dest_dir = .{ .override = .bin },
+    };
+
+    const warm_install: *Build.Step.InstallArtifact = b.addInstallArtifact(warm_lib, warm_install_opts);
 
     // orca runtime exe
 
     var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
     defer orca_runtime_compile_flags.deinit();
-    try orca_runtime_compile_flags.append("-Werror");
-    try orca_runtime_compile_flags.append("-DOC_WASM_BACKEND_WASM3=1");
+
     if (optimize == .Debug) {
         try orca_runtime_compile_flags.append("-DOC_DEBUG");
         try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
     }
+    try orca_runtime_compile_flags.append("-std=c11");
+    try orca_runtime_compile_flags.append("-Werror");
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
@@ -985,16 +986,15 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.addIncludePath(b.path("src"));
     orca_runtime_exe.addIncludePath(b.path("src/ext"));
     orca_runtime_exe.addIncludePath(angle_include_path);
-    orca_runtime_exe.addIncludePath(b.path("src/ext/wasm3/source"));
 
     orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
 
     orca_runtime_exe.addCSourceFiles(.{
-        .files = &.{"src/runtime.c"},
+        .files = &.{"src/runtime/main.c"},
         .flags = orca_runtime_compile_flags.items,
     });
 
-    orca_runtime_exe.linkLibrary(wasm3_lib);
+    orca_runtime_exe.linkLibrary(warm_lib);
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibC();
 
@@ -1008,6 +1008,16 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const orca_runtime_exe_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
+
+    // if (target.result.os.tag == .macos) {
+    //     const run_install_name = b.addSystemCommand(&.{
+    //         "install_name_tool",
+    //         "-delete_rpath",
+    //     });
+    //     run_install_name.addDirectoryArg(orca_runtime_exe.getEmittedBin().dirname());
+    //     run_install_name.addFileArg(orca_runtime_exe.getEmittedBin());
+    //     orca_runtime_exe_install.step.dependOn(&run_install_name.step);
+    // }
 
     ///////////////////////////////////////////////////////
     // orca wasm libc
@@ -1182,7 +1192,7 @@ pub fn build(b: *Build) !void {
         .name = "orca_wasm",
         .root_module = b.createModule(.{
             .target = wasm_target,
-            .optimize = wasm_optimize,
+            .optimize = .ReleaseFast,
             .single_threaded = true,
             .link_libc = false,
         }),
@@ -1229,6 +1239,7 @@ pub fn build(b: *Build) !void {
     // zig build - default install step builds and installs a dev build of orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
+    build_orca.dependOn(&warm_install.step);
     build_orca.dependOn(&orca_platform_install.step);
     build_orca.dependOn(&orca_runtime_exe_install.step);
     build_orca.dependOn(&libc_install.step);
@@ -1442,6 +1453,80 @@ pub fn build(b: *Build) !void {
 
     const tests = b.step("test", "Build and run all tests");
 
+    // get wasm tools path
+    var wasm_tools: LazyPath = .{ .cwd_relative = "" };
+    if (target.result.os.tag == .windows) {
+        if (b.lazyDependency("wasm-tools-windows-x64", .{})) |dep| {
+            wasm_tools = dep.path("wasm-tools.exe");
+        }
+    } else if (target.result.os.tag.isDarwin()) {
+        if (target.result.cpu.arch == .aarch64) {
+            if (b.lazyDependency("wasm-tools-mac-arm64", .{})) |dep| {
+                wasm_tools = dep.path("wasm-tools");
+            }
+        } else {
+            if (b.lazyDependency("wasm-tools-mac-x64", .{})) |dep| {
+                wasm_tools = dep.path("wasm-tools");
+            }
+        }
+    } else {
+        const fail = b.addFail("wasm-tools dependency not configured for this platform.");
+        b.getInstallStep().dependOn(&fail.step);
+    }
+
+    // warm testsuite
+    const wasm_tests_convert_exe = b.addExecutable(.{
+        .name = "wast_convert",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/warm/convert.zig"),
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+
+    const wasm_tests_convert = b.addRunArtifact(wasm_tests_convert_exe);
+    wasm_tests_convert.addPrefixedFileArg("--wasm-tools=", wasm_tools);
+    wasm_tests_convert.addPrefixedDirectoryArg("--tests=", b.path("tests/warm/core"));
+    const wasm_tests_dir = wasm_tests_convert.addPrefixedOutputDirectoryArg("--out=", "warm/testsuite");
+
+    const wasm_tests_install_dir: Build.InstallDir = .{ .custom = "tests/warm/core" };
+    const wasm_tests_install = b.addInstallDirectory(.{ .source_dir = wasm_tests_dir, .install_dir = wasm_tests_install_dir, .install_subdir = "" });
+
+    const warm_test_exe = b.addExecutable(.{
+        .name = "warm-test",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+    warm_test_exe.addIncludePath(b.path("src"));
+    warm_test_exe.addIncludePath(b.path("tests/warm"));
+    warm_test_exe.addCSourceFiles(.{
+        .files = &.{
+            "tests/warm/main.c",
+        },
+        .flags = &.{},
+    });
+    warm_test_exe.linkLibrary(warm_lib);
+
+    if (target.result.os.tag == .windows) {
+        warm_test_exe.linkSystemLibrary("user32");
+        warm_test_exe.linkSystemLibrary("shlwapi");
+    }
+
+    const warm_test_install = b.addInstallArtifact(warm_test_exe, .{
+        .dest_dir = .{ .override = .{ .custom = "tests/warm" } },
+    });
+
+    const warm_test = b.addRunArtifact(warm_test_exe);
+    warm_test.addArg("test");
+    warm_test.addDirectoryArg(wasm_tests_dir);
+
+    tests.dependOn(&wasm_tests_install.step);
+    tests.dependOn(&warm_test.step);
+    tests.dependOn(&warm_test_install.step);
+
+    // api tests
     const TestConfig = struct {
         name: []const u8,
         run: bool = false,

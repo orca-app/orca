@@ -49,6 +49,7 @@ ORCA_EXPORT void oc_on_init(void)
     surface = oc_gles_surface_create();
     oc_gles_surface_make_current(surface);
 
+    /*
     const char* extensions = (const char*)glGetString(GL_EXTENSIONS);
     oc_log_info("GLES extensions: %s\n", extensions);
 
@@ -59,6 +60,7 @@ ORCA_EXPORT void oc_on_init(void)
         const char* extension = (const char*)glGetStringi(GL_EXTENSIONS, i);
         oc_log_info("GLES extension %i: %s\n", i, extension);
     }
+    */
 
     unsigned int vshader = glCreateShader(GL_VERTEX_SHADER);
     unsigned int fshader = glCreateShader(GL_FRAGMENT_SHADER);
@@ -105,13 +107,19 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
     oc_vec2 scaling = oc_surface_contents_scaling(surface);
 
+    oc_vec2* scalingPtr = &scaling;
+
     glViewport(0, 0, frameSize.x * scaling.x, frameSize.y * scaling.y);
 
     GLfloat matrix[] = { cosf(alpha) / aspect, sinf(alpha), 0, 0,
                          -sinf(alpha) / aspect, cosf(alpha), 0, 0,
                          0, 0, 1, 0,
                          0, 0, 0, 1 };
-    alpha += 2 * M_PI / 120;
+
+    {
+        f32 scaling = 1;
+        alpha += 2 * M_PI / 120 * scaling;
+    }
 
     glUniformMatrix4fv(0, 1, false, matrix);
 

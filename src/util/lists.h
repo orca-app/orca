@@ -55,6 +55,12 @@ extern "C" {
         elt != 0;                                                            \
         elt = oc_list_checked_entry(elt->member.prev, type, member))
 
+#define oc_list_for_indexed(list, it, type, member)                                      \
+    for(                                                                                 \
+        struct { size_t index; type* elt; } it = { 0, oc_list_checked_entry(oc_list_begin(list), type, member) }; \
+        it.elt != 0;                                                                     \
+        it.elt = oc_list_checked_entry(it.elt->member.next, type, member), it.index++)
+
 #define oc_list_for_safe(list, elt, type, member)                                       \
     for(type* elt = oc_list_checked_entry(oc_list_begin(list), type, member),           \
               *__tmp = elt ? oc_list_checked_entry(elt->member.next, type, member) : 0; \

@@ -215,7 +215,9 @@ pub fn main() !void {
     const bin_files_windows: []const []const u8 = &.{
         "orca_tool.exe",
         "orca_platform.dll",
+        "orca_platform.pdb",
         "orca_runtime.exe",
+        "orca_runtime.pdb",
         "liborca_wasm.a",
         "libEGL.dll",
         "libGLESv2.dll",
@@ -261,7 +263,6 @@ pub fn main() !void {
             "orca-libc/",
             "wasm/",
             "ext/curl/",
-            "ext/wasm3/",
             "ext/zlib/build/", // copy all headers in zlib except zlib/build
         };
         try copyFolder(opts.arena, dest_src_path, opts.src_path, &.{ .include_extensions = header_extensions, .ignore_patterns = ignore_patterns });
