@@ -288,7 +288,9 @@ void wa_parse_names(wa_parser* parser, wa_module* module)
             break;
             default:
             {
-                oc_log_warning("Unexpected subsection id %hhi at offset 0x%02x.\n", id, wa_reader_offset(&parser->reader));
+                //NOTE: unexpected subsection, but we just ignore it because everyone seem to produce their own
+                //      non-standard subsections anyway
+                //oc_log_warning("Unexpected subsection id %hhi at offset 0x%02x.\n", id, wa_reader_offset(&parser->reader));
             }
             break;
         }
