@@ -17,6 +17,7 @@
 #include "util/typedefs.h"
 #include "util/utf8.h"
 #include "util/wrapped_types.h"
+#include "util/argparse.h"
 
 #include "platform/platform.h"
 #include "platform/platform_clock.h"
