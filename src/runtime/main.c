@@ -275,6 +275,7 @@ end:
     return result;
 }
 
+/*
 int extract_zip(oc_str8 src, oc_str8 dst)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -368,6 +369,7 @@ error:
     oc_scratch_end(scratch);
     return -1;
 }
+*/
 
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
@@ -386,6 +388,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     return path;
 }
 
+/*
 int copy_dir_from_archive(oc_str8 archive, oc_str8 src, oc_str8 dst)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -475,7 +478,9 @@ error:
     oc_scratch_end(scratch);
     return -1;
 }
+*/
 
+/*
 oc_str8 load_module_from_archive(oc_arena* arena, oc_str8 archive, oc_str8 name)
 {
     oc_str8 res = { 0 };
@@ -516,23 +521,27 @@ oc_str8 load_module_from_archive(oc_arena* arena, oc_str8 archive, oc_str8 name)
     }
     return res;
 }
+*/
 
 void load_app(oc_runtime* app)
 {
-    //NOTE: unzip app image
-
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str8 orcaDir = get_orca_home_dir(scratch.arena);
 
-    //NOTE: copy data dir from archive to user's dir
+    //NOTE: copy data from app dir to user's dir
+    oc_str8 dataDirSrc = { 0 };
+    {
+        oc_str8_list list = { 0 };
+        oc_str8_list_push(scratch.arena, &list, app->path);
+        oc_str8_list_push(scratch.arena, &list, OC_STR8("data"));
 
+        dataDirSrc = oc_path_join(scratch.arena, list);
+    }
     oc_str8 dataDirDest = { 0 };
     {
         //TODO: need a function to get extension / stem from path
         oc_str8 appname = oc_path_slice_filename(app->path);
-        OC_ASSERT(appname.len > 5 && !oc_str8_cmp(oc_str8_slice(appname, appname.len - 5, appname.len), OC_STR8(".orca")));
-        appname = oc_str8_slice(appname, 0, appname.len - 5);
 
         oc_str8_list list = { 0 };
         oc_str8_list_push(scratch.arena, &list, orcaDir);
@@ -541,18 +550,12 @@ void load_app(oc_runtime* app)
 
         dataDirDest = oc_path_join(scratch.arena, list);
     }
-    copy_dir_from_archive(app->path, OC_STR8("data"), dataDirDest);
+    copyfile(dataDirSrc.ptr, dataDirDest.ptr, NULL, COPYFILE_DATA | COPYFILE_RECURSIVE);
 
-    //copyfile(dataDirSrc.ptr, dataDirDest.ptr, NULL, COPYFILE_DATA | COPYFILE_RECURSIVE);
-
-    oc_scratch_end(scratch);
-
-    app->env.wasmBytecode = load_module_from_archive(&app->env.arena, app->path, OC_STR8("main.wasm"));
-    /*
     //NOTE: loads wasm module
     {
         oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, extractDir);
+        oc_str8_list_push(scratch.arena, &list, app->path);
         oc_str8_list_push(scratch.arena, &list, OC_STR8("modules/main.wasm"));
         oc_str8 modulePath = oc_path_join(scratch.arena, list);
 
@@ -572,7 +575,7 @@ void load_app(oc_runtime* app)
         fread(app->env.wasmBytecode.ptr, 1, app->env.wasmBytecode.len, file);
         fclose(file);
     }
-    */
+
     oc_scratch_end(scratch);
 
     app->env.module = wa_module_create(&app->env.arena, app->env.wasmBytecode);
