@@ -21,8 +21,8 @@
     #include "platform/osx_path.c"
     #include "platform/posix_io.c"
     #include "platform/posix_thread.c"
+    #include "platform/unix_subprocess.c"
     #include "platform/osx_platform.c"
-
 /*
 	#include"platform/unix_rng.c"
 	#include"platform/posix_socket.c"
