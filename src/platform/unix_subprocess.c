@@ -6,6 +6,8 @@
 typedef struct oc_subprocess_info
 {
     pid_t pid;
+
+    //pipes
     int stdInFd;
     int stdOutFd;
     int stdErrFd;
@@ -33,47 +35,83 @@ oc_subprocess_error oc_subprocess_create_pipes(int fildes[2])
     return error;
 }
 
-oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subprocess_spawn_options* options)
+oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subprocess_spawn_options* optionsPtr)
 {
     //TODO: it's pretty hard to detect if we pass the wrong argc here...
+
+    oc_subprocess_spawn_options options = optionsPtr ? *optionsPtr : (oc_subprocess_spawn_options){ 0 };
 
     int childStdIn[2] = { 0 };
     int childStdOut[2] = { 0 };
     int childStdErr[2] = { 0 };
 
-    oc_subprocess_error error = oc_subprocess_create_pipes(childStdIn);
-    if(error != OC_SUBPROCESS_OK)
+    if(options.stdOut == OC_SUBPROCESS_STDIO_PIPE)
     {
-        return oc_wrap_error(oc_subprocess_spawn_result, error);
+        oc_subprocess_error error = oc_subprocess_create_pipes(childStdIn);
+        if(error != OC_SUBPROCESS_OK)
+        {
+            return oc_wrap_error(oc_subprocess_spawn_result, error);
+        }
     }
 
-    error = oc_subprocess_create_pipes(childStdOut);
-    if(error != OC_SUBPROCESS_OK)
+    if(options.stdErr == OC_SUBPROCESS_STDIO_PIPE)
     {
-        return oc_wrap_error(oc_subprocess_spawn_result, error);
+        oc_subprocess_error error = oc_subprocess_create_pipes(childStdOut);
+        if(error != OC_SUBPROCESS_OK)
+        {
+            return oc_wrap_error(oc_subprocess_spawn_result, error);
+        }
     }
-
-    error = oc_subprocess_create_pipes(childStdErr);
-    if(error != OC_SUBPROCESS_OK)
+    if(options.stdErr == OC_SUBPROCESS_STDIO_PIPE)
     {
-        return oc_wrap_error(oc_subprocess_spawn_result, error);
+        oc_subprocess_error error = oc_subprocess_create_pipes(childStdErr);
+        if(error != OC_SUBPROCESS_OK)
+        {
+            return oc_wrap_error(oc_subprocess_spawn_result, error);
+        }
     }
 
     pid_t pid = fork();
     if(pid == 0)
     {
         //NOTE: child process
+        if(options.stdIn == OC_SUBPROCESS_STDIO_PIPE)
+        {
+            close(childStdIn[1]);
+            dup2(childStdIn[0], 0);
+        }
+        else if(options.stdIn == OC_SUBPROCESS_STDIO_NULL)
+        {
+            close(0);
+            int fd = open("/dev/null", O_RDONLY);
+            dup2(fd, 0);
+        }
 
-        //TODO: modify file descriptors if needed
+        if(options.stdOut == OC_SUBPROCESS_STDIO_PIPE)
+        {
+            close(childStdOut[0]);
+            dup2(childStdOut[1], 1);
+        }
+        else if(options.stdOut == OC_SUBPROCESS_STDIO_NULL)
+        {
+            close(1);
+            int fd = open("/dev/null", O_WRONLY);
+            dup2(fd, 1);
+            close(fd);
+        }
 
-        //NOTE: connect stdout to write end of pipe
-        close(childStdIn[1]);
-        close(childStdOut[0]);
-        close(childStdErr[0]);
-
-        dup2(childStdIn[0], 0);
-        dup2(childStdOut[1], 1);
-        dup2(childStdErr[1], 2);
+        if(options.stdErr == OC_SUBPROCESS_STDIO_PIPE)
+        {
+            close(childStdErr[0]);
+            dup2(childStdErr[1], 2);
+        }
+        else if(options.stdErr == OC_SUBPROCESS_STDIO_NULL)
+        {
+            close(2);
+            int fd = open("/dev/null", O_WRONLY);
+            dup2(fd, 2);
+            close(fd);
+        }
 
         oc_arena_scope scratch = oc_scratch_begin();
         char** terminatedArgv = oc_arena_push_array(scratch.arena, char*, argc + 1);
@@ -106,15 +144,27 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
     }
     else
     {
-        close(childStdIn[0]);
-        close(childStdOut[1]);
-        close(childStdErr[1]);
-
         oc_subprocess_info* info = oc_malloc_type(oc_subprocess_info);
         info->pid = pid;
-        info->stdInFd = childStdIn[1];
-        info->stdOutFd = childStdOut[0];
-        info->stdErrFd = childStdErr[0];
+        info->stdInFd = -1;
+        info->stdOutFd = -1;
+        info->stdErrFd = -1;
+
+        if(options.stdIn == OC_SUBPROCESS_STDIO_PIPE)
+        {
+            close(childStdIn[0]);
+            info->stdInFd = childStdIn[1];
+        }
+        if(options.stdOut == OC_SUBPROCESS_STDIO_PIPE)
+        {
+            close(childStdOut[1]);
+            info->stdOutFd = childStdOut[0];
+        }
+        if(options.stdErr == OC_SUBPROCESS_STDIO_PIPE)
+        {
+            close(childStdErr[1]);
+            info->stdErrFd = childStdErr[0];
+        }
 
         //NOTE: parent process
         return oc_wrap_value(oc_subprocess_spawn_result, info);
@@ -122,47 +172,6 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
 }
 
 typedef oc_result(oc_str8, oc_subprocess_error) oc_subprocess_read_result;
-
-oc_subprocess_read_result oc_subprocess_read_fd(oc_arena* arena, int fd)
-{
-    oc_str8_list list = { 0 };
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-
-    ssize_t n = 0;
-    char chunk[1024];
-
-    while(1)
-    {
-        n = read(fd, chunk, 1024);
-        if(n == -1)
-        {
-            break;
-        }
-        else if(n == 0)
-        {
-            break;
-        }
-        else
-        {
-            oc_str8_list_push(scratch.arena, &list, oc_str8_from_buffer(n, chunk));
-        }
-    }
-
-    oc_subprocess_read_result result = { 0 };
-    if(n)
-    {
-        //TODO convert errno
-        result = oc_wrap_error(oc_subprocess_read_result, OC_SUBPROCESS_UNKNOWN);
-    }
-    else
-    {
-        oc_str8 s = oc_str8_list_join(arena, list);
-        result = oc_wrap_value(oc_subprocess_read_result, s);
-    }
-
-    oc_scratch_end(scratch);
-    return result;
-}
 
 oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess subprocess)
 {
@@ -191,30 +200,36 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
 
         while(1)
         {
-            nOut = read(subprocess->stdOutFd, chunk, 1024);
-            if(nOut == -1)
+            if(subprocess->stdOutFd >= 0)
             {
-                if(errno != EAGAIN)
+                nOut = read(subprocess->stdOutFd, chunk, 1024);
+                if(nOut == -1)
                 {
-                    break;
+                    if(errno != EAGAIN)
+                    {
+                        break;
+                    }
                 }
-            }
-            else if(nOut)
-            {
-                oc_str8_list_push(scratch.arena, &outList, oc_str8_from_buffer(nOut, chunk));
+                else if(nOut)
+                {
+                    oc_str8_list_push(scratch.arena, &outList, oc_str8_from_buffer(nOut, chunk));
+                }
             }
 
-            nErr = read(subprocess->stdErrFd, chunk, 1024);
-            if(nErr == -1)
+            if(subprocess->stdErrFd >= 0)
             {
-                if(errno != EAGAIN)
+                nErr = read(subprocess->stdErrFd, chunk, 1024);
+                if(nErr == -1)
                 {
-                    break;
+                    if(errno != EAGAIN)
+                    {
+                        break;
+                    }
                 }
-            }
-            else if(nErr)
-            {
-                oc_str8_list_push(scratch.arena, &errList, oc_str8_from_buffer(nErr, chunk));
+                else if(nErr)
+                {
+                    oc_str8_list_push(scratch.arena, &errList, oc_str8_from_buffer(nErr, chunk));
+                }
             }
 
             if(nOut == 0 && nErr == 0)
@@ -274,9 +289,18 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
     }
 
 end:
-    close(subprocess->stdInFd);
-    close(subprocess->stdOutFd);
-    close(subprocess->stdErrFd);
+    if(subprocess->stdInFd >= 0)
+    {
+        close(subprocess->stdInFd);
+    }
+    if(subprocess->stdOutFd >= 0)
+    {
+        close(subprocess->stdOutFd);
+    }
+    if(subprocess->stdErrFd >= 0)
+    {
+        close(subprocess->stdErrFd);
+    }
     free(subprocess);
     return result;
 }

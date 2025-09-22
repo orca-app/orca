@@ -200,13 +200,9 @@ int oc_tool_run(oc_tool_options* options)
 
     //TODO: we don't want to capture ouput from that process...
     char* appCStr = oc_str8_to_cstring(scratch.arena, options->app);
-    oc_subprocess_result result = oc_subprocess_run(2, (char*[]){ runtimeExe.ptr, appCStr }, 0);
+    oc_subprocess_spawn_result result = oc_subprocess_spawn(2, (char*[]){ runtimeExe.ptr, appCStr }, 0);
 
-    oc_subprocess_completion completion = oc_if_unwrap(result)
-    {
-        status = completion.returnCode;
-    }
-    else
+    if(!oc_check(result))
     {
         oc_log_error("Couldn't launch the orca runtime (error = %i).\n", result.error);
         status = -1;

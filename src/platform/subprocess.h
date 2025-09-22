@@ -24,15 +24,28 @@ typedef enum oc_subprocess_error
 
 } oc_subprocess_error;
 
+typedef enum oc_subprocess_stdio_mode
+{
+    OC_SUBPROCESS_STDIO_INHERIT,
+    OC_SUBPROCESS_STDIO_PIPE,
+    OC_SUBPROCESS_STDIO_NULL,
+} oc_subprocess_stdio_mode;
+
 typedef struct oc_subprocess_run_options
 {
     oc_arena* captureArena;
+    oc_subprocess_stdio_mode stdIn;
+    oc_subprocess_stdio_mode stdOut;
+    oc_subprocess_stdio_mode stdErr;
     //...
 } oc_subprocess_run_options;
 
 typedef struct oc_subprocess_spawn_options
 {
-    //...
+    oc_subprocess_stdio_mode stdIn;
+    oc_subprocess_stdio_mode stdOut;
+    oc_subprocess_stdio_mode stdErr;
+
 } oc_subprocess_spawn_options;
 
 typedef struct oc_subprocess_completion
