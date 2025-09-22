@@ -62,6 +62,7 @@
 #include "util/ringbuffer.c"
 #include "util/strings.c"
 #include "util/utf8.c"
+#include "util/wrapped_types.c"
 
 #if !defined(OC_NO_APP_LAYER)
 //---------------------------------------------------------------

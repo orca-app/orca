@@ -19,13 +19,15 @@ typedef uint8_t byte;
 typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
-typedef uint64_t u64;
+_Static_assert(sizeof(unsigned long long) == 8, "");
+typedef unsigned long long u64;
 typedef intptr_t uptr;
 
 typedef int8_t i8;
 typedef int16_t i16;
 typedef int32_t i32;
-typedef int64_t i64;
+_Static_assert(sizeof(signed long long) == 8, "");
+typedef signed long long i64;
 typedef uintptr_t iptr;
 typedef ptrdiff_t dptr;
 

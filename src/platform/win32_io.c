@@ -15,6 +15,19 @@
 #include "platform_io_internal.c"
 #include "win32_string_helpers.h"
 
+const DWORD OC_WIN32_REGULAR_ATTRIBUTE_SET = 
+      FILE_ATTRIBUTE_ARCHIVE
+    | FILE_ATTRIBUTE_COMPRESSED
+    | FILE_ATTRIBUTE_ENCRYPTED
+    | FILE_ATTRIBUTE_HIDDEN
+    | FILE_ATTRIBUTE_NORMAL
+    | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+    | FILE_ATTRIBUTE_OFFLINE
+    | FILE_ATTRIBUTE_READONLY
+    | FILE_ATTRIBUTE_SPARSE_FILE
+    | FILE_ATTRIBUTE_SYSTEM
+    | FILE_ATTRIBUTE_TEMPORARY;
+
 oc_io_error oc_io_raw_last_error()
 {
     oc_io_error error = 0;
@@ -273,18 +286,6 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
         status->size = (((u64)info.nFileSizeHigh) << 32) | ((u64)info.nFileSizeLow);
         status->uid = ((u64)info.nFileIndexHigh << 32) | ((u64)info.nFileIndexLow);
 
-        DWORD attrRegularSet = FILE_ATTRIBUTE_ARCHIVE
-                             | FILE_ATTRIBUTE_COMPRESSED
-                             | FILE_ATTRIBUTE_ENCRYPTED
-                             | FILE_ATTRIBUTE_HIDDEN
-                             | FILE_ATTRIBUTE_NORMAL
-                             | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
-                             | FILE_ATTRIBUTE_OFFLINE
-                             | FILE_ATTRIBUTE_READONLY
-                             | FILE_ATTRIBUTE_SPARSE_FILE
-                             | FILE_ATTRIBUTE_SYSTEM
-                             | FILE_ATTRIBUTE_TEMPORARY;
-
         if((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
         {
             FILE_ATTRIBUTE_TAG_INFO tagInfo;
@@ -305,7 +306,7 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
         {
             status->type = OC_FILE_DIRECTORY;
         }
-        else if(info.dwFileAttributes & attrRegularSet)
+        else if(info.dwFileAttributes & OC_WIN32_REGULAR_ATTRIBUTE_SET)
         {
             status->type = OC_FILE_REGULAR;
         }
@@ -578,4 +579,68 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
         }
     }
     return (cmp);
+}
+
+oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
+{
+    oc_file_list list = {0};
+
+    oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
+    if(slot && !slot->fatal)
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        // Windows uses a trailing \* to determine it should enumerate all files in the folder
+        oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.arena, slot->fd, OC_STR8("\\*"));
+
+        WIN32_FIND_DATAW entry = {0};
+
+        HANDLE handle = FindFirstFileW(dirPathW.ptr, &entry);
+        if (handle == INVALID_HANDLE_VALUE)
+        {
+            slot->error = oc_io_raw_last_error();
+        }
+        else
+        {
+            do
+            {
+                if (!StrCmpW(u".", entry.cFileName) || !StrCmpW(u"..", entry.cFileName))
+                {
+                    continue;
+                }
+
+                oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
+                oc_list_push_back(&list.list, &elt->listElt);
+
+                ++list.eltCount;
+
+                elt->type = OC_FILE_UNKNOWN;
+                if (entry.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+                {
+                    if (entry.dwReserved0 & IO_REPARSE_TAG_SYMLINK)
+                    {
+                        elt->type = OC_FILE_SYMLINK;
+                    }
+                }
+                if(entry.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                {
+                    elt->type = OC_FILE_DIRECTORY;
+                }
+                else if(entry.dwFileAttributes & OC_WIN32_REGULAR_ATTRIBUTE_SET)
+                {
+                    elt->type = OC_FILE_REGULAR;
+                }
+
+                oc_str16 basename16 = { .ptr = entry.cFileName, lstrlenW(entry.cFileName) };
+                elt->basename = oc_win32_wide_to_utf8(arena, basename16);
+            }
+            while (FindNextFileW(handle, &entry));
+
+            FindClose(handle);
+        }
+
+        oc_scratch_end(scratch);
+    }
+
+    return list;
 }

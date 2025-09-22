@@ -35,5 +35,16 @@
          "type": {"name": "oc_file_dialog_desc*", "cname": "oc_wasm_file_dialog_desc*", "tag": "p"},
      	 "len": {"components": 1}}
     ]
+},
+{
+    "name": "oc_file_listdir",
+    "cname": "oc_file_listdir_bridge",
+    "ret": {"name": "oc_file_list", "cname": "oc_wasm_file_list", "tag": "S"},
+    "args": [
+        {"name": "arena",
+         "type": {"name": "oc_arena*", "cname": "i32", "tag": "i"}},
+        {"name": "directory",
+         "type": {"name": "oc_file", "tag": "S"}}
+    ]
 }
 ]

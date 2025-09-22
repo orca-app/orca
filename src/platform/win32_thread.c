@@ -162,6 +162,7 @@ int oc_mutex_lock(oc_mutex* mutex)
 {
     OC_DEBUG_ASSERT(mutex->owningThreadId == 0);
     AcquireSRWLockExclusive(&mutex->lock);
+    mutex->owningThreadId = GetCurrentThreadId();
     return (0);
 }
 

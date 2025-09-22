@@ -1,9 +1,0 @@
-.gradle
-# Build output directies
-*/.externalNativeBuild
-/target
-*/target
-/build
-*/build
-*/.cxx
-

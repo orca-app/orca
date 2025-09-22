@@ -8,7 +8,6 @@
 #pragma once
 
 #include "util/strings.h"
-#include "util/typedefs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -235,6 +234,27 @@ ORCA_API oc_file_status oc_file_get_status(oc_file file);
 ORCA_API u64 oc_file_size(oc_file file);
 
 //TODO: Complete as needed...
+
+//----------------------------------------------------------------
+// File Enumeration API
+//----------------------------------------------------------------
+
+typedef struct oc_file_listdir_elt
+{
+    oc_list_elt listElt;
+    oc_str8 basename; // filename and extension, if any
+    oc_file_type type;
+} oc_file_listdir_elt;
+
+typedef struct oc_file_list
+{
+    oc_list list;
+    u64 eltCount;
+} oc_file_list;
+
+ORCA_API oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory);
+
+#define oc_file_list_for(filelist, elt) oc_list_for(filelist.list, elt, oc_file_listdir_elt, listElt)
 
 //----------------------------------------------------------------
 // Acquiring new file capabilities through user interaction

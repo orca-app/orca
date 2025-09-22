@@ -26,8 +26,6 @@ scripts/__pycache__
 
 .zig-cache
 zig-out
-src/ext/bytebox/zig-cache
-src/ext/bytebox/zig-out
 
 .vscode/launch.json
 .vscode/settings.json

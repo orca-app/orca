@@ -6,11 +6,16 @@
 *
 **************************************************************************/
 
+#if OC_PLATFORM_MACOS && !defined(_DARWIN_FEATURE_ONLY_64_BIT_INODE)
+#define _DARWIN_USE_64_BIT_INODE
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <dirent.h>
 
 #include "platform_io_common.c"
 #include "platform_io_internal.c"
@@ -587,4 +592,59 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
         }
     }
     return (cmp);
+}
+
+oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
+{
+    oc_file_list list = {0};
+
+    oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
+    if(slot && !slot->fatal)
+    {
+        DIR* dir = fdopendir(slot->fd);
+        if (dir)
+        {
+            struct dirent* entry = NULL;
+            while ((entry = readdir(dir)) != NULL) {
+                // skip the current/previous directory entries
+                if (!strcmp(".", entry->d_name) || !strcmp("..", entry->d_name)) {
+                    continue;
+                }
+
+                oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
+                oc_list_push_back(&list.list, &elt->listElt);
+                ++list.eltCount;
+
+                oc_file_type type = OC_FILE_UNKNOWN;
+                switch (entry->d_type) 
+                {
+                    case DT_FIFO: type = OC_FILE_FIFO;      break;
+                    case DT_CHR:  type = OC_FILE_CHARACTER; break;
+                    case DT_DIR:  type = OC_FILE_DIRECTORY; break;
+                    case DT_BLK:  type = OC_FILE_BLOCK;     break;
+                    case DT_REG:  type = OC_FILE_REGULAR;   break;
+                    case DT_LNK:  type = OC_FILE_SYMLINK;   break;
+                    case DT_SOCK: type = OC_FILE_SOCKET;    break;
+                    default:      type = OC_FILE_UNKNOWN;   break;
+                }
+
+                #if OC_PLATFORM_MACOS
+                    elt->basename = oc_str8_push_buffer(arena, entry->d_namlen, entry->d_name);
+                #elif OC_PLATFORM_LINUX
+                    elt->basename = oc_str8_push_cstring(arena, entry->d_name);
+                #else
+                    #error "Unsupported OS"
+                #endif
+                elt->type = type;
+            }
+
+            closedir(dir);
+        }
+        else
+        {
+            slot->error = oc_io_raw_last_error();
+        }
+    }
+
+    return list;
 }

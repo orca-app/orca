@@ -148,7 +148,7 @@ void oc_set_cursor(oc_mouse_cursor cursor)
 static oc_window window_handle_from_x11_id(u32 winId)
 {
     oc_linux_x11* x11 = &oc_appData.linux.x11;
-    oc_window window = oc_window_null_handle();
+    oc_window window = {0};
     for(u32 i = 0; i < x11->winIdToHandleLen; i++)
     {
         x11_win_id_to_handle* entry = &x11->winIdToHandle[i];
@@ -388,7 +388,7 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
 
     if(linux->x11.winIdToHandleLen == oc_array_size(linux->x11.winIdToHandle))
     {
-      return oc_window_null_handle();
+      return (oc_window){0};
     }
 
     const xcb_setup_t* setup = xcb_get_setup(conn);
@@ -736,7 +736,7 @@ oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_sty
     OC_ASSERT(0 && "Unimplemented");
     return ((oc_rect){0});
 }
-i32 oc_dispatch_on_main_thread_sync(oc_window main_window, oc_dispatch_proc proc, void* user)
+i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 {
     OC_ASSERT(0 && "Unimplemented");
     return (-1);

@@ -132,10 +132,10 @@ const Binding = struct {
             std.debug.assert(tag != .Struct);
 
             return switch (tag) {
-                .Int32 => "OC_WASM_VALTYPE_I32",
-                .Int64 => "OC_WASM_VALTYPE_I64",
-                .Float32 => "OC_WASM_VALTYPE_F32",
-                .Float64 => "OC_WASM_VALTYPE_F64",
+                .Int32 => "WA_TYPE_I32",
+                .Int64 => "WA_TYPE_I64",
+                .Float32 => "WA_TYPE_F32",
+                .Float64 => "WA_TYPE_F64",
                 else => {
                     std.log.err("Cannot convert {} tag to valtype in binding {s}", .{ tag, binding_name });
                     return error.StructToValtype;
@@ -356,21 +356,28 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
 
         // host-side stub
         try host.print(
-            "void {s}_stub(const i64* restrict _params, i64* restrict _returns, u8* _mem, oc_wasm* wasm)\n",
+            "void {s}_stub(wa_interpreter* interpreter, wa_value* _params, wa_value* _returns, void* user)\n",
             .{binding.cname},
         );
         try host.writeAll("{\n");
+
+        try host.writeAll("\twa_instance* instance = wa_interpreter_current_instance(interpreter);\n");
+        try host.writeAll("\toc_str8 memStr8 = wa_instance_get_memory_str8(instance);\n ");
+        try host.writeAll("\tchar* _mem = memStr8.ptr;\n ");
+        try host.writeAll("\tu32 _memSize = memStr8.len;\n");
 
         const first_arg_index: u32 = if (binding.ret.tag == .Struct) 1 else 0;
         if (binding.ret.tag == .Struct) {
             try host.print("\t{s}* __retPtr = ({s}*)((char*)_mem + *(i32*)&_params[0]);\n", .{ binding.ret.cname, binding.ret.cname });
 
             try host.writeAll("\t{\n");
-            try host.writeAll("\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < oc_wasm_mem_size(wasm)), \"return pointer is out of bounds\");\n");
+
+            try host.writeAll("\t\tOC_ASSERT_DIALOG(((char*)__retPtr >= (char*)_mem) && (((char*)__retPtr - (char*)_mem) < _memSize), \"return pointer is out of bounds\");\n");
             try host.print(
-                "\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof({s}) <= ((char*)_mem + oc_wasm_mem_size(wasm)), \"return pointer is out of bounds\");\n",
+                "\t\tOC_ASSERT_DIALOG((char*)__retPtr + sizeof({s}) <= ((char*)_mem + _memSize), \"return pointer is out of bounds\");\n",
                 .{binding.ret.cname},
             );
+
             try host.writeAll("\t}\n");
         }
 
@@ -401,14 +408,14 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
                 if (arg.len) |len| {
                     try host.writeAll("\t{\n");
                     try host.print(
-                        "\t\tOC_ASSERT_DIALOG(((char*){s} >= (char*)_mem) && (((char*){s} - (char*)_mem) < oc_wasm_mem_size(wasm)), \"parameter '{s}' is out of bounds\");\n",
+                        "\t\tOC_ASSERT_DIALOG(((char*){s} >= (char*)_mem) && (((char*){s} - (char*)_mem) < _memSize), \"parameter '{s}' is out of bounds\");\n",
                         .{ arg.name, arg.name, arg.name },
                     );
                     try host.print("\t\tOC_ASSERT_DIALOG((char*){s} + ", .{arg.name});
 
                     switch (len) {
                         .proc => |proc| {
-                            try host.print("{s}(wasm, ", .{proc.name});
+                            try host.print("{s}(instance, ", .{proc.name});
                             for (proc.args, 0..) |proc_arg, i| {
                                 try host.print("{s}", .{proc_arg});
                                 if (i + 1 < proc.args.len) {
@@ -433,7 +440,7 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
                         try host.print("*sizeof({s})", .{cname[0 .. cname.len - 1]});
                     }
 
-                    try host.print(" <= ((char*)_mem + oc_wasm_mem_size(wasm)), \"parameter '{s}' is out of bounds\");\n", .{arg.name});
+                    try host.print(" <= ((char*)_mem + _memSize), \"parameter '{s}' is out of bounds\");\n", .{arg.name});
                     try host.writeAll("\t}\n");
                 } else {
                     std.log.err("Binding {s} missing pointer length decoration for param '{s}'", .{ binding.name, arg.name });
@@ -468,8 +475,8 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
     }
 
     // link function
-    try host.print("int bindgen_link_{s}_api(oc_wasm* wasm)\n", .{opts.api_name});
-    try host.writeAll("{\n\toc_wasm_status status;\n");
+    try host.print("int bindgen_link_{s}_api(oc_arena* arena, wa_import_package* package)\n", .{opts.api_name});
+    try host.writeAll("{\n\twa_status status;\n");
     try host.writeAll("\tint ret = 0;\n\n");
 
     // for decl in data:
@@ -484,12 +491,12 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
             var writer = params_str.writer();
 
             if (num_args == 0) {
-                try writer.writeAll("\t\toc_wasm_valtype paramTypes[1];\n");
+                try writer.writeAll("\t\twa_value_type paramTypes[1];\n");
             } else {
-                try writer.writeAll("\t\toc_wasm_valtype paramTypes[] = {");
+                try writer.writeAll("\t\twa_value_type paramTypes[] = {");
 
                 if (binding.ret.tag == .Struct) {
-                    try writer.writeAll("OC_WASM_VALTYPE_I32, ");
+                    try writer.writeAll("WA_TYPE_I32, ");
                 }
                 for (binding.args) |arg| {
                     var tag = arg.type.tag;
@@ -508,29 +515,25 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
 
         const return_types: []const u8 = blk: {
             if (num_returns == 0) {
-                break :blk "\t\toc_wasm_valtype returnTypes[1];\n\n";
+                break :blk "\t\twa_value_type returnTypes[1];\n\n";
             } else {
                 const return_str = try binding.ret.tag.toValtype(name);
-                break :blk try std.fmt.allocPrint(opts.arena, "\t\toc_wasm_valtype returnTypes[] = {{ {s} }};\n\n", .{return_str});
+                break :blk try std.fmt.allocPrint(opts.arena, "\t\twa_value_type returnTypes[] = {{ {s} }};\n\n", .{return_str});
             }
         };
 
         try host.writeAll("\t{\n");
         try host.print("{s}", .{param_types});
         try host.print("{s}", .{return_types});
-        try host.print("\t\toc_wasm_binding binding = {{0}};\n", .{}); // double {{ }} escapes the zig format specifier to be = {0}
-        try host.print("\t\tbinding.importName = OC_STR8(\"{s}\");\n", .{name});
-        try host.print("\t\tbinding.proc = {s}_stub;\n", .{binding.cname});
-        try host.print("\t\tbinding.countParams = {};\n", .{num_args});
-        try host.print("\t\tbinding.countReturns = {};\n", .{num_returns});
-        try host.print("\t\tbinding.params = paramTypes;\n", .{});
-        try host.print("\t\tbinding.returns = returnTypes;\n", .{});
-        try host.print("\t\tstatus = oc_wasm_add_binding(wasm, &binding);\n", .{});
-        try host.print("\t\tif(oc_wasm_status_is_fail(status))\n", .{});
-        try host.writeAll("\t\t{\n");
-        try host.print("\t\t\toc_log_error(\"Couldn't link function {s} (%s)\\n\", oc_wasm_status_str8(status).ptr);\n", .{name});
-        try host.writeAll("\t\t\tret = -1;\n");
-        try host.writeAll("\t\t}\n");
+        try host.print("\t\twa_import_binding binding = {{0}};\n", .{}); // double {{ }} escapes the zig format specifier to be = {0}
+        try host.print("\t\tbinding.name = OC_STR8(\"{s}\");\n", .{name});
+        try host.print("\t\tbinding.kind = WA_BINDING_HOST_FUNCTION;\n", .{});
+        try host.print("\t\tbinding.hostFunction.proc = {s}_stub;\n", .{binding.cname});
+        try host.print("\t\tbinding.hostFunction.type.paramCount = {};\n", .{num_args});
+        try host.print("\t\tbinding.hostFunction.type.returnCount = {};\n", .{num_returns});
+        try host.print("\t\tbinding.hostFunction.type.params = paramTypes;\n", .{});
+        try host.print("\t\tbinding.hostFunction.type.returns = returnTypes;\n", .{});
+        try host.print("\t\twa_import_package_push_binding(arena, package, &binding);\n", .{});
         try host.writeAll("\t}\n\n");
     }
 

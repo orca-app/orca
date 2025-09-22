@@ -85,7 +85,7 @@ static i32 set_flag_thread_proc(void* p)
 
 pid_t gettid(void)
 {
-    return (i64)syscall(SYS_gettid);
+    return (pid_t)syscall(SYS_gettid);
 }
 
 static i32 gettid_thread_proc(void* p)

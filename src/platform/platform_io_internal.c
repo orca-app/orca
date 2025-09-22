@@ -371,3 +371,7 @@ static oc_io_cmp oc_io_fstat(oc_file_slot* slot, oc_io_req* req)
     return (cmp);
 }
 
+oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory)
+{
+    return oc_file_listdir_for_table(arena, directory, &oc_globalFileTable);
+}
