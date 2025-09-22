@@ -37,7 +37,7 @@ typedef struct oc_str8
     size_t len;
 } oc_str8;
 
-#define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? strlen(s) : 0 })
+#define OC_STR8(s) ({ const char* tmp = s; ((oc_str8){ .ptr = (char*)tmp, .len = (tmp) ? strlen(tmp) : 0 }); })
 
 //NOTE: this only works with string literals, but is sometimes necessary to generate compile-time constants
 #define OC_STR8_LIT(s)                          \

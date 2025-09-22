@@ -1247,6 +1247,44 @@ pub fn build(b: *Build) !void {
 
     const warm_install: *Build.Step.InstallArtifact = b.addInstallArtifact(warm_lib, warm_install_opts);
 
+    // orca launcher
+    var orca_launcher_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
+    defer orca_launcher_compile_flags.deinit();
+
+    if (optimize == .Debug) {
+        try orca_launcher_compile_flags.append("-DOC_DEBUG");
+        try orca_launcher_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
+    }
+    try orca_launcher_compile_flags.append("-std=c11");
+    try orca_launcher_compile_flags.append("-Werror");
+
+    const orca_launcher_exe = b.addExecutable(.{
+        .name = "orca_launcher",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    orca_launcher_exe.addIncludePath(b.path("src"));
+    orca_launcher_exe.addIncludePath(b.path("src/ext"));
+    orca_launcher_exe.addIncludePath(angle_include_path);
+
+    orca_launcher_exe.root_module.addRPathSpecial("@executable_path/");
+
+    orca_launcher_exe.addCSourceFiles(.{
+        .files = &.{"src/launcher/main.c"},
+        .flags = orca_launcher_compile_flags.items,
+    });
+
+    orca_launcher_exe.linkLibrary(orca_platform_lib);
+    orca_launcher_exe.linkLibrary(libzip);
+    orca_launcher_exe.linkLibC();
+
+    orca_launcher_exe.step.dependOn(&install_angle_libs.step);
+    orca_launcher_exe.step.dependOn(&install_dawn_libs.step);
+
+    const orca_launcher_exe_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_launcher_exe, .{});
+
     // orca runtime exe
 
     var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
@@ -1527,6 +1565,7 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(&warm_install.step);
     build_orca.dependOn(&orca_platform_install.step);
     build_orca.dependOn(&orca_runtime_exe_install.step);
+    build_orca.dependOn(&orca_launcher_exe_install.step);
     build_orca.dependOn(&libc_install.step);
     build_orca.dependOn(&libc_header_install.step);
     build_orca.dependOn(&dummy_crt_install.step);

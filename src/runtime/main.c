@@ -275,8 +275,24 @@ end:
     return result;
 }
 
-/*
-int extract_zip(oc_str8 src, oc_str8 dst)
+oc_str8 get_orca_home_dir(oc_arena* arena)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    char* home = getenv("HOME");
+
+    oc_str8_list list = { 0 };
+    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.arena, &list, OC_STR8(".orca"));
+
+    oc_str8 path = oc_path_join(arena, list);
+
+    oc_scratch_end(scratch);
+
+    return path;
+}
+
+int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
     oc_arena_scope scratch = oc_scratch_begin();
     const char* srcCStr = oc_str8_to_cstring(scratch.arena, src);
@@ -369,184 +385,53 @@ error:
     oc_scratch_end(scratch);
     return -1;
 }
-*/
 
-oc_str8 get_orca_home_dir(oc_arena* arena)
-{
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-
-    char* home = getenv("HOME");
-
-    oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(".orca"));
-
-    oc_str8 path = oc_path_join(arena, list);
-
-    oc_scratch_end(scratch);
-
-    return path;
-}
-
-/*
-int copy_dir_from_archive(oc_str8 archive, oc_str8 src, oc_str8 dst)
-{
-    oc_arena_scope scratch = oc_scratch_begin();
-    const char* archiveCStr = oc_str8_to_cstring(scratch.arena, archive);
-
-    zip_t* zip = zip_open(archiveCStr, ZIP_RDONLY, 0);
-    if(!zip)
-    {
-        goto error;
-    }
-
-    i64 count = zip_get_num_entries(zip, 0);
-    for(i64 entryIndex = 0; entryIndex < count; entryIndex++)
-    {
-        oc_str8 name = OC_STR8(zip_get_name(zip, entryIndex, 0));
-        if(!name.ptr)
-        {
-            goto error;
-        }
-        else
-        {
-            oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, dst);
-            oc_str8_list_push(scratch.arena, &list, name);
-            oc_str8 dstPath = oc_path_join(scratch.arena, list);
-
-            if(name.ptr[name.len - 1] == '/')
-            {
-                //NOTE: directory. Ignore since we create dirs when extracting files
-            }
-            else if(!oc_str8_cmp(oc_str8_slice(name, 0, src.len), src))
-            {
-                //NOTE: normal file inside src dir
-                // first make the leading directories if they don't exist
-                oc_str8 dir = oc_path_slice_directory(dstPath);
-                if(make_dirs(dir) != 0)
-                {
-                    goto error;
-                }
-
-                zip_file_t* srcFile = zip_fopen_index(zip, entryIndex, 0);
-                if(!srcFile)
-                {
-                    goto error;
-                }
-                FILE* dstFile = fopen(dstPath.ptr, "w");
-                if(!dstFile)
-                {
-                    goto error;
-                }
-
-                char chunk[1024];
-                while(1)
-                {
-                    i64 n = zip_fread(srcFile, chunk, 1024);
-                    if(n == 0)
-                    {
-                        break;
-                    }
-                    else if(n == -1)
-                    {
-                        fclose(dstFile);
-                        zip_fclose(srcFile);
-                        goto error;
-                    }
-                    else
-                    {
-                        fwrite(chunk, 1, n, dstFile);
-                    }
-                }
-
-                fclose(dstFile);
-                zip_fclose(srcFile);
-            }
-        }
-    }
-
-    zip_close(zip);
-    oc_scratch_end(scratch);
-    return 0;
-
-error:
-    if(zip)
-    {
-        zip_close(zip);
-    }
-    oc_scratch_end(scratch);
-    return -1;
-}
-*/
-
-/*
-oc_str8 load_module_from_archive(oc_arena* arena, oc_str8 archive, oc_str8 name)
-{
-    oc_str8 res = { 0 };
-
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-    const char* archiveCStr = oc_str8_to_cstring(scratch.arena, archive);
-
-    zip_t* zip = zip_open(archiveCStr, ZIP_RDONLY, 0);
-    if(zip)
-    {
-        oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, OC_STR8("modules"));
-        oc_str8_list_push(scratch.arena, &list, name);
-        oc_str8 modulePath = oc_path_join(scratch.arena, list);
-
-        zip_file_t* zipFile = zip_fopen(zip, modulePath.ptr, 0);
-        if(zipFile)
-        {
-            oc_str8_list chunks = { 0 };
-            while(1)
-            {
-                char* chunk = oc_arena_push_array(scratch.arena, char, 1024);
-                i64 n = zip_fread(zipFile, chunk, 1024);
-                if(n > 0)
-                {
-                    oc_str8_list_push(scratch.arena, &chunks, oc_str8_from_buffer(n, chunk));
-                }
-                else
-                {
-                    break;
-                }
-            }
-            res = oc_str8_list_join(arena, chunks);
-            zip_fclose(zipFile);
-        }
-
-        zip_close(zip);
-    }
-    return res;
-}
-*/
-
-void load_app(oc_runtime* app)
+int load_app(oc_runtime* app)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str8 orcaDir = get_orca_home_dir(scratch.arena);
 
+    //TODO: path could be URL/installed app/app file. For now, only handle app files
+    //TODO: unzip the app in orca home directory, and call orca_run with path to app directory
+
+    oc_str8 appName = { 0 };
+    {
+        //TODO: need a function to get extension / stem from path
+        appName = oc_path_slice_filename(app->path);
+        OC_ASSERT(appName.len > 5 && !oc_str8_cmp(oc_str8_slice(appName, appName.len - 5, appName.len), OC_STR8(".orca")));
+        appName = oc_str8_slice(appName, 0, appName.len - 5);
+    }
+
+    oc_str8 appDir = { 0 };
+    {
+        oc_str8 template = oc_str8_pushf(scratch.arena, "/tmp/%.*s.XXXXXX", oc_str8_ip(appName));
+        //TODO check errors
+        appDir = OC_STR8(mkdtemp(template.ptr));
+    }
+
+    int err = oc_zip_extract(app->path, appDir);
+    if(err)
+    {
+        oc_log_error("Couldn't extract application: %i\n", err);
+        oc_scratch_end(scratch);
+        return -1;
+    }
+
     //NOTE: copy data from app dir to user's dir
     oc_str8 dataDirSrc = { 0 };
     {
         oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, app->path);
+        oc_str8_list_push(scratch.arena, &list, appDir);
         oc_str8_list_push(scratch.arena, &list, OC_STR8("data"));
-
         dataDirSrc = oc_path_join(scratch.arena, list);
     }
     oc_str8 dataDirDest = { 0 };
     {
-        //TODO: need a function to get extension / stem from path
-        oc_str8 appname = oc_path_slice_filename(app->path);
-
         oc_str8_list list = { 0 };
         oc_str8_list_push(scratch.arena, &list, orcaDir);
         oc_str8_list_push(scratch.arena, &list, OC_STR8("userdata"));
-        oc_str8_list_push(scratch.arena, &list, appname);
+        oc_str8_list_push(scratch.arena, &list, appName);
 
         dataDirDest = oc_path_join(scratch.arena, list);
     }
@@ -555,7 +440,7 @@ void load_app(oc_runtime* app)
     //NOTE: loads wasm module
     {
         oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, app->path);
+        oc_str8_list_push(scratch.arena, &list, appDir);
         oc_str8_list_push(scratch.arena, &list, OC_STR8("modules/main.wasm"));
         oc_str8 modulePath = oc_path_join(scratch.arena, list);
 
@@ -698,13 +583,19 @@ void load_app(oc_runtime* app)
 
         oc_scratch_end(scratch);
     }
+    return 0;
 }
 
 i32 vm_runloop(void* user)
 {
     oc_runtime* app = &__orcaApp;
 
-    load_app(app);
+    if(load_app(app))
+    {
+        app->quit = true;
+        oc_request_quit();
+        return -1;
+    }
 
     wa_func** exports = app->env.exports;
 
@@ -1166,16 +1057,33 @@ int main(int argc, char** argv)
 {
     oc_runtime* app = &__orcaApp;
 
-    for(i32 i = 1; i < argc; i++)
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_arg_parser parser = { 0 };
+    oc_arg_parser_init(&parser,
+                       scratch.arena,
+                       OC_STR8("orca_runtime"),
+                       &(oc_arg_parser_options){
+                           .desc = OC_STR8("Run Orca applications."),
+                       });
+
+    oc_arg_parser_add_positional_str8(&parser,
+                                      OC_STR8("app"),
+                                      &app->path,
+                                      &(oc_arg_parser_arg_options){
+                                          .desc = OC_STR8("The application to run."),
+                                      });
+
+    oc_arg_parser_add_flag(&parser,
+                           OC_STR8("test"),
+                           &s_is_test_module,
+                           &(oc_arg_parser_arg_options){
+                               .desc = OC_STR8("Runs the application in test mode."),
+                           });
+
+    if(oc_arg_parser_parse(&parser, argc, argv) != 0)
     {
-        if(strstr(argv[i], "--test"))
-        {
-            s_is_test_module = true;
-        }
-        else
-        {
-            app->path = OC_STR8(argv[i]);
-        }
+        return -1;
     }
 
     oc_arena_init(&app->env.arena);
@@ -1183,6 +1091,8 @@ int main(int argc, char** argv)
     {
         app->path = oc_path_executable_relative(&app->env.arena, OC_STR8("../app.orca"));
     }
+
+    oc_scratch_end(scratch);
 
     oc_log_set_level(OC_LOG_LEVEL_INFO);
     oc_init();
