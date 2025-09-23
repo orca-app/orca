@@ -1559,6 +1559,38 @@ pub fn build(b: *Build) !void {
     const wasm_sdk_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_sdk_lib, wask_sdk_install_opts);
 
     ///////////////////////////////////////////////////////////////
+    // makeapp sript
+
+    const makeapp_exe = b.addExecutable(.{
+        .name = "make-app",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+    makeapp_exe.addIncludePath(b.path("src"));
+    makeapp_exe.addCSourceFiles(.{
+        .files = &.{
+            "src/build/makeapp.c",
+        },
+        .flags = &.{},
+    });
+    if (target.result.os.tag == .windows) {
+        makeapp_exe.linkSystemLibrary("user32");
+        makeapp_exe.linkSystemLibrary("shlwapi");
+    }
+    const makeapp = b.addRunArtifact(makeapp_exe);
+
+    makeapp.step.dependOn(&orca_platform_install.step);
+    makeapp.step.dependOn(&orca_runtime_exe_install.step);
+    makeapp.step.dependOn(&orca_launcher_exe_install.step);
+    makeapp.step.dependOn(&libc_install.step);
+    makeapp.step.dependOn(&libc_header_install.step);
+    makeapp.step.dependOn(&dummy_crt_install.step);
+    makeapp.step.dependOn(&wasm_sdk_install.step);
+    makeapp.step.dependOn(&build_orca_tool.step);
+
+    ///////////////////////////////////////////////////////////////
     // zig build - default install step builds and installs a dev build of orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
@@ -1571,6 +1603,8 @@ pub fn build(b: *Build) !void {
     build_orca.dependOn(&dummy_crt_install.step);
     build_orca.dependOn(&wasm_sdk_install.step);
     build_orca.dependOn(&build_orca_tool.step);
+
+    build_orca.dependOn(&makeapp.step);
 
     const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "package-sdk",

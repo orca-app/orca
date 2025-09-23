@@ -376,6 +376,11 @@ int main(int argc, char** argv)
         {
             switch(event->type)
             {
+                case OC_EVENT_QUIT:
+                {
+                    oc_request_quit();
+                }
+                break;
                 case OC_EVENT_PATHDROP:
                 {
                     oc_str8 path = { 0 };
