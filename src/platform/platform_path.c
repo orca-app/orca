@@ -136,7 +136,8 @@ oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
     oc_str8 executablePath = oc_path_executable(scratch.arena);
     oc_str8 dirPath = oc_path_slice_directory(executablePath);
 
-    oc_str8 path = oc_path_append(arena, dirPath, relPath);
+    oc_str8 path = oc_path_append(scratch.arena, dirPath, relPath);
+    path = oc_path_canonical(arena, path);
 
     oc_scratch_end(scratch);
     return (path);

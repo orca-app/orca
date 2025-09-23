@@ -696,24 +696,25 @@ int oc_arg_parser_parse_arg(oc_arena* arena, oc_arg_parser* parser, oc_arg_parse
 
 void oc_arg_parser_set_result_to_default(oc_arg_parser_arg* arg)
 {
-    OC_DEBUG_ASSERT(!arg->isArray);
-
-    switch(arg->type)
+    if(!arg->isArray)
     {
-        case OC_ARG_PARSER_STR8:
-            *arg->dest.valStr8 = arg->options.defaultValue.valStr8;
-            break;
-        case OC_ARG_PARSER_I64:
-            *arg->dest.valI64 = arg->options.defaultValue.valI64;
-            break;
+        switch(arg->type)
+        {
+            case OC_ARG_PARSER_STR8:
+                *arg->dest.valStr8 = arg->options.defaultValue.valStr8;
+                break;
+            case OC_ARG_PARSER_I64:
+                *arg->dest.valI64 = arg->options.defaultValue.valI64;
+                break;
 
-        case OC_ARG_PARSER_F64:
-            *arg->dest.valF64 = arg->options.defaultValue.valF64;
-            break;
+            case OC_ARG_PARSER_F64:
+                *arg->dest.valF64 = arg->options.defaultValue.valF64;
+                break;
 
-        case OC_ARG_PARSER_FLAG:
-            *arg->dest.valBool = arg->options.defaultValue.valBool;
-            break;
+            case OC_ARG_PARSER_FLAG:
+                *arg->dest.valBool = arg->options.defaultValue.valBool;
+                break;
+        }
     }
 }
 

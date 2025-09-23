@@ -3,37 +3,9 @@
 
 #include "orca.h"
 #include "ext/libzip/lib/zip.h"
-
-typedef struct oc_tool_options
-{
-    oc_str8 command;
-
-    // bundle options
-    bool standalone;
-    oc_str8 name;
-    oc_str8 icon;
-
-    u32 resDirCount;
-    oc_str8* resDirs;
-
-    u32 resFileCount;
-    oc_str8* resFiles;
-
-    oc_str8 outDir;
-
-    // install options
-    oc_str8 installName;
-
-    // install & run options
-    oc_str8 app;
-} oc_tool_options;
+#include "tool/tool.c"
 
 //TODO: this should be fleshed out and put in src/tool
-int oc_tool_version(oc_tool_options* options) { return 0; }
-
-int oc_tool_sdk_path(oc_tool_options* options) { return 0; }
-
-int oc_tool_bundle(oc_tool_options* options) { return 0; }
 
 int oc_tool_install(oc_tool_options* options) { return 0; }
 
@@ -293,8 +265,18 @@ int main(int argc, char** argv)
                                  &(oc_arg_parser_arg_options){
                                      .valueName = OC_STR8("dir"),
                                      .desc = OC_STR8("Place the application in dir (defaults to the working directory.)"),
+                                     .defaultValue.valStr8 = OC_STR8("."),
                                  });
 
+    oc_arg_parser_add_positional_str8_array(bundle,
+                                            OC_STR8("module"),
+                                            &options.moduleCount,
+                                            &options.modules,
+                                            &(oc_arg_parser_arg_options){
+                                                .desc = OC_STR8("Copy webassembly modules to the application's modules folder."),
+                                                .required = true,
+                                                .nargs = -1,
+                                            });
     //NOTE: install subparser
     oc_arg_parser* install = oc_arg_parser_subparser(&parser,
                                                      OC_STR8("install"),
@@ -359,6 +341,10 @@ int main(int argc, char** argv)
         {
             return oc_tool_run(&options);
         }
+    }
+    else
+    {
+        return -1;
     }
 
     //NOTE: if we didn't have any command, start the launcher

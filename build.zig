@@ -1257,6 +1257,7 @@ pub fn build(b: *Build) !void {
     }
     try orca_launcher_compile_flags.append("-std=c11");
     try orca_launcher_compile_flags.append("-Werror");
+    try orca_launcher_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
     const orca_launcher_exe = b.addExecutable(.{
         .name = "orca_launcher",
