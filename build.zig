@@ -1260,7 +1260,7 @@ pub fn build(b: *Build) !void {
     try orca_launcher_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
     const orca_launcher_exe = b.addExecutable(.{
-        .name = "orca_launcher",
+        .name = "orca",
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
@@ -1618,13 +1618,14 @@ pub fn build(b: *Build) !void {
 
     const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
 
-    const sdk_install_path_opt: ?[]const u8 = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
-    const orca_install: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, sdk_install_path_opt, git_version_opt, opt_sdk_version);
+    //const sdk_install_path_opt: ?[]const u8 = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
+    //    const orca_install: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, sdk_install_path_opt, git_version_opt, opt_sdk_version);
 
     const local_install_path: []const u8 = b.pathJoin(&.{ b.install_path, "sdk" });
     const orca_install_local: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, local_install_path, git_version_opt, opt_sdk_version);
 
-    b.getInstallStep().dependOn(&orca_install.step);
+    //b.getInstallStep().dependOn(&orca_install.step);
+    b.getInstallStep().dependOn(build_orca);
 
     const orca_tool_local_exe_name: []const u8 = if (b.graph.host.result.os.tag == .windows) "orca.exe" else "orca";
     const orca_tool_local_path: []const u8 = b.pathJoin(&.{ local_install_path, orca_tool_local_exe_name });

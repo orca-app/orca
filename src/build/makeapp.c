@@ -105,7 +105,7 @@ int make_app_macos(void)
     oc_arena_scope scratch = oc_scratch_begin();
 
     oc_str8 name = OC_STR8("Orca");
-    oc_str8 exec = OC_STR8("orca_launcher");
+    oc_str8 exec = OC_STR8("orca");
     oc_str8 icon = OC_STR8("resources/orca_icon.png");
     oc_str8 version = OC_STR8("0.0.1");
     oc_str8 outDir = OC_STR8("zig-out");
@@ -124,7 +124,8 @@ int make_app_macos(void)
     oc_str8 resDir = oc_path_append(scratch.arena, contentsDir, OC_STR8("resources"));
     oc_str8 sdkDir = oc_path_append(scratch.arena, contentsDir, OC_STR8("SDK"));
     oc_str8 sdkSrcDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("src"));
-    oc_str8 sdkLibcDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("orca-libc"));
+    oc_str8 sdkLibCDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("orca-libc"));
+    oc_str8 sdkLibDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("lib"));
 
     if(oc_sys_exists(bundleDir))
     {
@@ -138,10 +139,9 @@ int make_app_macos(void)
     //-----------------------------------------------------------
     //NOTE: copy binaries
     //-----------------------------------------------------------
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/orca_launcher"), exeDir));
+    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/orca"), exeDir));
     TRY(oc_sys_copy(OC_STR8("./zig-out/bin/orca_runtime"), exeDir));
     TRY(oc_sys_copy(OC_STR8("./zig-out/bin/liborca_platform.dylib"), exeDir));
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), exeDir));
     TRY(oc_sys_copy(OC_STR8("./zig-out/bin/libEGL.dylib"), exeDir));
     TRY(oc_sys_copy(OC_STR8("./zig-out/bin/libGLESv2.dylib"), exeDir));
     TRY(oc_sys_copy(OC_STR8("./zig-out/bin/libwebgpu.dylib"), exeDir));
@@ -171,7 +171,10 @@ int make_app_macos(void)
 
     oc_sys_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("orca.h")));
 
-    oc_sys_copytree(OC_STR8("./zig-out/orca-libc"), sdkLibcDir);
+    oc_sys_copytree(OC_STR8("./zig-out/orca-libc"), sdkLibCDir);
+
+    oc_sys_mkdirs(sdkLibDir);
+    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a"))));
     //-----------------------------------------------------------
     //NOTE make icon
     //-----------------------------------------------------------

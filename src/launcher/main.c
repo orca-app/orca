@@ -236,6 +236,13 @@ int main(int argc, char** argv)
                                      .required = true,
                                  });
     oc_arg_parser_add_named_str8(bundle,
+                                 OC_STR8("app-version"),
+                                 &options.appVersion,
+                                 &(oc_arg_parser_arg_options){
+                                     .desc = OC_STR8("Specifies a version number for the application."),
+                                     .defaultValue.valStr8 = OC_STR8("0.0.0"),
+                                 });
+    oc_arg_parser_add_named_str8(bundle,
                                  OC_STR8("icon"),
                                  &options.icon,
                                  &(oc_arg_parser_arg_options){
