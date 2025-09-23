@@ -63,6 +63,32 @@ oc_str8 oc_path_slice_filename(oc_str8 fullPath)
     return (basename);
 }
 
+oc_str8 oc_str8_slice_stem(oc_str8 path)
+{
+    oc_str8 basename = oc_path_slice_filename(path);
+    for(u64 i = 1; i < basename.len; i++)
+    {
+        if(basename.ptr[i] == '.')
+        {
+            return oc_str8_slice(basename, 0, i);
+        }
+    }
+    return (oc_str8){ 0 };
+}
+
+oc_str8 oc_path_slice_extension(oc_str8 path)
+{
+    oc_str8 basename = oc_path_slice_filename(path);
+    for(u64 i = basename.len; i > 0; i--)
+    {
+        if(basename.ptr[i] == '.')
+        {
+            return oc_str8_slice(basename, i + 1, basename.len);
+        }
+    }
+    return (oc_str8){ 0 };
+}
+
 oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 {
     oc_arena_scope tmp = oc_scratch_begin_next(arena);

@@ -572,7 +572,14 @@ int load_app(oc_runtime* app)
     {
         oc_arena_scope scratch = oc_scratch_begin();
 
-        oc_str8 localRootPath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/data"));
+        /////////////////////////////////////////////////////////////
+        //TODO: abstract this in a portable way
+        oc_str8 appName = oc_str8_slice_stem(app->path);
+        oc_str8 home = OC_STR8(getenv("HOME"));
+        oc_str8 localRootPath = oc_str8_pushf(scratch.arena,
+                                              "%.*s/.orca/userdata/%.*s/data",
+                                              oc_str8_ip(home),
+                                              oc_str8_ip(appName));
 
         oc_io_req req = { .op = OC_IO_OPEN_AT,
                           .open.rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
@@ -1087,9 +1094,31 @@ int main(int argc, char** argv)
     }
 
     oc_arena_init(&app->env.arena);
+
     if(!app->path.len)
     {
-        app->path = oc_path_executable_relative(&app->env.arena, OC_STR8("../app.orca"));
+        //TODO: should we get the _name_ of the app bundle and use it to find the app file?
+        oc_str8 resPath = oc_path_executable_relative(&app->env.arena, OC_STR8("../resources"));
+        oc_file resDir = oc_file_open(resPath, OC_FILE_ACCESS_READ, 0);
+        if(oc_file_is_nil(resDir))
+        {
+            OC_ABORT("Could not find application resource directory.");
+        }
+        oc_file_list list = oc_file_listdir(scratch.arena, resDir);
+        oc_file_close(resDir);
+
+        oc_file_list_for(list, elt)
+        {
+            if(!oc_str8_cmp(oc_path_slice_extension(elt->basename), OC_STR8("orca")))
+            {
+                app->path = oc_path_append(&app->env.arena, resPath, elt->basename);
+                break;
+            }
+        }
+        if(!app->path.len)
+        {
+            OC_ABORT("Could not find application image.");
+        }
     }
 
     oc_scratch_end(scratch);

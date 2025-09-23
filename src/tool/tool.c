@@ -65,7 +65,7 @@ int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
 
 int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 {
-    //TODO: bundle the app image into a macos bundle
+    //NOTE: bundle the app image into a macos bundle
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 bundlePath = oc_str8_pushf(scratch.arena,
                                        "%.*s/%.*s.app",

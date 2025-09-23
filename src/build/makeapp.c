@@ -43,19 +43,6 @@ end:
     return result;
 }
 
-oc_str8 oc_path_slice_extension(oc_str8 path)
-{
-    oc_str8 basename = oc_path_slice_filename(path);
-    for(u64 i = basename.len; i > 0; i--)
-    {
-        if(basename.ptr[i] == '.')
-        {
-            return oc_str8_slice(basename, i + 1, basename.len);
-        }
-    }
-    return (oc_str8){ 0 };
-}
-
 void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 {
     oc_arena_scope scratch = oc_scratch_begin();
