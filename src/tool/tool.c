@@ -244,7 +244,12 @@ int oc_tool_bundle(oc_tool_options* options)
     //NOTE: copy resources
     for(int i = 0; i < options->resDirCount; i++)
     {
-        oc_sys_copytree(options->resDirs[i], resDir);
+        oc_str8 dir = options->resDirs[i];
+        if(dir.len && dir.ptr[dir.len - 1] != '/')
+        {
+            dir = oc_str8_pushf(scratch.arena, "%.*s/", oc_str8_ip(dir));
+        }
+        oc_sys_copytree(dir, resDir);
     }
 
     for(int i = 0; i < options->resFileCount; i++)

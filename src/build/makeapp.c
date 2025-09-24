@@ -54,7 +54,7 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
     oc_file_list_for(files, elt)
     {
         oc_str8 ext = oc_path_slice_extension(elt->basename);
-        if(elt->type == OC_FILE_REGULAR && !oc_str8_cmp(ext, OC_STR8("h")))
+        if(elt->type == OC_FILE_REGULAR && !oc_str8_cmp(ext, OC_STR8(".h")))
         {
             oc_str8 srcFile = oc_path_append(scratch.arena, src, elt->basename);
             oc_str8 dstFile = oc_path_append(scratch.arena, dst, elt->basename);

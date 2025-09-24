@@ -63,10 +63,20 @@ oc_str8 oc_path_slice_filename(oc_str8 fullPath)
     return (basename);
 }
 
-oc_str8 oc_str8_slice_stem(oc_str8 path)
+oc_str8 oc_path_slice_stem(oc_str8 path)
 {
     oc_str8 basename = oc_path_slice_filename(path);
-    for(u64 i = 1; i < basename.len; i++)
+    //NOTE: ignore leading dots
+    u64 i = 0;
+    for(; i < basename.len; i++)
+    {
+        if(basename.ptr[i] != '.')
+        {
+            break;
+        }
+    }
+    //NOTE: now search to the first dot
+    for(; i < basename.len; i++)
     {
         if(basename.ptr[i] == '.')
         {
@@ -83,7 +93,7 @@ oc_str8 oc_path_slice_extension(oc_str8 path)
     {
         if(basename.ptr[i] == '.')
         {
-            return oc_str8_slice(basename, i + 1, basename.len);
+            return oc_str8_slice(basename, i, basename.len);
         }
     }
     return (oc_str8){ 0 };

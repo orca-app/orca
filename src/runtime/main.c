@@ -275,6 +275,7 @@ end:
     return result;
 }
 
+#if OC_PLATFORM_MACOS
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
@@ -291,6 +292,27 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
     return path;
 }
+
+#elif OC_PLATFORM_WINDOWS
+
+oc_str8 get_orca_home_dir(oc_arena* arena)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    char* home = getenv("USERPROFILE");
+
+    oc_str8_list list = { 0 };
+    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.arena, &list, OC_STR8("AppData/orca"));
+
+    oc_str8 path = oc_path_join(arena, list);
+
+    oc_scratch_end(scratch);
+
+    return path;
+}
+
+#endif
 
 int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
@@ -386,6 +408,35 @@ error:
     return -1;
 }
 
+#if OC_PLATFORM_MACOS
+oc_str8 standalone_app_name(oc_arena* arena)
+{
+    oc_str8 result = { 0 };
+
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_str8 bundle = oc_path_executable_relative(scratch.arena, OC_STR8("../.."));
+    oc_str8 ext = oc_path_slice_extension(bundle);
+    if(!oc_str8_cmp(ext, OC_STR8(".app")))
+    {
+        result = oc_str8_push_copy(arena, oc_path_slice_stem(bundle));
+    }
+    oc_scratch_end(scratch);
+    return result;
+}
+#elif OC_PLATFORM_WINDOWS
+
+oc_str8 standalone_app_name(oc_arena* arena)
+{
+    oc_str8 result = { 0 };
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_str8 exec = oc_path_executable(scratch.arena);
+    oc_str8 result = oc_str8_push_copy(arena, oc_path_slice_stem(exec));
+    oc_scratch_end(scratch);
+    return result;
+}
+
+#endif
+
 int load_app(oc_runtime* app)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -423,7 +474,7 @@ int load_app(oc_runtime* app)
     {
         oc_str8_list list = { 0 };
         oc_str8_list_push(scratch.arena, &list, appDir);
-        oc_str8_list_push(scratch.arena, &list, OC_STR8("data"));
+        oc_str8_list_push(scratch.arena, &list, OC_STR8("data/"));
         dataDirSrc = oc_path_join(scratch.arena, list);
     }
     oc_str8 dataDirDest = { 0 };
@@ -461,8 +512,6 @@ int load_app(oc_runtime* app)
         fclose(file);
     }
 
-    oc_scratch_end(scratch);
-
     app->env.module = wa_module_create(&app->env.arena, app->env.wasmBytecode);
 
     if(wa_module_status(app->env.module) != WA_OK)
@@ -474,8 +523,6 @@ int load_app(oc_runtime* app)
 
     //NOTE: bind orca APIs
     {
-        oc_arena_scope scratch = oc_scratch_begin();
-
         wa_import_package package = {
             .name = OC_STR8("env"),
         };
@@ -500,16 +547,12 @@ int load_app(oc_runtime* app)
         app->env.instance = wa_instance_create(&app->env.arena, app->env.module, &options);
 
         OC_WASM_TRAP(wa_instance_status(app->env.instance));
-
-        oc_scratch_end(scratch);
     }
 
     app->env.interpreter = wa_interpreter_create(&app->env.arena);
 
     //NOTE: Find and type check event handlers.
     {
-        oc_arena_scope scratch = oc_scratch_begin();
-
         for(int i = 0; i < OC_EXPORT_COUNT; i++)
         {
             const oc_export_desc* desc = &OC_EXPORT_DESC[i];
@@ -554,8 +597,6 @@ int load_app(oc_runtime* app)
                 }
             }
         }
-
-        oc_scratch_end(scratch);
     }
 
     //NOTE: get location of the raw event slot
@@ -570,26 +611,16 @@ int load_app(oc_runtime* app)
 
     //NOTE: preopen the app local root dir
     {
-        oc_arena_scope scratch = oc_scratch_begin();
-
-        /////////////////////////////////////////////////////////////
-        //TODO: abstract this in a portable way
-        oc_str8 appName = oc_str8_slice_stem(app->path);
-        oc_str8 home = OC_STR8(getenv("HOME"));
-        oc_str8 localRootPath = oc_str8_pushf(scratch.arena,
-                                              "%.*s/.orca/userdata/%.*s/data",
-                                              oc_str8_ip(home),
-                                              oc_str8_ip(appName));
-
         oc_io_req req = { .op = OC_IO_OPEN_AT,
                           .open.rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
-                          .size = localRootPath.len,
-                          .buffer = localRootPath.ptr };
+                          .size = dataDirDest.len,
+                          .buffer = dataDirDest.ptr };
         oc_io_cmp cmp = oc_io_wait_single_req_for_table(&req, &app->fileTable);
         app->rootDir = cmp.handle;
-
-        oc_scratch_end(scratch);
     }
+
+    oc_scratch_end(scratch);
+
     return 0;
 }
 
@@ -1098,27 +1129,13 @@ int main(int argc, char** argv)
     if(!app->path.len)
     {
         //TODO: should we get the _name_ of the app bundle and use it to find the app file?
-        oc_str8 resPath = oc_path_executable_relative(&app->env.arena, OC_STR8("../resources"));
-        oc_file resDir = oc_file_open(resPath, OC_FILE_ACCESS_READ, 0);
-        if(oc_file_is_nil(resDir))
+        oc_str8 appName = standalone_app_name(scratch.arena);
+        if(!appName.len)
         {
-            OC_ABORT("Could not find application resource directory.");
+            OC_ABORT("Could not find application name.");
         }
-        oc_file_list list = oc_file_listdir(scratch.arena, resDir);
-        oc_file_close(resDir);
-
-        oc_file_list_for(list, elt)
-        {
-            if(!oc_str8_cmp(oc_path_slice_extension(elt->basename), OC_STR8("orca")))
-            {
-                app->path = oc_path_append(&app->env.arena, resPath, elt->basename);
-                break;
-            }
-        }
-        if(!app->path.len)
-        {
-            OC_ABORT("Could not find application image.");
-        }
+        oc_str8 relPath = oc_str8_pushf(scratch.arena, "../resources/%.*s.orca", oc_str8_ip(appName));
+        app->path = oc_path_executable_relative(&app->env.arena, relPath);
     }
 
     oc_scratch_end(scratch);
