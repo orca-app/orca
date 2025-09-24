@@ -82,6 +82,10 @@ typedef struct oc_str8_list
 ORCA_API void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str);
 ORCA_API void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...);
 
+ORCA_API oc_str8 oc_str8_list_pop_back(oc_str8_list* list);
+ORCA_API void oc_str8_list_push_front(oc_arena* arena, oc_str8_list* list, oc_str8 str);
+ORCA_API oc_str8 oc_str8_list_pop_front(oc_str8_list* list);
+
 ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix);
 ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);
 ORCA_API oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators);

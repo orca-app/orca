@@ -2,47 +2,6 @@
 #include "orca.c"
 #include "tool/system.c"
 
-int make_dirs(oc_str8 path)
-{
-    int result = 0;
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    oc_str8_list elements = oc_path_split(scratch.arena, path);
-
-    oc_str8_list acc = { 0 };
-    if(path.len && path.ptr[0] == '/')
-    {
-        ////////////////////////////////////////////////////
-        //NOTE: should oc_path_split return root? otherwise we can't
-        // differentiate between abs an relative path...
-        ////////////////////////////////////////////////////
-        oc_str8_list_push(scratch.arena, &acc, OC_STR8("/"));
-    }
-
-    oc_str8_list_for(elements, elt)
-    {
-        oc_str8_list_push(scratch.arena, &acc, elt->string);
-        oc_str8 accPath = oc_path_join(scratch.arena, acc);
-
-        struct stat st = { 0 };
-        if(stat(accPath.ptr, &st) != 0)
-        {
-            // create the directory
-            mkdir(accPath.ptr, 0700);
-        }
-        else if(!(st.st_mode & S_IFDIR))
-        {
-            // file exists, but not a directory. Error out.
-            result = -1;
-            goto end;
-        }
-    }
-
-end:
-    oc_scratch_end(scratch);
-    return result;
-}
-
 void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -59,7 +18,7 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
             oc_str8 srcFile = oc_path_append(scratch.arena, src, elt->basename);
             oc_str8 dstFile = oc_path_append(scratch.arena, dst, elt->basename);
 
-            make_dirs(dst);
+            oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
             oc_sys_copy(srcFile, dstFile);
         }
@@ -118,10 +77,10 @@ int make_app_macos(void)
     {
         TRY(oc_sys_rmdir(bundleDir));
     }
-    TRY(oc_sys_mkdirs(bundleDir));
-    TRY(oc_sys_mkdirs(contentsDir));
-    TRY(oc_sys_mkdirs(exeDir));
-    TRY(oc_sys_mkdirs(resDir));
+    oc_file_makedir(bundleDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_makedir(contentsDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_makedir(exeDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_makedir(resDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
     //-----------------------------------------------------------
     //NOTE: copy binaries
@@ -160,7 +119,7 @@ int make_app_macos(void)
 
     oc_sys_copytree(OC_STR8("./zig-out/orca-libc"), sdkLibCDir);
 
-    oc_sys_mkdirs(sdkLibDir);
+    oc_file_makedir(sdkLibDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     TRY(oc_sys_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a"))));
     //-----------------------------------------------------------
     //NOTE make icon
@@ -175,7 +134,7 @@ int make_app_macos(void)
             {
                 TRY(oc_sys_rmdir(iconset));
             }
-            TRY(oc_sys_mkdirs(iconset));
+            oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
             i32 size = 16;
             for(i32 i = 0; i < 7; ++i)

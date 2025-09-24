@@ -69,6 +69,9 @@ enum oc_io_op_enum
     OC_IO_READ,
     OC_IO_WRITE,
 
+    OC_IO_MAKE_DIR,
+    OC_IO_REMOVE,
+
     OC_OC_IO_ERROR,
     //...
 };
@@ -95,6 +98,9 @@ typedef struct oc_io_req
             oc_file_access rights;
             oc_file_open_flags flags;
         } open;
+
+        u32 makeDirFlags;
+        u32 removeFlags;
 
         oc_file_whence whence;
     };
@@ -233,6 +239,36 @@ ORCA_API oc_file_status oc_file_get_status(oc_file file);
 ORCA_API u64 oc_file_size(oc_file file);
 
 //TODO: Complete as needed...
+
+typedef enum oc_file_makedir_flags
+{
+    OC_FILE_MAKEDIR_DEFAULT = 0,
+    OC_FILE_MAKEDIR_CREATE_PARENTS = 1,
+    OC_FILE_MAKEDIR_IGNORE_EXISTING = 1 << 1,
+} oc_file_makedir_flags;
+
+typedef struct oc_file_makedir_options
+{
+    oc_file root;
+    oc_file_makedir_flags flags;
+} oc_file_makedir_options;
+
+ORCA_API oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* options);
+
+typedef enum oc_file_remove_flags
+{
+    OC_FILE_REMOVE_DEFAULT = 0,
+    OC_FILE_REMOVE_DIR = 1,
+    OC_FILE_REMOVE_RECURSIVE = 1 << 1,
+} oc_file_remove_flags;
+
+typedef struct oc_file_remove_options
+{
+    oc_file root;
+    oc_file_remove_flags flags;
+} oc_file_remove_options;
+
+ORCA_API oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* options);
 
 //----------------------------------------------------------------
 // File Enumeration API

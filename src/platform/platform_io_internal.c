@@ -344,6 +344,141 @@ oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* tab
     return (cmp);
 }
 
+#include <sys/stat.h>
+
+oc_io_cmp oc_io_makedir(oc_file_slot* atSlot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+
+    oc_str8 path = oc_str8_from_buffer(req->size, req->buffer);
+
+    if(!atSlot && !oc_file_is_nil(req->handle))
+    {
+        cmp.error = OC_IO_ERR_HANDLE;
+    }
+    else if(atSlot
+            && (!(atSlot->rights & OC_FILE_ACCESS_READ) || !(atSlot->rights & OC_FILE_ACCESS_WRITE))) //TODO: should we allow write only?)
+    {
+        cmp.error = OC_IO_ERR_PERM;
+    }
+    else
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        //NOTE: by defaut the root fd is set to AT_FDCWD (if path is absolute, this will be ignored)
+        // If the call has a root handle, set the root fd to it and make the path relative. Then
+        // check that this relative path doesn't escape its parent
+        int atFd = AT_FDCWD;
+        if(atSlot)
+        {
+            atFd = atSlot->fd;
+            if(path.len && path.ptr[0] == '/')
+            {
+                path = oc_str8_slice(path, 1, path.len);
+            }
+        }
+
+        //NOTE: normalize the path and detect escapes from parent
+        oc_str8_list pathElements = oc_path_split(scratch.arena, path);
+        oc_str8_list normElements = { 0 };
+        bool escape = false;
+
+        oc_str8_list_for(pathElements, elt)
+        {
+            if(!oc_str8_cmp(elt->string, OC_STR8(".")))
+            {
+                // ignore
+            }
+            else if(!oc_str8_cmp(elt->string, OC_STR8("..")))
+            {
+                /*NOTE: .. goes up one directory.
+                - If there's an element that isn't / or .., pop it.
+                - If there's no last element, or the last element is a .., push ..
+                */
+                oc_str8_elt* last = oc_list_last_entry(normElements.list, oc_str8_elt, listElt);
+                if(!last || !oc_str8_cmp(last->string, OC_STR8("..")) || !oc_str8_cmp(last->string, OC_STR8("/")))
+                {
+                    oc_str8_list_push(scratch.arena, &normElements, elt->string);
+                    escape = true;
+                }
+                else
+                {
+                    oc_str8_list_pop_back(&normElements);
+                }
+            }
+            else
+            {
+                oc_str8_list_push(scratch.arena, &normElements, elt->string);
+            }
+        }
+
+        if(atSlot && escape)
+        {
+            cmp.error = OC_IO_ERR_WALKOUT;
+        }
+        else
+        {
+            path = oc_path_join(scratch.arena, normElements);
+
+            if(req->makeDirFlags & OC_FILE_MAKEDIR_CREATE_PARENTS) //TODO maybe this should be handled in higher level function...
+            {
+                oc_str8 accPath = { 0 };
+                oc_str8_list_for(normElements, elt)
+                {
+                    accPath = oc_path_append(scratch.arena, accPath, elt->string);
+
+                    const char* accPathCStr = oc_str8_to_cstring(scratch.arena, accPath);
+                    struct stat st;
+                    int r = fstatat(atFd, accPathCStr, &st, 0);
+                    if(r)
+                    {
+                        if(errno == ENOENT)
+                        {
+                            //NOTE: directory does not exist, create it.
+                            mkdirat(atFd, accPathCStr, 0700);
+                        }
+                        else
+                        {
+                            cmp.error = oc_io_raw_last_error();
+                            break;
+                        }
+                    }
+                    else if(!(st.st_mode & S_IFDIR))
+                    {
+                        //NOTE: file exists but is not a directory
+                        cmp.error = OC_IO_ERR_NOT_DIR;
+                        break;
+                    }
+                    else if(&elt->listElt == normElements.list.last && !(req->makeDirFlags & OC_FILE_MAKEDIR_IGNORE_EXISTING))
+                    {
+                        cmp.error = OC_IO_ERR_EXISTS;
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
+
+                int res = mkdirat(atFd, pathCStr, 0700); //TODO: pass mode
+                if(res)
+                {
+                    if(errno != EEXIST || !(req->makeDirFlags & OC_FILE_MAKEDIR_IGNORE_EXISTING))
+                    {
+                        cmp.error = oc_io_raw_last_error();
+                    }
+                }
+            }
+        }
+        oc_scratch_end(scratch);
+    }
+    return cmp;
+}
+
+oc_io_cmp oc_io_makedir(oc_file_slot* atSlot, oc_io_req* req)
+{
+}
+
 oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory)
 {
     return oc_file_listdir_for_table(arena, directory, &oc_globalFileTable);

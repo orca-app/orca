@@ -9,47 +9,6 @@
 
 int oc_tool_install(oc_tool_options* options) { return 0; }
 
-int make_dirs(oc_str8 path)
-{
-    int result = 0;
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    oc_str8_list elements = oc_path_split(scratch.arena, path);
-
-    oc_str8_list acc = { 0 };
-    if(path.len && path.ptr[0] == '/')
-    {
-        ////////////////////////////////////////////////////
-        //NOTE: should oc_path_split return root? otherwise we can't
-        // differentiate between abs an relative path...
-        ////////////////////////////////////////////////////
-        oc_str8_list_push(scratch.arena, &acc, OC_STR8("/"));
-    }
-
-    oc_str8_list_for(elements, elt)
-    {
-        oc_str8_list_push(scratch.arena, &acc, elt->string);
-        oc_str8 accPath = oc_path_join(scratch.arena, acc);
-
-        struct stat st = { 0 };
-        if(stat(accPath.ptr, &st) != 0)
-        {
-            // create the directory
-            mkdir(accPath.ptr, 0700);
-        }
-        else if(!(st.st_mode & S_IFDIR))
-        {
-            // file exists, but not a directory. Error out.
-            result = -1;
-            goto end;
-        }
-    }
-
-end:
-    oc_scratch_end(scratch);
-    return result;
-}
-
 int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -89,7 +48,7 @@ int oc_zip_extract(oc_str8 src, oc_str8 dst)
                 //NOTE: normal file
                 // first make the leading directories if they don't exist
                 oc_str8 dir = oc_path_slice_directory(dstPath);
-                if(make_dirs(dir) != 0)
+                if(oc_file_makedir(dir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS }) != 0)
                 {
                     goto error;
                 }

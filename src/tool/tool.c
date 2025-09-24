@@ -81,8 +81,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     oc_str8 macosPath = oc_path_append(scratch.arena, contentsPath, OC_STR8("macOS/"));
     oc_str8 resPath = oc_path_append(scratch.arena, contentsPath, OC_STR8("resources/"));
 
-    oc_sys_mkdirs(macosPath);
-    oc_sys_mkdirs(resPath);
+    oc_file_makedir(macosPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
     //NOTE: copy binaries to macOS dir
     oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
@@ -115,7 +115,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             {
                 TRY(oc_sys_rmdir(iconset));
             }
-            TRY(oc_sys_mkdirs(iconset));
+            oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
             i32 size = 16;
             for(i32 i = 0; i < 7; ++i)
@@ -221,9 +221,9 @@ int oc_tool_bundle(oc_tool_options* options)
     oc_str8 tmpDir = OC_STR8(mkdtemp(template.ptr));
 
     oc_str8 modDir = oc_path_append(scratch.arena, tmpDir, OC_STR8("modules/"));
-    oc_sys_mkdirs(modDir);
+    oc_file_makedir(modDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_str8 resDir = oc_path_append(scratch.arena, tmpDir, OC_STR8("data/"));
-    oc_sys_mkdirs(resDir);
+    oc_file_makedir(resDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
     //NOTE: copy modules
     bool foundMain = false;

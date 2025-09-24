@@ -123,3 +123,38 @@ u64 oc_file_size(oc_file file)
     oc_file_status status = oc_file_get_status(file);
     return (status.size);
 }
+
+oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
+{
+    oc_file_makedir_options options = optionsPtr
+                                        ? *optionsPtr
+                                        : (oc_file_makedir_options){ 0 };
+    oc_io_req req = {
+        .op = OC_IO_MAKE_DIR,
+        .handle = options.root,
+        .size = path.len,
+        .buffer = path.ptr,
+        .makeDirFlags = options.flags,
+    };
+
+    oc_io_cmp cmp = oc_io_wait_single_req(&req);
+    return cmp.error;
+}
+
+oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* optionsPtr)
+{
+    oc_file_remove_options options = optionsPtr
+                                       ? *optionsPtr
+                                       : (oc_file_remove_options){ 0 };
+
+    oc_io_req req = {
+        .op = OC_IO_REMOVE,
+        .handle = options.root,
+        .size = path.len,
+        .buffer = path.ptr,
+        .removeFlags = options.flags,
+    };
+
+    oc_io_cmp cmp = oc_io_wait_single_req(&req);
+    return cmp.error;
+}

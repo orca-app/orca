@@ -126,6 +126,45 @@ void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str)
     list->len += str.len;
 }
 
+oc_str8 oc_str8_list_pop_back(oc_str8_list* list)
+{
+    oc_str8 string = { 0 };
+
+    oc_str8_elt* elt = oc_list_pop_back_entry(&list->list, oc_str8_elt, listElt);
+    if(elt)
+    {
+        list->eltCount--;
+        OC_DEBUG_ASSERT(elt->string.len < list->len);
+        list->len -= elt->string.len;
+        string = elt->string;
+    }
+    return string;
+}
+
+void oc_str8_list_push_front(oc_arena* arena, oc_str8_list* list, oc_str8 str)
+{
+    oc_str8_elt* elt = oc_arena_push_type(arena, oc_str8_elt);
+    elt->string = str;
+    oc_list_push_front(&list->list, &elt->listElt);
+    list->eltCount++;
+    list->len += str.len;
+}
+
+oc_str8 oc_str8_list_pop_front(oc_str8_list* list)
+{
+    oc_str8 string = { 0 };
+
+    oc_str8_elt* elt = oc_list_pop_front_entry(&list->list, oc_str8_elt, listElt);
+    if(elt)
+    {
+        list->eltCount--;
+        OC_DEBUG_ASSERT(elt->string.len < list->len);
+        list->len -= elt->string.len;
+        string = elt->string;
+    }
+    return string;
+}
+
 void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...)
 {
     va_list args;

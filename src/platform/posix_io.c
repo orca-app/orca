@@ -7,7 +7,7 @@
 **************************************************************************/
 
 #if OC_PLATFORM_MACOS && !defined(_DARWIN_FEATURE_ONLY_64_BIT_INODE)
-#define _DARWIN_USE_64_BIT_INODE
+    #define _DARWIN_USE_64_BIT_INODE
 #endif
 
 #include <errno.h>
@@ -544,7 +544,9 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
     oc_file_slot* slot = oc_file_slot_from_handle(table, req->handle);
     if(!slot)
     {
-        if(req->op != OC_IO_OPEN_AT)
+        if(!oc_file_is_nil(req->handle)
+           || (req->op != OC_IO_OPEN_AT
+               && req->op != OC_IO_MAKE_DIR))
         {
             cmp.error = OC_IO_ERR_HANDLE;
         }
@@ -584,6 +586,14 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
                 cmp = oc_io_seek(slot, req);
                 break;
 
+            case OC_IO_MAKE_DIR:
+                cmp = oc_io_makedir(slot, req);
+                break;
+
+            case OC_IO_REMOVE:
+                cmp = oc_io_remove(slot, req);
+                break;
+
             case OC_OC_IO_ERROR:
                 cmp = oc_io_get_error(slot, req);
                 break;
@@ -598,18 +608,20 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
 
 oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
 {
-    oc_file_list list = {0};
+    oc_file_list list = { 0 };
 
     oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
     if(slot && !slot->fatal)
     {
         DIR* dir = fdopendir(slot->fd);
-        if (dir)
+        if(dir)
         {
             struct dirent* entry = NULL;
-            while ((entry = readdir(dir)) != NULL) {
+            while((entry = readdir(dir)) != NULL)
+            {
                 // skip the current/previous directory entries
-                if (!strcmp(".", entry->d_name) || !strcmp("..", entry->d_name)) {
+                if(!strcmp(".", entry->d_name) || !strcmp("..", entry->d_name))
+                {
                     continue;
                 }
 
@@ -618,16 +630,32 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                 ++list.eltCount;
 
                 oc_file_type type = OC_FILE_UNKNOWN;
-                switch (entry->d_type) 
+                switch(entry->d_type)
                 {
-                    case DT_FIFO: type = OC_FILE_FIFO;      break;
-                    case DT_CHR:  type = OC_FILE_CHARACTER; break;
-                    case DT_DIR:  type = OC_FILE_DIRECTORY; break;
-                    case DT_BLK:  type = OC_FILE_BLOCK;     break;
-                    case DT_REG:  type = OC_FILE_REGULAR;   break;
-                    case DT_LNK:  type = OC_FILE_SYMLINK;   break;
-                    case DT_SOCK: type = OC_FILE_SOCKET;    break;
-                    default:      type = OC_FILE_UNKNOWN;   break;
+                    case DT_FIFO:
+                        type = OC_FILE_FIFO;
+                        break;
+                    case DT_CHR:
+                        type = OC_FILE_CHARACTER;
+                        break;
+                    case DT_DIR:
+                        type = OC_FILE_DIRECTORY;
+                        break;
+                    case DT_BLK:
+                        type = OC_FILE_BLOCK;
+                        break;
+                    case DT_REG:
+                        type = OC_FILE_REGULAR;
+                        break;
+                    case DT_LNK:
+                        type = OC_FILE_SYMLINK;
+                        break;
+                    case DT_SOCK:
+                        type = OC_FILE_SOCKET;
+                        break;
+                    default:
+                        type = OC_FILE_UNKNOWN;
+                        break;
                 }
 
                 elt->basename = oc_str8_push_buffer(arena, entry->d_namlen, entry->d_name);
