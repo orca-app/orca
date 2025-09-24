@@ -657,7 +657,7 @@ pub fn build(b: *Build) !void {
                 angle_lib_path = angle_dep.path("lib");
             }
         }
-    } else if (false and target.result.os.tag == .linux) {
+    } else if (target.result.os.tag == .linux) {
         if (b.lazyDependency("angle-linux-x64", .{})) |angle_dep| {
             angle_include_path = angle_dep.path("include");
             angle_lib_path = angle_dep.path("lib");
@@ -694,7 +694,7 @@ pub fn build(b: *Build) !void {
                 dawn_lib_path = dawn_dep.path("lib");
             }
         }
-    } else if (false and target.result.os.tag == .linux) {
+    } else if (target.result.os.tag == .linux) {
         if (b.lazyDependency("dawn-linux-x64", .{})) |dawn_dep| {
             dawn_include_path = dawn_dep.path("include");
             dawn_lib_path = dawn_dep.path("lib");
