@@ -195,11 +195,11 @@ int test_stat_type(oc_arena* arena)
         return (-1);
     }
 #if !OC_PLATFORM_WINDOWS
-        if(status.type != OC_FILE_SYMLINK)
-        {
-            oc_log_error("file type doesn't match\n");
-            return (-1);
-        }
+    if(status.type != OC_FILE_SYMLINK)
+    {
+        oc_log_error("file type doesn't match\n");
+        return (-1);
+    }
 #endif
     oc_file_close(f);
 
@@ -632,15 +632,140 @@ int test_rights(oc_arena* arena)
     return (0);
 }
 
+int test_resolve(oc_arena* arena)
+{
+    //NOTE: abs path
+    oc_str8 path = OC_STR8("/usr/bin");
+    oc_io_resolve_result r = oc_io_resolve(arena, 0, path);
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("/usr/bin")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: relative path
+    path = OC_STR8("tests/files/data/regular.txt");
+
+    r = oc_io_resolve(arena, 0, path);
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/regular.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: relative path with ..
+    path = OC_STR8("tests/files/data/directory/../regular.txt");
+    r = oc_io_resolve(arena, 0, path);
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/regular.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: relative path with symlink
+    path = OC_STR8("tests/files/data/symlink");
+    r = oc_io_resolve(arena, 0, path);
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/regular.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: relative path with non-existing end
+    path = OC_STR8("tests/files/data/directory/foo/../bar");
+    r = oc_io_resolve(arena, 0, path);
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/directory/bar")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: tests with root
+    oc_str8 dirPath = oc_path_append(arena, TEST_DIR, OC_STR8("data"));
+    oc_file dir = oc_file_open(dirPath, OC_FILE_ACCESS_READ, 0);
+    oc_file_slot* dirSlot = oc_file_slot_from_handle(&oc_globalFileTable, dir);
+
+    //NOTE: relative path with root
+    r = oc_io_resolve(arena, dirSlot, OC_STR8("directory/test.txt"));
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("directory/test.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: absolute path with root
+    r = oc_io_resolve(arena, dirSlot, OC_STR8("/directory/test.txt"));
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("/directory/test.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: path with symlink
+    r = oc_io_resolve(arena, dirSlot, OC_STR8("symlink"));
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("regular.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: path with valid '..'
+    r = oc_io_resolve(arena, dirSlot, OC_STR8("directory/../regular.txt"));
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("regular.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: path with valid non-existing end
+    r = oc_io_resolve(arena, dirSlot, OC_STR8("directory/foo/../test.txt"));
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("directory/test.txt")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: test escapes
+
+    //NOTE: path with escaping '..'
+    r = oc_io_resolve(arena, dirSlot, OC_STR8("directory/../../foo"));
+    if(r.error != OC_IO_ERR_WALKOUT)
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    oc_file jail = oc_file_open_at(dir, OC_STR8("jail"), OC_FILE_ACCESS_READ, 0);
+    oc_file_slot* jailSlot = oc_file_slot_from_handle(&oc_globalFileTable, jail);
+
+    //NOTE: path with escaping symlink to file
+    r = oc_io_resolve(arena, jailSlot, OC_STR8("file_escape"));
+    if(r.error != OC_IO_ERR_WALKOUT)
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    //NOTE: path with escaping symlink to dir
+    r = oc_io_resolve(arena, jailSlot, OC_STR8("dir_escape"));
+    if(r.error != OC_IO_ERR_WALKOUT)
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+
+    return 0;
+}
+
 oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
 {
     const char* test_dir_arg_prefix = "--test-dir=";
-    for (int i = 1; i < argc; ++i)
+    for(int i = 1; i < argc; ++i)
     {
         const char* arg = argv[i];
         const size_t arglen = strlen(arg);
 
-        if (strstr(arg, test_dir_arg_prefix) == arg)
+        if(strstr(arg, test_dir_arg_prefix) == arg)
         {
             const char* slice = arg + strlen(test_dir_arg_prefix);
             return OC_STR8(slice);
@@ -657,6 +782,10 @@ int main(int argc, const char** argv)
 
     TEST_DIR = parseTestDir(argc, argv, arena);
 
+    if(test_resolve(arena))
+    {
+        return (-1);
+    }
     if(test_write(arena))
     {
         return (-1);

@@ -75,7 +75,11 @@ int make_app_macos(void)
 
     if(oc_sys_exists(bundleDir))
     {
-        TRY(oc_sys_rmdir(bundleDir));
+        if(oc_file_remove(bundleDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE }) != OC_IO_OK)
+        {
+            printf("Could not remove exiting bundle directory\n");
+            return -1;
+        }
     }
     oc_file_makedir(bundleDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(contentsDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });

@@ -7,6 +7,7 @@
 **************************************************************************/
 
 #include "platform_io.h"
+#include "platform_path.h"
 
 //------------------------------------------------------------------------------
 // File stream read/write API
@@ -141,20 +142,57 @@ oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
     return cmp.error;
 }
 
+oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
+{
+    oc_io_error error = OC_IO_OK;
+    oc_file file = oc_file_open_at(root, path, OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_SYMLINK);
+    //TODO: err
+    oc_file_status status = oc_file_get_status(file);
+    if(status.type == OC_FILE_DIRECTORY)
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+        oc_file_list list = oc_file_listdir(scratch.arena, file);
+        oc_file_list_for(list, elt)
+        {
+            oc_str8 childPath = oc_path_append(scratch.arena, path, elt->basename);
+            error = oc_file_remove_recursive(root, childPath);
+            if(error)
+            {
+                break;
+            }
+        }
+        oc_scratch_end(scratch);
+    }
+    oc_file_close(file);
+
+    if(error == OC_IO_OK)
+    {
+        error = oc_file_remove(path, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_DIR });
+    }
+    return error;
+}
+
 oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* optionsPtr)
 {
     oc_file_remove_options options = optionsPtr
                                        ? *optionsPtr
                                        : (oc_file_remove_options){ 0 };
 
-    oc_io_req req = {
-        .op = OC_IO_REMOVE,
-        .handle = options.root,
-        .size = path.len,
-        .buffer = path.ptr,
-        .removeFlags = options.flags,
-    };
+    if(options.flags & OC_FILE_REMOVE_RECURSIVE)
+    {
+        return oc_file_remove_recursive(options.root, path);
+    }
+    else
+    {
+        oc_io_req req = {
+            .op = OC_IO_REMOVE,
+            .handle = options.root,
+            .size = path.len,
+            .buffer = path.ptr,
+            .removeFlags = options.flags,
+        };
 
-    oc_io_cmp cmp = oc_io_wait_single_req(&req);
-    return cmp.error;
+        oc_io_cmp cmp = oc_io_wait_single_req(&req);
+        return cmp.error;
+    }
 }

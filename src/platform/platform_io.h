@@ -101,7 +101,7 @@ typedef struct oc_io_req
 
         u32 makeDirFlags;
         u32 removeFlags;
-
+        u32 copyFlags;
         oc_file_whence whence;
     };
 
@@ -258,8 +258,8 @@ ORCA_API oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* opti
 typedef enum oc_file_remove_flags
 {
     OC_FILE_REMOVE_DEFAULT = 0,
-    OC_FILE_REMOVE_DIR = 1,
-    OC_FILE_REMOVE_RECURSIVE = 1 << 1,
+    OC_FILE_REMOVE_DIR = 1,            // allow removing (empty) directory
+    OC_FILE_REMOVE_RECURSIVE = 1 << 1, // allow removing full directory
 } oc_file_remove_flags;
 
 typedef struct oc_file_remove_options
@@ -270,6 +270,29 @@ typedef struct oc_file_remove_options
 
 ORCA_API oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* options);
 
+/*
+typedef enum oc_file_copy_flags
+{
+    OC_FILE_COPY_DEFAULT = 0,
+    OC_FILE_COPY_INSIDE_DEST = 1,             // copy src inside dst directory
+    OC_FILE_COPY_SRC_CONTENTS = 1 << 1,       // copy contents of src instead of src
+    OC_FILE_COPY_CREATE_PARENTS = 1 << 2,     // create parents dirs of dst if they don't exist
+    OC_FILE_COPY_FOLLOW_SYMLINKS = 1 << 3,    // copy target tree of symlinks instead of symlink file
+    OC_FILE_COPY_OVERWRITE_EXISTING = 1 << 4, // if dst exists, overwrite existing files with new files
+    OC_FILE_COPY_REPLACE_EXISTING = 1 << 5,   // if dst exists, completely remove its contents before copying
+} oc_file_copy_flags;
+
+typedef bool(oc_file_copy_ignore_proc*)(oc_str8 path, void* data);
+
+typedef struct oc_file_copy_options
+{
+    oc_file_copy_flags flags;
+    oc_file_copy_ignore_proc ignore;
+    void* ignoreData;
+} oc_file_copy_options;
+
+ORCA_API oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options);
+*/
 //----------------------------------------------------------------
 // File Enumeration API
 //----------------------------------------------------------------

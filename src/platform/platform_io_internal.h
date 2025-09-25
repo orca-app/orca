@@ -13,12 +13,14 @@
 
 #if OC_PLATFORM_MACOS || PLATFORM_LINUX
 typedef int oc_file_desc;
+    #define OC_FILE_AT_FDCWD AT_FDCWD
 #elif OC_PLATFORM_WINDOWS
     #ifndef WIN32_LEAN_AND_MEAN
         #define WIN32_LEAN_AND_MEAN
     #endif
     #include <windows.h>
 typedef HANDLE oc_file_desc;
+    #define OC_FILE_AT_FDCWD NULL
 #endif
 
 typedef struct oc_file_slot

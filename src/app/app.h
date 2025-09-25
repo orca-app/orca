@@ -465,7 +465,7 @@ ORCA_API int oc_alert_popup(oc_str8 title,
 // file system stuff... //TODO: move elsewhere
 //--------------------------------------------------------------------
 ORCA_API int oc_file_move(oc_str8 from, oc_str8 to);
-ORCA_API int oc_file_remove(oc_str8 path);
+// ORCA_API int oc_file_remove(oc_str8 path);
 
 ORCA_API int oc_directory_create(oc_str8 path);
 

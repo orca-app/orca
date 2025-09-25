@@ -544,11 +544,16 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
     oc_file_slot* slot = oc_file_slot_from_handle(table, req->handle);
     if(!slot)
     {
-        if(!oc_file_is_nil(req->handle)
-           || (req->op != OC_IO_OPEN_AT
-               && req->op != OC_IO_MAKE_DIR))
+        //TODO: clarify this. We need to skip open at here so that it
+        //  returns a valid handle with an error on it...
+        if(req->op != OC_IO_OPEN_AT)
         {
-            cmp.error = OC_IO_ERR_HANDLE;
+            if(!oc_file_is_nil(req->handle)
+               || (req->op != OC_IO_MAKE_DIR
+                   && req->op != OC_IO_REMOVE))
+            {
+                cmp.error = OC_IO_ERR_HANDLE;
+            }
         }
     }
     else if(slot->fatal
