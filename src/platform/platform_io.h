@@ -32,8 +32,8 @@ enum oc_file_open_flags_enum
     OC_FILE_OPEN_TRUNCATE = 1 << 1,
     OC_FILE_OPEN_CREATE = 1 << 2,
 
-    OC_FILE_OPEN_SYMLINK = 1 << 3,
-    OC_FILE_OPEN_NO_FOLLOW = 1 << 4,
+    OC_FILE_SYMLINK_OPEN_LAST = 1 << 3,
+    OC_FILE_SYMLINK_DONT_FOLLOW = 1 << 4,
     OC_FILE_OPEN_RESTRICT = 1 << 5,
     //...
 };
@@ -69,6 +69,7 @@ enum oc_io_op_enum
     OC_IO_READ,
     OC_IO_WRITE,
 
+    OC_IO_MAKE_TMP,
     OC_IO_MAKE_DIR,
     OC_IO_REMOVE,
 
@@ -99,6 +100,7 @@ typedef struct oc_io_req
             oc_file_open_flags flags;
         } open;
 
+        u32 makeTmpFlags;
         u32 makeDirFlags;
         u32 removeFlags;
         u32 copyFlags;
@@ -134,7 +136,7 @@ enum oc_io_error_enum
     OC_IO_ERR_PHYSICAL,    // physical IO error
     OC_IO_ERR_NO_DEVICE,   // device not found
     OC_IO_ERR_WALKOUT,     // attempted to walk out of root directory
-
+    OC_IO_ERR_SYMLINK,     // encountered a symlink while following symlinks was disabled
     //...
 };
 
@@ -239,6 +241,14 @@ ORCA_API oc_file_status oc_file_get_status(oc_file file);
 ORCA_API u64 oc_file_size(oc_file file);
 
 //TODO: Complete as needed...
+
+typedef enum oc_file_maketmp_flags
+{
+    OC_FILE_MAKETMP_DEFAULT = 0,
+    OC_FILE_MAKETMP_DIRECTORY = 1,
+} oc_file_maketmp_flags;
+
+oc_file oc_file_maketmp(oc_file_maketmp_flags flags);
 
 typedef enum oc_file_makedir_flags
 {

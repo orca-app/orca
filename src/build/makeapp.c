@@ -18,7 +18,8 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
             oc_str8 srcFile = oc_path_append(scratch.arena, src, elt->basename);
             oc_str8 dstFile = oc_path_append(scratch.arena, dst, elt->basename);
 
-            oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+            oc_sys_mkdirs(dst);
+            //oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
             oc_sys_copy(srcFile, dstFile);
         }
@@ -81,11 +82,18 @@ int make_app_macos(void)
             return -1;
         }
     }
+
+    oc_sys_mkdirs(bundleDir);
+    oc_sys_mkdirs(contentsDir);
+    oc_sys_mkdirs(exeDir);
+    oc_sys_mkdirs(resDir);
+
+    /*
     oc_file_makedir(bundleDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(contentsDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(exeDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(resDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-
+    */
     //-----------------------------------------------------------
     //NOTE: copy binaries
     //-----------------------------------------------------------

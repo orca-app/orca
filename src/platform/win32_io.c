@@ -15,8 +15,8 @@
 #include "platform_io_internal.c"
 #include "win32_string_helpers.h"
 
-const DWORD OC_WIN32_REGULAR_ATTRIBUTE_SET = 
-      FILE_ATTRIBUTE_ARCHIVE
+const DWORD OC_WIN32_REGULAR_ATTRIBUTE_SET =
+    FILE_ATTRIBUTE_ARCHIVE
     | FILE_ATTRIBUTE_COMPRESSED
     | FILE_ATTRIBUTE_ENCRYPTED
     | FILE_ATTRIBUTE_HIDDEN
@@ -201,7 +201,7 @@ oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access 
         win32CreateFlags |= OPEN_EXISTING;
     }
 
-    if(openFlags & OC_FILE_OPEN_SYMLINK)
+    if(openFlags & OC_FILE_SYMLINK_OPEN_LAST)
     {
         win32AttributeFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
     }
@@ -233,7 +233,7 @@ void oc_io_raw_close(oc_file_desc fd)
 bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_flags openFlags)
 {
     bool result = false;
-    oc_file_desc fd = oc_io_raw_open_at(dirFd, path, OC_FILE_ACCESS_NONE, (openFlags & OC_FILE_OPEN_SYMLINK));
+    oc_file_desc fd = oc_io_raw_open_at(dirFd, path, OC_FILE_ACCESS_NONE, (openFlags & OC_FILE_SYMLINK_OPEN_LAST));
     if(!oc_file_desc_is_nil(fd))
     {
         result = true;
@@ -338,7 +338,7 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
 oc_io_error oc_io_raw_fstat_at(oc_file_desc dirFd, oc_str8 name, oc_file_open_flags openFlags, oc_file_status* status)
 {
     oc_io_error error = OC_IO_OK;
-    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_NONE, OC_FILE_OPEN_SYMLINK);
+    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_NONE, OC_FILE_SYMLINK_OPEN_LAST);
     if(oc_file_desc_is_nil(fd))
     {
         error = oc_io_raw_last_error();
@@ -418,7 +418,7 @@ oc_io_raw_read_link_result oc_io_raw_read_link(oc_arena* arena, oc_file_desc fd)
 
 oc_io_raw_read_link_result oc_io_raw_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 name)
 {
-    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_READ, OC_FILE_OPEN_SYMLINK);
+    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_READ, OC_FILE_SYMLINK_OPEN_LAST);
     oc_io_raw_read_link_result result = oc_io_raw_read_link(arena, fd);
     oc_io_raw_close(fd);
     return (result);
@@ -610,7 +610,7 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
 
 oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
 {
-    oc_file_list list = {0};
+    oc_file_list list = { 0 };
 
     oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
     if(slot && !slot->fatal)
@@ -620,10 +620,10 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
         // Windows uses a trailing \* to determine it should enumerate all files in the folder
         oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.arena, slot->fd, OC_STR8("\\*"));
 
-        WIN32_FIND_DATAW entry = {0};
+        WIN32_FIND_DATAW entry = { 0 };
 
         HANDLE handle = FindFirstFileW(dirPathW.ptr, &entry);
-        if (handle == INVALID_HANDLE_VALUE)
+        if(handle == INVALID_HANDLE_VALUE)
         {
             slot->error = oc_io_raw_last_error();
         }
@@ -631,7 +631,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
         {
             do
             {
-                if (!StrCmpW(u".", entry.cFileName) || !StrCmpW(u"..", entry.cFileName))
+                if(!StrCmpW(u".", entry.cFileName) || !StrCmpW(u"..", entry.cFileName))
                 {
                     continue;
                 }
@@ -642,9 +642,9 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                 ++list.eltCount;
 
                 elt->type = OC_FILE_UNKNOWN;
-                if (entry.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+                if(entry.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
                 {
-                    if (entry.dwReserved0 & IO_REPARSE_TAG_SYMLINK)
+                    if(entry.dwReserved0 & IO_REPARSE_TAG_SYMLINK)
                     {
                         elt->type = OC_FILE_SYMLINK;
                     }
@@ -661,7 +661,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                 oc_str16 basename16 = { .ptr = entry.cFileName, lstrlenW(entry.cFileName) };
                 elt->basename = oc_win32_wide_to_utf8(arena, basename16);
             }
-            while (FindNextFileW(handle, &entry));
+            while(FindNextFileW(handle, &entry));
 
             FindClose(handle);
         }

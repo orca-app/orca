@@ -63,6 +63,8 @@ int oc_io_err_to_errno(enum oc_io_error_enum error)
 			return ENXIO;
 		case OC_IO_ERR_WALKOUT:
 			return EPERM;
+        case OC_IO_ERR_SYMLINK:
+			return ELOOP;
 	}
 	return 0;
 }
@@ -93,7 +95,7 @@ static size_t file_read_shim(FILE* stream, unsigned char* buffer, size_t size)
 				stream->flags |= F_ERR;
 				return 0;
 			}
-		}	
+		}
 	}
 
 	u64 total_read = read_bytes[0] + read_bytes[1];
@@ -250,7 +252,7 @@ static oc_file fopen_orca_file(const char* restrict filename, const char* restri
 	}
 	if (flags & O_APPEND)
 	{
-		orca_flags |= OC_FILE_OPEN_APPEND;		
+		orca_flags |= OC_FILE_OPEN_APPEND;
 	}
 
 	oc_file file = oc_file_open(OC_STR8(filename), orca_rights, orca_flags);
@@ -348,8 +350,8 @@ FILE* freopen(const char* restrict filename, const char* restrict mode, FILE* re
 		if (f == stdout)
 		{
 			f->buf = stdout_buf;
-		} 
-		else if (f == stderr) 
+		}
+		else if (f == stderr)
 		{
 			f->buf = stderr_buf;
 		}

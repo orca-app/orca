@@ -161,14 +161,16 @@ static int oc_io_convert_open_flags(oc_file_open_flags flags)
     {
         oflags |= O_CREAT;
     }
-    if(flags & OC_FILE_OPEN_NO_FOLLOW)
+    /*
+    if(flags & OC_FILE_SYMLINK_DONT_FOLLOW)
     {
-        oflags |= O_NOFOLLOW;
+        oflags |= O_NOFOLLOW_ANY;
     }
-    if(flags & OC_FILE_OPEN_SYMLINK)
+    if(flags & OC_FILE_SYMLINK_OPEN_LAST)
     {
         oflags |= O_SYMLINK;
     }
+    */
     return (oflags);
 }
 
@@ -207,7 +209,6 @@ oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access 
 
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_file_desc fd = -1;
     if(dirFd >= 0)
     {
         if(path.len && path.ptr[0] == '/')
@@ -223,12 +224,12 @@ oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access 
     {
         dirFd = AT_FDCWD;
     }
-
     char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
     flags = oc_io_update_dir_flags_at(dirFd, pathCStr, flags);
 
-    fd = openat(dirFd, pathCStr, flags, mode);
+    flags |= O_SYMLINK;
+    int fd = openat(dirFd, pathCStr, flags, mode);
     oc_scratch_end(scratch);
 
     return (fd);
@@ -339,7 +340,7 @@ oc_io_error oc_io_raw_fstat_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_fl
 
     char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
-    int statFlag = (flags & OC_FILE_OPEN_SYMLINK) ? AT_SYMLINK_NOFOLLOW : 0;
+    int statFlag = (flags & OC_FILE_SYMLINK_OPEN_LAST) ? AT_SYMLINK_NOFOLLOW : 0;
     oc_io_error error = OC_IO_OK;
     struct stat s;
     if(fstatat(dirFd, pathCStr, &s, statFlag))
@@ -422,7 +423,7 @@ bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_fla
 
     char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
-    int flags = (openFlags & OC_FILE_OPEN_SYMLINK) ? AT_SYMLINK_NOFOLLOW : 0;
+    int flags = (openFlags & OC_FILE_SYMLINK_OPEN_LAST) ? AT_SYMLINK_NOFOLLOW : 0;
     int r = faccessat(dirFd, pathCStr, F_OK, flags);
     bool result = (r == 0);
 
@@ -546,7 +547,7 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
     {
         //TODO: clarify this. We need to skip open at here so that it
         //  returns a valid handle with an error on it...
-        if(req->op != OC_IO_OPEN_AT)
+        if(req->op != OC_IO_OPEN_AT && req->op != OC_IO_MAKE_TMP)
         {
             if(!oc_file_is_nil(req->handle)
                || (req->op != OC_IO_MAKE_DIR
@@ -589,6 +590,10 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
 
             case OC_IO_SEEK:
                 cmp = oc_io_seek(slot, req);
+                break;
+
+            case OC_IO_MAKE_TMP:
+                cmp = oc_io_maketmp(req, table);
                 break;
 
             case OC_IO_MAKE_DIR:

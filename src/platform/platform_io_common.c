@@ -125,6 +125,17 @@ u64 oc_file_size(oc_file file)
     return (status.size);
 }
 
+oc_file oc_file_maketmp(oc_file_maketmp_flags flags)
+{
+    oc_io_req req = {
+        .op = OC_IO_MAKE_TMP,
+        .makeTmpFlags = flags,
+    };
+
+    oc_io_cmp cmp = oc_io_wait_single_req(&req);
+    return cmp.handle;
+}
+
 oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
 {
     oc_file_makedir_options options = optionsPtr
@@ -145,7 +156,7 @@ oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
 oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
 {
     oc_io_error error = OC_IO_OK;
-    oc_file file = oc_file_open_at(root, path, OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_SYMLINK);
+    oc_file file = oc_file_open_at(root, path, OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, OC_FILE_SYMLINK_OPEN_LAST);
     //TODO: err
     oc_file_status status = oc_file_get_status(file);
     if(status.type == OC_FILE_DIRECTORY)

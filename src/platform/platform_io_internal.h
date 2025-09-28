@@ -85,10 +85,10 @@ bool oc_file_desc_is_nil(oc_file_desc fd);
 		- we don't need a special handle value to use a path relative to the current working directory
 		  (we just pass a nil dirFd with a relative path)
 */
+
 oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags);
 void oc_io_raw_close(oc_file_desc fd);
 oc_io_error oc_io_raw_last_error();
-bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_flags openFlags);
 oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status);
 oc_io_error oc_io_raw_fstat_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_flags openFlags, oc_file_status* status);
 
