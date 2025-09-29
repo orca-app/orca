@@ -10,7 +10,7 @@
 #include "platform_path.h"
 
 //------------------------------------------------------------------------------
-// File stream read/write API
+// Mics common file helpers
 //------------------------------------------------------------------------------
 
 oc_file oc_file_nil()
@@ -21,6 +21,17 @@ oc_file oc_file_nil()
 bool oc_file_is_nil(oc_file handle)
 {
     return (handle.h == 0);
+}
+
+i64 oc_file_pos(oc_file file)
+{
+    return (oc_file_seek(file, 0, OC_FILE_SEEK_CURRENT));
+}
+
+u64 oc_file_size(oc_file file)
+{
+    oc_file_status status = oc_file_get_status(file);
+    return (status.size);
 }
 
 oc_file oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_flags flags)
@@ -71,11 +82,6 @@ i64 oc_file_seek(oc_file file, i64 offset, oc_file_whence whence)
     return (cmp.offset);
 }
 
-i64 oc_file_pos(oc_file file)
-{
-    return (oc_file_seek(file, 0, OC_FILE_SEEK_CURRENT));
-}
-
 u64 oc_file_write(oc_file file, u64 size, char* buffer)
 {
     oc_io_req req = { .op = OC_IO_WRITE,
@@ -119,12 +125,6 @@ oc_file_status oc_file_get_status(oc_file file)
     return (status);
 }
 
-u64 oc_file_size(oc_file file)
-{
-    oc_file_status status = oc_file_get_status(file);
-    return (status.size);
-}
-
 oc_file oc_file_maketmp(oc_file_maketmp_flags flags)
 {
     oc_io_req req = {
@@ -156,7 +156,7 @@ oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
 oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
 {
     oc_io_error error = OC_IO_OK;
-    oc_file file = oc_file_open_at(root, path, OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, OC_FILE_SYMLINK_OPEN_LAST);
+    oc_file file = oc_file_open_at(root, path, OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE, OC_FILE_RESOLVE_SYMLINK_OPEN_LAST);
     //TODO: err
     oc_file_status status = oc_file_get_status(file);
     if(status.type == OC_FILE_DIRECTORY)

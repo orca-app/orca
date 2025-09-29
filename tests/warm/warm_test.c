@@ -399,7 +399,7 @@ wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
 {
     oc_str8 contents = { 0 };
 
-    oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
     if(oc_file_is_nil(file))
     {
         oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(filename));
@@ -712,7 +712,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 {
     oc_str8 contents = { 0 };
     {
-        oc_file file = oc_file_open(testPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+        oc_file file = oc_file_open(testPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
         if(oc_file_last_error(file) != OC_IO_OK)
         {
             oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(testPath));

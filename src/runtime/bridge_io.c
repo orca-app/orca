@@ -5,7 +5,7 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include "platform/platform_io_internal.h"
+#include "platform/native_io.h"
 #include "runtime.h"
 #include "runtime_memory.h"
 
@@ -37,7 +37,6 @@ oc_io_cmp oc_bridge_io_wait_single_req(oc_io_req* wasmReq)
                     //NOTE: change root to app local folder
                     req.handle = orca->rootDir;
                 }
-                req.open.flags |= OC_FILE_OPEN_RESTRICT;
             }
         }
         else
@@ -178,7 +177,7 @@ oc_wasm_file_list oc_file_listdir_bridge(oc_wasm_addr wasmArena, oc_file directo
 
     oc_wasm_file_list wasmList = { 0 };
     wasmList.eltCount = nativeList.eltCount;
-    if (oc_file_last_error(directory) == OC_IO_OK)
+    if(oc_file_last_error(directory) == OC_IO_OK)
     {
         oc_file_list_for(nativeList, nativeElt)
         {

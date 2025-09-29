@@ -164,7 +164,7 @@ int update(int argc, char** argv)
 
         oc_str8 extracted_release = oc_path_append(&arena, temp_dir, OC_STR8("orca"));
         oc_str8 versionPath = oc_path_append(&arena, extracted_release, OC_STR8("current_version"));
-        oc_file versionFile = oc_file_open(versionPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+        oc_file versionFile = oc_file_open(versionPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
         if(oc_file_is_nil(versionFile))
         {
             fprintf(stderr, "error: failed to read version file %s\n", versionPath.ptr);
@@ -213,7 +213,7 @@ int update(int argc, char** argv)
         /*
         oc_str8 checksum = { 0 };
         oc_str8 checksum_path = oc_path_append(&arena, temp_dir, OC_STR8("sha1.sum"));
-        oc_file checksum_file = oc_file_open(checksum_path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+        oc_file checksum_file = oc_file_open(checksum_path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
         if(!oc_file_is_nil(checksum_file))
         {
             checksum.len = oc_file_size(checksum_file);

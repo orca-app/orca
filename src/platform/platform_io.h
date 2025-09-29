@@ -23,31 +23,30 @@ typedef struct
     u64 h;
 } oc_file;
 
-typedef u16 oc_file_open_flags;
-
-enum oc_file_open_flags_enum
-{
-    OC_FILE_OPEN_NONE = 0,
-    OC_FILE_OPEN_APPEND = 1 << 0,
-    OC_FILE_OPEN_TRUNCATE = 1 << 1,
-    OC_FILE_OPEN_CREATE = 1 << 2,
-
-    OC_FILE_SYMLINK_OPEN_LAST = 1 << 3,
-    OC_FILE_SYMLINK_DONT_FOLLOW = 1 << 4,
-    OC_FILE_OPEN_RESTRICT = 1 << 5,
-    //...
-};
-
-typedef u16 oc_file_access;
-
-enum oc_file_access_enum
+typedef enum oc_file_access
 {
     OC_FILE_ACCESS_NONE = 0,
     OC_FILE_ACCESS_READ = 1 << 0,
     OC_FILE_ACCESS_WRITE = 1 << 1,
-};
+} oc_file_access;
 
-typedef enum
+typedef enum oc_file_open_flags
+{
+    OC_FILE_OPEN_DEFAULT = 0,
+    OC_FILE_OPEN_APPEND = 1 << 0,
+    OC_FILE_OPEN_TRUNCATE = 1 << 1,
+    OC_FILE_OPEN_CREATE = 1 << 2,
+    //...
+} oc_file_open_flags;
+
+typedef enum oc_file_resolve_flags
+{
+    OC_FILE_RESOLVE_DEFAULT = 0,
+    OC_FILE_RESOLVE_SYMLINK_OPEN_LAST = 1,
+    OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW = 1 << 1,
+} oc_file_resolve_flags;
+
+typedef enum oc_file_whence
 {
     OC_FILE_SEEK_SET,
     OC_FILE_SEEK_END,
@@ -62,17 +61,13 @@ enum oc_io_op_enum
 {
     OC_IO_OPEN_AT = 0,
     OC_IO_CLOSE,
-
     OC_IO_FSTAT,
-
     OC_IO_SEEK,
     OC_IO_READ,
     OC_IO_WRITE,
-
     OC_IO_MAKE_TMP,
     OC_IO_MAKE_DIR,
     OC_IO_REMOVE,
-
     OC_OC_IO_ERROR,
     //...
 };
@@ -92,26 +87,26 @@ typedef struct oc_io_req
         u64 unused; // This is a horrible hack to get the same layout on wasm and on host
     };
 
+    u8 resolveFlags;
+
     union
     {
         struct
         {
-            oc_file_access rights;
-            oc_file_open_flags flags;
+            u16 rights;
+            u16 flags;
         } open;
 
         u32 makeTmpFlags;
         u32 makeDirFlags;
         u32 removeFlags;
         u32 copyFlags;
-        oc_file_whence whence;
+        u8 whence;
     };
 
 } oc_io_req;
 
-typedef i32 oc_io_error;
-
-enum oc_io_error_enum
+typedef enum oc_io_error
 {
     OC_IO_OK = 0,
     OC_IO_ERR_UNKNOWN,
@@ -138,7 +133,7 @@ enum oc_io_error_enum
     OC_IO_ERR_WALKOUT,     // attempted to walk out of root directory
     OC_IO_ERR_SYMLINK,     // encountered a symlink while following symlinks was disabled
     //...
-};
+} oc_io_error;
 
 typedef struct oc_io_cmp
 {
@@ -167,17 +162,20 @@ ORCA_API oc_io_cmp oc_io_wait_single_req(oc_io_req* req);
 ORCA_API oc_file oc_file_nil(void);
 ORCA_API bool oc_file_is_nil(oc_file handle);
 
-ORCA_API oc_file oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_flags flags);
-ORCA_API oc_file oc_file_open_at(oc_file dir, oc_str8 path, oc_file_access rights, oc_file_open_flags flags);
-ORCA_API void oc_file_close(oc_file file);
+typedef struct oc_file_open_options
+{
+    oc_file root;
+    oc_file_open_flags flags;
+    oc_file_resolve_flags resolve;
+} oc_file_open_options;
 
+ORCA_API oc_file oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* options);
+ORCA_API void oc_file_close(oc_file file);
 ORCA_API i64 oc_file_pos(oc_file file);
 ORCA_API i64 oc_file_seek(oc_file file, i64 offset, oc_file_whence whence);
-
 ORCA_API u64 oc_file_write(oc_file file, u64 size, char* buffer);
 ORCA_API u64 oc_file_read(oc_file file, u64 size, char* buffer);
-
-ORCA_API oc_io_error oc_file_last_error(oc_file handle);
+ORCA_API oc_io_error oc_file_last_error(oc_file file);
 
 //----------------------------------------------------------------
 // File System wrapper API
@@ -240,11 +238,9 @@ typedef struct oc_file_status
 ORCA_API oc_file_status oc_file_get_status(oc_file file);
 ORCA_API u64 oc_file_size(oc_file file);
 
-//TODO: Complete as needed...
-
 typedef enum oc_file_maketmp_flags
 {
-    OC_FILE_MAKETMP_DEFAULT = 0,
+    OC_FILE_MAKETMP_FILE = 0,
     OC_FILE_MAKETMP_DIRECTORY = 1,
 } oc_file_maketmp_flags;
 
@@ -261,6 +257,7 @@ typedef struct oc_file_makedir_options
 {
     oc_file root;
     oc_file_makedir_flags flags;
+    oc_file_resolve_flags resolve;
 } oc_file_makedir_options;
 
 ORCA_API oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* options);

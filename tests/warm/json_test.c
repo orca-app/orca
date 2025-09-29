@@ -3,7 +3,7 @@
 int main()
 {
     oc_str8 string = { 0 };
-    oc_file file = oc_file_open(OC_STR8("test.json"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    oc_file file = oc_file_open(OC_STR8("test.json"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
 
     oc_arena arena = { 0 };
     oc_arena_init(&arena);

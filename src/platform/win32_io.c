@@ -201,7 +201,7 @@ oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access 
         win32CreateFlags |= OPEN_EXISTING;
     }
 
-    if(openFlags & OC_FILE_SYMLINK_OPEN_LAST)
+    if(openFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST)
     {
         win32AttributeFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
     }
@@ -233,7 +233,7 @@ void oc_io_raw_close(oc_file_desc fd)
 bool oc_io_raw_file_exists_at(oc_file_desc dirFd, oc_str8 path, oc_file_open_flags openFlags)
 {
     bool result = false;
-    oc_file_desc fd = oc_io_raw_open_at(dirFd, path, OC_FILE_ACCESS_NONE, (openFlags & OC_FILE_SYMLINK_OPEN_LAST));
+    oc_file_desc fd = oc_io_raw_open_at(dirFd, path, OC_FILE_ACCESS_NONE, (openFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST));
     if(!oc_file_desc_is_nil(fd))
     {
         result = true;
@@ -338,7 +338,7 @@ oc_io_error oc_io_raw_fstat(oc_file_desc fd, oc_file_status* status)
 oc_io_error oc_io_raw_fstat_at(oc_file_desc dirFd, oc_str8 name, oc_file_open_flags openFlags, oc_file_status* status)
 {
     oc_io_error error = OC_IO_OK;
-    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_NONE, OC_FILE_SYMLINK_OPEN_LAST);
+    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_NONE, OC_FILE_RESOLVE_SYMLINK_OPEN_LAST);
     if(oc_file_desc_is_nil(fd))
     {
         error = oc_io_raw_last_error();
@@ -418,7 +418,7 @@ oc_io_raw_read_link_result oc_io_raw_read_link(oc_arena* arena, oc_file_desc fd)
 
 oc_io_raw_read_link_result oc_io_raw_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 name)
 {
-    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_READ, OC_FILE_SYMLINK_OPEN_LAST);
+    oc_file_desc fd = oc_io_raw_open_at(dirFd, name, OC_FILE_ACCESS_READ, OC_FILE_RESOLVE_SYMLINK_OPEN_LAST);
     oc_io_raw_read_link_result result = oc_io_raw_read_link(arena, fd);
     oc_io_raw_close(fd);
     return (result);

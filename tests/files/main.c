@@ -18,7 +18,11 @@ int test_write(oc_arena* arena)
     oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/write_test.txt"));
     oc_str8 test_string = OC_STR8("Hello from write_test.txt");
 
-    oc_file f = oc_file_open(path, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE);
+    oc_file f = oc_file_open(path,
+                             OC_FILE_ACCESS_WRITE,
+                             &(oc_file_open_options){
+                                 .flags = OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE,
+                             });
     if(oc_file_last_error(f))
     {
         oc_log_error("Can't create/open file %.*s for writing\n", (int)path.len, path.ptr);
@@ -182,7 +186,11 @@ int test_stat_type(oc_arena* arena)
 
     oc_log_info("stat type, symlink\n");
 
-    f = oc_file_open(link, OC_FILE_ACCESS_NONE, OC_FILE_SYMLINK_OPEN_LAST);
+    f = oc_file_open(link,
+                     OC_FILE_ACCESS_NONE,
+                     &(oc_file_open_options){
+                         .resolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST,
+                     });
     if(oc_file_last_error(f))
     {
         oc_log_error("Can't open file\n");
@@ -214,7 +222,7 @@ int test_symlinks(oc_arena* arena)
 
     // open symlink target
     oc_log_info("open symlink target\n");
-    oc_file f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, 0);
+    oc_file f = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(f))
     {
         oc_log_error("failed to open %s\n", path.ptr);
@@ -229,7 +237,11 @@ int test_symlinks(oc_arena* arena)
 
     // open symlink file
     oc_log_info("open symlink file\n");
-    f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, OC_FILE_SYMLINK_OPEN_LAST);
+    f = oc_file_open(path,
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .resolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST,
+                     });
     if(oc_file_last_error(f))
     {
         oc_log_error("failed to open %s\n", path.ptr);
@@ -268,10 +280,10 @@ int test_args(oc_arena* arena)
 
     //NOTE: nil handle
     oc_log_info("check open_at with nil handle\n");
-    oc_file f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, 0);
+    oc_file f = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(f))
     {
-        oc_log_error("oc_file_open_at() with nil handle failed\n");
+        oc_log_error("oc_file_open() with nil handle failed\n");
         return (-1);
     }
     if(check_string(f, OC_STR8("Hello from regular.txt")))
@@ -285,10 +297,14 @@ int test_args(oc_arena* arena)
     oc_log_info("check open_at with nil handle\n");
     oc_file wrongHandle = { .h = 123456789 };
 
-    f = oc_file_open_at(wrongHandle, path, OC_FILE_ACCESS_READ, 0);
+    f = oc_file_open(path,
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = wrongHandle,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_HANDLE)
     {
-        oc_log_error("oc_file_open_at() with non-nil invalid handle should return OC_IO_ERR_HANDLE\n");
+        oc_log_error("oc_file_open() with non-nil invalid handle should return OC_IO_ERR_HANDLE\n");
         return (-1);
     }
     oc_file_close(f);
@@ -297,18 +313,18 @@ int test_args(oc_arena* arena)
     //NOTE: nil/wrong handle and OC_FILE_OPEN_RESTRICT
     oc_log_info("check open_at with nil handle and OC_FILE_OPEN_RESTRICT\n");
 
-    f = oc_file_open_at(oc_file_nil(), path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(oc_file_nil(), path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
     if(oc_file_last_error(f) != OC_IO_ERR_HANDLE)
     {
-        oc_log_error("oc_file_open_at() with nil handle and OC_FILE_OPEN_RESTRICT should return OC_IO_ERR_HANDLE\n");
+        oc_log_error("oc_file_open() with nil handle and OC_FILE_OPEN_RESTRICT should return OC_IO_ERR_HANDLE\n");
         return (-1);
     }
     oc_file_close(f);
 
-    f = oc_file_open_at(wrongHandle, path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(wrongHandle, path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
     if(oc_file_last_error(f) != OC_IO_ERR_HANDLE)
     {
-        oc_log_error("oc_file_open_at() with invalid handle and OC_FILE_OPEN_RESTRICT should return OC_IO_ERR_HANDLE\n");
+        oc_log_error("oc_file_open() with invalid handle and OC_FILE_OPEN_RESTRICT should return OC_IO_ERR_HANDLE\n");
         return (-1);
     }
     oc_file_close(f);
@@ -317,7 +333,7 @@ int test_args(oc_arena* arena)
     //NOTE: empty path
     oc_log_info("check empty path\n");
 
-    f = oc_file_open_at(oc_file_nil(), OC_STR8(""), OC_FILE_ACCESS_READ, 0);
+    f = oc_file_open(OC_STR8(""), OC_FILE_ACCESS_READ, 0);
     if(oc_file_last_error(f) != OC_IO_ERR_ARG)
     {
         oc_log_error("empty path should return OC_IO_ERR_ARG\n");
@@ -347,7 +363,11 @@ int test_jail(oc_arena* arena)
     oc_log_info("check potential escapes\n");
 
     //NOTE: escape with absolute path
-    oc_file f = oc_file_open_at(jail, OC_STR8("/tmp"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    oc_file f = oc_file_open(OC_STR8("/tmp"),
+                             OC_FILE_ACCESS_READ,
+                             &(oc_file_open_options){
+                                 .root = jail,
+                             });
     if(oc_file_last_error(f) != OC_IO_ERR_NO_ENTRY)
     {
         oc_log_error("Escaped jail with absolute path /tmp\n");
@@ -356,7 +376,11 @@ int test_jail(oc_arena* arena)
     oc_file_close(f);
 
     //NOTE: escape with ..
-    f = oc_file_open_at(jail, OC_STR8(".."), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8(".."),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with relative path ..\n");
@@ -365,7 +389,11 @@ int test_jail(oc_arena* arena)
     oc_file_close(f);
 
     //NOTE: escape with dir/../..
-    f = oc_file_open_at(jail, OC_STR8("dir/../.."), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("dir/../.."),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with relative path dir/../..\n");
@@ -375,7 +403,11 @@ int test_jail(oc_arena* arena)
 
     //NOTE: escape with symlink to parent
 #if !OC_PLATFORM_WINDOWS
-    f = oc_file_open_at(jail, OC_STR8("/dir_escape"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("/dir_escape"),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with symlink to parent\n");
@@ -384,7 +416,11 @@ int test_jail(oc_arena* arena)
     oc_file_close(f);
 
     //NOTE: escape to file with symlink to parent
-    f = oc_file_open_at(jail, OC_STR8("/dir_escape/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("/dir_escape/regular.txt"),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail to regular.txt with symlink to parent\n");
@@ -393,7 +429,11 @@ int test_jail(oc_arena* arena)
     oc_file_close(f);
 
     //NOTE: escape with symlink to file
-    f = oc_file_open_at(jail, OC_STR8("/file_escape"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("/file_escape"),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with symlink to file regular.txt\n");
@@ -405,7 +445,7 @@ int test_jail(oc_arena* arena)
     //NOTE: escape with bad root handle
     oc_file wrong_handle = { 0 };
     oc_str8 regularPath = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
-    f = oc_file_open_at(wrong_handle, regularPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(wrong_handle, regularPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
     if(oc_file_last_error(f) == OC_IO_OK)
     {
         oc_log_error("Escaped jail with nil root handle\n");
@@ -423,7 +463,11 @@ int test_jail(oc_arena* arena)
     //-----------------------------------------------------------
     oc_log_info("check empty path\n");
 
-    f = oc_file_open_at(jail, OC_STR8(""), OC_FILE_ACCESS_READ, 0);
+    f = oc_file_open(OC_STR8(""),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_ERR_ARG)
     {
         oc_log_error("empty path should return OC_IO_ERR_ARG\n");
@@ -437,7 +481,11 @@ int test_jail(oc_arena* arena)
     oc_log_info("check legitimates open\n");
 
     //NOTE: regular file jail/test.txt
-    f = oc_file_open_at(jail, OC_STR8("/test.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("/test.txt"),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_OK)
     {
         oc_log_error("Can't open jail/test.txt\n");
@@ -451,7 +499,11 @@ int test_jail(oc_arena* arena)
     oc_file_close(f);
 
     //NOTE: valid file traversal to jail/test.txt
-    f = oc_file_open_at(jail, OC_STR8("/dir/../test.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("/dir/../test.txt"),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_OK)
     {
         oc_log_error("Can't open jail/dir/../test.txt\n");
@@ -465,7 +517,11 @@ int test_jail(oc_arena* arena)
     oc_file_close(f);
 
     //NOTE: re-open root directory
-    f = oc_file_open_at(jail, OC_STR8("."), OC_FILE_ACCESS_READ, OC_FILE_OPEN_RESTRICT);
+    f = oc_file_open(OC_STR8("."),
+                     OC_FILE_ACCESS_READ,
+                     &(oc_file_open_options){
+                         .root = jail,
+                     });
     if(oc_file_last_error(f) != OC_IO_OK)
     {
         oc_log_error("Can't open jail/.\n");
@@ -473,7 +529,11 @@ int test_jail(oc_arena* arena)
     }
     {
         //NOTE: access regular file test.txt inside reopened root
-        oc_file f2 = oc_file_open_at(f, OC_STR8("test.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f2 = oc_file_open(OC_STR8("test.txt"),
+                                  OC_FILE_ACCESS_READ,
+                                  &(oc_file_open_options){
+                                      .root = f,
+                                  });
 
         if(check_string(f2, OC_STR8("Hello from jail/test.txt")))
         {
@@ -505,7 +565,11 @@ int test_rights(oc_arena* arena)
             return (-1);
         }
 
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open(OC_STR8("./regular.txt"),
+                                 OC_FILE_ACCESS_READ,
+                                 &(oc_file_open_options){
+                                     .root = dir,
+                                 });
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with no access\n");
@@ -526,7 +590,11 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we _can't_ open a file with write access
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
+        oc_file f = oc_file_open(OC_STR8("./regular.txt"),
+                                 OC_FILE_ACCESS_WRITE,
+                                 &(oc_file_open_options){
+                                     .root = dir,
+                                 });
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with write access in dir with read access\n");
@@ -535,7 +603,11 @@ int test_rights(oc_arena* arena)
         oc_file_close(f);
 
         // check that we _can_ open a file with read access
-        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        f = oc_file_open(OC_STR8("./regular.txt"),
+                         OC_FILE_ACCESS_READ,
+                         &(oc_file_open_options){
+                             .root = dir,
+                         });
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with read access in dir with read access\n");
@@ -570,7 +642,11 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we _can't_ open a file with read access
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open(OC_STR8("./regular.txt"),
+                                 OC_FILE_ACCESS_READ,
+                                 &(oc_file_open_options){
+                                     .root = dir,
+                                 });
         if(oc_file_last_error(f) != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with write access\n");
@@ -579,7 +655,11 @@ int test_rights(oc_arena* arena)
         oc_file_close(f);
 
         // check that we _can_ open a file with write access
-        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
+        f = oc_file_open(OC_STR8("./regular.txt"),
+                         OC_FILE_ACCESS_WRITE,
+                         &(oc_file_open_options){
+                             .root = dir,
+                         });
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with write access in dir with write access\n");
@@ -614,7 +694,11 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we can open file with read access
-        oc_file f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_READ, 0);
+        oc_file f = oc_file_open(OC_STR8("./regular.txt"),
+                                 OC_FILE_ACCESS_READ,
+                                 &(oc_file_open_options){
+                                     .root = dir,
+                                 });
         if(oc_file_last_error(f))
         {
             oc_log_error("Incorrect check when opening file with read access in dir with read/write access\n");
@@ -623,7 +707,11 @@ int test_rights(oc_arena* arena)
         oc_file_close(f);
 
         // check that we can open file with write access
-        f = oc_file_open_at(dir, OC_STR8("./regular.txt"), OC_FILE_ACCESS_WRITE, 0);
+        f = oc_file_open(OC_STR8("./regular.txt"),
+                         OC_FILE_ACCESS_WRITE,
+                         &(oc_file_open_options){
+                             .root = dir,
+                         });
         if(oc_file_last_error(f))
         {
             oc_log_error("Couldn't open file with write access in dir with read/write access\n");
@@ -648,7 +736,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: relative path
     path = OC_STR8("tests/files/data/regular.txt");
@@ -659,7 +747,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: relative path with ..
     path = OC_STR8("tests/files/data/directory/../regular.txt");
@@ -669,7 +757,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: relative path with symlink
     path = OC_STR8("tests/files/data/symlink");
@@ -679,7 +767,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: relative path with non-existing end
     path = OC_STR8("tests/files/data/directory/foo/../bar");
@@ -689,7 +777,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: relative path with file inside the path
     path = OC_STR8("tests/files/data/regular.txt/foo/bar");
@@ -699,7 +787,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: tests with root
     oc_str8 dirPath = oc_path_append(arena, TEST_DIR, OC_STR8("data"));
@@ -713,7 +801,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: absolute path with root
     r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("/directory/test.txt"), 0);
@@ -722,7 +810,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: path with symlink
     r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("symlink"), 0);
@@ -731,7 +819,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: path with valid '..'
     r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/../regular.txt"), 0);
@@ -740,7 +828,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
-    oc_io_raw_close(r.fd);
+    oc_fd_close(r.fd);
 
     //NOTE: path with non-existing end
     r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/foo/../test.txt"), 0);
@@ -760,7 +848,11 @@ int test_resolve(oc_arena* arena)
         return -1;
     }
 
-    oc_file jail = oc_file_open_at(dir, OC_STR8("jail"), OC_FILE_ACCESS_READ, 0);
+    oc_file jail = oc_file_open(OC_STR8("jail"),
+                                OC_FILE_ACCESS_READ,
+                                &(oc_file_open_options){
+                                    .root = dir,
+                                });
     oc_file_slot* jailSlot = oc_file_slot_from_handle(&oc_globalFileTable, jail);
 
     //NOTE: path with escaping symlink to file
@@ -784,7 +876,7 @@ int test_resolve(oc_arena* arena)
 
 int test_maketmp(oc_arena* arena)
 {
-    printf("test maketmp\n");
+    oc_log_info("test maketmp\n");
 
     oc_file tmp = oc_file_maketmp(0);
     if(oc_file_is_nil(tmp))
@@ -802,31 +894,31 @@ int test_raw_open(oc_arena* arena)
     oc_log_info("test raw open\n");
 
     //NOTE: path relative to CWD
-    oc_file_desc desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    oc_file_desc desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
     if(oc_file_desc_is_nil(desc))
     {
         oc_log_error("openat failed.\n");
         return -1;
     }
-    oc_io_raw_close(desc);
+    oc_fd_close(desc);
 
     // follow symlink
-    desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
     if(oc_file_desc_is_nil(desc))
     {
         oc_log_error("openat failed.\n");
         return -1;
     }
-    oc_io_raw_close(desc);
+    oc_fd_close(desc);
 
     // prevent following symlink
-    desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_SYMLINK_DONT_FOLLOW);
+    desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW);
     if(!oc_file_desc_is_nil(desc))
     {
         oc_log_error("openat failed.\n");
         return -1;
     }
-    oc_io_raw_close(desc);
+    oc_fd_close(desc);
 
     return 0;
 }

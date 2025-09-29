@@ -194,7 +194,11 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
                                            oc_str8_ip(bundle_sig));
 
     oc_str8 plist_path = oc_path_append(scratch.arena, contentsPath, OC_STR8("Info.plist"));
-    oc_file plist_file = oc_file_open(plist_path, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE);
+    oc_file plist_file = oc_file_open(plist_path,
+                                      OC_FILE_ACCESS_WRITE,
+                                      &(oc_file_open_options){
+                                          .flags = OC_FILE_OPEN_CREATE,
+                                      });
     if(oc_file_is_nil(plist_file))
     {
         fprintf(stderr, "Error: failed to create plist file \"%.*s\"\n",

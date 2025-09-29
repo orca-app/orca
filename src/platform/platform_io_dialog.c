@@ -8,7 +8,7 @@
 
 #include "app/app.h"
 #include "platform_io_dialog.h"
-#include "platform_io_internal.h"
+#include "native_io.h"
 
 oc_file oc_file_open_with_request_for_table(oc_str8 path, oc_file_access rights, oc_file_open_flags flags, oc_file_table* table)
 {

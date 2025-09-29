@@ -5,9 +5,14 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include "platform/platform_io_internal.h"
-#include "platform/platform_path.h"
 
+#include "platform/platform_path.h"
+#include "platform_io.c"
+#include "native_io.h"
+
+//------------------------------------------------------------------------
+// File table and handles
+//------------------------------------------------------------------------
 oc_file_table oc_globalFileTable = { 0 };
 
 oc_file_table* oc_file_table_get_global()
@@ -69,125 +74,15 @@ oc_io_cmp oc_io_wait_single_req(oc_io_req* req)
     return (oc_io_wait_single_req_for_table(req, &oc_globalFileTable));
 }
 
-//-----------------------------------------------------------------------
-// io common primitives
-//-----------------------------------------------------------------------
 #include "util/wrapped_types.h"
 
-static int oc_io_convert_access_rights(oc_file_access rights);
-static int oc_io_convert_open_flags(oc_file_open_flags flags);
-static int oc_io_update_dir_flags_at(int dirFd, char* path, int flags);
+/*-----------------------------------------------------------------------
+//NOTE: Path resolution
 
-typedef oc_result(oc_file_desc, oc_io_error) oc_io_open_no_follow_result;
-
-oc_io_open_no_follow_result oc_io_open_no_follow(oc_file_desc rootFd, oc_str8 path, oc_file_access rights, oc_file_open_flags openFlags)
-{
-    /*NOTE: Open a file, never following symlinks.
-        Leading symlinks in the path will error.
-        If the file is a symlink, the symlink itself will be opened (not its target)
-
-        (openat flags don't allow to error on leading symlinks while still opening the final
-        symlink as a file. So we have to walk the path ourselves here.)
-    */
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    if(rootFd >= 0)
-    {
-        //NOTE: if path is absolute, change for a relative one, otherwise openat ignores fd.
-        if(path.len && path.ptr[0] == '/')
-        {
-            u64 start = 0;
-            while(start < path.len && path.ptr[start] == '/')
-            {
-                start++;
-            }
-            path = oc_str8_slice(path, start, path.len);
-        }
-    }
-    else
-    {
-        rootFd = AT_FDCWD;
-    }
-
-    oc_file_desc fd = rootFd;
-    oc_str8_list leadingElements = oc_path_split(scratch.arena, path);
-    oc_str8 name = oc_str8_list_pop_back(&leadingElements);
-
-    oc_io_error error = OC_IO_OK;
-
-    oc_str8_list_for(leadingElements, elt)
-    {
-        //NOTE: open next element, and get its status, while holding to its fd
-        //NOTE: for leading directories, we don't need access rights / flags
-        char* eltCStr = oc_str8_to_cstring(scratch.arena, elt->string);
-        oc_file_desc newFd = openat(fd, eltCStr, O_SYMLINK);
-        close(fd);
-        fd = newFd;
-
-        if(oc_file_desc_is_nil(fd))
-        {
-            error = oc_io_raw_last_error();
-        }
-        else
-        {
-            struct stat st;
-            int r = fstat(fd, &st);
-            if(r)
-            {
-                error = oc_io_raw_last_error();
-            }
-            else if((st.st_mode & S_IFMT) != S_IFDIR)
-            {
-                //NOTE: leading path must contain only directories.
-                error = OC_IO_ERR_NOT_DIR;
-            }
-        }
-        if(error)
-        {
-            close(fd);
-            break;
-        }
-    }
-
-    if(error == OC_IO_OK)
-    {
-        //NOTE: here, we have an fd to the second-to-last element of the path. We can open the last element
-        // with the requested access rights and creation flags
-        char* nameCStr = oc_str8_to_cstring(scratch.arena, name);
-
-        //TODO: convert flags & mode
-        int flags = oc_io_convert_access_rights(rights);
-        flags |= oc_io_convert_open_flags(openFlags);
-        flags = oc_io_update_dir_flags_at(fd, nameCStr, flags);
-
-        mode_t mode = S_IRUSR
-                    | S_IWUSR
-                    | S_IRGRP
-                    | S_IWGRP
-                    | S_IROTH
-                    | S_IWOTH;
-
-        oc_file_desc newFd = openat(fd, nameCStr, flags, mode);
-
-        if(oc_file_desc_is_nil(newFd))
-        {
-            error = oc_io_raw_last_error();
-        }
-        close(fd);
-        fd = newFd;
-    }
-    oc_scratch_end(scratch);
-
-    if(error == OC_IO_OK)
-    {
-        return oc_wrap_value(oc_io_open_no_follow_result, fd);
-    }
-    else
-    {
-        return oc_wrap_error(oc_io_open_no_follow_result, error);
-    }
-}
-
+    Resolve rootFd and path to a parent directory fd and a file name,
+    expanding symlinks and '..', and making sure the path doesn't escape
+    rootFd.
+-----------------------------------------------------------------------*/
 typedef struct oc_io_resolve_result
 {
     oc_io_error error;
@@ -196,8 +91,9 @@ typedef struct oc_io_resolve_result
     oc_str8 name;
 } oc_io_resolve_result;
 
-oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8 path, oc_file_open_flags resolveFlags)
+oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8 path, oc_file_resolve_flags resolveFlags)
 {
+
     oc_io_resolve_result result = { 0 };
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
 
@@ -241,13 +137,13 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 //NOTE: here we need to recompute fd from path. We can't just openat ".." because the directory
                 // associated with fd could have been moved, and we could potentially escape the root
                 oc_str8 normPath = oc_path_join(scratch.arena, normElements);
-                oc_io_resolve_result r = oc_io_resolve(scratch.arena, rootFd, normPath, OC_FILE_SYMLINK_DONT_FOLLOW);
+                oc_io_resolve_result r = oc_io_resolve(scratch.arena, rootFd, normPath, OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW);
                 if(r.error != OC_IO_OK)
                 {
                     result.error = r.error;
                     break;
                 }
-                close(fd);
+                oc_fd_close(fd);
                 fd = r.fd;
 
                 oc_str8_list_pop_back(&normElements);
@@ -256,15 +152,14 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
         else
         {
             //NOTE: now what we need to do depends on the type of file
-            oc_file_status status = { 0 };
-            oc_io_error error = oc_io_raw_fstat_at(fd, elt->string, OC_FILE_SYMLINK_OPEN_LAST, &status);
+            oc_fd_stat_result r = oc_fd_stat_at(fd, elt->string);
 
-            if(error)
+            oc_file_status status = oc_catch(r)
             {
-                if(error != OC_IO_ERR_NO_ENTRY || !oc_str8_list_empty(pathElements))
+                if(r.error != OC_IO_ERR_NO_ENTRY || !oc_str8_list_empty(pathElements))
                 {
                     //NOTE: only the last element is allowed to be non-existent
-                    result.error = error;
+                    result.error = r.error;
                 }
                 else
                 {
@@ -273,37 +168,33 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 break;
             }
 
-            char* eltCStr = oc_str8_to_cstring(scratch.arena, elt->string);
-
             if(status.type == OC_FILE_SYMLINK)
             {
-                if(!oc_list_empty(pathElements.list) && (resolveFlags & OC_FILE_SYMLINK_DONT_FOLLOW))
+                if(!oc_list_empty(pathElements.list) && (resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW))
                 {
                     result.error = OC_IO_ERR_SYMLINK;
                     break;
                 }
-                else if((resolveFlags & OC_FILE_SYMLINK_DONT_FOLLOW) || (resolveFlags & OC_FILE_SYMLINK_OPEN_LAST))
+                else if((resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW) || (resolveFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST))
                 {
                     result.name = oc_str8_push_copy(arena, elt->string);
                     break;
                 }
 
-                char* buff = oc_arena_push_array(scratch.arena, char, PATH_MAX);
-                ssize_t sz = readlinkat(fd, eltCStr, buff, PATH_MAX);
-                if(sz < 0)
+                oc_fd_read_link_result r = oc_fd_read_link_at(scratch.arena, fd, elt->string);
+                oc_str8 target = oc_catch(r)
                 {
-                    result.error = oc_io_raw_last_error();
+                    result.error = r.error;
                     break;
                 }
-                oc_str8 link = oc_str8_from_buffer(sz, buff);
 
-                if(oc_path_is_absolute(link))
+                if(oc_path_is_absolute(target))
                 {
                     result.error = OC_IO_ERR_WALKOUT;
                     break;
                 }
 
-                oc_str8_list linkElements = oc_path_split(scratch.arena, link);
+                oc_str8_list linkElements = oc_path_split(scratch.arena, target);
 
                 //NOTE: push linkElements in front of pathElements
                 oc_list_for_reverse(linkElements.list, elt, oc_str8_elt, listElt)
@@ -328,14 +219,30 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 else
                 {
                     //NOTE: move fd and push directory to normalize elements
-                    oc_file_desc newFd = openat(fd, eltCStr, O_DIRECTORY);
-                    if(oc_file_desc_is_nil(newFd))
+                    oc_fd_result openResult = oc_fd_open_at(fd, elt->string, OC_FILE_ACCESS_NONE, OC_FILE_OPEN_DEFAULT);
+                    oc_file_desc newFd = oc_catch(openResult)
                     {
-                        result.error = oc_io_raw_last_error();
+                        result.error = openResult.error;
                         break;
                     }
-                    oc_io_raw_close(fd);
+                    oc_fd_close(fd);
                     fd = newFd;
+
+                    oc_fd_stat_result statResult = oc_fd_stat(fd);
+
+                    oc_file_status newStatus = oc_catch(statResult)
+                    {
+                        result.error = statResult.error;
+                        break;
+                    }
+
+                    if(status.type != OC_FILE_DIRECTORY)
+                    {
+                        //NOTE: if we got anything other than a directory here, the file changed
+                        // under our feet, so we could be walking out root dir.
+                        result.error = OC_IO_ERR_WALKOUT;
+                        break;
+                    }
 
                     oc_str8_list_push(scratch.arena, &normElements, elt->string);
                 }
@@ -369,6 +276,15 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
     oc_scratch_end(scratch);
     return result;
 }
+
+/*-----------------------------------------------------------------------
+ Platform-agnostic IO handlers
+
+    These handlers do permission checking and path resolution (making
+    sure the path doesn't escape the root directory). They call into raw
+    IO primitives (implemented in posix_io.c, win32_io.c, etc) to do the
+    actual IO operations.
+-----------------------------------------------------------------------*/
 
 oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* table)
 {
@@ -414,7 +330,7 @@ oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* tab
 
                 oc_file_desc rootFd = atSlot ? atSlot->fd : oc_file_desc_nil();
 
-                oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, req->open.flags);
+                oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, req->resolveFlags);
                 if(resolve.error != OC_IO_OK)
                 {
                     slot->error = resolve.error;
@@ -424,32 +340,17 @@ oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* tab
                     //NOTE: here, we have an fd to the second-to-last element of the path. We can open the last element
                     // with the requested access rights and creation flags
 
-                    int flags = oc_io_convert_access_rights(req->open.rights);
-                    flags |= oc_io_convert_open_flags(req->open.flags);
-                    flags = oc_io_update_dir_flags_at(resolve.fd, resolve.name.ptr, flags);
-
-                    mode_t mode = S_IRUSR
-                                | S_IWUSR
-                                | S_IRGRP
-                                | S_IWGRP
-                                | S_IROTH
-                                | S_IWOTH;
-
-                    slot->fd = openat(resolve.fd, resolve.name.ptr, flags | O_SYMLINK, mode);
-
-                    if(oc_file_desc_is_nil(slot->fd))
+                    oc_fd_result res = oc_fd_open_at(resolve.fd, resolve.name, req->open.rights, req->open.flags);
+                    slot->fd = oc_catch(res)
                     {
-                        slot->error = oc_io_raw_last_error();
+                        slot->error = res.error;
                     }
-                    close(resolve.fd);
+                    oc_fd_close(resolve.fd);
                 }
                 oc_scratch_end(scratch);
             }
         }
 
-        /////////////////////////////////////////////////////////////////////////////
-        //TODO: do the opposite: set cmp error above, and set slot to cmp here
-        /////////////////////////////////////////////////////////////////////////////
         if(slot->error)
         {
             slot->fatal = true;
@@ -458,6 +359,89 @@ oc_io_cmp oc_io_open_at(oc_file_slot* atSlot, oc_io_req* req, oc_file_table* tab
     }
     return (cmp);
 }
+
+oc_io_cmp oc_io_close(oc_file_slot* slot, oc_io_req* req, oc_file_table* table)
+{
+    oc_io_cmp cmp = { 0 };
+    if(!oc_file_desc_is_nil(slot->fd))
+    {
+        cmp.error = oc_fd_close(slot->fd);
+    }
+    oc_file_slot_recycle(table, slot);
+    return (cmp);
+}
+
+oc_io_cmp oc_io_get_error(oc_file_slot* slot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+    cmp.result = slot->error;
+    return (cmp);
+}
+
+oc_io_cmp oc_io_fstat(oc_file_slot* slot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+
+    if(req->size < sizeof(oc_file_status))
+    {
+        cmp.error = OC_IO_ERR_ARG;
+    }
+    else
+    {
+        oc_fd_stat_result r = oc_fd_stat(slot->fd);
+        if(oc_check(r))
+        {
+            oc_file_status status = r.value;
+            memcpy(req->buffer, &status, sizeof(status));
+        }
+        else
+        {
+            cmp.error = r.error;
+        }
+    }
+    return (cmp);
+}
+
+oc_io_cmp oc_io_seek(oc_file_slot* slot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+    oc_fd_seek_result r = oc_fd_seek(slot->fd, req->offset, req->whence);
+
+    cmp.result = oc_catch(r)
+    {
+        slot->error = cmp.error = r.error;
+    }
+    return (cmp);
+}
+
+oc_io_cmp oc_io_read(oc_file_slot* slot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+
+    oc_fd_readwrite_result r = oc_fd_read(slot->fd, req->size, req->buffer);
+    cmp.result = oc_catch(r)
+    {
+        slot->error = cmp.error = r.error;
+    }
+
+    return (cmp);
+}
+
+oc_io_cmp oc_io_write(oc_file_slot* slot, oc_io_req* req)
+{
+    oc_io_cmp cmp = { 0 };
+
+    oc_fd_readwrite_result r = oc_fd_write(slot->fd, req->size, req->buffer);
+    cmp.result = oc_catch(r)
+    {
+        slot->error = cmp.error = r.error;
+    }
+
+    return (cmp);
+}
+
+//TODO: remove
+static oc_io_error oc_fd_convert_errno();
 
 oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
 {
@@ -470,32 +454,14 @@ oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
     }
     else
     {
-        oc_arena_scope scratch = oc_scratch_begin();
-        oc_str8 template = oc_str8_push_cstring(scratch.arena, "/tmp/orca.XXXXXX");
-
-        slot->fd = oc_file_desc_nil();
+        slot->rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE;
         cmp.handle = oc_file_from_slot(table, slot);
 
-        slot->rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE;
-        if(req->makeTmpFlags & OC_FILE_MAKETMP_DIRECTORY)
+        oc_fd_result res = oc_fd_maketmp(req->makeTmpFlags);
+        slot->fd = oc_catch(res)
         {
-            char* path = mkdtemp(template.ptr);
-            slot->fd = open(path, O_DIRECTORY);
-            if(oc_file_desc_is_nil(slot->fd))
-            {
-                slot->error = oc_io_raw_last_error();
-            }
+            slot->error = res.error;
         }
-        else
-        {
-            slot->fd = mkstemp(template.ptr);
-            if(oc_file_desc_is_nil(slot->fd))
-            {
-                slot->error = oc_io_raw_last_error();
-            }
-        }
-
-        oc_scratch_end(scratch);
     }
     if(slot->error)
     {
@@ -554,28 +520,23 @@ oc_io_cmp oc_io_makedir(oc_file_slot* atSlot, oc_io_req* req)
                 oc_io_cmp subCmp = oc_io_makedir(atSlot, &subReq);
                 if(subCmp.error != OC_IO_OK)
                 {
-                    cmp.error = OC_IO_OK;
-                    break;
+                    cmp.error = subCmp.error;
                 }
             }
         }
         else
         {
-            oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, req->makeDirFlags);
+            oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, req->resolveFlags);
             if(resolve.error)
             {
                 cmp.error = resolve.error;
             }
             else
             {
-                int r = mkdirat(resolve.fd, resolve.name.ptr, 0700);
-                if(r)
+                cmp.error = oc_fd_makedir_at(resolve.fd, resolve.name);
+                if(cmp.error == OC_IO_ERR_EXISTS && (req->makeDirFlags & OC_FILE_MAKEDIR_IGNORE_EXISTING))
                 {
-                    oc_io_error error = oc_io_raw_last_error();
-                    if(error != OC_IO_ERR_EXISTS || !(req->makeDirFlags & OC_FILE_MAKEDIR_IGNORE_EXISTING))
-                    {
-                        cmp.error = error;
-                    }
+                    cmp.error = OC_IO_OK;
                 }
             }
         }
@@ -608,43 +569,14 @@ oc_io_cmp oc_io_remove(oc_file_slot* atSlot, oc_io_req* req)
 
         oc_file_desc rootFd = atSlot ? atSlot->fd : oc_file_desc_nil();
 
-        oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, OC_FILE_OPEN_NONE);
+        oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, OC_FILE_RESOLVE_SYMLINK_OPEN_LAST);
         if(resolve.error)
         {
             cmp.error = resolve.error;
         }
         else
         {
-            oc_file_status status = { 0 };
-            cmp.error = oc_io_raw_fstat_at(resolve.fd, resolve.name, OC_FILE_SYMLINK_OPEN_LAST, &status);
-
-            if(cmp.error == OC_IO_OK)
-            {
-                if(status.type == OC_FILE_DIRECTORY || status.type == OC_FILE_REGULAR)
-                {
-                    if(status.type == OC_FILE_DIRECTORY && !(req->removeFlags & OC_FILE_REMOVE_DIR))
-                    {
-                        cmp.error = OC_IO_ERR_DIR;
-                    }
-                    else
-                    {
-                        int flags = AT_SYMLINK_NOFOLLOW_ANY;
-                        if(status.type == OC_FILE_DIRECTORY)
-                        {
-                            flags |= AT_REMOVEDIR;
-                        }
-                        int r = unlinkat(resolve.fd, resolve.name.ptr, flags);
-                        if(r)
-                        {
-                            cmp.error = oc_io_raw_last_error();
-                        }
-                    }
-                }
-                else
-                {
-                    cmp.error = OC_IO_ERR_UNKNOWN; //TODO
-                }
-            }
+            cmp.error = oc_fd_remove(resolve.fd, resolve.name, req->removeFlags);
             close(resolve.fd);
         }
 
@@ -653,7 +585,89 @@ oc_io_cmp oc_io_remove(oc_file_slot* atSlot, oc_io_req* req)
     return cmp;
 }
 
+//-----------------------------------------------------------------------
+// IO Dispatch
+//-----------------------------------------------------------------------
+
 oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory)
 {
     return oc_file_listdir_for_table(arena, directory, &oc_globalFileTable);
+}
+
+oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
+{
+    oc_io_cmp cmp = { 0 };
+
+    oc_file_slot* slot = oc_file_slot_from_handle(table, req->handle);
+    if(!slot)
+    {
+        //TODO: clarify this. We need to skip open at here so that it
+        //  returns a valid handle with an error on it...
+        if(req->op != OC_IO_OPEN_AT && req->op != OC_IO_MAKE_TMP)
+        {
+            if(!oc_file_is_nil(req->handle)
+               || (req->op != OC_IO_MAKE_DIR
+                   && req->op != OC_IO_REMOVE))
+            {
+                cmp.error = OC_IO_ERR_HANDLE;
+            }
+        }
+    }
+    else if(slot->fatal
+            && req->op != OC_IO_CLOSE
+            && req->op != OC_OC_IO_ERROR)
+    {
+        cmp.error = OC_IO_ERR_PREV;
+    }
+
+    if(cmp.error == OC_IO_OK)
+    {
+        switch(req->op)
+        {
+            case OC_IO_OPEN_AT:
+                cmp = oc_io_open_at(slot, req, table);
+                break;
+
+            case OC_IO_FSTAT:
+                cmp = oc_io_fstat(slot, req);
+                break;
+
+            case OC_IO_CLOSE:
+                cmp = oc_io_close(slot, req, table);
+                break;
+
+            case OC_IO_READ:
+                cmp = oc_io_read(slot, req);
+                break;
+
+            case OC_IO_WRITE:
+                cmp = oc_io_write(slot, req);
+                break;
+
+            case OC_IO_SEEK:
+                cmp = oc_io_seek(slot, req);
+                break;
+
+            case OC_IO_MAKE_TMP:
+                cmp = oc_io_maketmp(req, table);
+                break;
+
+            case OC_IO_MAKE_DIR:
+                cmp = oc_io_makedir(slot, req);
+                break;
+
+            case OC_IO_REMOVE:
+                cmp = oc_io_remove(slot, req);
+                break;
+
+            case OC_OC_IO_ERROR:
+                cmp = oc_io_get_error(slot, req);
+                break;
+
+            default:
+                cmp.error = OC_IO_ERR_OP;
+                break;
+        }
+    }
+    return (cmp);
 }

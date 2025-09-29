@@ -17,32 +17,35 @@ typedef struct
 {
     u8 image_width;
     u8 image_height;
-    u8 num_colors_in_palette;   // should be 0 if the image does not use a color palette
-    u8 reserved_zero;           // must be 0
-    u16 color_planes;           // should be 0 or 1
+    u8 num_colors_in_palette; // should be 0 if the image does not use a color palette
+    u8 reserved_zero;         // must be 0
+    u16 color_planes;         // should be 0 or 1
     u16 bits_per_pixel;
     u32 image_size_in_bytes;
-    u32 offset;                 // offset of the bmp or png data from the beginning of the ico file
+    u32 offset; // offset of the bmp or png data from the beginning of the ico file
 } IcoEntryDisk;
 
 // The icon data format is slightly different on disk vs in-resource
-#pragma pack(push,2)
+#pragma pack(push, 2)
+
 typedef struct
 {
     u8 image_width;
     u8 image_height;
-    u8 num_colors_in_palette;   // should be 0 if the image does not use a color palette
-    u8 reserved_zero;           // must be 0
-    u8 color_planes;            // should be 0 or 1
+    u8 num_colors_in_palette; // should be 0 if the image does not use a color palette
+    u8 reserved_zero;         // must be 0
+    u8 color_planes;          // should be 0 or 1
     u8 bit_count;
-    u16 bits_per_pixel;          
+    u16 bits_per_pixel;
     u16 image_size_in_bytes;
-    u16 reserved_zero2;         // must be 0
-    u16 id;                     // 1-based index of entry
+    u16 reserved_zero2; // must be 0
+    u16 id;             // 1-based index of entry
 } IcoEntryRc;
+
 #pragma pack(pop)
 
-#pragma pack(push,2)
+#pragma pack(push, 2)
+
 typedef struct
 {
     u16 reserved_zero;
@@ -50,6 +53,7 @@ typedef struct
     u16 num_images;
     IcoEntryRc entries[];
 } IcoHeaderRc;
+
 #pragma pack(pop)
 
 bool icon_from_image(oc_arena* a, oc_str8 image_path, oc_str8 ico_path)
@@ -168,9 +172,9 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
 {
     bool result = true;
     oc_arena_scope scratch = oc_scratch_begin_next(a);
-    oc_file ico_file = {0};
+    oc_file ico_file = { 0 };
 
-    ico_file = oc_file_open(ico_path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    ico_file = oc_file_open(ico_path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
     if(oc_file_is_nil(ico_file))
     {
         result = false;
@@ -180,7 +184,7 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
     u64 ico_file_size = oc_file_size(ico_file);
     u8* ico_file_data = oc_arena_push_array(a, u8, ico_file_size);
     u64 total_read = oc_file_read(ico_file, ico_file_size, (char*)ico_file_data);
-    if (total_read < ico_file_size)
+    if(total_read < ico_file_size)
     {
         result = false;
         goto cleanup;
@@ -200,7 +204,7 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
 
     void** images = (void**)oc_arena_push_array(a, u8*, ico_header->num_images);
 
-    for (int i = 0; i < ico_header->num_images; ++i)
+    for(int i = 0; i < ico_header->num_images; ++i)
     {
         ico_entries[i].image_width = ico_entries_disk[i].image_width;
         ico_entries[i].image_height = ico_entries_disk[i].image_height;
@@ -226,7 +230,7 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
 
     BOOL delete_existing_resources = TRUE;
     HANDLE rc_handle = BeginUpdateResourceW(exe_path_wide, delete_existing_resources);
-    if (rc_handle == INVALID_HANDLE_VALUE)
+    if(rc_handle == INVALID_HANDLE_VALUE)
     {
         result = false;
         goto cleanup;
@@ -238,15 +242,15 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
     // WinUser.h doesn't provide explicit wide versions
     LPWSTR RT_ICON_W = MAKEINTRESOURCEW(3);
     LPWSTR RT_GROUP_ICON_W = MAKEINTRESOURCEW((ULONG_PTR)(RT_ICON_W) + DIFFERENCE);
-    if (!UpdateResourceW(rc_handle, RT_GROUP_ICON_W, MAKEINTRESOURCEW(0), langid_en_us, ico_meta_data, ico_meta_size))
+    if(!UpdateResourceW(rc_handle, RT_GROUP_ICON_W, MAKEINTRESOURCEW(0), langid_en_us, ico_meta_data, ico_meta_size))
     {
         result = false;
         discard = TRUE;
     }
 
-    for (int i = 0; i < ico_header->num_images; ++i)
+    for(int i = 0; i < ico_header->num_images; ++i)
     {
-        if (!UpdateResourceW(rc_handle, RT_ICON_W, MAKEINTRESOURCEW(i + 1), langid_en_us, images[i], ico_entries[i].image_size_in_bytes))
+        if(!UpdateResourceW(rc_handle, RT_ICON_W, MAKEINTRESOURCEW(i + 1), langid_en_us, images[i], ico_entries[i].image_size_in_bytes))
         {
             result = false;
             discard = TRUE;

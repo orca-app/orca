@@ -21,7 +21,7 @@ oc_str8 current_sdk_version(oc_arena* a, bool fail_if_not_found)
     oc_str8 orca_dir = system_orca_dir(a);
 
     oc_str8 current_file_path = oc_path_append(a, orca_dir, OC_STR8("current_version"));
-    oc_file file = oc_file_open(current_file_path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    oc_file file = oc_file_open(current_file_path, OC_FILE_ACCESS_READ, 0);
     if(oc_file_is_nil(file))
     {
         if(fail_if_not_found)
@@ -81,7 +81,7 @@ oc_str8 get_version_dir(oc_arena* a, oc_str8 version, bool fail_if_not_found)
     if(fail_if_not_found)
     {
         fprintf(stderr, "error: version %.*s of the Orca SDK is not installed\n",
-            oc_str8_ip(version));
+                oc_str8_ip(version));
         exit(1);
     }
     return (oc_str8){ 0 };
