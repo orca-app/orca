@@ -11,7 +11,7 @@
 // #include <errno.h>
 // #include <assert.h>
 #include <util/typedefs.h>
-#include <platform/platform_io.h>
+#include <platform/io.h>
 
 int oc_io_err_to_errno(enum oc_io_error error)
 {

@@ -8,7 +8,7 @@
 #pragma once
 
 #include "platform.h"
-#include "platform_io.h"
+#include "io.h"
 #include "platform_io_dialog.h"
 #include "util/wrapped_types.h"
 
