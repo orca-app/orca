@@ -27,13 +27,13 @@ oc_file oc_file_open_with_request_for_table(oc_str8 path, oc_file_access rights,
         oc_io_cmp cmp = { 0 };
 
         oc_io_req req = {
-            .op = OC_IO_OPEN_AT,
+            .op = OC_IO_OPEN,
             .size = path.len,
             .buffer = path.ptr,
             .open.rights = rights,
             .open.flags = flags
         };
-        cmp = oc_io_open_at(0, &req, table);
+        cmp = oc_io_open(&req, table);
         if(cmp.error == OC_IO_OK)
         {
             file = cmp.handle;
@@ -73,7 +73,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
             if(elt->string.len)
             {
                 oc_io_req req = {
-                    .op = OC_IO_OPEN_AT,
+                    .op = OC_IO_OPEN,
                     .size = elt->string.len,
                     .buffer = elt->string.ptr,
                     .open.rights = rights,

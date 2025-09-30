@@ -38,7 +38,11 @@ typedef struct oc_tool_options
 
 int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
 {
-    oc_file srcFile = oc_file_open(srcPath, OC_FILE_ACCESS_READ, 0);
+    oc_file srcFile = oc_catch(oc_file_open(srcPath, OC_FILE_ACCESS_READ, 0))
+    {
+        oc_log_error("Couldn't open path %.*s\n", oc_str8_ip(srcPath));
+        return -1;
+    }
     oc_file_status status = oc_file_get_status(srcFile);
 
     if(status.type == OC_FILE_DIRECTORY)
@@ -194,18 +198,17 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
                                            oc_str8_ip(bundle_sig));
 
     oc_str8 plist_path = oc_path_append(scratch.arena, contentsPath, OC_STR8("Info.plist"));
-    oc_file plist_file = oc_file_open(plist_path,
-                                      OC_FILE_ACCESS_WRITE,
-                                      &(oc_file_open_options){
-                                          .flags = OC_FILE_OPEN_CREATE,
-                                      });
-    if(oc_file_is_nil(plist_file))
+    oc_file plist_file = oc_catch(oc_file_open(plist_path,
+                                               OC_FILE_ACCESS_WRITE,
+                                               &(oc_file_open_options){
+                                                   .flags = OC_FILE_OPEN_CREATE,
+                                               }))
     {
         fprintf(stderr, "Error: failed to create plist file \"%.*s\"\n",
                 oc_str8_ip(plist_path));
-        oc_file_close(plist_file);
         return 1;
     }
+
     oc_file_write(plist_file, plist_contents.len, plist_contents.ptr);
     oc_file_close(plist_file);
 

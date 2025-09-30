@@ -399,8 +399,7 @@ wa_module* wa_test_module_load(oc_arena* arena, oc_str8 filename)
 {
     oc_str8 contents = { 0 };
 
-    oc_file file = oc_file_open(filename, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
-    if(oc_file_is_nil(file))
+    oc_file file = oc_catch(oc_file_open(filename, OC_FILE_ACCESS_READ, 0))
     {
         oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(filename));
         return (0);
@@ -712,8 +711,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
 {
     oc_str8 contents = { 0 };
     {
-        oc_file file = oc_file_open(testPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
-        if(oc_file_last_error(file) != OC_IO_OK)
+        oc_file file = oc_catch(oc_file_open(testPath, OC_FILE_ACCESS_READ, 0))
         {
             oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(testPath));
             return (-1);
@@ -1034,7 +1032,14 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
             else if(!oc_str8_cmp(type->string, OC_STR8("assert_invalid")))
             {
                 json_node* filename = json_find_assert(command, "filename", JSON_STRING);
-                wa_module* module = wa_test_module_load(env->arena, filename->string);
+
+                oc_str8_list list = { 0 };
+                oc_str8_list_push(env->arena, &list, testDir);
+                oc_str8_list_push(env->arena, &list, filename->string);
+
+                oc_str8 filePath = oc_path_join(env->arena, list);
+
+                wa_module* module = wa_test_module_load(env->arena, filePath);
                 OC_ASSERT(module);
 
                 //TODO: check the failure reason

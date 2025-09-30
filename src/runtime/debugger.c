@@ -1665,7 +1665,11 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
     {
         wa_source_info* sourceInfo = &interpreter->instance->module->debugInfo->sourceInfo;
         oc_str8 path = sourceInfo->files[node->index].fullPath;
-        oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+        oc_file file = oc_catch(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
+        {
+            //TODO: error message the first time we get here
+            return;
+        }
 
         if(!oc_file_is_nil(file))
         {

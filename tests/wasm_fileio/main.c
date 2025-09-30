@@ -40,8 +40,11 @@ int test_listdir_recursive(oc_arena* arena, oc_str8 path, const expected_entry* 
 {
     int success = 0;
 
-    oc_file dir = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
-    TEST_FAIL_ERR(oc_file_last_error(dir));
+    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file dir = oc_catch(openRes)
+    {
+        TEST_FAIL_ERR(openRes.error);
+    }
 
     oc_file_list entries = oc_file_listdir(arena, dir);
     TEST_FAIL_ERR(oc_file_last_error(dir));

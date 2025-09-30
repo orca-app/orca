@@ -9,6 +9,7 @@
 
 #include "util/strings.h"
 #include "util/typedefs.h"
+#include "util/wrapped_types.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,15 +60,16 @@ typedef u32 oc_io_op;
 
 enum oc_io_op_enum
 {
-    OC_IO_OPEN_AT = 0,
+    OC_IO_OPEN = 0,
     OC_IO_CLOSE,
-    OC_IO_FSTAT,
+    OC_IO_STAT,
     OC_IO_SEEK,
     OC_IO_READ,
     OC_IO_WRITE,
     OC_IO_MAKE_TMP,
     OC_IO_MAKE_DIR,
     OC_IO_REMOVE,
+    OC_IO_COPY,
     OC_OC_IO_ERROR,
     //...
 };
@@ -93,15 +95,21 @@ typedef struct oc_io_req
     {
         struct
         {
+            oc_file dst;
+            u32 flags;
+        } copy;
+
+        struct
+        {
             u16 rights;
             u16 flags;
         } open;
 
+        u8 whence;
+
         u32 makeTmpFlags;
         u32 makeDirFlags;
         u32 removeFlags;
-        u32 copyFlags;
-        u8 whence;
     };
 
 } oc_io_req;
@@ -169,7 +177,9 @@ typedef struct oc_file_open_options
     oc_file_resolve_flags resolve;
 } oc_file_open_options;
 
-ORCA_API oc_file oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* options);
+typedef oc_result(oc_file, oc_io_error) oc_file_open_result;
+
+ORCA_API oc_file_open_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* options);
 ORCA_API void oc_file_close(oc_file file);
 ORCA_API i64 oc_file_pos(oc_file file);
 ORCA_API i64 oc_file_seek(oc_file file, i64 offset, oc_file_whence whence);
@@ -277,29 +287,32 @@ typedef struct oc_file_remove_options
 
 ORCA_API oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* options);
 
-/*
 typedef enum oc_file_copy_flags
 {
     OC_FILE_COPY_DEFAULT = 0,
-    OC_FILE_COPY_INSIDE_DEST = 1,             // copy src inside dst directory
-    OC_FILE_COPY_SRC_CONTENTS = 1 << 1,       // copy contents of src instead of src
-    OC_FILE_COPY_CREATE_PARENTS = 1 << 2,     // create parents dirs of dst if they don't exist
-    OC_FILE_COPY_FOLLOW_SYMLINKS = 1 << 3,    // copy target tree of symlinks instead of symlink file
+    //  OC_FILE_COPY_INSIDE_DEST = 1,             // copy src inside dst directory
+    //  OC_FILE_COPY_SRC_CONTENTS = 1 << 1,       // copy contents of src instead of src
+    OC_FILE_COPY_CREATE_PARENTS = 1 << 2,     // create parents dirs of dst if they don't exist?
     OC_FILE_COPY_OVERWRITE_EXISTING = 1 << 4, // if dst exists, overwrite existing files with new files
     OC_FILE_COPY_REPLACE_EXISTING = 1 << 5,   // if dst exists, completely remove its contents before copying
 } oc_file_copy_flags;
 
-typedef bool(oc_file_copy_ignore_proc*)(oc_str8 path, void* data);
+typedef bool (*oc_file_copy_ignore_proc)(oc_str8 path, void* data);
 
 typedef struct oc_file_copy_options
 {
+    oc_file srcRoot;
+    oc_file_resolve_flags srcResolve;
+    oc_file dstRoot;
+    oc_file_resolve_flags dstResolve;
+
     oc_file_copy_flags flags;
     oc_file_copy_ignore_proc ignore;
     void* ignoreData;
 } oc_file_copy_options;
 
 ORCA_API oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options);
-*/
+
 //----------------------------------------------------------------
 // File Enumeration API
 //----------------------------------------------------------------

@@ -58,6 +58,9 @@ ORCA_API oc_file_table* oc_file_table_get_global();
 oc_file_slot* oc_file_slot_alloc(oc_file_table* table);
 void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot);
 oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot);
+
+typedef oc_result(oc_file_slot*, oc_io_error) oc_file_slot_result;
+
 oc_file_slot* oc_file_slot_from_handle(oc_file_table* table, oc_file handle);
 
 oc_file_desc oc_file_desc_nil();
@@ -75,6 +78,10 @@ ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_a
                                                                             oc_file_dialog_desc* desc,
                                                                             oc_file_table* table);
 ORCA_API oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table);
+
+typedef oc_result(oc_file_list, oc_io_error) oc_fd_listdir_result;
+
+oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd);
 
 //-----------------------------------------------------------------------
 // io primitives

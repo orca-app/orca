@@ -255,19 +255,16 @@ static oc_file fopen_orca_file(const char* restrict filename, const char* restri
 		orca_flags |= OC_FILE_OPEN_APPEND;
 	}
 
-	oc_file file = oc_file_open(OC_STR8(filename),
+	oc_file_open_result openRes = oc_file_open(OC_STR8(filename),
 	                            orca_rights,
 	                            &(oc_file_open_options){
                                     .flags = orca_flags,
                                 });
-	oc_io_error error = oc_file_last_error(file);
-	if(error != OC_IO_OK)
+	oc_file file = oc_catch(openRes)
 	{
-		errno = oc_io_err_to_errno(error);
-		oc_file_close(file);
+		errno = oc_io_err_to_errno(openRes.error);
 		return oc_file_nil();
 	}
-
 	return file;
 }
 

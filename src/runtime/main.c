@@ -570,7 +570,7 @@ int load_app(oc_runtime* app)
 
     //NOTE: preopen the app local root dir
     {
-        oc_io_req req = { .op = OC_IO_OPEN_AT,
+        oc_io_req req = { .op = OC_IO_OPEN,
                           .open.rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
                           .size = dataDirDest.len,
                           .buffer = dataDirDest.ptr };

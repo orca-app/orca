@@ -6,7 +6,10 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_file srcDir = oc_file_open(src, OC_FILE_ACCESS_READ, 0);
+    oc_file srcDir = oc_catch(oc_file_open(src, OC_FILE_ACCESS_READ, 0))
+    {
+        oc_log_error("couldn't open directory %.*s", oc_str8_ip(src));
+    }
     oc_file_list files = oc_file_listdir(scratch.arena, srcDir);
     oc_file_close(srcDir);
 
@@ -247,18 +250,17 @@ int make_app_macos(void)
                                            oc_str8_ip(exec));
 
     oc_str8 plist_path = oc_path_append(scratch.arena, contentsDir, OC_STR8("Info.plist"));
-    oc_file plist_file = oc_file_open(plist_path,
-                                      OC_FILE_ACCESS_WRITE,
-                                      &(oc_file_open_options){
-                                          .flags = OC_FILE_OPEN_CREATE,
-                                      });
-    if(oc_file_is_nil(plist_file))
+    oc_file plist_file = oc_catch(oc_file_open(plist_path,
+                                               OC_FILE_ACCESS_WRITE,
+                                               &(oc_file_open_options){
+                                                   .flags = OC_FILE_OPEN_CREATE,
+                                               }))
     {
         fprintf(stderr, "Error: failed to create plist file \"%.*s\"\n",
                 oc_str8_ip(plist_path));
-        oc_file_close(plist_file);
         return 1;
     }
+
     oc_file_write(plist_file, plist_contents.len, plist_contents.ptr);
     oc_file_close(plist_file);
 

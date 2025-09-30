@@ -548,11 +548,78 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
 //TODO: move that in common code
 ////////////////////////////////////////////////////////////////////////////////
 
+oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd)
+{
+    oc_file_list list = { 0 };
+
+    DIR* dir = fdopendir(dirFd);
+    if(dir)
+    {
+        struct dirent* entry = NULL;
+        while((entry = readdir(dir)) != NULL)
+        {
+            // skip the current/previous directory entries
+            if(!strcmp(".", entry->d_name) || !strcmp("..", entry->d_name))
+            {
+                continue;
+            }
+
+            oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
+            oc_list_push_back(&list.list, &elt->listElt);
+            ++list.eltCount;
+
+            oc_file_type type = OC_FILE_UNKNOWN;
+            switch(entry->d_type)
+            {
+                case DT_FIFO:
+                    type = OC_FILE_FIFO;
+                    break;
+                case DT_CHR:
+                    type = OC_FILE_CHARACTER;
+                    break;
+                case DT_DIR:
+                    type = OC_FILE_DIRECTORY;
+                    break;
+                case DT_BLK:
+                    type = OC_FILE_BLOCK;
+                    break;
+                case DT_REG:
+                    type = OC_FILE_REGULAR;
+                    break;
+                case DT_LNK:
+                    type = OC_FILE_SYMLINK;
+                    break;
+                case DT_SOCK:
+                    type = OC_FILE_SOCKET;
+                    break;
+                default:
+                    type = OC_FILE_UNKNOWN;
+                    break;
+            }
+
+            elt->basename = oc_str8_push_buffer(arena, entry->d_namlen, entry->d_name);
+            elt->type = type;
+        }
+
+        closedir(dir);
+    }
+    else
+    {
+        return oc_wrap_error(oc_fd_listdir_result, oc_fd_convert_errno());
+    }
+    return oc_wrap_value(oc_fd_listdir_result, list);
+}
+
 oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
 {
     oc_file_list list = { 0 };
 
-    oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
+    oc_file_slot_result slotRes = oc_file_slot_with_access(table, directory, OC_FILE_ACCESS_READ);
+    oc_file_slot* slot = oc_catch(slotRes)
+    {
+        return list;
+    }
+
     if(slot && !slot->fatal)
     {
         DIR* dir = fdopendir(slot->fd);
