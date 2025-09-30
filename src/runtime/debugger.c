@@ -1665,6 +1665,7 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
     {
         wa_source_info* sourceInfo = &interpreter->instance->module->debugInfo->sourceInfo;
         oc_str8 path = sourceInfo->files[node->index].fullPath;
+
         oc_file file = oc_catch(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
         {
             //TODO: error message the first time we get here
@@ -1676,8 +1677,8 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
             node->contents.len = oc_file_size(file);
             node->contents.ptr = oc_malloc_array(char, node->contents.len);
             oc_file_read(file, node->contents.len, node->contents.ptr);
+            oc_file_close(file);
         }
-        oc_file_close(file);
     }
 
     if(node->contents.len)

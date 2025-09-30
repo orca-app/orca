@@ -21,8 +21,8 @@ oc_str8 current_sdk_version(oc_arena* a, bool fail_if_not_found)
     oc_str8 orca_dir = system_orca_dir(a);
 
     oc_str8 current_file_path = oc_path_append(a, orca_dir, OC_STR8("current_version"));
-    oc_file file = oc_file_open(current_file_path, OC_FILE_ACCESS_READ, 0);
-    if(oc_file_is_nil(file))
+
+    oc_file file = oc_catch(oc_file_open(current_file_path, OC_FILE_ACCESS_READ, 0))
     {
         if(fail_if_not_found)
         {

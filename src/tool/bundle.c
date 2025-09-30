@@ -437,8 +437,11 @@ int macBundle(
                                            mtlEnableCapture ? "<key>MetalCaptureEnabled</key><true/>" : "");
 
     oc_str8 plist_path = oc_path_append(a, contentsDir, OC_STR8("Info.plist"));
-    oc_file plist_file = oc_file_open(plist_path, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE);
-    if(oc_file_is_nil(plist_file))
+    oc_file plist_file = oc_catch(oc_file_open(plist_path,
+                                               OC_FILE_ACCESS_WRITE,
+                                               &(oc_file_open_options){
+                                                   .flags = OC_FILE_OPEN_CREATE,
+                                               }))
     {
         fprintf(stderr, "Error: failed to create plist file \"%.*s\"\n",
                 oc_str8_ip(plist_path));

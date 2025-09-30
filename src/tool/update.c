@@ -164,8 +164,8 @@ int update(int argc, char** argv)
 
         oc_str8 extracted_release = oc_path_append(&arena, temp_dir, OC_STR8("orca"));
         oc_str8 versionPath = oc_path_append(&arena, extracted_release, OC_STR8("current_version"));
-        oc_file versionFile = oc_file_open(versionPath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
-        if(oc_file_is_nil(versionFile))
+
+        oc_file versionFile = oc_catch(oc_file_open(versionPath, OC_FILE_ACCESS_READ, 0))
         {
             fprintf(stderr, "error: failed to read version file %s\n", versionPath.ptr);
             return 1;
@@ -233,8 +233,7 @@ int update(int argc, char** argv)
             oc_file_open_flags open_flags = oc_sys_exists(all_versions)
                                               ? OC_FILE_OPEN_APPEND
                                               : OC_FILE_OPEN_CREATE;
-            oc_file file = oc_file_open(all_versions, OC_FILE_ACCESS_WRITE, open_flags);
-            if(!oc_file_is_nil(file))
+            oc_file file = oc_catch(oc_file_open(all_versions, OC_FILE_ACCESS_WRITE, &(oc_file_open_options){ .flags = open_flags }))
             {
                 oc_file_seek(file, 0, OC_FILE_SEEK_END);
                 /*
@@ -283,8 +282,11 @@ static const char* curl_last_error(CURLcode code)
 
 static CURLcode download_file(CURL* handle, oc_str8 url, oc_str8 out_path)
 {
-    oc_file file = oc_file_open(out_path, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE);
-    if(oc_file_is_nil(file))
+    oc_file file = oc_catch(oc_file_open(out_path,
+                                         OC_FILE_ACCESS_WRITE,
+                                         &(oc_file_open_options){
+                                             .flags = OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE,
+                                         }))
     {
         oc_file_close(file);
         return CURLE_WRITE_ERROR;
@@ -308,9 +310,11 @@ static bool overwrite_current_version(oc_str8 new_version)
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 orca_dir = system_orca_dir(scratch.arena);
     oc_str8 current_version_path = oc_path_append(scratch.arena, orca_dir, OC_STR8("current_version"));
-    oc_file file = oc_file_open(current_version_path, OC_FILE_ACCESS_WRITE,
-                                OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE);
-    if(oc_file_is_nil(file))
+    oc_file file = oc_catch(oc_file_open(current_version_path,
+                                         OC_FILE_ACCESS_WRITE,
+                                         &(oc_file_open_options){
+                                             .flags = OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE,
+                                         }))
     {
         result = false;
         goto cleanup;
