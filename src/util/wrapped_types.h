@@ -38,7 +38,7 @@ bool oc_get_last_catch_result(void);
     if(oc_get_last_catch_result())
 
 #define oc_catch(e) \
-    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok); tmp.value; });          \
+    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok); tmp.ok ? tmp.value : (__typeof__(tmp.value)){0}; });          \
     if(!oc_get_last_catch_result())
 
 #define oc_check(e) ((e).ok)

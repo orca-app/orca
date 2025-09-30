@@ -8,7 +8,7 @@
 #pragma once
 
 #include "util/macros.h"
-#include "platform/platform_io_internal.h"
+#include "platform/native_io.h"
 #include "runtime_memory.h"
 #include "runtime_clipboard.h"
 #include "warm/wasm.h"

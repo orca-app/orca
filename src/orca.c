@@ -22,7 +22,6 @@
     #include "platform/posix_io.c"
     #include "platform/posix_thread.c"
     #include "platform/osx_platform.c"
-
 /*
 	#include"platform/unix_rng.c"
 	#include"platform/posix_socket.c"
@@ -43,7 +42,7 @@
     #include "platform/orca_debug.c"
     #include "platform/orca_clock.c"
     #include "platform/orca_memory.c"
-    #include "platform/platform_io_common.c"
+    #include "platform/io.c"
     #include "platform/orca_io_stubs.c"
     #include "platform/orca_platform.c"
     #include "platform/platform_path.c"

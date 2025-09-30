@@ -27,7 +27,11 @@ int main(int argc, char** argv)
     //NOTE: load module
     oc_str8 contents = { 0 };
 
-    oc_file file = oc_file_open(modulePath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    oc_file file = oc_catch(oc_file_open(modulePath, OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT))
+    {
+        oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(modulePath));
+        return -1;
+    }
 
     contents.len = oc_file_size(file);
     contents.ptr = oc_arena_push(&arena, contents.len);

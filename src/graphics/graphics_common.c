@@ -509,7 +509,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
                 //NOTE(martin): load glyph metric
                 int xAdvance, xBearing, x0, y0, x1, y1;
                 stbtt_GetGlyphHMetrics(&stbttFontInfo, stbttGlyphIndex, &xAdvance, &xBearing);
-                if (stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1))
+                if(stbtt_GetGlyphBox(&stbttFontInfo, stbttGlyphIndex, &x0, &y0, &x1, &y1))
                 {
                     //NOTE(martin): stb stbtt_GetGlyphBox returns bottom left and top right corners, with y up,
                     //              so we have to set .y = -y1
@@ -613,8 +613,8 @@ oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range*
 {
     oc_font font = oc_font_nil();
 
-    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
-    if(oc_file_last_error(file) != OC_IO_OK)
+    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file file = oc_catch(openRes)
     {
         oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
     }
@@ -1936,8 +1936,8 @@ oc_image oc_image_create_from_path(oc_canvas_renderer renderer, oc_str8 path, bo
 {
     oc_image image = oc_image_nil();
 
-    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
-    if(oc_file_last_error(file) != OC_IO_OK)
+    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file file = oc_catch(openRes)
     {
         oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
     }
@@ -2093,8 +2093,8 @@ oc_image_region oc_image_atlas_alloc_from_path(oc_rect_atlas* atlas, oc_image ba
 {
     oc_image_region imageRgn = { 0 };
 
-    oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
-    if(oc_file_last_error(file) != OC_IO_OK)
+    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file file = oc_catch(openRes)
     {
         oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
     }

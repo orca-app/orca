@@ -37,7 +37,7 @@ typedef struct oc_str8
     size_t len;
 } oc_str8;
 
-#define OC_STR8(s) ((oc_str8){ .ptr = (char*)s, .len = (s) ? strlen(s) : 0 })
+#define OC_STR8(s) ({ const char* tmp = s; ((oc_str8){ .ptr = (char*)tmp, .len = (tmp) ? strlen(tmp) : 0 }); })
 
 //NOTE: this only works with string literals, but is sometimes necessary to generate compile-time constants
 #define OC_STR8_LIT(s)                          \
@@ -81,6 +81,10 @@ typedef struct oc_str8_list
 
 ORCA_API void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str);
 ORCA_API void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...);
+
+ORCA_API oc_str8 oc_str8_list_pop_back(oc_str8_list* list);
+ORCA_API void oc_str8_list_push_front(oc_arena* arena, oc_str8_list* list, oc_str8 str);
+ORCA_API oc_str8 oc_str8_list_pop_front(oc_str8_list* list);
 
 ORCA_API oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix);
 ORCA_API oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list);

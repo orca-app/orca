@@ -378,7 +378,7 @@ i32 vm_runloop(void* user)
 
         oc_str8 localRootPath = oc_path_executable_relative(scratch.arena, OC_STR8("../app/data"));
 
-        oc_io_req req = { .op = OC_IO_OPEN_AT,
+        oc_io_req req = { .op = OC_IO_OPEN,
                           .open.rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
                           .size = localRootPath.len,
                           .buffer = localRootPath.ptr };

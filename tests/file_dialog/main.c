@@ -14,7 +14,11 @@ int main(int argc, char** argv)
 
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("../"));
-    oc_file dir = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file dir = oc_catch(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
+    {
+        oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(path));
+        return -1;
+    }
 
     oc_file_dialog_desc desc = {
         .kind = OC_FILE_DIALOG_OPEN,

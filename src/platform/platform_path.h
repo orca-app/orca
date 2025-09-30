@@ -22,6 +22,8 @@ extern "C" {
 
 ORCA_API oc_str8 oc_path_slice_directory(oc_str8 path);
 ORCA_API oc_str8 oc_path_slice_filename(oc_str8 path);
+ORCA_API oc_str8 oc_path_slice_extension(oc_str8 path);
+ORCA_API oc_str8 oc_path_slice_stem(oc_str8 path);
 
 ORCA_API oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path);
 ORCA_API oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements);
