@@ -288,11 +288,11 @@ int test_args(oc_arena* arena)
     oc_log_info("check open_at with invalid handle\n");
     oc_file wrongHandle = { .h = 123456789 };
 
-    oc_file_open_result openRes = oc_file_open(path,
-                                               OC_FILE_ACCESS_READ,
-                                               &(oc_file_open_options){
-                                                   .root = wrongHandle,
-                                               });
+    oc_file_result openRes = oc_file_open(path,
+                                          OC_FILE_ACCESS_READ,
+                                          &(oc_file_open_options){
+                                              .root = wrongHandle,
+                                          });
     if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_HANDLE)
     {
         oc_log_error("oc_file_open() with non-nil invalid handle should return OC_IO_ERR_HANDLE\n");
@@ -332,11 +332,11 @@ int test_jail(oc_arena* arena)
     oc_log_info("check potential escapes\n");
 
     //NOTE: escape with absolute path
-    oc_file_open_result openRes = oc_file_open(OC_STR8("/tmp"),
-                                               OC_FILE_ACCESS_READ,
-                                               &(oc_file_open_options){
-                                                   .root = jail,
-                                               });
+    oc_file_result openRes = oc_file_open(OC_STR8("/tmp"),
+                                          OC_FILE_ACCESS_READ,
+                                          &(oc_file_open_options){
+                                              .root = jail,
+                                          });
 
     if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_NO_ENTRY)
     {
@@ -533,11 +533,11 @@ int test_rights(oc_arena* arena)
             return (-1);
         }
 
-        oc_file_open_result openRes = oc_file_open(OC_STR8("./regular.txt"),
-                                                   OC_FILE_ACCESS_READ,
-                                                   &(oc_file_open_options){
-                                                       .root = dir,
-                                                   });
+        oc_file_result openRes = oc_file_open(OC_STR8("./regular.txt"),
+                                              OC_FILE_ACCESS_READ,
+                                              &(oc_file_open_options){
+                                                  .root = dir,
+                                              });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with no access\n");
@@ -556,11 +556,11 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we _can't_ open a file with write access
-        oc_file_open_result openRes = oc_file_open(OC_STR8("./regular.txt"),
-                                                   OC_FILE_ACCESS_WRITE,
-                                                   &(oc_file_open_options){
-                                                       .root = dir,
-                                                   });
+        oc_file_result openRes = oc_file_open(OC_STR8("./regular.txt"),
+                                              OC_FILE_ACCESS_WRITE,
+                                              &(oc_file_open_options){
+                                                  .root = dir,
+                                              });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with write access in dir with read access\n");
@@ -605,11 +605,11 @@ int test_rights(oc_arena* arena)
         }
 
         // check that we _can't_ open a file with read access
-        oc_file_open_result openRes = oc_file_open(OC_STR8("./regular.txt"),
-                                                   OC_FILE_ACCESS_READ,
-                                                   &(oc_file_open_options){
-                                                       .root = dir,
-                                                   });
+        oc_file_result openRes = oc_file_open(OC_STR8("./regular.txt"),
+                                              OC_FILE_ACCESS_READ,
+                                              &(oc_file_open_options){
+                                                  .root = dir,
+                                              });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with write access\n");
@@ -842,53 +842,451 @@ int test_resolve(oc_arena* arena)
 
 int test_maketmp(oc_arena* arena)
 {
-    oc_log_info("test maketmp\n");
+    oc_log_info("test oc_file_maketmp\n");
 
-    oc_file tmp = oc_file_maketmp(0);
-    if(oc_file_is_nil(tmp))
+    oc_file tmpFile = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_FILE))
     {
-        oc_log_error("Can't create tmp file.\n");
+        oc_log_error("Can't make tmp file.\n");
         return -1;
     }
+    oc_file_close(tmpFile);
 
+    oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
+    {
+        oc_log_error("Can't make tmp directory.\n");
+        return -1;
+    }
+    oc_file_close(tmpDir);
     return 0;
 }
 
-/*
-int test_raw_open(oc_arena* arena)
+int test_makedir(oc_arena* arena)
 {
-    oc_log_info("test raw open\n");
+    oc_log_info("test oc_file_makedir\n");
 
-    //NOTE: path relative to CWD
-    oc_file_desc desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/regular.txt"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
-    if(oc_file_desc_is_nil(desc))
+    oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
     {
-        oc_log_error("openat failed.\n");
+        oc_log_error("Can't make tmp directory.\n");
         return -1;
     }
-    oc_fd_close(desc);
 
-    // follow symlink
-    desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
-    if(oc_file_desc_is_nil(desc))
+    // Create directory and open it
     {
-        oc_log_error("openat failed.\n");
-        return -1;
+        oc_io_error error = oc_file_makedir(OC_STR8("test"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Can't create directory.\n");
+            return -1;
+        }
+        oc_file dir = oc_catch(oc_file_open(OC_STR8("test"),
+                                            OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
+                                            &(oc_file_open_options){
+                                                .root = tmpDir,
+                                            }))
+        {
+            oc_log_error("Can't open created directory.\n");
+            return -1;
+        }
+        oc_file_close(dir);
     }
-    oc_fd_close(desc);
 
-    // prevent following symlink
-    desc = oc_io_raw_open_at(oc_file_desc_nil(), OC_STR8("tests/files/data/symlink"), OC_FILE_ACCESS_READ, OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW);
-    if(!oc_file_desc_is_nil(desc))
+    // Create existing directory without OC_FILE_MAKEDIR_IGNORE_EXISTING
     {
-        oc_log_error("openat failed.\n");
-        return -1;
+        oc_io_error error = oc_file_makedir(OC_STR8("test"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                            });
+        if(error != OC_IO_ERR_EXISTS)
+        {
+            oc_log_error("Creating existing directory without OC_FILE_MAKEDIR_IGNORE_EXISTING should error with OC_IO_ERR_EXISTS.\n");
+            return -1;
+        }
     }
-    oc_fd_close(desc);
+    // Create existing directory with OC_FILE_MAKEDIR_IGNORE_EXISTING
+    {
+        oc_io_error error = oc_file_makedir(OC_STR8("test"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                                .flags = OC_FILE_MAKEDIR_IGNORE_EXISTING,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Creating existing directory with OC_FILE_MAKEDIR_IGNORE_EXISTING failed.\n");
+            return -1;
+        }
+    }
+    // Create dir with non-existent path
+    {
+        oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                            });
+        if(error != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Creating directory with non-existent path should error with OC_IO_ERR_NO_ENTRY.\n");
+            return -1;
+        }
+    }
+    // Create dir with OC_FILE_MAKEDIR_CREATE_PARENTS
+    {
+        oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                                .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Creating directory with OC_IO_FILE_MAKEDIR_CREATE_PARENTS failed.\n");
+            return -1;
+        }
+    }
+    // Try to create dir in read only root
+    {
+        oc_file dir = oc_catch(oc_file_open(OC_STR8("test"),
+                                            OC_FILE_ACCESS_READ,
+                                            &(oc_file_open_options){
+                                                .root = tmpDir,
+                                            }))
+        {
+            oc_log_error("Can't open directory in read-only mode.\n");
+            return -1;
+        }
 
+        oc_io_error error = oc_file_makedir(OC_STR8("a"),
+                                            &(oc_file_makedir_options){
+                                                .root = dir,
+                                            });
+        if(error != OC_IO_ERR_PERM)
+        {
+            oc_log_error("oc_file_makedir in read-only root should error with OC_IO_ERR_PERM.\n");
+            return -1;
+        }
+        oc_file_close(dir);
+    }
+
+    // create dir in write only root
+    {
+        oc_file dir = oc_catch(oc_file_open(OC_STR8("test"),
+                                            OC_FILE_ACCESS_WRITE,
+                                            &(oc_file_open_options){
+                                                .root = tmpDir,
+                                            }))
+        {
+            oc_log_error("Can't open directory in write-only mode.\n");
+            return -1;
+        }
+
+        oc_io_error error = oc_file_makedir(OC_STR8("b"),
+                                            &(oc_file_makedir_options){
+                                                .root = dir,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("failed to create directory in write-only root\n");
+            return -1;
+        }
+        oc_file_close(dir);
+    }
+
+    // create dir parents in write only root
+    {
+        oc_file dir = oc_catch(oc_file_open(OC_STR8("test"),
+                                            OC_FILE_ACCESS_WRITE,
+                                            &(oc_file_open_options){
+                                                .root = tmpDir,
+                                            }))
+        {
+            oc_log_error("Can't open directory in write-only mode.\n");
+            return -1;
+        }
+
+        oc_io_error error = oc_file_makedir(OC_STR8("c/d/e"),
+                                            &(oc_file_makedir_options){
+                                                .root = dir,
+                                                .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("failed to create directory with OC_FILE_MAKEDIR_CREATE_PARENTS in write-only root\n");
+            return -1;
+        }
+        oc_file_close(dir);
+    }
+
+    oc_file_close(tmpDir);
     return 0;
 }
-*/
+
+int test_remove(oc_arena* arena)
+{
+    oc_log_info("test oc_file_remove\n");
+
+    //make some dirs and files
+    oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
+    {
+        oc_log_error("Can't make tmp directory.\n");
+        return -1;
+    }
+
+    {
+        /*
+            tmpDir
+                a.txt
+                b.txt
+                foo
+                    bar
+                        c.txt
+                        d.txt
+                        baz
+        */
+        oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                                .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Can't make test directories.\n");
+            return -1;
+        }
+
+        oc_file f = oc_catch(oc_file_open(OC_STR8("a.txt"),
+                                          OC_FILE_ACCESS_NONE,
+                                          &(oc_file_open_options){
+                                              .root = tmpDir,
+                                              .flags = OC_FILE_OPEN_CREATE,
+                                          }))
+        {
+            oc_log_error("Can't create test files.\n");
+            return -1;
+        }
+        oc_file_close(f);
+
+        f = oc_catch(oc_file_open(OC_STR8("b.txt"),
+                                  OC_FILE_ACCESS_NONE,
+                                  &(oc_file_open_options){
+                                      .root = tmpDir,
+                                      .flags = OC_FILE_OPEN_CREATE,
+                                  }))
+        {
+            oc_log_error("Can't create test files.\n");
+            return -1;
+        }
+        oc_file_close(f);
+
+        f = oc_catch(oc_file_open(OC_STR8("foo/bar/c.txt"),
+                                  OC_FILE_ACCESS_NONE,
+                                  &(oc_file_open_options){
+                                      .root = tmpDir,
+                                      .flags = OC_FILE_OPEN_CREATE,
+                                  }))
+        {
+            oc_log_error("Can't create test files.\n");
+            return -1;
+        }
+
+        f = oc_catch(oc_file_open(OC_STR8("foo/bar/d.txt"),
+                                  OC_FILE_ACCESS_NONE,
+                                  &(oc_file_open_options){
+                                      .root = tmpDir,
+                                      .flags = OC_FILE_OPEN_CREATE,
+                                  }))
+        {
+            oc_log_error("Can't create test files.\n");
+            return -1;
+        }
+
+        oc_file_close(f);
+    }
+
+    // try to remove file in a dir with read-only access
+    {
+        oc_file dir = oc_catch(oc_file_open(OC_STR8("."),
+                                            OC_FILE_ACCESS_READ,
+                                            &(oc_file_open_options){
+                                                .root = tmpDir,
+                                            }))
+        {
+            oc_log_error("Can't open tmpDir in read-only access.\n");
+            return -1;
+        }
+
+        oc_io_error error = oc_file_remove(OC_STR8("a.txt"),
+                                           &(oc_file_remove_options){
+                                               .root = dir,
+                                           });
+        if(error != OC_IO_ERR_PERM)
+        {
+            oc_log_error("Removing in a root with read-only access should error with OC_IO_ERR_PERM.\n");
+            return -1;
+        }
+        oc_file_close(dir);
+    }
+
+    // remove file in a dir with write-only access
+    {
+        oc_file dir = oc_catch(oc_file_open(OC_STR8("."),
+                                            OC_FILE_ACCESS_WRITE,
+                                            &(oc_file_open_options){
+                                                .root = tmpDir,
+                                            }))
+        {
+            oc_log_error("Can't open tmpDir in write-only access.\n");
+            return -1;
+        }
+
+        oc_io_error error = oc_file_remove(OC_STR8("b.txt"),
+                                           &(oc_file_remove_options){
+                                               .root = dir,
+                                           });
+
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Removing in a root with write-only access failed.\n");
+            return -1;
+        }
+
+        oc_result_if(oc_file_open(OC_STR8("b.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        {
+            oc_log_error("File wasn't actually removed.\n");
+            return -1;
+        }
+        else if(oc_last_error() != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Trying to open file that was previously removed should error with OC_IO_ERR_NO_ENTRY.\n");
+            return -1;
+        }
+        oc_file_close(dir);
+    }
+
+    // remove file
+    {
+        oc_io_error error = oc_file_remove(OC_STR8("a.txt"),
+                                           &(oc_file_remove_options){
+                                               .root = tmpDir,
+                                           });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Failed to remove file.\n");
+            return -1;
+        }
+        oc_result_if(oc_file_open(OC_STR8("a.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        {
+            oc_log_error("File wasn't actually removed.\n");
+            return -1;
+        }
+        else if(oc_last_error() != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Trying to open file that was previously removed should error with OC_IO_ERR_NO_ENTRY.\n");
+            return -1;
+        }
+    }
+
+    // remove file with OC_FILE_REMOVE_DIR flag (should be allowed)
+    {
+        oc_io_error error = oc_file_remove(OC_STR8("foo/bar/c.txt"),
+                                           &(oc_file_remove_options){
+                                               .root = tmpDir,
+                                               .flags = OC_FILE_REMOVE_DIR,
+                                           });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Failed to remove file.\n");
+            return -1;
+        }
+        oc_result_if(oc_file_open(OC_STR8("foo/bar/c.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        {
+            oc_log_error("File wasn't actually removed.\n");
+            return -1;
+        }
+        else if(oc_last_error() != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Trying to open file that was previously removed should error with OC_IO_ERR_NO_ENTRY.\n");
+            return -1;
+        }
+    }
+
+    // try to remove dir without OC_FILE_REMOVE_DIR
+    {
+        oc_io_error error = oc_file_remove(OC_STR8("foo/bar/baz"),
+                                           &(oc_file_remove_options){
+                                               .root = tmpDir,
+                                           });
+        if(error != OC_IO_ERR_DIR)
+        {
+            oc_log_error("Removing directory without OC_FILE_REMOVE_DIR should error with OC_IO_ERR_DIR.\n");
+            return -1;
+        }
+    }
+
+    // remove empty dir
+    {
+        oc_io_error error = oc_file_remove(OC_STR8("foo/bar/baz"),
+                                           &(oc_file_remove_options){
+                                               .root = tmpDir,
+                                               .flags = OC_FILE_REMOVE_DIR,
+                                           });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Failed to remove directory.\n");
+            return -1;
+        }
+        oc_result_if(oc_file_open(OC_STR8("foo/bar/baz"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        {
+            oc_log_error("Directory wasn't actually removed.\n");
+            return -1;
+        }
+        else if(oc_last_error() != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Trying to open directory that was previously removed should error with OC_IO_ERR_NO_ENTRY.\n");
+            return -1;
+        }
+    }
+
+    // try to remove non-empty dir
+    {
+        oc_io_error error = oc_file_remove(OC_STR8("foo"),
+                                           &(oc_file_remove_options){
+                                               .root = tmpDir,
+                                               .flags = OC_FILE_REMOVE_DIR,
+                                           });
+        if(error != OC_IO_ERR_NOT_EMPTY)
+        {
+            oc_log_error("Removing non-empty directory should error with OC_IO_ERR_NOT_EMPTY.\n");
+            return -1;
+        }
+    }
+
+    // remove recursive
+    {
+        oc_io_error error = oc_file_remove(OC_STR8("foo"),
+                                           &(oc_file_remove_options){
+                                               .root = tmpDir,
+                                               .flags = OC_FILE_REMOVE_DIR | OC_FILE_REMOVE_RECURSIVE,
+                                           });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Failed to remove directory.\n");
+            return -1;
+        }
+        oc_result_if(oc_file_open(OC_STR8("foo"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        {
+            oc_log_error("Directory wasn't actually removed.\n");
+            return -1;
+        }
+        else if(oc_last_error() != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Trying to open directory that was previously removed should error with OC_IO_ERR_NO_ENTRY.\n");
+            return -1;
+        }
+    }
+
+    oc_file_close(tmpDir);
+    return 0;
+}
 
 oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
 {
@@ -917,49 +1315,51 @@ int main(int argc, const char** argv)
 
     if(test_resolve(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_maketmp(arena))
     {
-        return (-1);
+        return -1;
     }
-    /*
-    if(test_raw_open(arena))
+    if(test_makedir(arena))
     {
         return -1;
     }
-    */
+    if(test_remove(arena))
+    {
+        return -1;
+    }
     if(test_write(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_read(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_stat_size(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_stat_type(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_args(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_symlinks(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_rights(arena))
     {
-        return (-1);
+        return -1;
     }
     if(test_jail(arena))
     {
-        return (-1);
+        return -1;
     }
 
     oc_log_info("OK\n");

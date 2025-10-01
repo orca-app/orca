@@ -23,7 +23,7 @@ bool oc_file_is_nil(oc_file handle)
     return (handle.h == 0);
 }
 
-oc_file_open_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* optionsPtr)
+oc_file_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* optionsPtr)
 {
     oc_file_open_options options = optionsPtr ? *optionsPtr : (oc_file_open_options){ 0 };
 
@@ -43,11 +43,11 @@ oc_file_open_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_op
     //      even if there was an error when opening
     if(cmp.error != OC_IO_OK)
     {
-        return oc_result_error(oc_file_open_result, cmp.error);
+        return oc_result_error(oc_file_result, cmp.error);
     }
     else
     {
-        return oc_result_value(oc_file_open_result, cmp.handle);
+        return oc_result_value(oc_file_result, cmp.handle);
     }
 }
 
@@ -123,7 +123,7 @@ u64 oc_file_size(oc_file file)
     return (status.size);
 }
 
-oc_file oc_file_maketmp(oc_file_maketmp_flags flags)
+oc_file_result oc_file_maketmp(oc_file_maketmp_flags flags)
 {
     oc_io_req req = {
         .op = OC_IO_MAKE_TMP,
@@ -131,7 +131,14 @@ oc_file oc_file_maketmp(oc_file_maketmp_flags flags)
     };
 
     oc_io_cmp cmp = oc_io_wait_single_req(&req);
-    return cmp.handle;
+    if(cmp.error != OC_IO_OK)
+    {
+        return oc_result_error(oc_file_result, cmp.error);
+    }
+    else
+    {
+        return oc_result_value(oc_file_result, cmp.handle);
+    }
 }
 
 oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
@@ -155,12 +162,12 @@ oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
 oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
 {
     oc_io_error error = OC_IO_OK;
-    oc_file_open_result openRes = oc_file_open(path,
-                                               OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
-                                               &(oc_file_open_options){
-                                                   .root = root,
-                                                   .resolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST,
-                                               });
+    oc_file_result openRes = oc_file_open(path,
+                                          OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
+                                          &(oc_file_open_options){
+                                              .root = root,
+                                              .resolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST,
+                                          });
     oc_file file = oc_catch(openRes)
     {
         return openRes.error;
@@ -186,7 +193,11 @@ oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
 
     if(error == OC_IO_OK)
     {
-        error = oc_file_remove(path, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_DIR });
+        error = oc_file_remove(path,
+                               &(oc_file_remove_options){
+                                   .root = root,
+                                   .flags = OC_FILE_REMOVE_DIR,
+                               });
     }
     return error;
 }
@@ -222,12 +233,12 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
                                      ? *optionsPtr
                                      : (oc_file_copy_options){ 0 };
 
-    oc_file_open_result srcRes = oc_file_open(src,
-                                              OC_FILE_ACCESS_READ,
-                                              &(oc_file_open_options){
-                                                  .root = options.srcRoot,
-                                                  .resolve = options.srcResolve,
-                                              });
+    oc_file_result srcRes = oc_file_open(src,
+                                         OC_FILE_ACCESS_READ,
+                                         &(oc_file_open_options){
+                                             .root = options.srcRoot,
+                                             .resolve = options.srcResolve,
+                                         });
     oc_file srcFile = oc_catch(srcRes)
     {
         return srcRes.error;
@@ -239,13 +250,13 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
     if(srcStat.type == OC_FILE_REGULAR || srcStat.type == OC_FILE_SYMLINK)
     {
         //NOTE: if src is a file, we open dst, creating it if it doesn't exist
-        oc_file_open_result dstRes = oc_file_open(dst,
-                                                  OC_FILE_ACCESS_WRITE,
-                                                  &(oc_file_open_options){
-                                                      .root = options.dstRoot,
-                                                      .resolve = options.dstResolve,
-                                                      .flags = OC_FILE_OPEN_CREATE,
-                                                  });
+        oc_file_result dstRes = oc_file_open(dst,
+                                             OC_FILE_ACCESS_WRITE,
+                                             &(oc_file_open_options){
+                                                 .root = options.dstRoot,
+                                                 .resolve = options.dstResolve,
+                                                 .flags = OC_FILE_OPEN_CREATE,
+                                             });
         dstFile = oc_catch(dstRes)
         {
             oc_file_close(srcFile);
@@ -256,13 +267,13 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
         {
             //NOTE: if dst is a directory, copy file into directory with the same basename
             oc_str8 basename = oc_path_slice_filename(src);
-            oc_file_open_result tmpRes = oc_file_open(basename,
-                                                      OC_FILE_ACCESS_WRITE,
-                                                      &(oc_file_open_options){
-                                                          .root = dstFile,
-                                                          .resolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST,
-                                                          .flags = OC_FILE_OPEN_CREATE,
-                                                      });
+            oc_file_result tmpRes = oc_file_open(basename,
+                                                 OC_FILE_ACCESS_WRITE,
+                                                 &(oc_file_open_options){
+                                                     .root = dstFile,
+                                                     .resolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST,
+                                                     .flags = OC_FILE_OPEN_CREATE,
+                                                 });
             oc_file tmp = oc_catch(tmpRes)
             {
                 oc_file_close(srcFile);
@@ -288,12 +299,12 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
             oc_file_close(srcFile);
             return error;
         }
-        oc_file_open_result dstRes = oc_file_open(dst,
-                                                  OC_FILE_ACCESS_WRITE,
-                                                  &(oc_file_open_options){
-                                                      .root = options.dstRoot,
-                                                      .resolve = options.dstResolve,
-                                                  });
+        oc_file_result dstRes = oc_file_open(dst,
+                                             OC_FILE_ACCESS_WRITE,
+                                             &(oc_file_open_options){
+                                                 .root = options.dstRoot,
+                                                 .resolve = options.dstResolve,
+                                             });
         dstFile = oc_catch(dstRes)
         {
             oc_file_close(srcFile);
