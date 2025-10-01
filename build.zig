@@ -144,7 +144,7 @@ fn buildOrcaApp(
     const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
 
     const wasm_module = b.addExecutable(.{
-        .name = "module",
+        .name = "main",
         .linkage = .static,
         .root_module = b.createModule(.{
             .target = wasm_target,
@@ -197,6 +197,7 @@ fn buildOrcaApp(
             bundle.addArg("--resource-dir");
             bundle.addDirectoryArg(b.path(resource_path));
         }
+        bundle.addArg("--standalone");
 
         const output_path = b.getInstallPath(.{ .custom = params.install }, "");
         bundle.addArgs(&.{ "--out-dir", output_path });
@@ -1540,28 +1541,31 @@ pub fn build(b: *Build) !void {
 
     build_orca.dependOn(&makeapp.step);
 
-    const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
-        .name = "package-sdk",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/build/package_sdk.zig"),
-            .target = b.graph.host,
-            .optimize = .Debug,
-        }),
-    });
+    // const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
+    //     .name = "package-sdk",
+    //     .root_module = b.createModule(.{
+    //         .root_source_file = b.path("src/build/package_sdk.zig"),
+    //         .target = b.graph.host,
+    //         .optimize = .Debug,
+    //     }),
+    // });
 
-    const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
+    //    const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
 
     //const sdk_install_path_opt: ?[]const u8 = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
     //    const orca_install: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, sdk_install_path_opt, git_version_opt, opt_sdk_version);
 
-    const local_install_path: []const u8 = b.pathJoin(&.{ b.install_path, "sdk" });
-    const orca_install_local: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, local_install_path, git_version_opt, opt_sdk_version);
+    const orca_local_relative_path: []const u8 = if (b.graph.host.result.os.tag == .windows) "Orca/orca.exe" else "Orca.app/Contents/macOS/orca";
+    const orca_tool_local_path: []const u8 = b.pathJoin(&.{ b.install_path, orca_local_relative_path });
+
+    //const local_install_path: []const u8 = if (b.graph.host.result.os.tag == .windows) b.pathJoin(&.{ b.install_path, "sdk" });
+    //const orca_install_local: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, local_install_path, git_version_opt, opt_sdk_version);
 
     //b.getInstallStep().dependOn(&orca_install.step);
     b.getInstallStep().dependOn(build_orca);
 
-    const orca_tool_local_exe_name: []const u8 = if (b.graph.host.result.os.tag == .windows) "orca.exe" else "orca";
-    const orca_tool_local_path: []const u8 = b.pathJoin(&.{ local_install_path, orca_tool_local_exe_name });
+    //const orca_tool_local_exe_name: []const u8 = if (b.graph.host.result.os.tag == .windows) "orca.exe" else "orca";
+    //const orca_tool_local_path: []const u8 = b.pathJoin(&.{ local_install_path, orca_tool_local_exe_name });
 
     /////////////////////////////////////////////////////////////////
     // samples
@@ -1610,7 +1614,7 @@ pub fn build(b: *Build) !void {
                 wasm_sdk_lib,
                 wasm_libc_lib,
                 gen_header_exe,
-                &orca_install_local.step,
+                &orca_launcher_exe_install.step,
                 orca_tool_local_path,
                 .{
                     .name = config.name,
@@ -1878,7 +1882,7 @@ pub fn build(b: *Build) !void {
                 wasm_sdk_lib,
                 wasm_libc_lib,
                 gen_header_exe,
-                &orca_install_local.step,
+                &orca_launcher_exe_install.step,
                 orca_tool_local_path,
                 .{
                     .name = config.name,
