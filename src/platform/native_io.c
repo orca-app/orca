@@ -556,11 +556,6 @@ oc_io_cmp oc_io_makedir(oc_io_req* req, oc_file_table* table)
     {
         cmp.error = OC_IO_ERR_HANDLE;
     }
-    else if(atSlot
-            && (!(atSlot->rights & OC_FILE_ACCESS_READ) || !(atSlot->rights & OC_FILE_ACCESS_WRITE))) //TODO: should we allow write only?)
-    {
-        cmp.error = OC_IO_ERR_PERM;
-    }
     else
     {
         oc_arena_scope scratch = oc_scratch_begin();
@@ -639,11 +634,6 @@ oc_io_cmp oc_io_remove(oc_io_req* req, oc_file_table* table)
     {
         cmp.error = OC_IO_ERR_HANDLE;
     }
-    else if(atSlot
-            && (!(atSlot->rights & OC_FILE_ACCESS_READ) || !(atSlot->rights & OC_FILE_ACCESS_WRITE)))
-    {
-        cmp.error = OC_IO_ERR_PERM;
-    }
     else
     {
         oc_arena_scope scratch = oc_scratch_begin();
@@ -675,7 +665,7 @@ oc_io_error oc_io_copy_recursive(oc_file srcDir, oc_file dstDir, oc_io_req* req,
     oc_file_list list = oc_file_listdir(scratch.arena, srcDir);
     oc_file_list_for(list, elt)
     {
-        oc_file_open_result srcRes = oc_file_open(elt->basename,
+        oc_file_result srcRes = oc_file_open(elt->basename,
                                                   OC_FILE_ACCESS_WRITE,
                                                   &(oc_file_open_options){
                                                       .root = srcDir,
@@ -712,7 +702,7 @@ oc_io_error oc_io_copy_recursive(oc_file srcDir, oc_file dstDir, oc_io_req* req,
                                 .root = dstDir,
                                 .flags = OC_FILE_MAKEDIR_IGNORE_EXISTING,
                             });
-            oc_file_open_result dstRes = oc_file_open(elt->basename,
+            oc_file_result dstRes = oc_file_open(elt->basename,
                                                       OC_FILE_ACCESS_WRITE,
                                                       &(oc_file_makedir_options){
                                                           .root = dstDir,

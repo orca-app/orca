@@ -613,7 +613,7 @@ oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unicode_range*
 {
     oc_font font = oc_font_nil();
 
-    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
     oc_file file = oc_catch(openRes)
     {
         oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
@@ -1936,7 +1936,7 @@ oc_image oc_image_create_from_path(oc_canvas_renderer renderer, oc_str8 path, bo
 {
     oc_image image = oc_image_nil();
 
-    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
     oc_file file = oc_catch(openRes)
     {
         oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));
@@ -2093,7 +2093,7 @@ oc_image_region oc_image_atlas_alloc_from_path(oc_rect_atlas* atlas, oc_image ba
 {
     oc_image_region imageRgn = { 0 };
 
-    oc_file_open_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
+    oc_file_result openRes = oc_file_open(path, OC_FILE_ACCESS_READ, 0);
     oc_file file = oc_catch(openRes)
     {
         oc_log_error("Could not open file %*.s\n", oc_str8_ip(path));

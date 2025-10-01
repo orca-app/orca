@@ -92,6 +92,10 @@ static oc_io_error oc_fd_convert_errno()
             error = OC_IO_ERR_DIR;
             break;
 
+        case ENOTEMPTY:
+            error = OC_IO_ERR_NOT_EMPTY;
+            break;
+
         case ENFILE:
         case EMFILE:
             error = OC_IO_ERR_MAX_FILES;

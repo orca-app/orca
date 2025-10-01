@@ -41,6 +41,8 @@ int oc_io_err_to_errno(enum oc_io_error error)
 			return ENOTDIR;
 		case OC_IO_ERR_DIR:
 			return EISDIR;
+        case OC_IO_ERR_NOT_EMPTY:
+            return ENOTEMPTY;
 		case OC_IO_ERR_MAX_FILES:
 			return EMFILE;
 		case OC_IO_ERR_MAX_LINKS:
@@ -255,7 +257,7 @@ static oc_file fopen_orca_file(const char* restrict filename, const char* restri
 		orca_flags |= OC_FILE_OPEN_APPEND;
 	}
 
-	oc_file_open_result openRes = oc_file_open(OC_STR8(filename),
+	oc_file_result openRes = oc_file_open(OC_STR8(filename),
 	                            orca_rights,
 	                            &(oc_file_open_options){
                                     .flags = orca_flags,

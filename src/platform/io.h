@@ -128,6 +128,7 @@ typedef enum oc_io_error
     OC_IO_ERR_EXISTS,      // file already exists
     OC_IO_ERR_NOT_DIR,     // path element is not a directory
     OC_IO_ERR_DIR,         // attempted to write directory
+    OC_IO_ERR_NOT_EMPTY,   // attempted to remove a non-empty directory
     OC_IO_ERR_MAX_FILES,   // max open files reached
     OC_IO_ERR_MAX_LINKS,   // too many symbolic links in path
     OC_IO_ERR_PATH_LENGTH, // path too long
@@ -177,9 +178,9 @@ typedef struct oc_file_open_options
     oc_file_resolve_flags resolve;
 } oc_file_open_options;
 
-typedef oc_result_type(oc_file, oc_io_error) oc_file_open_result;
+typedef oc_result_type(oc_file, oc_io_error) oc_file_result;
 
-ORCA_API oc_file_open_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* options);
+ORCA_API oc_file_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* options);
 ORCA_API void oc_file_close(oc_file file);
 ORCA_API i64 oc_file_pos(oc_file file);
 ORCA_API i64 oc_file_seek(oc_file file, i64 offset, oc_file_whence whence);
@@ -254,7 +255,7 @@ typedef enum oc_file_maketmp_flags
     OC_FILE_MAKETMP_DIRECTORY = 1,
 } oc_file_maketmp_flags;
 
-oc_file oc_file_maketmp(oc_file_maketmp_flags flags);
+oc_file_result oc_file_maketmp(oc_file_maketmp_flags flags);
 
 typedef enum oc_file_makedir_flags
 {
