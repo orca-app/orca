@@ -133,7 +133,7 @@ int oc_tool_run(oc_tool_options* options)
     char* appCStr = oc_str8_to_cstring(scratch.arena, options->app);
     oc_subprocess_spawn_result result = oc_subprocess_spawn(2, (char*[]){ runtimeExe.ptr, appCStr }, 0);
 
-    if(!oc_check(result))
+    if(!oc_result_check(result))
     {
         oc_log_error("Couldn't launch the orca runtime (error = %i).\n", result.error);
         status = -1;

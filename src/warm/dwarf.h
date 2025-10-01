@@ -905,7 +905,7 @@ typedef struct dw_die
     dw_attr* attributes;
 } dw_die;
 
-typedef oc_ptr_option(dw_die) dw_die_option;
+typedef oc_ptr_option_type(dw_die) dw_die_option;
 
 typedef struct dw_unit
 {
@@ -1071,8 +1071,8 @@ dw_info dw_parse_dwarf(dw_parser* parser);
 //------------------------------------------------------------------------
 // traversing DIEs
 //------------------------------------------------------------------------
-typedef oc_ptr_option(dw_die) dw_die_ptr_option;
-typedef oc_ptr_option(dw_attr) dw_attr_ptr_option;
+typedef oc_ptr_option_type(dw_die) dw_die_ptr_option;
+typedef oc_ptr_option_type(dw_attr) dw_attr_ptr_option;
 
 dw_die_ptr_option dw_die_next(dw_die* root, dw_die* die);
 dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags);

@@ -57,11 +57,11 @@ typedef struct oc_subprocess_completion
 
 } oc_subprocess_completion;
 
-typedef oc_result(oc_subprocess_completion, oc_subprocess_error) oc_subprocess_result;
+typedef oc_result_type(oc_subprocess_completion, oc_subprocess_error) oc_subprocess_result;
 
 typedef struct oc_subprocess_info oc_subprocess_info;
 typedef oc_subprocess_info* oc_subprocess;
-typedef oc_result(oc_subprocess, oc_subprocess_error) oc_subprocess_spawn_result;
+typedef oc_result_type(oc_subprocess, oc_subprocess_error) oc_subprocess_spawn_result;
 
 oc_subprocess_result oc_subprocess_run(int argc, char** argv, oc_subprocess_run_options* options);
 

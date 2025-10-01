@@ -7,14 +7,26 @@
 **************************************************************************/
 #include "wrapped_types.h"
 
-oc_thread_local bool oc_lastCatchResult = false;
+oc_thread_local bool oc_optLastResult = false;
 
-void oc_set_last_catch_result(bool r)
+void oc_option_set_last_result(bool b)
 {
-    oc_lastCatchResult = r;
+    oc_optLastResult = b;
 }
 
-bool oc_get_last_catch_result(void)
+bool oc_option_get_last_result(void)
 {
-    return (oc_lastCatchResult);
+    return (oc_optLastResult);
+}
+
+oc_thread_local u32 oc_lastError = 0;
+
+void oc_set_last_error(u32 e)
+{
+    oc_lastError = e;
+}
+
+u32 oc_last_error(void)
+{
+    return oc_lastError;
 }

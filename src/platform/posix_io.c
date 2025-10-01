@@ -276,11 +276,11 @@ oc_fd_result oc_fd_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access acce
 
     if(fd < 0)
     {
-        return oc_wrap_error(oc_fd_result, oc_fd_convert_errno());
+        return oc_result_error(oc_fd_result, oc_fd_convert_errno());
     }
     else
     {
-        return oc_wrap_value(oc_fd_result, fd);
+        return oc_result_value(oc_fd_result, fd);
     }
 }
 
@@ -304,7 +304,7 @@ oc_fd_stat_result oc_fd_stat(oc_file_desc fd)
     struct stat s;
     if(fstat(fd, &s))
     {
-        result = oc_wrap_error(oc_fd_stat_result, oc_fd_convert_errno());
+        result = oc_result_error(oc_fd_stat_result, oc_fd_convert_errno());
     }
     else
     {
@@ -317,7 +317,7 @@ oc_fd_stat_result oc_fd_stat(oc_file_desc fd)
         status.accessDate = oc_datestamp_from_timespec(s.st_atimespec);
         status.modificationDate = oc_datestamp_from_timespec(s.st_mtimespec);
 
-        result = oc_wrap_value(oc_fd_stat_result, status);
+        result = oc_result_value(oc_fd_stat_result, status);
     }
     return (result);
 }
@@ -339,7 +339,7 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc dirFd, oc_str8 path)
     struct stat s;
     if(fstatat(dirFd, pathCStr, &s, statFlag))
     {
-        result = oc_wrap_error(oc_fd_stat_result, oc_fd_convert_errno());
+        result = oc_result_error(oc_fd_stat_result, oc_fd_convert_errno());
     }
     else
     {
@@ -352,7 +352,7 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc dirFd, oc_str8 path)
         status.accessDate = oc_datestamp_from_timespec(s.st_atimespec);
         status.modificationDate = oc_datestamp_from_timespec(s.st_mtimespec);
 
-        result = oc_wrap_value(oc_fd_stat_result, status);
+        result = oc_result_value(oc_fd_stat_result, status);
     }
 
     oc_scratch_end(scratch);
@@ -378,12 +378,12 @@ oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc dirFd, o
 
     if(r < 0)
     {
-        result = oc_wrap_error(oc_fd_read_link_result, oc_fd_convert_errno());
+        result = oc_result_error(oc_fd_read_link_result, oc_fd_convert_errno());
     }
     else
     {
         oc_str8 path = oc_str8_push_buffer(arena, r, buffer);
-        result = oc_wrap_value(oc_fd_read_link_result, path);
+        result = oc_result_value(oc_fd_read_link_result, path);
     }
 
     oc_scratch_end(scratch);
@@ -392,7 +392,7 @@ oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc dirFd, o
 
 oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence)
 {
-    oc_fd_seek_result result = oc_wrap_value(oc_fd_seek_result, 0);
+    oc_fd_seek_result result = oc_result_value(oc_fd_seek_result, 0);
 
     int posixWhence = 0;
     switch(whence)
@@ -410,19 +410,19 @@ oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence)
             break;
 
         default:
-            result = oc_wrap_error(oc_fd_seek_result, OC_IO_ERR_ARG);
+            result = oc_result_error(oc_fd_seek_result, OC_IO_ERR_ARG);
             break;
     }
-    if(oc_check(result))
+    if(oc_result_check(result))
     {
         i64 r = lseek(fd, offset, posixWhence);
         if(r < 0)
         {
-            result = oc_wrap_error(oc_fd_seek_result, oc_fd_convert_errno());
+            result = oc_result_error(oc_fd_seek_result, oc_fd_convert_errno());
         }
         else
         {
-            result = oc_wrap_value(oc_fd_seek_result, (u64)r);
+            result = oc_result_value(oc_fd_seek_result, (u64)r);
         }
     }
     return result;
@@ -433,11 +433,11 @@ oc_fd_readwrite_result oc_fd_read(oc_file_desc fd, u64 size, char* buffer)
     ssize_t r = read(fd, buffer, size);
     if(r < 0)
     {
-        return oc_wrap_error(oc_fd_readwrite_result, oc_fd_convert_errno());
+        return oc_result_error(oc_fd_readwrite_result, oc_fd_convert_errno());
     }
     else
     {
-        return oc_wrap_value(oc_fd_readwrite_result, (u64)r);
+        return oc_result_value(oc_fd_readwrite_result, (u64)r);
     }
 }
 
@@ -446,11 +446,11 @@ oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer)
     ssize_t r = write(fd, buffer, size);
     if(r < 0)
     {
-        return oc_wrap_error(oc_fd_readwrite_result, oc_fd_convert_errno());
+        return oc_result_error(oc_fd_readwrite_result, oc_fd_convert_errno());
     }
     else
     {
-        return oc_wrap_value(oc_fd_readwrite_result, (u64)r);
+        return oc_result_value(oc_fd_readwrite_result, (u64)r);
     }
 }
 
@@ -477,11 +477,11 @@ oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
 
     if(oc_file_desc_is_nil(fd))
     {
-        return oc_wrap_error(oc_fd_result, oc_fd_convert_errno());
+        return oc_result_error(oc_fd_result, oc_fd_convert_errno());
     }
     else
     {
-        return oc_wrap_value(oc_fd_result, fd);
+        return oc_result_value(oc_fd_result, fd);
     }
 }
 
@@ -511,7 +511,7 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
     oc_fd_stat_result statResult = oc_fd_stat_at(rootFd, path);
 
     oc_io_error error = OC_IO_OK;
-    if(!oc_check(statResult))
+    if(!oc_result_check(statResult))
     {
         error = statResult.error;
     }
@@ -605,9 +605,9 @@ oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd)
     }
     else
     {
-        return oc_wrap_error(oc_fd_listdir_result, oc_fd_convert_errno());
+        return oc_result_error(oc_fd_listdir_result, oc_fd_convert_errno());
     }
-    return oc_wrap_value(oc_fd_listdir_result, list);
+    return oc_result_value(oc_fd_listdir_result, list);
 }
 
 oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)

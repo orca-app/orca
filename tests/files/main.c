@@ -293,7 +293,7 @@ int test_args(oc_arena* arena)
                                                &(oc_file_open_options){
                                                    .root = wrongHandle,
                                                });
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_HANDLE)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_HANDLE)
     {
         oc_log_error("oc_file_open() with non-nil invalid handle should return OC_IO_ERR_HANDLE\n");
         return (-1);
@@ -304,7 +304,7 @@ int test_args(oc_arena* arena)
     oc_log_info("check empty path\n");
 
     openRes = oc_file_open(OC_STR8(""), OC_FILE_ACCESS_READ, 0);
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_ARG)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_ARG)
     {
         oc_log_error("empty path should return OC_IO_ERR_ARG\n");
         return (-1);
@@ -338,7 +338,7 @@ int test_jail(oc_arena* arena)
                                                    .root = jail,
                                                });
 
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_NO_ENTRY)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_NO_ENTRY)
     {
         oc_log_error("Escaped jail with absolute path /tmp\n");
         return (-1);
@@ -351,7 +351,7 @@ int test_jail(oc_arena* arena)
                                .root = jail,
                            });
 
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with relative path ..\n");
         return (-1);
@@ -363,7 +363,7 @@ int test_jail(oc_arena* arena)
                            &(oc_file_open_options){
                                .root = jail,
                            });
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with relative path dir/../..\n");
         return (-1);
@@ -376,7 +376,7 @@ int test_jail(oc_arena* arena)
                            &(oc_file_open_options){
                                .root = jail,
                            });
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with symlink to parent\n");
         return (-1);
@@ -388,7 +388,7 @@ int test_jail(oc_arena* arena)
                            &(oc_file_open_options){
                                .root = jail,
                            });
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail to regular.txt with symlink to parent\n");
         return (-1);
@@ -400,7 +400,7 @@ int test_jail(oc_arena* arena)
                            &(oc_file_open_options){
                                .root = jail,
                            });
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
     {
         oc_log_error("Escaped jail with symlink to file regular.txt\n");
         return (-1);
@@ -434,7 +434,7 @@ int test_jail(oc_arena* arena)
                            &(oc_file_open_options){
                                .root = jail,
                            });
-    if(oc_check(openRes) || openRes.error != OC_IO_ERR_ARG)
+    if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_ARG)
     {
         oc_log_error("empty path should return OC_IO_ERR_ARG\n");
         return (-1);
@@ -538,7 +538,7 @@ int test_rights(oc_arena* arena)
                                                    &(oc_file_open_options){
                                                        .root = dir,
                                                    });
-        if(oc_check(openRes) || openRes.error != OC_IO_ERR_PERM)
+        if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with no access\n");
             return (-1);
@@ -561,7 +561,7 @@ int test_rights(oc_arena* arena)
                                                    &(oc_file_open_options){
                                                        .root = dir,
                                                    });
-        if(oc_check(openRes) || openRes.error != OC_IO_ERR_PERM)
+        if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with write access in dir with read access\n");
             return (-1);
@@ -610,7 +610,7 @@ int test_rights(oc_arena* arena)
                                                    &(oc_file_open_options){
                                                        .root = dir,
                                                    });
-        if(oc_check(openRes) || openRes.error != OC_IO_ERR_PERM)
+        if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
         {
             oc_log_error("Incorrect check when opening file with read access in dir with write access\n");
             return (-1);

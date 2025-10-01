@@ -43,11 +43,11 @@ oc_file_open_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_op
     //      even if there was an error when opening
     if(cmp.error != OC_IO_OK)
     {
-        return oc_wrap_error(oc_file_open_result, cmp.error);
+        return oc_result_error(oc_file_open_result, cmp.error);
     }
     else
     {
-        return oc_wrap_value(oc_file_open_result, cmp.handle);
+        return oc_result_value(oc_file_open_result, cmp.handle);
     }
 }
 

@@ -50,7 +50,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         oc_subprocess_error error = oc_subprocess_create_pipes(childStdIn);
         if(error != OC_SUBPROCESS_OK)
         {
-            return oc_wrap_error(oc_subprocess_spawn_result, error);
+            return oc_result_error(oc_subprocess_spawn_result, error);
         }
     }
 
@@ -59,7 +59,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         oc_subprocess_error error = oc_subprocess_create_pipes(childStdOut);
         if(error != OC_SUBPROCESS_OK)
         {
-            return oc_wrap_error(oc_subprocess_spawn_result, error);
+            return oc_result_error(oc_subprocess_spawn_result, error);
         }
     }
     if(options.stdErr == OC_SUBPROCESS_STDIO_PIPE)
@@ -67,7 +67,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         oc_subprocess_error error = oc_subprocess_create_pipes(childStdErr);
         if(error != OC_SUBPROCESS_OK)
         {
-            return oc_wrap_error(oc_subprocess_spawn_result, error);
+            return oc_result_error(oc_subprocess_spawn_result, error);
         }
     }
 
@@ -139,7 +139,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
                 err = OC_SUBPROCESS_UNKNOWN;
                 break;
         }
-        return oc_wrap_error(oc_subprocess_spawn_result, err);
+        return oc_result_error(oc_subprocess_spawn_result, err);
         */
     }
     else
@@ -167,11 +167,11 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         }
 
         //NOTE: parent process
-        return oc_wrap_value(oc_subprocess_spawn_result, info);
+        return oc_result_value(oc_subprocess_spawn_result, info);
     }
 }
 
-typedef oc_result(oc_str8, oc_subprocess_error) oc_subprocess_read_result;
+typedef oc_result_type(oc_str8, oc_subprocess_error) oc_subprocess_read_result;
 
 oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess subprocess)
 {
@@ -242,7 +242,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
         {
             //TODO convert errno
             //TODO: should we close fds/wait/free anyway?
-            return oc_wrap_error(oc_subprocess_result, OC_SUBPROCESS_UNKNOWN);
+            return oc_result_error(oc_subprocess_result, OC_SUBPROCESS_UNKNOWN);
         }
         else
         {
@@ -267,7 +267,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
             completion.signal = WTERMSIG(stat);
         }
 
-        result = oc_wrap_value(oc_subprocess_result, completion);
+        result = oc_result_value(oc_subprocess_result, completion);
     }
     else
     {
@@ -285,7 +285,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
             default:
                 err = OC_SUBPROCESS_UNKNOWN;
         }
-        result = oc_wrap_error(oc_subprocess_result, err);
+        result = oc_result_error(oc_subprocess_result, err);
     }
 
 end:
@@ -319,7 +319,7 @@ oc_subprocess_result oc_subprocess_run(int argc, char** argv, oc_subprocess_run_
 
     oc_subprocess subprocess = oc_catch(spawn)
     {
-        return oc_wrap_error(oc_subprocess_result, spawn.error);
+        return oc_result_error(oc_subprocess_result, spawn.error);
     }
 
     return oc_subprocess_read_and_wait(runOption.captureArena, subprocess);

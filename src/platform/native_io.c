@@ -74,16 +74,16 @@ oc_file_slot_result oc_file_slot_with_access(oc_file_table* table, oc_file handl
     oc_file_slot* slot = oc_file_slot_from_handle(table, handle);
     if(!slot)
     {
-        return oc_wrap_error(oc_file_slot_result, OC_IO_ERR_HANDLE);
+        return oc_result_error(oc_file_slot_result, OC_IO_ERR_HANDLE);
     }
     else if((slot->rights & access) != access)
     {
         slot->error = OC_IO_ERR_PERM;
-        return oc_wrap_error(oc_file_slot_result, OC_IO_ERR_PERM);
+        return oc_result_error(oc_file_slot_result, OC_IO_ERR_PERM);
     }
     else
     {
-        return oc_wrap_value(oc_file_slot_result, slot);
+        return oc_result_value(oc_file_slot_result, slot);
     }
 }
 
@@ -446,7 +446,7 @@ oc_io_cmp oc_io_stat(oc_io_req* req, oc_file_table* table)
     else
     {
         oc_fd_stat_result r = oc_fd_stat(slot->fd);
-        if(oc_check(r))
+        if(oc_result_check(r))
         {
             oc_file_status status = r.value;
             memcpy(req->buffer, &status, sizeof(status));
@@ -774,7 +774,7 @@ oc_io_error oc_io_copy_recursive(oc_file_desc srcDir, oc_file_desc dstDir)
     oc_arena_scope scratch = oc_scratch_begin();
     oc_fd_listdir_result listRes = oc_fd_listdir(scratch.arena, srcDir);
 
-    oc_file_list list = oc_if_unwrap(listRes)
+    oc_file_list list = oc_result_if(listRes)
     {
         oc_file_list_for(list, elt)
         {
@@ -786,7 +786,7 @@ oc_io_error oc_io_copy_recursive(oc_file_desc srcDir, oc_file_desc dstDir)
             }
 
             oc_fd_stat_result statRes = oc_fd_stat(srcChild);
-            oc_file_status status = oc_if_unwrap(statRes)
+            oc_file_status status = oc_result_if(statRes)
             {
                 if(status.type == OC_FILE_REGULAR || status.type == OC_FILE_SYMLINK)
                 {
