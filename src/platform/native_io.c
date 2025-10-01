@@ -170,14 +170,12 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
         else
         {
             //NOTE: now what we need to do depends on the type of file
-            oc_fd_stat_result r = oc_fd_stat_at(fd, elt->string);
-
-            oc_file_status status = oc_catch(r)
+            oc_file_status status = oc_catch(oc_fd_stat_at(fd, elt->string))
             {
-                if(r.error != OC_IO_ERR_NO_ENTRY || !oc_str8_list_empty(pathElements))
+                if(oc_last_error() != OC_IO_ERR_NO_ENTRY || !oc_str8_list_empty(pathElements))
                 {
                     //NOTE: only the last element is allowed to be non-existent
-                    result.error = r.error;
+                    result.error = oc_last_error();
                 }
                 else
                 {
@@ -199,10 +197,9 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                     break;
                 }
 
-                oc_fd_read_link_result r = oc_fd_read_link_at(scratch.arena, fd, elt->string);
-                oc_str8 target = oc_catch(r)
+                oc_str8 target = oc_catch(oc_fd_read_link_at(scratch.arena, fd, elt->string))
                 {
-                    result.error = r.error;
+                    result.error = oc_last_error();
                     break;
                 }
 
@@ -237,20 +234,17 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 else
                 {
                     //NOTE: move fd and push directory to normalize elements
-                    oc_fd_result openResult = oc_fd_open_at(fd, elt->string, OC_FILE_ACCESS_NONE, OC_FILE_OPEN_DEFAULT);
-                    oc_file_desc newFd = oc_catch(openResult)
+                    oc_file_desc newFd = oc_catch(oc_fd_open_at(fd, elt->string, OC_FILE_ACCESS_NONE, OC_FILE_OPEN_DEFAULT))
                     {
-                        result.error = openResult.error;
+                        result.error = oc_last_error();
                         break;
                     }
                     oc_fd_close(fd);
                     fd = newFd;
 
-                    oc_fd_stat_result statResult = oc_fd_stat(fd);
-
-                    oc_file_status newStatus = oc_catch(statResult)
+                    oc_file_status newStatus = oc_catch(oc_fd_stat(fd))
                     {
-                        result.error = statResult.error;
+                        result.error = oc_last_error();
                         break;
                     }
 
@@ -316,10 +310,9 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
         {
             access |= OC_FILE_ACCESS_WRITE;
         }
-        oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, access);
-        atSlot = oc_catch(slotRes)
+        atSlot = oc_catch(oc_file_slot_with_access(table, req->handle, access))
         {
-            cmp.error = slotRes.error;
+            cmp.error = oc_last_error();
             return cmp;
         }
     }
@@ -377,10 +370,9 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
                     //NOTE: here, we have an fd to the second-to-last element of the path. We can open the last element
                     // with the requested access rights and creation flags
 
-                    oc_fd_result res = oc_fd_open_at(resolve.fd, resolve.name, req->open.rights, req->open.flags);
-                    slot->fd = oc_catch(res)
+                    slot->fd = oc_catch(oc_fd_open_at(resolve.fd, resolve.name, req->open.rights, req->open.flags))
                     {
-                        slot->error = res.error;
+                        slot->error = oc_last_error();
                     }
                     oc_fd_close(resolve.fd);
                 }
@@ -401,10 +393,9 @@ oc_io_cmp oc_io_close(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
 
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE))
     {
-        cmp.error = slotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
     if(!oc_file_desc_is_nil(slot->fd))
@@ -418,10 +409,9 @@ oc_io_cmp oc_io_close(oc_io_req* req, oc_file_table* table)
 oc_io_cmp oc_io_get_error(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE))
     {
-        cmp.error = slotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
     cmp.result = slot->error;
@@ -432,10 +422,9 @@ oc_io_cmp oc_io_stat(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
 
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE))
     {
-        cmp.error = slotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
 
@@ -462,19 +451,15 @@ oc_io_cmp oc_io_stat(oc_io_req* req, oc_file_table* table)
 oc_io_cmp oc_io_seek(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
-
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_NONE))
     {
-        cmp.error = slotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
 
-    oc_fd_seek_result r = oc_fd_seek(slot->fd, req->offset, req->whence);
-
-    cmp.result = oc_catch(r)
+    cmp.result = oc_catch(oc_fd_seek(slot->fd, req->offset, req->whence))
     {
-        slot->error = cmp.error = r.error;
+        slot->error = cmp.error = oc_last_error();
     }
     return (cmp);
 }
@@ -482,18 +467,15 @@ oc_io_cmp oc_io_seek(oc_io_req* req, oc_file_table* table)
 oc_io_cmp oc_io_read(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
-
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_READ);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_READ))
     {
-        cmp.error = slotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
 
-    oc_fd_readwrite_result r = oc_fd_read(slot->fd, req->size, req->buffer);
-    cmp.result = oc_catch(r)
+    cmp.result = oc_catch(oc_fd_read(slot->fd, req->size, req->buffer))
     {
-        slot->error = cmp.error = r.error;
+        slot->error = cmp.error = oc_last_error();
     }
 
     return (cmp);
@@ -503,17 +485,15 @@ oc_io_cmp oc_io_write(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
 
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_WRITE);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_WRITE))
     {
-        cmp.error = slotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
 
-    oc_fd_readwrite_result r = oc_fd_write(slot->fd, req->size, req->buffer);
-    cmp.result = oc_catch(r)
+    cmp.result = oc_catch(oc_fd_write(slot->fd, req->size, req->buffer))
     {
-        slot->error = cmp.error = r.error;
+        slot->error = cmp.error = oc_last_error();
     }
 
     return (cmp);
@@ -536,10 +516,9 @@ oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
         slot->rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE;
         cmp.handle = oc_file_from_slot(table, slot);
 
-        oc_fd_result res = oc_fd_maketmp(req->makeTmpFlags);
-        slot->fd = oc_catch(res)
+        slot->fd = oc_catch(oc_fd_maketmp(req->makeTmpFlags))
         {
-            slot->error = res.error;
+            slot->error = oc_last_error();
         }
     }
     if(slot->error)
@@ -560,10 +539,9 @@ oc_io_cmp oc_io_makedir(oc_io_req* req, oc_file_table* table)
 
     if(!oc_file_is_nil(req->handle))
     {
-        oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_WRITE);
-        atSlot = oc_catch(slotRes)
+        atSlot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_WRITE))
         {
-            cmp.error = slotRes.error;
+            cmp.error = oc_last_error();
             return cmp;
         }
     }
@@ -644,10 +622,9 @@ oc_io_cmp oc_io_remove(oc_io_req* req, oc_file_table* table)
 
     if(!oc_file_is_nil(req->handle))
     {
-        oc_file_slot_result slotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_WRITE);
-        atSlot = oc_catch(slotRes)
+        atSlot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_WRITE))
         {
-            cmp.error = slotRes.error;
+            cmp.error = oc_last_error();
             return cmp;
         }
     }
@@ -778,10 +755,9 @@ oc_io_error oc_io_copy_recursive(oc_file_desc srcDir, oc_file_desc dstDir)
     {
         oc_file_list_for(list, elt)
         {
-            oc_fd_result srcRes = oc_fd_open_at(srcDir, elt->basename, OC_FILE_ACCESS_READ, 0);
-            oc_file_desc srcChild = oc_catch(srcRes)
+            oc_file_desc srcChild = oc_catch(oc_fd_open_at(srcDir, elt->basename, OC_FILE_ACCESS_READ, 0))
             {
-                error = srcRes.error;
+                error = oc_last_error();
                 break;
             }
 
@@ -791,11 +767,10 @@ oc_io_error oc_io_copy_recursive(oc_file_desc srcDir, oc_file_desc dstDir)
                 if(status.type == OC_FILE_REGULAR || status.type == OC_FILE_SYMLINK)
                 {
                     //NOTE: copy file to a file wih the same name in dstDir
-                    oc_fd_result dstRes = oc_fd_open_at(dstDir, elt->basename, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE);
-                    oc_file_desc dstChild = oc_catch(dstRes)
+                    oc_file_desc dstChild = oc_catch(oc_fd_open_at(dstDir, elt->basename, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE))
                     {
                         oc_fd_close(srcChild);
-                        error = dstRes.error;
+                        error = oc_last_error();
                         break;
                     }
                     fcopyfile(srcChild, dstChild, 0, COPYFILE_ALL);
@@ -809,11 +784,10 @@ oc_io_error oc_io_copy_recursive(oc_file_desc srcDir, oc_file_desc dstDir)
                         error = r;
                         break;
                     }
-                    oc_fd_result dstRes = oc_fd_open_at(dstDir, elt->basename, 0, 0);
-                    oc_file_desc dstChild = oc_catch(dstRes)
+                    oc_file_desc dstChild = oc_catch(oc_fd_open_at(dstDir, elt->basename, 0, 0))
                     {
                         oc_fd_close(srcChild);
-                        error = dstRes.error;
+                        error = oc_last_error();
                         break;
                     }
                     error = oc_io_copy_recursive(srcChild, dstChild);
@@ -843,17 +817,15 @@ oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };
 
-    oc_file_slot_result srcSlotRes = oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_READ);
-    oc_file_slot* srcSlot = oc_catch(srcSlotRes)
+    oc_file_slot* srcSlot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_READ))
     {
-        cmp.error = srcSlotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
 
-    oc_file_slot_result dstSlotRes = oc_file_slot_with_access(table, req->copy.dst, OC_FILE_ACCESS_WRITE);
-    oc_file_slot* dstSlot = oc_catch(dstSlotRes)
+    oc_file_slot* dstSlot = oc_catch(oc_file_slot_with_access(table, req->copy.dst, OC_FILE_ACCESS_WRITE))
     {
-        cmp.error = dstSlotRes.error;
+        cmp.error = oc_last_error();
         return cmp;
     }
 
