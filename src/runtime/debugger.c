@@ -360,12 +360,12 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
 {
     oc_list list = { 0 };
 
-    wa_debug_function* funcInfo = oc_catch(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
+    wa_debug_function* funcInfo = oc_option_orelse(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
     {
         return list;
     }
 
-    wa_debug_scope* scope = oc_catch(wa_debug_get_scope_for_warm_loc(interpreter, warmLoc))
+    wa_debug_scope* scope = oc_option_orelse(wa_debug_get_scope_for_warm_loc(interpreter, warmLoc))
     {
         return list;
     }
@@ -1034,9 +1034,9 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
     };
 
     wa_debug_unit_ptr_option unitOption = wa_debug_get_unit_for_warm_loc(interpreter, warmLoc);
-    if(oc_check(unitOption))
+    if(oc_option_check(unitOption))
     {
-        wa_debug_unit* unit = oc_unwrap(unitOption);
+        wa_debug_unit* unit = oc_option_unwrap(unitOption);
         debugger->globals = debugger_build_globals_tree(&debugger->debugArena, unit, interpreter);
     }
 }
@@ -1665,7 +1665,7 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
     {
         wa_source_info* sourceInfo = &interpreter->instance->module->debugInfo->sourceInfo;
         oc_str8 path = sourceInfo->files[node->index].fullPath;
-        oc_file file = oc_if_unwrap(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
+        oc_file file = oc_result_if(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
         {
             node->contents.len = oc_file_size(file);
             node->contents.ptr = oc_malloc_array(char, node->contents.len);

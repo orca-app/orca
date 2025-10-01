@@ -59,7 +59,7 @@ oc_file_slot* oc_file_slot_alloc(oc_file_table* table);
 void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot);
 oc_file oc_file_from_slot(oc_file_table* table, oc_file_slot* slot);
 
-typedef oc_result(oc_file_slot*, oc_io_error) oc_file_slot_result;
+typedef oc_result_type(oc_file_slot*, oc_io_error) oc_file_slot_result;
 
 oc_file_slot* oc_file_slot_from_handle(oc_file_table* table, oc_file handle);
 
@@ -79,7 +79,7 @@ ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_a
                                                                             oc_file_table* table);
 ORCA_API oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table);
 
-typedef oc_result(oc_file_list, oc_io_error) oc_fd_listdir_result;
+typedef oc_result_type(oc_file_list, oc_io_error) oc_fd_listdir_result;
 
 oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd);
 
@@ -101,21 +101,21 @@ oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd);
    of the parent directory (this is why it is important that these always open symlinks, and _not follow_ them).
 */
 
-typedef oc_result(oc_file_desc, oc_io_error) oc_fd_result;
+typedef oc_result_type(oc_file_desc, oc_io_error) oc_fd_result;
 
 oc_fd_result oc_fd_open_at(oc_file_desc rootFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags);
 oc_io_error oc_fd_close(oc_file_desc fd);
 
-typedef oc_result(oc_file_status, oc_io_error) oc_fd_stat_result;
+typedef oc_result_type(oc_file_status, oc_io_error) oc_fd_stat_result;
 
 oc_fd_stat_result oc_fd_stat(oc_file_desc fd);
 oc_fd_stat_result oc_fd_stat_at(oc_file_desc rootFd, oc_str8 path);
 
-typedef oc_result(u64, oc_io_error) oc_fd_seek_result;
+typedef oc_result_type(u64, oc_io_error) oc_fd_seek_result;
 
 oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence);
 
-typedef oc_result(u64, oc_io_error) oc_fd_readwrite_result;
+typedef oc_result_type(u64, oc_io_error) oc_fd_readwrite_result;
 
 oc_fd_readwrite_result oc_fd_read(oc_file_desc fd, u64 size, char* buffer);
 oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer);
@@ -124,6 +124,6 @@ oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags);
 oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path);
 oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags flags);
 
-typedef oc_result(oc_str8, oc_io_error) oc_fd_read_link_result;
+typedef oc_result_type(oc_str8, oc_io_error) oc_fd_read_link_result;
 
 oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc rootFd, oc_str8 path);

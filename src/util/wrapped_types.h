@@ -14,74 +14,70 @@
 //NOTE(martin): Helpers for result types
 //----------------------------------------------------------------------------------------
 
-#define oc_result(valueType, errorType) \
-    struct                              \
-    {                                   \
-        bool ok;                        \
-        union                           \
-        {                               \
-            valueType value;            \
-            errorType error;            \
-        };                              \
+#define oc_result_type(valueType, errorType) \
+    struct                                   \
+    {                                        \
+        errorType error;                     \
+        valueType value;                     \
     }
 
-void oc_set_last_catch_result(bool r);
-bool oc_get_last_catch_result(void);
+void oc_set_last_error(i32 e);
+i32 oc_last_error(void);
 
-#define oc_wrap_value(type, val) ((type){ .ok = true, .value = val })
-#define oc_wrap_error(type, err) ((type){ .ok = false, .error = err })
+#define oc_result_value(type, val) ((type){ .value = val })
+#define oc_result_error(type, err) ((type){ .error = err })
+#define oc_result_check(r) ((r).error == 0)
+#define oc_result_unwrap(r) ({__typeof__(r) tmp = r; OC_ASSERT(!tmp.error); tmp.value; })
+#define oc_result_if(r) \
+    ({__typeof__(r) tmp = r; oc_set_last_error(tmp.error); tmp.value; });              \
+    if(oc_last_error() == 0)
 
-#define oc_unwrap(e) ({__typeof__(e) tmp = e; OC_ASSERT(tmp.ok); tmp.value; })
-#define oc_unwrap_or(e, d) ({__typeof__(e) tmp = e; (tmp.ok ? tmp.value : (d)); })
-#define oc_if_unwrap(e) \
-    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok); tmp.value; });              \
-    if(oc_get_last_catch_result())
+#define oc_catch(r) \
+    ({__typeof__(r) tmp = r; oc_set_last_error(tmp.error); (tmp.error == 0) ? tmp.value : (__typeof__(tmp.value)){0}; });          \
+    if(oc_last_error() != 0)
 
-#define oc_catch(e) \
-    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok); tmp.ok ? tmp.value : (__typeof__(tmp.value)){0}; });          \
-    if(!oc_get_last_catch_result())
-
-#define oc_check(e) ((e).ok)
-
-//NOTE: when value is a pointer these helpers allow dereferencing the pointer
-#define oc_ptr_deref(e) ({__typeof__(e) tmp = e; OC_ASSERT(tmp.ok); *tmp.value; })
-#define oc_ptr_deref_or(e, d) ({__typeof__(e) tmp = e; (tmp.ok ? *tmp.value : d); })
-#define oc_ptr_deref_catch(e) \
-    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok != 0); (tmp.ok ? *tmp.value : (__typeof__(*tmp.value)){0}); });                    \
-    if(!oc_get_last_catch_result())
-
-//NOTE: when value is a struct or a pointer to a struct these helpers allow accessing the struct fields
-#define oc_field_or(e, f, d) ({__typeof__(e) tmp = e; (tmp.ok ? tmp.value.f : d); })
-#define oc_field_catch(e, f) \
-    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok); tmp.value.f; });                   \
-    if(!oc_get_last_catch_result())
-
-#define oc_ptr_field_or(e, f, d) ({__typeof__(e) tmp = e; (tmp.ok ? tmp.value->f : d); })
-#define oc_ptr_field_catch(e, f) \
-    ({__typeof__(e) tmp = e; oc_set_last_catch_result(tmp.ok); tmp.value->f; });                       \
-    if(!oc_get_last_catch_result())
+#define oc_try(r)                                               \
+    ({__typeof__(r) tmp = r; \
+    oc_set_last_error(tmp.error); \
+    (tmp.error == 0) ? tmp.value : (__typeof__(tmp.value)){0}; });                                                      \
+    if(oc_last_error() != 0)                                    \
+    {                                                           \
+        return oc_result_error(__typeof__(r), oc_last_error()); \
+    }
 
 //----------------------------------------------------------------------------------------
 //NOTE(martin): Helpers for option types
 //----------------------------------------------------------------------------------------
 
-#define oc_option(valueType) \
-    struct                   \
-    {                        \
-        bool ok;             \
-        valueType value;     \
+#define oc_option_type(valueType) \
+    struct                        \
+    {                             \
+        bool ok;                  \
+        valueType value;          \
     }
 
-#define oc_ptr_option(valueType) \
-    union                        \
-    {                            \
-        valueType* ok;           \
-        valueType* value;        \
+#define oc_ptr_option_type(valueType) \
+    union                             \
+    {                                 \
+        valueType* ok;                \
+        valueType* value;             \
     }
 
-#define oc_wrap_nil(type) ((type){ 0 })
-#define oc_wrap_ptr(type, p) ((type){ .value = p })
+void oc_option_set_last_result(bool b);
+bool oc_option_get_last_result(void);
 
-//NOTE: we can use normal
-// - oc_wrap_value can be used with value options. For pointer options use oc_wrap_ptr.
-// - Other result constructs like oc_unwrap/oc_catch etc can be used with either value or pointer options.
+#define oc_option_value(type, v) ((type){ .ok = true, .value = v })
+#define oc_option_ptr(type, p) ((type){ .value = p })
+#define oc_option_nil(type) ((type){ .value = 0 })
+#define oc_option_check(opt) ((opt).ok)
+#define oc_option_unwrap(opt) ({__typeof__(opt) tmp = opt; OC_DEBUG_ASSERT(tmp.ok); tmp.value; })
+#define oc_option_if(opt) \
+    ({__typeof__(opt) tmp = opt; oc_option_set_last_result(tmp.ok); tmp.ok ? tmp.value : (__typeof__(tmp.value)){0}; });                \
+    if(oc_option_get_last_result())
+
+#define oc_option_orelse(opt)       \
+    ({__typeof__(opt) tmp = opt; oc_option_set_last_result(tmp.ok); tmp.ok ? tmp.value : (__typeof__(tmp.value)){0}; });                          \
+    if(oc_option_get_last_result()) \
+    {                               \
+    }                               \
+    else

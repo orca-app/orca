@@ -177,7 +177,7 @@ typedef struct oc_file_open_options
     oc_file_resolve_flags resolve;
 } oc_file_open_options;
 
-typedef oc_result(oc_file, oc_io_error) oc_file_open_result;
+typedef oc_result_type(oc_file, oc_io_error) oc_file_open_result;
 
 ORCA_API oc_file_open_result oc_file_open(oc_str8 path, oc_file_access rights, oc_file_open_options* options);
 ORCA_API void oc_file_close(oc_file file);

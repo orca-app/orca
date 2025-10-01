@@ -1552,6 +1552,10 @@ pub fn build(b: *Build) !void {
             .run = true,
         },
         .{
+            .name = "wrapped_types",
+            .run = true,
+        },
+        .{
             .name = "perf",
         },
         .{
