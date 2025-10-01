@@ -614,8 +614,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 {
     oc_file_list list = { 0 };
 
-    oc_file_slot_result slotRes = oc_file_slot_with_access(table, directory, OC_FILE_ACCESS_READ);
-    oc_file_slot* slot = oc_catch(slotRes)
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, directory, OC_FILE_ACCESS_READ))
     {
         return list;
     }
