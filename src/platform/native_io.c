@@ -324,22 +324,16 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
     }
     else
     {
-        /////////////////////////////////////////////////////:
-        //TODO: do checks before allocating handle
-        /////////////////////////////////////////////////////
-        slot->fd = oc_file_desc_nil();
-        cmp.handle = oc_file_from_slot(table, slot);
-
         oc_str8 path = oc_str8_from_buffer(req->size, req->buffer);
 
         if(!path.len)
         {
-            slot->error = OC_IO_ERR_ARG;
+            cmp.error = OC_IO_ERR_ARG;
         }
         else if(!atSlot && !oc_file_is_nil(req->handle))
         {
             //TODO: redundant with checks upstack?
-            slot->error = OC_IO_ERR_HANDLE;
+            cmp.error = OC_IO_ERR_HANDLE;
         }
         else
         {
@@ -352,7 +346,7 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
 
             if(slot->rights != req->open.rights)
             {
-                slot->error = OC_IO_ERR_PERM;
+                cmp.error = OC_IO_ERR_PERM;
             }
             else
             {
@@ -363,7 +357,7 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
                 oc_io_resolve_result resolve = oc_io_resolve(scratch.arena, rootFd, path, req->resolveFlags);
                 if(resolve.error != OC_IO_OK)
                 {
-                    slot->error = resolve.error;
+                    cmp.error = resolve.error;
                 }
                 else
                 {
@@ -372,7 +366,7 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
 
                     slot->fd = oc_catch(oc_fd_open_at(resolve.fd, resolve.name, req->open.rights, req->open.flags))
                     {
-                        slot->error = oc_last_error();
+                        cmp.error = oc_last_error();
                     }
                     oc_fd_close(resolve.fd);
                 }
@@ -380,10 +374,13 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
             }
         }
 
-        if(slot->error)
+        if(cmp.error)
         {
-            slot->fatal = true;
-            cmp.error = slot->error;
+            oc_file_slot_recycle(table, slot);
+        }
+        else
+        {
+            cmp.handle = oc_file_from_slot(table, slot);
         }
     }
     return (cmp);
@@ -514,18 +511,20 @@ oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
     else
     {
         slot->rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE;
-        cmp.handle = oc_file_from_slot(table, slot);
-
         slot->fd = oc_catch(oc_fd_maketmp(req->makeTmpFlags))
         {
-            slot->error = oc_last_error();
+            cmp.error = oc_last_error();
         }
     }
-    if(slot->error)
+    if(cmp.error)
     {
-        slot->fatal = true;
-        cmp.error = slot->error;
+        oc_file_slot_recycle(table, slot);
     }
+    else
+    {
+        cmp.handle = oc_file_from_slot(table, slot);
+    }
+
     return cmp;
 }
 
