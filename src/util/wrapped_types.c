@@ -19,14 +19,14 @@ bool oc_option_get_last_result(void)
     return (oc_optLastResult);
 }
 
-oc_thread_local u32 oc_lastError = 0;
+oc_thread_local i32 oc_lastError = 0;
 
-void oc_set_last_error(u32 e)
+void oc_set_last_error(i32 e)
 {
     oc_lastError = e;
 }
 
-u32 oc_last_error(void)
+i32 oc_last_error(void)
 {
     return oc_lastError;
 }
