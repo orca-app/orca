@@ -3,7 +3,7 @@
 
 #include "orca.h"
 #include "ext/libzip/lib/zip.h"
-#include "tool/tool.c"
+#include "tool.c"
 
 //TODO: this should be fleshed out and put in src/tool
 

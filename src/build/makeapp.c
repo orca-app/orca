@@ -1,6 +1,5 @@
 #define OC_NO_APP_LAYER 1
 #include "orca.c"
-#include "tool/system.c"
 
 void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 {
@@ -21,10 +20,8 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
             oc_str8 srcFile = oc_path_append(scratch.arena, src, elt->basename);
             oc_str8 dstFile = oc_path_append(scratch.arena, dst, elt->basename);
 
-            oc_sys_mkdirs(dst);
-            //oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-
-            oc_sys_copy(srcFile, dstFile);
+            oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+            oc_file_copy(srcFile, dstFile);
         }
         else if(elt->type == OC_FILE_DIRECTORY)
         {
@@ -77,41 +74,33 @@ int make_app_macos(void)
     oc_str8 sdkLibCDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("orca-libc"));
     oc_str8 sdkLibDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("lib"));
 
-    if(oc_sys_exists(bundleDir))
+    oc_io_error error = oc_file_remove(bundleDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+    if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
     {
-        if(oc_file_remove(bundleDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE }) != OC_IO_OK)
-        {
-            printf("Could not remove exiting bundle directory\n");
-            return -1;
-        }
+        printf("Could not remove existing bundle directory\n");
+        return -1;
     }
-
-    oc_sys_mkdirs(bundleDir);
-    oc_sys_mkdirs(contentsDir);
-    oc_sys_mkdirs(exeDir);
-    oc_sys_mkdirs(resDir);
-
-    /*
     oc_file_makedir(bundleDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(contentsDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(exeDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     oc_file_makedir(resDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-    */
+
     //-----------------------------------------------------------
     //NOTE: copy binaries
     //-----------------------------------------------------------
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/orca"), exeDir));
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/orca_runtime"), exeDir));
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/liborca_platform.dylib"), exeDir));
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/libEGL.dylib"), exeDir));
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/libGLESv2.dylib"), exeDir));
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/libwebgpu.dylib"), exeDir));
+    //TODO errors
+    oc_file_copy(OC_STR8("./zig-out/bin/orca"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/orca_runtime"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/liborca_platform.dylib"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/libEGL.dylib"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/libGLESv2.dylib"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/libwebgpu.dylib"), exeDir, 0);
 
     //-----------------------------------------------------------
     //NOTE: copy data
     //-----------------------------------------------------------
-    TRY(oc_sys_copy(OC_STR8("resources/Menlo.ttf"), resDir));
-    TRY(oc_sys_copy(OC_STR8("resources/Menlo Bold.ttf"), resDir));
+    oc_file_copy(OC_STR8("resources/Menlo.ttf"), resDir, 0);
+    oc_file_copy(OC_STR8("resources/Menlo Bold.ttf"), resDir, 0);
 
     //-----------------------------------------------------------
     //NOTE copy SDK
@@ -130,64 +119,64 @@ int make_app_macos(void)
     copy_headers(OC_STR8("./src/ext/KHR"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/KHR")), ignore);
     copy_headers(OC_STR8("./src/ext/stb"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/stb")), ignore);
 
-    oc_sys_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("orca.h")));
-
-    oc_sys_copytree(OC_STR8("./zig-out/orca-libc"), sdkLibCDir);
+    oc_file_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("orca.h")), 0);
+    oc_file_copy(OC_STR8("./zig-out/orca-libc"), sdkLibCDir, 0);
 
     oc_file_makedir(sdkLibDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-    TRY(oc_sys_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a"))));
+    oc_file_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a")), 0);
     //-----------------------------------------------------------
     //NOTE make icon
     //-----------------------------------------------------------
     if(icon.len)
     {
-        if(oc_sys_exists(icon))
+        oc_str8 icon_dir = oc_path_slice_directory(icon);
+        oc_str8 iconset = oc_path_append(scratch.arena, icon_dir, OC_STR8("icon.iconset"));
+
+        oc_io_error error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+        if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
         {
-            oc_str8 icon_dir = oc_path_slice_directory(icon);
-            oc_str8 iconset = oc_path_append(scratch.arena, icon_dir, OC_STR8("icon.iconset"));
-            if(oc_sys_exists(iconset))
-            {
-                TRY(oc_sys_rmdir(iconset));
-            }
-            oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+            oc_log_error("Couldn't remove existing iconset directory.\n");
+            return -1;
+        }
 
-            i32 size = 16;
-            for(i32 i = 0; i < 7; ++i)
-            {
-                oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d.png", size, size));
-                oc_str8 cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
-                                            size, size, oc_str8_ip(icon), sized_icon.ptr);
-                i32 result = system(cmd.ptr);
-                if(result)
-                {
-                    fprintf(stderr, "failed to generate %dx%d icon from %.*s\n", size, size, oc_str8_ip(icon));
-                }
+        oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
-                i32 retina_size = size * 2;
-                oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d@2x.png", size, size));
-                cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
-                                    retina_size, retina_size, oc_str8_ip(icon), sized_icon.ptr);
-                result = system(cmd.ptr);
-                if(result)
-                {
-                    fprintf(stderr, "failed to generate %dx%d@2x retina icon from %.*s\n", size, size, oc_str8_ip(icon));
-                }
-
-                size *= 2;
-            }
-
-            oc_str8 icon_out = oc_path_append(scratch.arena, resDir, OC_STR8("icon.icns"));
-            oc_str8 cmd = oc_str8_pushf(scratch.arena, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
+        i32 size = 16;
+        for(i32 i = 0; i < 7; ++i)
+        {
+            oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d.png", size, size));
+            oc_str8 cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+                                        size, size, oc_str8_ip(icon), sized_icon.ptr);
             i32 result = system(cmd.ptr);
             if(result)
             {
-                fprintf(stderr, "failed to generate app icon from %.*s", oc_str8_ip(icon));
+                fprintf(stderr, "failed to generate %dx%d icon from %.*s\n", size, size, oc_str8_ip(icon));
             }
-            TRY(oc_sys_rmdir(iconset));
+
+            i32 retina_size = size * 2;
+            oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d@2x.png", size, size));
+            cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+                                retina_size, retina_size, oc_str8_ip(icon), sized_icon.ptr);
+            result = system(cmd.ptr);
+            if(result)
+            {
+                fprintf(stderr, "failed to generate %dx%d@2x retina icon from %.*s\n", size, size, oc_str8_ip(icon));
+            }
+
+            size *= 2;
         }
-        else
+
+        oc_str8 icon_out = oc_path_append(scratch.arena, resDir, OC_STR8("icon.icns"));
+        oc_str8 cmd = oc_str8_pushf(scratch.arena, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
+        i32 result = system(cmd.ptr);
+        if(result)
         {
-            fprintf(stderr, "warning: failed to find icon file \"%.*s\"\n", oc_str8_ip(icon));
+            fprintf(stderr, "failed to generate app icon from %.*s", oc_str8_ip(icon));
+        }
+        error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Couldn't cleanup iconset directory.\n");
         }
     }
 
