@@ -1222,5 +1222,5 @@ int test_main(int argc, char** argv)
            env.totalFailed,
            env.totalPassed + env.totalSkipped + env.totalFailed);
 
-    return (0);
+    return (env.totalFailed ? -1 : 0);
 }

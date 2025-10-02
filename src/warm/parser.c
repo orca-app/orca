@@ -1432,17 +1432,82 @@ void wa_parse_module(wa_module* module, oc_str8 contents)
     }
 
     wa_parse_sections(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_names(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_types(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_imports(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_functions(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_globals(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_tables(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_memories(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_exports(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_start(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_elements(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_data_count(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_code(&parser, module);
+    if(wa_module_has_errors(module))
+    {
+        return;
+    }
+
     wa_parse_data(&parser, module);
 }
