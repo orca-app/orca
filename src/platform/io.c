@@ -286,8 +286,8 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
                                      ? *optionsPtr
                                      : (oc_file_copy_options){ 0 };
 
-    options.srcResolve = OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW;
-    options.srcResolve = OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW;
+    options.srcResolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST;
+    options.dstResolve = OC_FILE_RESOLVE_SYMLINK_OPEN_LAST;
 
     oc_file_result srcRes = oc_file_open(src,
                                          OC_FILE_ACCESS_READ,

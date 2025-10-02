@@ -192,7 +192,10 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                     result.error = OC_IO_ERR_SYMLINK;
                     break;
                 }
-                else if((resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW) || (resolveFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST))
+
+                if(oc_list_empty(pathElements.list)
+                   && ((resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW)
+                       || (resolveFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST)))
                 {
                     result.name = oc_str8_push_copy(arena, elt->string);
                     break;
