@@ -21,7 +21,7 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
             oc_str8 dstFile = oc_path_append(scratch.arena, dst, elt->basename);
 
             oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-            oc_file_copy(srcFile, dstFile);
+            oc_file_copy(srcFile, dstFile, 0);
         }
         else if(elt->type == OC_FILE_DIRECTORY)
         {
