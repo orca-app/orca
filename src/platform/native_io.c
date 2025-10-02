@@ -29,11 +29,12 @@ oc_file_slot* oc_file_slot_alloc(oc_file_table* table)
         slot->generation = 1;
         table->nextSlot++;
     }
-
-    u32 tmpGeneration = slot->generation;
-    memset(slot, 0, sizeof(oc_file_slot));
-    slot->generation = tmpGeneration;
-
+    if(slot)
+    {
+        u32 tmpGeneration = slot->generation;
+        memset(slot, 0, sizeof(oc_file_slot));
+        slot->generation = tmpGeneration;
+    }
     return (slot);
 }
 
@@ -369,6 +370,18 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
                         cmp.error = oc_last_error();
                     }
                     oc_fd_close(resolve.fd);
+
+                    if(cmp.error == OC_IO_OK)
+                    {
+                        oc_file_status stat = oc_result_if(oc_fd_stat(slot->fd))
+                        {
+                            slot->type = stat.type;
+                        }
+                        else
+                        {
+                            cmp.error = oc_last_error();
+                        }
+                    }
                 }
                 oc_scratch_end(scratch);
             }
@@ -731,79 +744,9 @@ oc_io_error oc_io_copy_recursive(oc_file srcDir, oc_file dstDir, oc_io_req* req,
 
 #include <copyfile.h>
 
-//TODO: we should probably do on based on paths, because long paths could overflow the number of allowed
-// file descriptors?
-oc_io_error oc_io_copy_recursive(oc_file_desc srcDir, oc_file_desc dstDir)
-{
-    oc_io_error error = OC_IO_OK;
-
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_fd_listdir_result listRes = oc_fd_listdir(scratch.arena, srcDir);
-
-    oc_file_list list = oc_result_if(listRes)
-    {
-        oc_file_list_for(list, elt)
-        {
-            oc_file_desc srcChild = oc_catch(oc_fd_open_at(srcDir, elt->basename, OC_FILE_ACCESS_READ, 0))
-            {
-                error = oc_last_error();
-                break;
-            }
-
-            oc_fd_stat_result statRes = oc_fd_stat(srcChild);
-            oc_file_status status = oc_result_if(statRes)
-            {
-                if(status.type == OC_FILE_REGULAR || status.type == OC_FILE_SYMLINK)
-                {
-                    //NOTE: copy file to a file wih the same name in dstDir
-                    oc_file_desc dstChild = oc_catch(oc_fd_open_at(dstDir, elt->basename, OC_FILE_ACCESS_WRITE, OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE))
-                    {
-                        oc_fd_close(srcChild);
-                        error = oc_last_error();
-                        break;
-                    }
-                    fcopyfile(srcChild, dstChild, 0, COPYFILE_ALL);
-                }
-                else if(status.type == OC_FILE_DIRECTORY)
-                {
-                    //NOTE: create directory with the same name in dstDir if needed, and recurse
-                    oc_io_error r = oc_fd_makedir_at(dstDir, elt->basename);
-                    if(r != OC_IO_OK && r != OC_IO_ERR_EXISTS)
-                    {
-                        error = r;
-                        break;
-                    }
-                    oc_file_desc dstChild = oc_catch(oc_fd_open_at(dstDir, elt->basename, 0, 0))
-                    {
-                        oc_fd_close(srcChild);
-                        error = oc_last_error();
-                        break;
-                    }
-                    error = oc_io_copy_recursive(srcChild, dstChild);
-                }
-            }
-            else
-            {
-                error = statRes.error;
-            }
-            oc_fd_close(srcChild);
-            if(error != OC_IO_OK)
-            {
-                break;
-            }
-        }
-    }
-    else
-    {
-        error = listRes.error;
-    }
-
-    oc_scratch_end(scratch);
-    return error;
-}
-
 oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
 {
+    //NOTE: this only copies files to files
     oc_io_cmp cmp = { 0 };
 
     oc_file_slot* srcSlot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_READ))
@@ -818,41 +761,16 @@ oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
         return cmp;
     }
 
-    if(srcSlot->type == OC_FILE_REGULAR || srcSlot->type == OC_FILE_SYMLINK)
+    if(srcSlot->type != OC_FILE_REGULAR
+       && srcSlot->type != OC_FILE_SYMLINK
+       && dstSlot->type != OC_FILE_REGULAR
+       && dstSlot->type != OC_FILE_SYMLINK)
     {
-        if(dstSlot->type == OC_FILE_REGULAR
-           || dstSlot->type == OC_FILE_SYMLINK)
-        {
-            fcopyfile(srcSlot->fd, dstSlot->fd, NULL, COPYFILE_ALL);
-        }
-        else if(dstSlot->type == OC_FILE_DIRECTORY)
-        {
-            cmp.error = OC_IO_ERR_DIR;
-        }
-        else
-        {
-            cmp.error = OC_IO_ERR_UNKNOWN; //TODO
-        }
+        cmp.error = OC_IO_ERR_DIR;
+        return cmp;
     }
-    else if(srcSlot->type == OC_FILE_DIRECTORY)
-    {
-        if(dstSlot->type == OC_FILE_REGULAR || dstSlot->type == OC_FILE_DIRECTORY)
-        {
-            cmp.error = OC_IO_ERR_NOT_DIR;
-        }
-        else if(dstSlot->type == OC_FILE_DIRECTORY)
-        {
-            cmp.error = oc_io_copy_recursive(srcSlot->fd, dstSlot->fd);
-        }
-        else
-        {
-            cmp.error = OC_IO_ERR_UNKNOWN; //TODO
-        }
-    }
-    else
-    {
-        cmp.error = OC_IO_ERR_UNKNOWN; //TODO
-    }
+
+    fcopyfile(srcSlot->fd, dstSlot->fd, NULL, COPYFILE_ALL);
 
     return cmp;
 }

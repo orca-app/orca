@@ -227,11 +227,67 @@ oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* optionsPtr)
     }
 }
 
+oc_io_error oc_file_copy_recursive(oc_str8 srcPath, oc_str8 dstPath, oc_file_copy_options* options)
+{
+    oc_file src = oc_catch(oc_file_open(srcPath,
+                                        OC_FILE_ACCESS_READ,
+                                        &(oc_file_open_options){
+                                            .root = options->srcRoot,
+                                        }))
+    {
+        return oc_last_error();
+    }
+    oc_file_status srcStatus = oc_file_get_status(src);
+
+    if(srcStatus.type == OC_FILE_DIRECTORY)
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        //NOTE: if src is a directory, we create dst as a directory if it doesn't exist,
+        // and copy src/* into dst/*
+        oc_io_error error = oc_file_makedir(dstPath,
+                                            &(oc_file_makedir_options){
+                                                .root = options->dstRoot,
+                                                .resolve = options->dstResolve,
+                                                .flags = OC_FILE_MAKEDIR_IGNORE_EXISTING,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_file_close(src);
+            return error;
+        }
+
+        oc_file_list files = oc_file_listdir(scratch.arena, src);
+        oc_file_close(src);
+
+        oc_file_list_for(files, file)
+        {
+            oc_str8 srcChild = oc_path_append(scratch.arena, srcPath, file->basename);
+            oc_str8 dstChild = oc_path_append(scratch.arena, dstPath, file->basename);
+            error = oc_file_copy_recursive(srcChild, dstChild, options);
+            if(error != OC_IO_OK)
+            {
+                break;
+            }
+        }
+        oc_scratch_end(scratch);
+        return error;
+    }
+    else
+    {
+        //NOTE: if src is not a directory, we copy file to file
+        return oc_file_copy(srcPath, dstPath, options);
+    }
+}
+
 oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* optionsPtr)
 {
     oc_file_copy_options options = optionsPtr
                                      ? *optionsPtr
                                      : (oc_file_copy_options){ 0 };
+
+    options.srcResolve = OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW;
+    options.srcResolve = OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW;
 
     oc_file_result srcRes = oc_file_open(src,
                                          OC_FILE_ACCESS_READ,
@@ -243,24 +299,22 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
     {
         return srcRes.error;
     }
-    oc_file dstFile = oc_file_nil();
 
     oc_file_status srcStat = oc_file_get_status(srcFile);
 
     if(srcStat.type == OC_FILE_REGULAR || srcStat.type == OC_FILE_SYMLINK)
     {
         //NOTE: if src is a file, we open dst, creating it if it doesn't exist
-        oc_file_result dstRes = oc_file_open(dst,
-                                             OC_FILE_ACCESS_WRITE,
-                                             &(oc_file_open_options){
-                                                 .root = options.dstRoot,
-                                                 .resolve = options.dstResolve,
-                                                 .flags = OC_FILE_OPEN_CREATE,
-                                             });
-        dstFile = oc_catch(dstRes)
+        oc_file dstFile = oc_catch(oc_file_open(dst,
+                                                OC_FILE_ACCESS_WRITE,
+                                                &(oc_file_open_options){
+                                                    .root = options.dstRoot,
+                                                    .resolve = options.dstResolve,
+                                                    .flags = OC_FILE_OPEN_CREATE,
+                                                }))
         {
             oc_file_close(srcFile);
-            return dstRes.error;
+            return oc_last_error();
         }
         oc_file_status dstStat = oc_file_get_status(dstFile);
         if(dstStat.type == OC_FILE_DIRECTORY)
@@ -283,52 +337,28 @@ oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options* options
             oc_file_close(dstFile);
             dstFile = tmp;
         }
+
+        oc_io_req req = {
+            .op = OC_IO_COPY,
+            .handle = srcFile,
+            .copy.dst = dstFile,
+            .copy.flags = options.flags,
+        };
+
+        oc_io_cmp cmp = oc_io_wait_single_req(&req);
+
+        oc_file_close(srcFile);
+        oc_file_close(dstFile);
+        return cmp.error;
     }
     else if(srcStat.type == OC_FILE_DIRECTORY)
     {
-        //NOTE: if src is a directory, we create a dst directory if it doesn't exist,
-        // and open it
-        oc_io_error error = oc_file_makedir(dst,
-                                            &(oc_file_makedir_options){
-                                                .root = options.dstRoot,
-                                                .resolve = options.dstResolve,
-                                                .flags = OC_FILE_MAKEDIR_IGNORE_EXISTING,
-                                            });
-        if(error != OC_IO_OK)
-        {
-            oc_file_close(srcFile);
-            return error;
-        }
-        oc_file_result dstRes = oc_file_open(dst,
-                                             OC_FILE_ACCESS_WRITE,
-                                             &(oc_file_open_options){
-                                                 .root = options.dstRoot,
-                                                 .resolve = options.dstResolve,
-                                             });
-        dstFile = oc_catch(dstRes)
-        {
-            oc_file_close(srcFile);
-            return dstRes.error;
-        }
-        oc_file_status dstStatus = oc_file_get_status(dstFile);
-        if(dstStatus.type != OC_FILE_DIRECTORY)
-        {
-            oc_file_close(srcFile);
-            oc_file_close(dstFile);
-            return OC_IO_ERR_NOT_DIR;
-        }
+        oc_file_close(srcFile);
+
+        return oc_file_copy_recursive(src, dst, &options);
     }
-    oc_io_req req = {
-        .op = OC_IO_COPY,
-        .handle = srcFile,
-        .copy.dst = dstFile,
-        .copy.flags = options.flags,
-    };
-
-    oc_io_cmp cmp = oc_io_wait_single_req(&req);
-
-    oc_file_close(srcFile);
-    oc_file_close(dstFile);
-
-    return cmp.error;
+    else
+    {
+        return OC_IO_ERR_UNKNOWN; //TODO
+    }
 }

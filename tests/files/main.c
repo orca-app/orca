@@ -1288,6 +1288,66 @@ int test_remove(oc_arena* arena)
     return 0;
 }
 
+int test_copy(oc_arena* arena)
+{
+    oc_log_info("test oc_file_copy().\n");
+
+    oc_str8 dirPath = oc_path_append(arena, TEST_DIR, OC_STR8("data"));
+
+    //--------------------------------------------------------------------------------------
+    // base dir with no access
+    //--------------------------------------------------------------------------------------
+    oc_file dataDir = oc_catch(oc_file_open(dirPath, OC_FILE_ACCESS_READ, 0))
+    {
+        oc_log_error("Couldn't open data directory\n");
+        return (-1);
+    }
+
+    oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
+    {
+        oc_log_error("Can't make tmp directory.\n");
+        return -1;
+    }
+
+    // Copy recursive
+    {
+        oc_io_error error = oc_file_copy(OC_STR8("foo"),
+                                         OC_STR8("foo"),
+                                         &(oc_file_copy_options){
+                                             .srcRoot = dataDir,
+                                             .dstRoot = tmpDir,
+                                         });
+
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("copy recursive failed.\n");
+            return -1;
+        }
+
+        oc_file test = oc_catch(oc_file_open(OC_STR8("foo/bar/test.txt"),
+                                             OC_FILE_ACCESS_READ,
+                                             &(oc_file_open_options){
+                                                 .root = tmpDir,
+                                             }))
+        {
+            oc_log_error("Couldn't open copied file.\n");
+            return -1;
+        }
+        int r = check_string(test, OC_STR8("Hello from foo/bar/test.txt"));
+        if(r)
+        {
+            oc_log_error("Mismatched contents for copied file.\n");
+            return -1;
+        }
+        oc_file_close(test);
+    }
+
+    oc_file_close(dataDir);
+    oc_file_close(tmpDir);
+
+    return 0;
+}
+
 oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
 {
     const char* test_dir_arg_prefix = "--test-dir=";
@@ -1314,18 +1374,6 @@ int main(int argc, const char** argv)
     TEST_DIR = parseTestDir(argc, argv, arena);
 
     if(test_resolve(arena))
-    {
-        return -1;
-    }
-    if(test_maketmp(arena))
-    {
-        return -1;
-    }
-    if(test_makedir(arena))
-    {
-        return -1;
-    }
-    if(test_remove(arena))
     {
         return -1;
     }
@@ -1358,6 +1406,22 @@ int main(int argc, const char** argv)
         return -1;
     }
     if(test_jail(arena))
+    {
+        return -1;
+    }
+    if(test_maketmp(arena))
+    {
+        return -1;
+    }
+    if(test_makedir(arena))
+    {
+        return -1;
+    }
+    if(test_remove(arena))
+    {
+        return -1;
+    }
+    if(test_copy(arena))
     {
         return -1;
     }
