@@ -75,9 +75,12 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
                                        "%.*s/%.*s.app",
                                        oc_str8_ip(options->outDir),
                                        oc_str8_ip(options->name));
-    if(oc_sys_exists(bundlePath))
+
+    oc_io_error error = oc_file_remove(bundlePath, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+    if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
     {
-        TRY(oc_sys_rmdir(bundlePath));
+        oc_log_error("Could not remove existing app bundle...\n");
+        return -1;
     }
 
     oc_str8 contentsPath = oc_path_append(scratch.arena, bundlePath, OC_STR8("Contents"));
@@ -91,20 +94,21 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     //NOTE: copy binaries to macOS dir
     oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
 
-    oc_sys_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime")), macosPath);
-    oc_sys_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("liborca_platform.dylib")), macosPath);
-    oc_sys_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dylib")), macosPath);
-    oc_sys_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dylib")), macosPath);
-    oc_sys_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libwebgpu.dylib")), macosPath);
+    //TODO: handle errors
+    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime")), macosPath, 0);
+    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("liborca_platform.dylib")), macosPath, 0);
+    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dylib")), macosPath, 0);
+    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dylib")), macosPath, 0);
+    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libwebgpu.dylib")), macosPath, 0);
 
     //NOTE: copy resources
     oc_str8 srcRes = oc_path_executable_relative(scratch.arena, OC_STR8("../resources"));
 
-    oc_sys_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath);
-    oc_sys_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
+    oc_file_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath, 0);
+    oc_file_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath, 0);
 
     //NOTE: copy app image
-    oc_sys_copy(appImage, resPath);
+    oc_file_copy(appImage, resPath, 0);
 
     //-----------------------------------------------------------
     //NOTE make icon
@@ -115,10 +119,14 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
         {
             oc_str8 icon_dir = oc_path_slice_directory(options->icon);
             oc_str8 iconset = oc_path_append(scratch.arena, icon_dir, OC_STR8("icon.iconset"));
-            if(oc_sys_exists(iconset))
+
+            oc_io_error error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+            if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
             {
-                TRY(oc_sys_rmdir(iconset));
+                oc_log_error("Could not remove existing icon set folder.\n");
+                return -1;
             }
+
             oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
             i32 size = 16;
@@ -153,7 +161,13 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             {
                 fprintf(stderr, "failed to generate app icon from %.*s", oc_str8_ip(options->icon));
             }
-            TRY(oc_sys_rmdir(iconset));
+
+            error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+            if(error != OC_IO_OK)
+            {
+                oc_log_error("Could not cleanup icon set folder.\n");
+                return -1;
+            }
         }
         else
         {
@@ -240,7 +254,7 @@ int oc_tool_bundle(oc_tool_options* options)
         {
             foundMain = true;
         }
-        oc_sys_copy(options->modules[i], modDir);
+        oc_file_copy(options->modules[i], modDir, 0);
     }
     if(!foundMain)
     {
@@ -256,12 +270,12 @@ int oc_tool_bundle(oc_tool_options* options)
         {
             dir = oc_str8_pushf(scratch.arena, "%.*s/", oc_str8_ip(dir));
         }
-        oc_sys_copytree(dir, resDir);
+        oc_file_copy(dir, resDir, 0);
     }
 
     for(int i = 0; i < options->resFileCount; i++)
     {
-        oc_sys_copy(options->resFiles[i], resDir);
+        oc_file_copy(options->resFiles[i], resDir, 0);
     }
 
     //NOTE: zip folder to out directory
