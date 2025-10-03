@@ -460,6 +460,14 @@ void oc_install_keyboard_layout_listener()
         [NSApp postEvent:event atStart:YES];
         [NSApp stop:nil];
     }
+
+    //NOTE: now post a finish launching. Some apps may need to wait for this before being
+    // able to decide what to do (e.g. they might do something different based on whether
+    // they receive an openFile notification or not during launch).
+
+    oc_event event = {};
+    event.type = OC_EVENT_FINISH_LAUNCHING;
+    oc_queue_event(&event);
 }
 
 - (BOOL)application:(NSApplication*)application openFile:(NSString*)filename

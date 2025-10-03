@@ -143,6 +143,175 @@ int oc_tool_run(oc_tool_options* options)
     return status;
 }
 
+typedef struct oc_launcher
+{
+    oc_window window;
+    oc_surface surface;
+    oc_canvas_renderer renderer;
+    oc_canvas_context canvas;
+    oc_font font;
+    oc_ui_context* ui;
+
+} oc_launcher;
+
+void launcher_create(oc_launcher* launcher)
+{
+    // create rendering resources
+    oc_rect rect = { 0, 0, 1200, 900 };
+    launcher->window = oc_window_create(rect, OC_STR8("Orca Launcher"), 0);
+    launcher->renderer = oc_canvas_renderer_create();
+    launcher->surface = oc_canvas_surface_create_for_window(launcher->renderer, launcher->window);
+    launcher->canvas = oc_canvas_context_create();
+
+    // load font
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../resources/Menlo.ttf"));
+    //TODO: get rid of that soon
+    oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                   OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                   OC_UNICODE_LATIN_EXTENDED_A,
+                                   OC_UNICODE_LATIN_EXTENDED_B,
+                                   OC_UNICODE_SPECIALS };
+
+    launcher->font = oc_font_create_from_path(fontPath, 5, ranges);
+
+    oc_scratch_end(scratch);
+    // create ui
+    launcher->ui = oc_ui_context_create(launcher->font);
+
+    // show window
+    oc_window_center(launcher->window);
+    oc_window_bring_to_front(launcher->window);
+    oc_window_focus(launcher->window);
+}
+
+void launcher_destroy(oc_launcher* launcher)
+{
+    oc_ui_context_destroy(launcher->ui);
+    oc_font_destroy(launcher->font);
+    oc_canvas_context_destroy(launcher->canvas);
+    oc_surface_destroy(launcher->surface);
+    oc_canvas_renderer_destroy(launcher->renderer);
+    oc_window_destroy(launcher->window);
+}
+
+int launcher_main()
+{
+    oc_launcher launcher = { 0 };
+    bool finishedLaunching = false; //TODO: put in launcher struct as "initialized"?
+    oc_init();
+
+    while(!oc_should_quit())
+    {
+        oc_pump_events(0);
+
+        oc_arena_scope scratch = oc_scratch_begin();
+        oc_event* event = 0;
+        while((event = oc_next_event(scratch.arena)) != 0)
+        {
+            if(finishedLaunching)
+            {
+                oc_ui_process_event(event);
+            }
+            switch(event->type)
+            {
+                case OC_EVENT_QUIT:
+                case OC_EVENT_WINDOW_CLOSE:
+                {
+                    oc_request_quit();
+                }
+                break;
+
+                case OC_EVENT_PATHDROP:
+                {
+                    oc_str8 path = { 0 };
+                    oc_str8_list_for(event->paths, elt)
+                    {
+                        path = elt->string;
+                        break;
+                    }
+                    if(!finishedLaunching)
+                    {
+                        //NOTE: run app
+                        return oc_tool_run(&(oc_tool_options){ .app = path });
+                    }
+                }
+                break;
+
+                case OC_EVENT_FINISH_LAUNCHING:
+                {
+                    finishedLaunching = true;
+                    //NOTE: if we got here, we were not opened from an "open with" action,
+                    // so we can create the window etc.
+                    launcher_create(&launcher);
+                }
+                break;
+
+                default:
+                    break;
+            }
+        }
+        oc_scratch_end(scratch);
+
+        oc_canvas_context_select(launcher.canvas);
+        oc_set_color_rgba(1, 0, 1, 1);
+        oc_clear();
+
+        oc_rect rect = oc_window_get_content_rect(launcher.window);
+
+        const int APP_THUMBNAIL_SIZE = 200;
+
+        oc_ui_frame(rect.wh)
+        {
+            oc_ui_box* container = oc_ui_box_top();
+            oc_vec2 containerSize = container->rect.wh;
+
+            oc_vec2 pos = { 0, 0 };
+            oc_arena_scope scratch = oc_scratch_begin();
+            for(int i = 0; i < 16; i++)
+            {
+                if(pos.x + APP_THUMBNAIL_SIZE >= containerSize.x)
+                {
+                    pos.x = 0;
+                    pos.y += APP_THUMBNAIL_SIZE;
+                }
+
+                oc_str8 idStr = oc_str8_pushf(scratch.arena, "app-frame-%i", i);
+                oc_ui_box_str8(idStr)
+                {
+                    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+                    oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+                    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, pos.x);
+                    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, pos.y);
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE });
+                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                    oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
+
+                    oc_ui_box("app-thumbnail")
+                    {
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
+                    }
+                }
+
+                pos.x += APP_THUMBNAIL_SIZE;
+            }
+            oc_scratch_end(scratch);
+        }
+        oc_ui_draw();
+
+        oc_canvas_render(launcher.renderer, launcher.canvas, launcher.surface);
+        oc_canvas_present(launcher.renderer, launcher.surface);
+    }
+
+    launcher_destroy(&launcher);
+    oc_terminate();
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -314,44 +483,5 @@ int main(int argc, char** argv)
     }
 
     //NOTE: if we didn't have any command, start the launcher
-
-    printf("starting in launcher mode...\n");
-
-    oc_init();
-    while(!oc_should_quit())
-    {
-        oc_pump_events(-1);
-
-        oc_arena_scope scratch = oc_scratch_begin();
-        oc_event* event = 0;
-        while((event = oc_next_event(scratch.arena)) != 0)
-        {
-            switch(event->type)
-            {
-                case OC_EVENT_QUIT:
-                {
-                    oc_request_quit();
-                }
-                break;
-                case OC_EVENT_PATHDROP:
-                {
-                    oc_str8 path = { 0 };
-                    oc_str8_list_for(event->paths, elt)
-                    {
-                        path = elt->string;
-                        break;
-                    }
-                    //NOTE: run app
-                    return oc_tool_run(&(oc_tool_options){ .app = path });
-                }
-                break;
-
-                default:
-                    break;
-            }
-        }
-        oc_scratch_end(scratch);
-    }
-    oc_terminate();
-    return 0;
+    return launcher_main();
 }
