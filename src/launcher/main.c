@@ -103,6 +103,8 @@ error:
     return -1;
 }
 
+//TODO: put in common with runtime code
+#if OC_PLATFORM_MACOS
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
@@ -119,6 +121,27 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
     return path;
 }
+
+#elif OC_PLATFORM_WINDOWS
+
+oc_str8 get_orca_home_dir(oc_arena* arena)
+{
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    char* home = getenv("USERPROFILE");
+
+    oc_str8_list list = { 0 };
+    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.arena, &list, OC_STR8("AppData/orca"));
+
+    oc_str8 path = oc_path_join(arena, list);
+
+    oc_scratch_end(scratch);
+
+    return path;
+}
+
+#endif
 
 int oc_tool_run(oc_tool_options* options)
 {
@@ -143,6 +166,15 @@ int oc_tool_run(oc_tool_options* options)
     return status;
 }
 
+typedef struct oc_launcher_item
+{
+    oc_list_elt listElt;
+    oc_str8 name;
+    oc_str8 path;
+    oc_image thumbnail;
+
+} oc_launcher_item;
+
 typedef struct oc_launcher
 {
     oc_window window;
@@ -152,16 +184,107 @@ typedef struct oc_launcher
     oc_font font;
     oc_ui_context* ui;
 
+    oc_arena libraryArena;
+    oc_list items;
+
+    oc_arena searchBarArena;
+
 } oc_launcher;
 
-void launcher_create(oc_launcher* launcher)
+int launcher_load_apps(oc_launcher* launcher)
 {
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_str8 home = get_orca_home_dir(scratch.arena);
+    oc_str8 appsPath = oc_path_append(scratch.arena, home, OC_STR8("apps"));
+
+    oc_file appsDir = oc_catch(oc_file_open(appsPath, OC_FILE_ACCESS_READ, 0))
+    {
+        oc_log_error("Could not load local apps library...");
+        return -1;
+    }
+
+    oc_file_list list = oc_file_listdir(scratch.arena, appsDir);
+    oc_file_close(appsDir);
+
+    oc_file_list_for(list, elt)
+    {
+        oc_str8 ext = oc_path_slice_extension(elt->basename);
+        if(!oc_str8_cmp(ext, OC_STR8(".orca")))
+        {
+            oc_launcher_item* item = oc_arena_push_type(&launcher->libraryArena, oc_launcher_item);
+            item->path = oc_path_append(&launcher->libraryArena, appsPath, elt->basename);
+            item->name = oc_path_slice_stem(item->path);
+
+            //NOTE: load thumbnail
+            zip_t* zip = zip_open(item->path.ptr, ZIP_RDONLY, 0);
+            if(!zip)
+            {
+                oc_log_error("Couldn't open zip archive.\n");
+            }
+            else
+            {
+                //NOTE: try to find a jpg or png image for thumbnail
+                const char* thumbnailPath = "data/thumbnail.jpg";
+                zip_stat_t stat = { 0 };
+                int r = zip_stat(zip, thumbnailPath, 0, &stat);
+                if(r)
+                {
+                    if(zip_error_code_zip(zip_get_error(zip)) == ZIP_ER_NOENT)
+                    {
+                        thumbnailPath = "data/thumbnail.png";
+                        r = zip_stat(zip, thumbnailPath, 0, &stat);
+                    }
+                }
+
+                if(r)
+                {
+                    oc_log_error("Couldn't stat thumbnail file.\n");
+                }
+                else
+                {
+                    zip_file_t* zipFile = zip_fopen(zip, thumbnailPath, 0);
+                    if(!zipFile)
+                    {
+                        oc_log_error("Couldn't open thumbnail file.\n");
+                    }
+                    else
+                    {
+                        oc_str8 data = { 0 };
+                        data.len = stat.size;
+                        data.ptr = oc_arena_push_array(scratch.arena, char, data.len);
+                        data.len = zip_fread(zipFile, data.ptr, data.len);
+
+                        item->thumbnail = oc_image_create_from_memory(launcher->renderer, data, false);
+
+                        zip_fclose(zipFile);
+                    }
+                }
+                zip_close(zip);
+            }
+
+            //TODO: load other metadata
+
+            oc_list_push_back(&launcher->items, &item->listElt);
+        }
+    }
+
+    oc_scratch_end(scratch);
+    return 0;
+}
+
+i32 launcher_create(void* userData)
+{
+    oc_launcher* launcher = (oc_launcher*)userData;
+
     // create rendering resources
     oc_rect rect = { 0, 0, 1200, 900 };
-    launcher->window = oc_window_create(rect, OC_STR8("Orca Launcher"), 0);
+    launcher->window = oc_window_create(rect, OC_STR8("Orca Launcher"), OC_WINDOW_STYLE_TRANSPARENT);
     launcher->renderer = oc_canvas_renderer_create();
     launcher->surface = oc_canvas_surface_create_for_window(launcher->renderer, launcher->window);
+
     launcher->canvas = oc_canvas_context_create();
+    oc_canvas_context_select(oc_canvas_context_nil());
 
     // load font
     oc_arena_scope scratch = oc_scratch_begin();
@@ -177,41 +300,135 @@ void launcher_create(oc_launcher* launcher)
     launcher->font = oc_font_create_from_path(fontPath, 5, ranges);
 
     oc_scratch_end(scratch);
+
     // create ui
     launcher->ui = oc_ui_context_create(launcher->font);
+    oc_ui_set_context(0);
+
+    // load library
+    oc_arena_init(&launcher->libraryArena);
+    launcher_load_apps(launcher);
+
+    // init search bar arena
+    oc_arena_init(&launcher->searchBarArena);
 
     // show window
     oc_window_center(launcher->window);
     oc_window_bring_to_front(launcher->window);
     oc_window_focus(launcher->window);
+
+    return 0;
 }
 
-void launcher_destroy(oc_launcher* launcher)
+i32 launcher_destroy(void* userData)
 {
+    oc_launcher* launcher = (oc_launcher*)userData;
+
+    oc_arena_cleanup(&launcher->searchBarArena);
+    oc_arena_cleanup(&launcher->libraryArena);
+
     oc_ui_context_destroy(launcher->ui);
     oc_font_destroy(launcher->font);
     oc_canvas_context_destroy(launcher->canvas);
     oc_surface_destroy(launcher->surface);
     oc_canvas_renderer_destroy(launcher->renderer);
     oc_window_destroy(launcher->window);
+
+    return 0;
 }
 
-int launcher_main()
+void oc_launcher_item_draw_thumbnail(oc_ui_box* box, void* userData)
+{
+    oc_launcher_item* item = (oc_launcher_item*)userData;
+    oc_image_draw(item->thumbnail, box->rect);
+
+    if(oc_ui_box_get_sig(box).hover)
+    {
+        oc_set_color_rgba(1, 1, 1, 0.3);
+        oc_rectangle_fill(box->rect.x, box->rect.y, box->rect.w, box->rect.h);
+    }
+}
+
+size_t curl_write(void* ptr, size_t size, size_t nmemb, void* stream)
+{
+    oc_file dst = *(oc_file*)(stream);
+    size_t written = oc_file_write(dst, size * nmemb, ptr);
+    return written;
+}
+
+#include "curl/curl.h"
+
+void launcher_load_app_from_url(oc_str8 url)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_str8 basename = oc_path_slice_filename(url);
+    oc_str8 ext = oc_path_slice_extension(url);
+    if(oc_str8_cmp(ext, OC_STR8(".orca")))
+    {
+        //TODO
+        oc_log_error("Not an orca file.\n");
+        return;
+    }
+
+    oc_str8 home = get_orca_home_dir(scratch.arena);
+    oc_str8 transientAppsPath = oc_path_append(scratch.arena, home, OC_STR8("apps/transient"));
+    oc_str8 dstPath = oc_path_append(scratch.arena, transientAppsPath, basename);
+
+    oc_io_error error = oc_file_makedir(transientAppsPath,
+                                        &(oc_file_makedir_options){
+                                            .flags = OC_FILE_MAKEDIR_CREATE_PARENTS | OC_FILE_MAKEDIR_IGNORE_EXISTING,
+                                        });
+    if(error)
+    {
+        //TODO error
+        oc_log_error("Couldn't create transient apps dir.\n");
+        return;
+    }
+
+    oc_file dst = oc_catch(oc_file_open(dstPath,
+                                        OC_FILE_ACCESS_WRITE,
+                                        &(oc_file_open_options){
+                                            .flags = OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE,
+                                        }))
+    {
+        //TODO
+        oc_log_error("Couldn't create download file.\n");
+        return;
+    }
+
+    curl_global_init(CURL_GLOBAL_ALL);
+    CURL* curl = curl_easy_init();
+    const char* urlCString = oc_str8_to_cstring(scratch.arena, url);
+    curl_easy_setopt(curl, CURLOPT_URL, urlCString);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &dst);
+    curl_easy_perform(curl);
+    curl_easy_cleanup(curl);
+    curl_global_cleanup();
+
+    oc_file_close(dst);
+
+    oc_tool_run(&(oc_tool_options){ .app = dstPath });
+
+    oc_scratch_end(scratch);
+}
+
+i32 launcher_runloop(void* data)
 {
     oc_launcher launcher = { 0 };
     bool finishedLaunching = false; //TODO: put in launcher struct as "initialized"?
-    oc_init();
+    bool quit = false;
 
-    while(!oc_should_quit())
+    while(!quit)
     {
-        oc_pump_events(0);
-
         oc_arena_scope scratch = oc_scratch_begin();
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
         {
             if(finishedLaunching)
             {
+                oc_ui_set_context(launcher.ui);
                 oc_ui_process_event(event);
             }
             switch(event->type)
@@ -219,7 +436,7 @@ int launcher_main()
                 case OC_EVENT_QUIT:
                 case OC_EVENT_WINDOW_CLOSE:
                 {
-                    oc_request_quit();
+                    quit = true;
                 }
                 break;
 
@@ -244,7 +461,7 @@ int launcher_main()
                     finishedLaunching = true;
                     //NOTE: if we got here, we were not opened from an "open with" action,
                     // so we can create the window etc.
-                    launcher_create(&launcher);
+                    oc_dispatch_on_main_thread_sync(launcher_create, &launcher);
                 }
                 break;
 
@@ -254,61 +471,158 @@ int launcher_main()
         }
         oc_scratch_end(scratch);
 
-        oc_canvas_context_select(launcher.canvas);
-        oc_set_color_rgba(1, 0, 1, 1);
-        oc_clear();
-
-        oc_rect rect = oc_window_get_content_rect(launcher.window);
-
-        const int APP_THUMBNAIL_SIZE = 200;
-
-        oc_ui_frame(rect.wh)
+        if(finishedLaunching)
         {
-            oc_ui_box* container = oc_ui_box_top();
-            oc_vec2 containerSize = container->rect.wh;
+            oc_canvas_context_select(launcher.canvas);
+            //            oc_set_color_rgba(1, 0, 1, 1);
+            //            oc_clear();
 
-            oc_vec2 pos = { 0, 0 };
-            oc_arena_scope scratch = oc_scratch_begin();
-            for(int i = 0; i < 16; i++)
+            oc_rect rect = oc_window_get_content_rect(launcher.window);
+
+            const int APP_THUMBNAIL_SIZE = 200;
+            const int APP_ITEM_WIDTH = 200;
+
+            oc_ui_frame(rect.wh)
             {
-                if(pos.x + APP_THUMBNAIL_SIZE >= containerSize.x)
-                {
-                    pos.x = 0;
-                    pos.y += APP_THUMBNAIL_SIZE;
-                }
+                oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-                oc_str8 idStr = oc_str8_pushf(scratch.arena, "app-frame-%i", i);
-                oc_ui_box_str8(idStr)
+                oc_ui_box("search-bar-frame")
                 {
-                    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-                    oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-                    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, pos.x);
-                    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, pos.y);
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE });
-                    oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
+                    oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
 
-                    oc_ui_box("app-thumbnail")
+                    oc_ui_style_rule("search-bar")
                     {
-                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 0, 1 });
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.7 });
+                    }
+
+                    static oc_ui_text_box_info searchBar = {
+                        .defaultText = OC_STR8_LIT("Enter app URL here..."),
+                    };
+                    oc_ui_text_box_result result = oc_ui_text_box("search-bar", scratch.arena, &searchBar);
+                    if(result.changed)
+                    {
+                        oc_arena_clear(&launcher.searchBarArena);
+                        searchBar.text = oc_str8_push_copy(&launcher.searchBarArena, result.text);
+                    }
+                    if(result.accepted)
+                    {
+                        launcher_load_app_from_url(searchBar.text);
+                        searchBar.text = (oc_str8){ 0 };
+                        oc_arena_clear(&launcher.searchBarArena);
                     }
                 }
+                oc_ui_box("library")
+                {
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
 
-                pos.x += APP_THUMBNAIL_SIZE;
+                    oc_vec2 containerSize = rect.wh;
+
+                    u32 maxThumbnailsPerRow = (u32)containerSize.x / APP_THUMBNAIL_SIZE;
+                    f32 thumbnailSpacing = (containerSize.x - maxThumbnailsPerRow * APP_THUMBNAIL_SIZE) / (maxThumbnailsPerRow + 1);
+
+                    oc_vec2 pos = { thumbnailSpacing, 0 };
+                    oc_arena_scope scratch = oc_scratch_begin();
+                    int colIndex = 0;
+
+                    oc_list_for_indexed(launcher.items, it, oc_launcher_item, listElt)
+                    {
+                        oc_launcher_item* item = it.elt;
+
+                        if(colIndex >= maxThumbnailsPerRow)
+                        {
+                            colIndex = 0;
+                            pos.x = thumbnailSpacing;
+                            pos.y += APP_THUMBNAIL_SIZE + 30;
+                        }
+
+                        oc_str8 idStr = oc_str8_pushf(scratch.arena, "item-%i", it.index);
+                        oc_ui_box_str8(idStr)
+                        {
+                            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
+                            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
+                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, pos.x);
+                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, pos.y);
+                            oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                            oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                            oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                            oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
+
+                            oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
+                            oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+
+                            oc_ui_style_set_i32(OC_UI_ANIMATION_MASK,
+                                                OC_UI_MASK_SIZE_WIDTH
+                                                    | OC_UI_MASK_SIZE_HEIGHT
+                                                    | OC_UI_MASK_FLOAT_TARGET_X
+                                                    | OC_UI_MASK_FLOAT_TARGET_Y);
+
+                            oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, 0.4);
+
+                            oc_ui_tag("item");
+                            oc_ui_style_rule(".item.hover")
+                            {
+                                oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, pos.x - 5);
+                                oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, pos.y - 5);
+                            }
+                            oc_ui_style_rule(".hover thumbnail-frame")
+                            {
+                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE + 10 });
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE + 10 });
+                            }
+
+                            oc_ui_box("thumbnail-frame")
+                            {
+                                oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE });
+                                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, APP_THUMBNAIL_SIZE });
+                                oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
+                                oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
+
+                                oc_ui_style_set_i32(OC_UI_ANIMATION_MASK,
+                                                    OC_UI_MASK_SIZE_WIDTH
+                                                        | OC_UI_MASK_SIZE_HEIGHT
+                                                        | OC_UI_MASK_FLOAT_TARGET_X
+                                                        | OC_UI_MASK_FLOAT_TARGET_Y);
+
+                                oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, 0.4);
+
+                                oc_ui_box("thumbnail")
+                                {
+                                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
+                                    oc_ui_box_set_draw_proc(oc_ui_box_top(), oc_launcher_item_draw_thumbnail, item);
+                                }
+                            }
+
+                            oc_ui_label_str8(OC_STR8("app-name"), item->name);
+
+                            if(oc_ui_get_sig().doubleClicked)
+                            {
+                                oc_tool_run(&(oc_tool_options){
+                                    .app = item->path,
+                                });
+                            }
+                        }
+
+                        pos.x += APP_THUMBNAIL_SIZE + thumbnailSpacing;
+                        colIndex++;
+                    }
+                }
+                oc_scratch_end(scratch);
             }
-            oc_scratch_end(scratch);
-        }
-        oc_ui_draw();
+            oc_ui_draw();
 
-        oc_canvas_render(launcher.renderer, launcher.canvas, launcher.surface);
-        oc_canvas_present(launcher.renderer, launcher.surface);
+            oc_canvas_render(launcher.renderer, launcher.canvas, launcher.surface);
+            oc_canvas_present(launcher.renderer, launcher.surface);
+        }
     }
 
-    launcher_destroy(&launcher);
-    oc_terminate();
+    oc_dispatch_on_main_thread_sync(launcher_destroy, &launcher);
+    oc_request_quit();
+
     return 0;
 }
 
@@ -483,5 +797,18 @@ int main(int argc, char** argv)
     }
 
     //NOTE: if we didn't have any command, start the launcher
-    return launcher_main();
+    oc_init();
+
+    oc_thread* runloopThread = oc_thread_create(launcher_runloop, 0);
+
+    while(!oc_should_quit())
+    {
+        oc_pump_events(0);
+    }
+
+    i64 exitCode = 0;
+    oc_thread_join(runloopThread, &exitCode);
+
+    oc_terminate();
+    return exitCode;
 }

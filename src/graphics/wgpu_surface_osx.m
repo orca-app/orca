@@ -84,6 +84,9 @@ i32 oc_wgpu_surface_create_callback(void* user)
 
             [surface->mtlLayer setOpaque:NO];
             surface->mtlLayer.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+
+            surface->mtlLayer.contentsGravity = kCAGravityTopLeft;
+
             [surface->base.view.layer addSublayer:(CALayer*)surface->mtlLayer];
 
             NSRect frame = [[windowData->osx.nsWindow contentView] frame];

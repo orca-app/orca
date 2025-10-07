@@ -359,6 +359,11 @@ oc_str32 oc_str32_from_buffer(u64 len, u32* buffer)
 
 oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end)
 {
+    if(!s.ptr)
+    {
+        OC_DEBUG_ASSERT(s.len == 0);
+        return (oc_str32){ 0 };
+    }
     end = oc_max(start, end);
     start = oc_min(start, s.len);
     end = oc_min(end, s.len);

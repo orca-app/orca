@@ -618,218 +618,217 @@ pub fn build(b: *Build) !void {
 
     /////////////////////////////////////////////////////////
     // curl - used in orca cli tool
-
     // Original zig build code MIT licensed from: https://github.com/jiacai2050/zig-curl/blob/main/libs/curl.zig
-    // const curl_mod = b.createModule(.{
-    //     .target = target,
-    //     .optimize = optimize,
-    //     .link_libc = true,
-    //     .sanitize_c = false,
-    // });
+    const curl_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+        .sanitize_c = false,
+    });
 
-    // var curl_sources = SourceFileCollector.init(b, ".c");
-    // try curl_sources.collect("src/ext/curl/lib");
-    // try curl_sources.collect("src/ext/curl/lib/vauth");
-    // try curl_sources.collect("src/ext/curl/lib/vtls");
-    // try curl_sources.collect("src/ext/curl/lib/vssh");
-    // try curl_sources.collect("src/ext/curl/lib/vquic");
+    var curl_sources = SourceFileCollector.init(b, ".c");
+    try curl_sources.collect("src/ext/curl/lib");
+    try curl_sources.collect("src/ext/curl/lib/vauth");
+    try curl_sources.collect("src/ext/curl/lib/vtls");
+    try curl_sources.collect("src/ext/curl/lib/vssh");
+    try curl_sources.collect("src/ext/curl/lib/vquic");
 
-    // for (curl_sources.files.items) |path| {
-    //     curl_mod.addCSourceFile(.{
-    //         .file = b.path(path),
-    //         .flags = &.{"-std=gnu89"},
-    //     });
-    // }
+    for (curl_sources.files.items) |path| {
+        curl_mod.addCSourceFile(.{
+            .file = b.path(path),
+            .flags = &.{"-std=gnu89"},
+        });
+    }
 
-    // curl_mod.addIncludePath(b.path("src/ext/curl/lib"));
-    // curl_mod.addIncludePath(b.path("src/ext/curl/include"));
-    // curl_mod.addIncludePath(b.path("src/ext/zlib"));
+    curl_mod.addIncludePath(b.path("src/ext/curl/lib"));
+    curl_mod.addIncludePath(b.path("src/ext/curl/include"));
+    curl_mod.addIncludePath(b.path("src/ext/zlib"));
 
-    // curl_mod.addCMacro("BUILDING_LIBCURL", "1");
-    // curl_mod.addCMacro("CURL_STATICLIB", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_LDAP", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_LDAPS", "1");
-    // // curl_mod.addCMacro("USE_MBEDTLS", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_DICT", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_FILE", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_FTP", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_GOPHER", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_IMAP", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_MQTT", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_POP3", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_RTSP", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_SMB", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_SMTP", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_TELNET", "1");
-    // curl_mod.addCMacro("CURL_DISABLE_TFTP", "1");
-    // curl_mod.addCMacro("HAVE_LIBZ", "1");
-    // curl_mod.addCMacro("HAVE_ZLIB_H", "1");
+    curl_mod.addCMacro("BUILDING_LIBCURL", "1");
+    curl_mod.addCMacro("CURL_STATICLIB", "1");
+    curl_mod.addCMacro("CURL_DISABLE_LDAP", "1");
+    curl_mod.addCMacro("CURL_DISABLE_LDAPS", "1");
+    // curl_mod.addCMacro("USE_MBEDTLS", "1");
+    curl_mod.addCMacro("CURL_DISABLE_DICT", "1");
+    curl_mod.addCMacro("CURL_DISABLE_FILE", "1");
+    curl_mod.addCMacro("CURL_DISABLE_FTP", "1");
+    curl_mod.addCMacro("CURL_DISABLE_GOPHER", "1");
+    curl_mod.addCMacro("CURL_DISABLE_IMAP", "1");
+    curl_mod.addCMacro("CURL_DISABLE_MQTT", "1");
+    curl_mod.addCMacro("CURL_DISABLE_POP3", "1");
+    curl_mod.addCMacro("CURL_DISABLE_RTSP", "1");
+    curl_mod.addCMacro("CURL_DISABLE_SMB", "1");
+    curl_mod.addCMacro("CURL_DISABLE_SMTP", "1");
+    curl_mod.addCMacro("CURL_DISABLE_TELNET", "1");
+    curl_mod.addCMacro("CURL_DISABLE_TFTP", "1");
+    curl_mod.addCMacro("HAVE_LIBZ", "1");
+    curl_mod.addCMacro("HAVE_ZLIB_H", "1");
 
-    // if (target.result.os.tag == .windows) {
-    //     curl_mod.addCMacro("USE_WINDOWS_SSPI", "1");
-    //     curl_mod.addCMacro("USE_SCHANNEL", "1");
-    //     curl_mod.addCMacro("OS", "\"win32\"");
-    //     curl_mod.addCMacro("ENABLE_IPV6", "1");
-    //     curl_mod.addCMacro("HAVE_GETHOSTBYNAME_R", "1");
+    if (target.result.os.tag == .windows) {
+        curl_mod.addCMacro("USE_WINDOWS_SSPI", "1");
+        curl_mod.addCMacro("USE_SCHANNEL", "1");
+        curl_mod.addCMacro("OS", "\"win32\"");
+        curl_mod.addCMacro("ENABLE_IPV6", "1");
+        curl_mod.addCMacro("HAVE_GETHOSTBYNAME_R", "1");
 
-    //     curl_mod.linkSystemLibrary("ws2_32", .{});
-    //     curl_mod.linkSystemLibrary("wldap32", .{});
-    //     curl_mod.linkSystemLibrary("advapi32", .{});
-    //     curl_mod.linkSystemLibrary("crypt32", .{});
-    //     curl_mod.linkSystemLibrary("gdi32", .{});
-    //     curl_mod.linkSystemLibrary("user32", .{});
-    //     curl_mod.linkSystemLibrary("bcrypt", .{});
-    // } else {
-    //     curl_mod.addCMacro("CURL_EXTERN_SYMBOL", "__attribute__ ((__visibility__ (\"default\"))");
+        curl_mod.linkSystemLibrary("ws2_32", .{});
+        curl_mod.linkSystemLibrary("wldap32", .{});
+        curl_mod.linkSystemLibrary("advapi32", .{});
+        curl_mod.linkSystemLibrary("crypt32", .{});
+        curl_mod.linkSystemLibrary("gdi32", .{});
+        curl_mod.linkSystemLibrary("user32", .{});
+        curl_mod.linkSystemLibrary("bcrypt", .{});
+    } else {
+        curl_mod.addCMacro("CURL_EXTERN_SYMBOL", "__attribute__ ((__visibility__ (\"default\"))");
 
-    //     if (target.result.os.tag.isDarwin()) {
-    //         curl_mod.addCMacro("OS", "\"mac\"");
-    //     } else if (target.result.os.tag == .linux) {
-    //         curl_mod.addCMacro("OS", "\"Linux\"");
-    //         curl_mod.addCMacro("HAVE_LINUX_TCP_H", "1");
-    //     }
+        if (target.result.os.tag.isDarwin()) {
+            curl_mod.addCMacro("OS", "\"mac\"");
+        } else if (target.result.os.tag == .linux) {
+            curl_mod.addCMacro("OS", "\"Linux\"");
+            curl_mod.addCMacro("HAVE_LINUX_TCP_H", "1");
+        }
 
-    //     curl_mod.addCMacro("HAVE_ALARM", "1");
-    //     curl_mod.addCMacro("HAVE_ALLOCA_H", "1");
-    //     curl_mod.addCMacro("HAVE_ARPA_INET_H", "1");
-    //     curl_mod.addCMacro("HAVE_ARPA_TFTP_H", "1");
-    //     curl_mod.addCMacro("HAVE_ASSERT_H", "1");
-    //     curl_mod.addCMacro("HAVE_BASENAME", "1");
-    //     curl_mod.addCMacro("HAVE_BOOL_T", "1");
-    //     curl_mod.addCMacro("HAVE_BUILTIN_AVAILABLE", "1");
-    //     curl_mod.addCMacro("HAVE_CLOCK_GETTIME_MONOTONIC", "1");
-    //     curl_mod.addCMacro("HAVE_DLFCN_H", "1");
-    //     curl_mod.addCMacro("HAVE_ERRNO_H", "1");
-    //     curl_mod.addCMacro("HAVE_FCNTL", "1");
-    //     curl_mod.addCMacro("HAVE_FCNTL_H", "1");
-    //     curl_mod.addCMacro("HAVE_FCNTL_O_NONBLOCK", "1");
-    //     curl_mod.addCMacro("HAVE_FREEADDRINFO", "1");
-    //     curl_mod.addCMacro("HAVE_FTRUNCATE", "1");
-    //     curl_mod.addCMacro("HAVE_GETADDRINFO", "1");
-    //     curl_mod.addCMacro("HAVE_GETEUID", "1");
-    //     curl_mod.addCMacro("HAVE_GETPPID", "1");
-    //     curl_mod.addCMacro("HAVE_GETHOSTBYNAME", "1");
-    //     curl_mod.addCMacro("HAVE_GETHOSTBYNAME_R_6", "1");
-    //     curl_mod.addCMacro("HAVE_GETHOSTNAME", "1");
-    //     curl_mod.addCMacro("HAVE_GETPPID", "1");
-    //     curl_mod.addCMacro("HAVE_GETPROTOBYNAME", "1");
-    //     curl_mod.addCMacro("HAVE_GETPEERNAME", "1");
-    //     curl_mod.addCMacro("HAVE_GETSOCKNAME", "1");
-    //     curl_mod.addCMacro("HAVE_IF_NAMETOINDEX", "1");
-    //     curl_mod.addCMacro("HAVE_GETPWUID", "1");
-    //     curl_mod.addCMacro("HAVE_GETPWUID_R", "1");
-    //     curl_mod.addCMacro("HAVE_GETRLIMIT", "1");
-    //     curl_mod.addCMacro("HAVE_GETTIMEOFDAY", "1");
-    //     curl_mod.addCMacro("HAVE_GMTIME_R", "1");
-    //     curl_mod.addCMacro("HAVE_IFADDRS_H", "1");
-    //     curl_mod.addCMacro("HAVE_INET_ADDR", "1");
-    //     curl_mod.addCMacro("HAVE_INET_PTON", "1");
-    //     curl_mod.addCMacro("HAVE_SA_FAMILY_T", "1");
-    //     curl_mod.addCMacro("HAVE_INTTYPES_H", "1");
-    //     curl_mod.addCMacro("HAVE_IOCTL", "1");
-    //     curl_mod.addCMacro("HAVE_IOCTL_FIONBIO", "1");
-    //     curl_mod.addCMacro("HAVE_IOCTL_SIOCGIFADDR", "1");
-    //     curl_mod.addCMacro("HAVE_LDAP_URL_PARSE", "1");
-    //     curl_mod.addCMacro("HAVE_LIBGEN_H", "1");
-    //     curl_mod.addCMacro("HAVE_IDN2_H", "1");
-    //     curl_mod.addCMacro("HAVE_LL", "1");
-    //     curl_mod.addCMacro("HAVE_LOCALE_H", "1");
-    //     curl_mod.addCMacro("HAVE_LOCALTIME_R", "1");
-    //     curl_mod.addCMacro("HAVE_LONGLONG", "1");
-    //     curl_mod.addCMacro("HAVE_MALLOC_H", "1");
-    //     curl_mod.addCMacro("HAVE_MEMORY_H", "1");
-    //     curl_mod.addCMacro("HAVE_NETDB_H", "1");
-    //     curl_mod.addCMacro("HAVE_NETINET_IN_H", "1");
-    //     curl_mod.addCMacro("HAVE_NETINET_TCP_H", "1");
-    //     curl_mod.addCMacro("HAVE_NET_IF_H", "1");
-    //     curl_mod.addCMacro("HAVE_PIPE", "1");
-    //     curl_mod.addCMacro("HAVE_POLL", "1");
-    //     curl_mod.addCMacro("HAVE_POLL_FINE", "1");
-    //     curl_mod.addCMacro("HAVE_POLL_H", "1");
-    //     curl_mod.addCMacro("HAVE_POSIX_STRERROR_R", "1");
-    //     curl_mod.addCMacro("HAVE_PTHREAD_H", "1");
-    //     curl_mod.addCMacro("HAVE_PWD_H", "1");
-    //     curl_mod.addCMacro("HAVE_RECV", "1");
-    //     curl_mod.addCMacro("HAVE_SELECT", "1");
-    //     curl_mod.addCMacro("HAVE_SEND", "1");
-    //     curl_mod.addCMacro("HAVE_FSETXATTR", "1");
-    //     curl_mod.addCMacro("HAVE_FSETXATTR_5", "1");
-    //     curl_mod.addCMacro("HAVE_SETJMP_H", "1");
-    //     curl_mod.addCMacro("HAVE_SETLOCALE", "1");
-    //     curl_mod.addCMacro("HAVE_SETRLIMIT", "1");
-    //     curl_mod.addCMacro("HAVE_SETSOCKOPT", "1");
-    //     curl_mod.addCMacro("HAVE_SIGACTION", "1");
-    //     curl_mod.addCMacro("HAVE_SIGINTERRUPT", "1");
-    //     curl_mod.addCMacro("HAVE_SIGNAL", "1");
-    //     curl_mod.addCMacro("HAVE_SIGNAL_H", "1");
-    //     curl_mod.addCMacro("HAVE_SIGSETJMP", "1");
-    //     curl_mod.addCMacro("HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID", "1");
-    //     curl_mod.addCMacro("HAVE_SOCKET", "1");
-    //     curl_mod.addCMacro("HAVE_STDBOOL_H", "1");
-    //     curl_mod.addCMacro("HAVE_STDINT_H", "1");
-    //     curl_mod.addCMacro("HAVE_STDIO_H", "1");
-    //     curl_mod.addCMacro("HAVE_STDLIB_H", "1");
-    //     curl_mod.addCMacro("HAVE_STRCASECMP", "1");
-    //     curl_mod.addCMacro("HAVE_STRDUP", "1");
-    //     curl_mod.addCMacro("HAVE_STRERROR_R", "1");
-    //     curl_mod.addCMacro("HAVE_STRINGS_H", "1");
-    //     curl_mod.addCMacro("HAVE_STRING_H", "1");
-    //     curl_mod.addCMacro("HAVE_STRSTR", "1");
-    //     curl_mod.addCMacro("HAVE_STRTOK_R", "1");
-    //     curl_mod.addCMacro("HAVE_STRTOLL", "1");
-    //     curl_mod.addCMacro("HAVE_STRUCT_SOCKADDR_STORAGE", "1");
-    //     curl_mod.addCMacro("HAVE_STRUCT_TIMEVAL", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_IOCTL_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_PARAM_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_POLL_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_RESOURCE_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_SELECT_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_SOCKET_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_STAT_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_TIME_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_TYPES_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_UIO_H", "1");
-    //     curl_mod.addCMacro("HAVE_SYS_UN_H", "1");
-    //     curl_mod.addCMacro("HAVE_TERMIOS_H", "1");
-    //     curl_mod.addCMacro("HAVE_TERMIO_H", "1");
-    //     curl_mod.addCMacro("HAVE_TIME_H", "1");
-    //     curl_mod.addCMacro("HAVE_UNAME", "1");
-    //     curl_mod.addCMacro("HAVE_UNISTD_H", "1");
-    //     curl_mod.addCMacro("HAVE_UTIME", "1");
-    //     curl_mod.addCMacro("HAVE_UTIMES", "1");
-    //     curl_mod.addCMacro("HAVE_UTIME_H", "1");
-    //     curl_mod.addCMacro("HAVE_VARIADIC_MACROS_C99", "1");
-    //     curl_mod.addCMacro("HAVE_VARIADIC_MACROS_GCC", "1");
-    //     curl_mod.addCMacro("RANDOM_FILE", "\"/dev/urandom\"");
-    //     curl_mod.addCMacro("RECV_TYPE_ARG1", "int");
-    //     curl_mod.addCMacro("RECV_TYPE_ARG2", "void *");
-    //     curl_mod.addCMacro("RECV_TYPE_ARG3", "size_t");
-    //     curl_mod.addCMacro("RECV_TYPE_ARG4", "int");
-    //     curl_mod.addCMacro("RECV_TYPE_RETV", "ssize_t");
-    //     curl_mod.addCMacro("SEND_QUAL_ARG2", "const");
-    //     curl_mod.addCMacro("SEND_TYPE_ARG1", "int");
-    //     curl_mod.addCMacro("SEND_TYPE_ARG2", "void *");
-    //     curl_mod.addCMacro("SEND_TYPE_ARG3", "size_t");
-    //     curl_mod.addCMacro("SEND_TYPE_ARG4", "int");
-    //     curl_mod.addCMacro("SEND_TYPE_RETV", "ssize_t");
-    //     curl_mod.addCMacro("SIZEOF_INT", "4");
-    //     curl_mod.addCMacro("SIZEOF_SHORT", "2");
-    //     curl_mod.addCMacro("SIZEOF_LONG", "8");
-    //     curl_mod.addCMacro("SIZEOF_OFF_T", "8");
-    //     curl_mod.addCMacro("SIZEOF_CURL_OFF_T", "8");
-    //     curl_mod.addCMacro("SIZEOF_SIZE_T", "8");
-    //     curl_mod.addCMacro("SIZEOF_TIME_T", "8");
-    //     curl_mod.addCMacro("STDC_HEADERS", "1");
-    //     curl_mod.addCMacro("TIME_WITH_SYS_TIME", "1");
-    //     curl_mod.addCMacro("USE_THREADS_POSIX", "1");
-    //     curl_mod.addCMacro("USE_UNIX_SOCKETS", "1");
-    //     curl_mod.addCMacro("_FILE_OFFSET_BITS", "64");
-    // }
-    // const curl_lib = b.addLibrary(.{
-    //     .linkage = .static,
-    //     .name = "curl",
-    //     .root_module = curl_mod,
-    // });
+        curl_mod.addCMacro("HAVE_ALARM", "1");
+        curl_mod.addCMacro("HAVE_ALLOCA_H", "1");
+        curl_mod.addCMacro("HAVE_ARPA_INET_H", "1");
+        curl_mod.addCMacro("HAVE_ARPA_TFTP_H", "1");
+        curl_mod.addCMacro("HAVE_ASSERT_H", "1");
+        curl_mod.addCMacro("HAVE_BASENAME", "1");
+        curl_mod.addCMacro("HAVE_BOOL_T", "1");
+        curl_mod.addCMacro("HAVE_BUILTIN_AVAILABLE", "1");
+        curl_mod.addCMacro("HAVE_CLOCK_GETTIME_MONOTONIC", "1");
+        curl_mod.addCMacro("HAVE_DLFCN_H", "1");
+        curl_mod.addCMacro("HAVE_ERRNO_H", "1");
+        curl_mod.addCMacro("HAVE_FCNTL", "1");
+        curl_mod.addCMacro("HAVE_FCNTL_H", "1");
+        curl_mod.addCMacro("HAVE_FCNTL_O_NONBLOCK", "1");
+        curl_mod.addCMacro("HAVE_FREEADDRINFO", "1");
+        curl_mod.addCMacro("HAVE_FTRUNCATE", "1");
+        curl_mod.addCMacro("HAVE_GETADDRINFO", "1");
+        curl_mod.addCMacro("HAVE_GETEUID", "1");
+        curl_mod.addCMacro("HAVE_GETPPID", "1");
+        curl_mod.addCMacro("HAVE_GETHOSTBYNAME", "1");
+        curl_mod.addCMacro("HAVE_GETHOSTBYNAME_R_6", "1");
+        curl_mod.addCMacro("HAVE_GETHOSTNAME", "1");
+        curl_mod.addCMacro("HAVE_GETPPID", "1");
+        curl_mod.addCMacro("HAVE_GETPROTOBYNAME", "1");
+        curl_mod.addCMacro("HAVE_GETPEERNAME", "1");
+        curl_mod.addCMacro("HAVE_GETSOCKNAME", "1");
+        curl_mod.addCMacro("HAVE_IF_NAMETOINDEX", "1");
+        curl_mod.addCMacro("HAVE_GETPWUID", "1");
+        curl_mod.addCMacro("HAVE_GETPWUID_R", "1");
+        curl_mod.addCMacro("HAVE_GETRLIMIT", "1");
+        curl_mod.addCMacro("HAVE_GETTIMEOFDAY", "1");
+        curl_mod.addCMacro("HAVE_GMTIME_R", "1");
+        curl_mod.addCMacro("HAVE_IFADDRS_H", "1");
+        curl_mod.addCMacro("HAVE_INET_ADDR", "1");
+        curl_mod.addCMacro("HAVE_INET_PTON", "1");
+        curl_mod.addCMacro("HAVE_SA_FAMILY_T", "1");
+        curl_mod.addCMacro("HAVE_INTTYPES_H", "1");
+        curl_mod.addCMacro("HAVE_IOCTL", "1");
+        curl_mod.addCMacro("HAVE_IOCTL_FIONBIO", "1");
+        curl_mod.addCMacro("HAVE_IOCTL_SIOCGIFADDR", "1");
+        curl_mod.addCMacro("HAVE_LDAP_URL_PARSE", "1");
+        curl_mod.addCMacro("HAVE_LIBGEN_H", "1");
+        curl_mod.addCMacro("HAVE_IDN2_H", "1");
+        curl_mod.addCMacro("HAVE_LL", "1");
+        curl_mod.addCMacro("HAVE_LOCALE_H", "1");
+        curl_mod.addCMacro("HAVE_LOCALTIME_R", "1");
+        curl_mod.addCMacro("HAVE_LONGLONG", "1");
+        curl_mod.addCMacro("HAVE_MALLOC_H", "1");
+        curl_mod.addCMacro("HAVE_MEMORY_H", "1");
+        curl_mod.addCMacro("HAVE_NETDB_H", "1");
+        curl_mod.addCMacro("HAVE_NETINET_IN_H", "1");
+        curl_mod.addCMacro("HAVE_NETINET_TCP_H", "1");
+        curl_mod.addCMacro("HAVE_NET_IF_H", "1");
+        curl_mod.addCMacro("HAVE_PIPE", "1");
+        curl_mod.addCMacro("HAVE_POLL", "1");
+        curl_mod.addCMacro("HAVE_POLL_FINE", "1");
+        curl_mod.addCMacro("HAVE_POLL_H", "1");
+        curl_mod.addCMacro("HAVE_POSIX_STRERROR_R", "1");
+        curl_mod.addCMacro("HAVE_PTHREAD_H", "1");
+        curl_mod.addCMacro("HAVE_PWD_H", "1");
+        curl_mod.addCMacro("HAVE_RECV", "1");
+        curl_mod.addCMacro("HAVE_SELECT", "1");
+        curl_mod.addCMacro("HAVE_SEND", "1");
+        curl_mod.addCMacro("HAVE_FSETXATTR", "1");
+        curl_mod.addCMacro("HAVE_FSETXATTR_5", "1");
+        curl_mod.addCMacro("HAVE_SETJMP_H", "1");
+        curl_mod.addCMacro("HAVE_SETLOCALE", "1");
+        curl_mod.addCMacro("HAVE_SETRLIMIT", "1");
+        curl_mod.addCMacro("HAVE_SETSOCKOPT", "1");
+        curl_mod.addCMacro("HAVE_SIGACTION", "1");
+        curl_mod.addCMacro("HAVE_SIGINTERRUPT", "1");
+        curl_mod.addCMacro("HAVE_SIGNAL", "1");
+        curl_mod.addCMacro("HAVE_SIGNAL_H", "1");
+        curl_mod.addCMacro("HAVE_SIGSETJMP", "1");
+        curl_mod.addCMacro("HAVE_SOCKADDR_IN6_SIN6_SCOPE_ID", "1");
+        curl_mod.addCMacro("HAVE_SOCKET", "1");
+        curl_mod.addCMacro("HAVE_STDBOOL_H", "1");
+        curl_mod.addCMacro("HAVE_STDINT_H", "1");
+        curl_mod.addCMacro("HAVE_STDIO_H", "1");
+        curl_mod.addCMacro("HAVE_STDLIB_H", "1");
+        curl_mod.addCMacro("HAVE_STRCASECMP", "1");
+        curl_mod.addCMacro("HAVE_STRDUP", "1");
+        curl_mod.addCMacro("HAVE_STRERROR_R", "1");
+        curl_mod.addCMacro("HAVE_STRINGS_H", "1");
+        curl_mod.addCMacro("HAVE_STRING_H", "1");
+        curl_mod.addCMacro("HAVE_STRSTR", "1");
+        curl_mod.addCMacro("HAVE_STRTOK_R", "1");
+        curl_mod.addCMacro("HAVE_STRTOLL", "1");
+        curl_mod.addCMacro("HAVE_STRUCT_SOCKADDR_STORAGE", "1");
+        curl_mod.addCMacro("HAVE_STRUCT_TIMEVAL", "1");
+        curl_mod.addCMacro("HAVE_SYS_IOCTL_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_PARAM_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_POLL_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_RESOURCE_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_SELECT_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_SOCKET_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_STAT_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_TIME_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_TYPES_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_UIO_H", "1");
+        curl_mod.addCMacro("HAVE_SYS_UN_H", "1");
+        curl_mod.addCMacro("HAVE_TERMIOS_H", "1");
+        curl_mod.addCMacro("HAVE_TERMIO_H", "1");
+        curl_mod.addCMacro("HAVE_TIME_H", "1");
+        curl_mod.addCMacro("HAVE_UNAME", "1");
+        curl_mod.addCMacro("HAVE_UNISTD_H", "1");
+        curl_mod.addCMacro("HAVE_UTIME", "1");
+        curl_mod.addCMacro("HAVE_UTIMES", "1");
+        curl_mod.addCMacro("HAVE_UTIME_H", "1");
+        curl_mod.addCMacro("HAVE_VARIADIC_MACROS_C99", "1");
+        curl_mod.addCMacro("HAVE_VARIADIC_MACROS_GCC", "1");
+        curl_mod.addCMacro("RANDOM_FILE", "\"/dev/urandom\"");
+        curl_mod.addCMacro("RECV_TYPE_ARG1", "int");
+        curl_mod.addCMacro("RECV_TYPE_ARG2", "void *");
+        curl_mod.addCMacro("RECV_TYPE_ARG3", "size_t");
+        curl_mod.addCMacro("RECV_TYPE_ARG4", "int");
+        curl_mod.addCMacro("RECV_TYPE_RETV", "ssize_t");
+        curl_mod.addCMacro("SEND_QUAL_ARG2", "const");
+        curl_mod.addCMacro("SEND_TYPE_ARG1", "int");
+        curl_mod.addCMacro("SEND_TYPE_ARG2", "void *");
+        curl_mod.addCMacro("SEND_TYPE_ARG3", "size_t");
+        curl_mod.addCMacro("SEND_TYPE_ARG4", "int");
+        curl_mod.addCMacro("SEND_TYPE_RETV", "ssize_t");
+        curl_mod.addCMacro("SIZEOF_INT", "4");
+        curl_mod.addCMacro("SIZEOF_SHORT", "2");
+        curl_mod.addCMacro("SIZEOF_LONG", "8");
+        curl_mod.addCMacro("SIZEOF_OFF_T", "8");
+        curl_mod.addCMacro("SIZEOF_CURL_OFF_T", "8");
+        curl_mod.addCMacro("SIZEOF_SIZE_T", "8");
+        curl_mod.addCMacro("SIZEOF_TIME_T", "8");
+        curl_mod.addCMacro("STDC_HEADERS", "1");
+        curl_mod.addCMacro("TIME_WITH_SYS_TIME", "1");
+        curl_mod.addCMacro("USE_THREADS_POSIX", "1");
+        curl_mod.addCMacro("USE_UNIX_SOCKETS", "1");
+        curl_mod.addCMacro("_FILE_OFFSET_BITS", "64");
+    }
+    const curl_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "curl",
+        .root_module = curl_mod,
+    });
 
     /////////////////////////////////////////////////////////
     // Orca CLI tool
@@ -1215,6 +1214,7 @@ pub fn build(b: *Build) !void {
 
     orca_launcher_exe.linkLibrary(orca_platform_lib);
     orca_launcher_exe.linkLibrary(libzip);
+    orca_launcher_exe.linkLibrary(curl_lib);
     orca_launcher_exe.linkLibC();
 
     orca_launcher_exe.step.dependOn(&install_angle_libs.step);

@@ -18,4 +18,4 @@ wasmFlags=(--target=wasm32 \
 clang "${wasmFlags[@]}" -L "$ORCA_DIR"/lib -lorca_wasm -o main.wasm src/main.c
 
 # create app directory and copy files into it
-orca bundle --name Triangle main.wasm
+orca bundle --name Triangle --icon triangle.jpg main.wasm

@@ -1427,6 +1427,12 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
             [window->osx.nsWindow setBackgroundColor:[NSColor clearColor]];
             [window->osx.nsWindow setHasShadow:YES];
         }
+        if(style & OC_WINDOW_STYLE_TRANSPARENT)
+        {
+            [window->osx.nsWindow setOpaque:NO];
+            [window->osx.nsWindow setBackgroundColor:[NSColor clearColor]];
+            [window->osx.nsWindow setHasShadow:YES];
+        }
         if(style & OC_WINDOW_STYLE_FLOAT)
         {
             [window->osx.nsWindow setLevel:NSFloatingWindowLevel];

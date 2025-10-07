@@ -47,7 +47,8 @@ enum oc_window_style_enum
     OC_WINDOW_STYLE_NO_FOCUS = 1 << 4,
     OC_WINDOW_STYLE_FLOAT = 1 << 5,
     OC_WINDOW_STYLE_POPUPMENU = 1 << 6,
-    OC_WINDOW_STYLE_NO_BUTTONS = 1 << 7
+    OC_WINDOW_STYLE_NO_BUTTONS = 1 << 7,
+    OC_WINDOW_STYLE_TRANSPARENT = 1 << 8,
 };
 
 typedef enum

@@ -268,6 +268,15 @@ int oc_tool_bundle(oc_tool_options* options)
         oc_file_copy(options->resFiles[i], resDir, 0);
     }
 
+    //NOTE: copy icon
+    if(options->icon.len)
+    {
+        oc_str8 ext = oc_path_slice_extension(options->icon);
+        oc_str8 name = oc_str8_pushf(scratch.arena, "thumbnail%.*s", oc_str8_ip(ext));
+        oc_str8 path = oc_path_append(scratch.arena, resDir, name);
+        oc_file_copy(options->icon, path, 0);
+    }
+
     //NOTE: zip folder to out directory
     int status = 0;
     oc_str8 outDir = options->standalone ? tmpDir : options->outDir;

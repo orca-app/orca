@@ -2117,8 +2117,23 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
             box->style.roundness = targetStyle->roundness;
         }
 
-        //NOTE: float target is animated in compute rect
-        box->style.floatTarget = targetStyle->floatTarget;
+        if(mask & OC_UI_MASK_FLOAT_TARGET_X)
+        {
+            oc_ui_animate_f32(ui, &box->style.floatTarget.x, targetStyle->floatTarget.x, animationTime);
+        }
+        else
+        {
+            box->style.floatTarget.x = targetStyle->floatTarget.x;
+        }
+
+        if(mask & OC_UI_MASK_FLOAT_TARGET_Y)
+        {
+            oc_ui_animate_f32(ui, &box->style.floatTarget.y, targetStyle->floatTarget.y, animationTime);
+        }
+        else
+        {
+            box->style.floatTarget.y = targetStyle->floatTarget.y;
+        }
 
         //TODO: non animatable attributes. use mask
         box->style.layout = targetStyle->layout;
