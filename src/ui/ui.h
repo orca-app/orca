@@ -265,6 +265,8 @@ struct oc_ui_box
     // hierarchy
     oc_list_elt listElt;
     oc_list children;
+    u32 childCount;
+
     oc_ui_box* parent;
 
     oc_list_elt overlayElt;
@@ -318,6 +320,9 @@ struct oc_ui_box
     // user data
     u64 userFrameCounter;
     void* user;
+
+    //TODO: remove
+    bool wrap;
 };
 
 //-------------------------------------------------------------------------------------
