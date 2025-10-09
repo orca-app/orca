@@ -324,7 +324,7 @@ int main(void)
     }
 
     // platform_thread
-    if(1)
+    if(0)
     {
         bool flag = false;
         oc_thread* thd = oc_thread_create(set_flag_thread_proc, &flag);
@@ -571,38 +571,50 @@ int main(void)
     // - oc_io_raw_fstat_at
     // - oc_io_raw_read_link_at
 
-    //oc_init();
-    //oc_clock_init();
+
+    oc_init();
+    oc_terminate();
+
+    oc_init();
+    oc_rect rect = { 100.0f, 100.0f, 400.0f, 200.0f };
+    oc_window win = {0};
+    win = oc_window_create(rect, OC_STR8("Orca on Linux"), 0);
+    OC_ASSERT(!oc_window_is_nil(win));
+    {
+        void *p = oc_window_native_pointer(win);
+        OC_ASSERT(p);
+        p = oc_window_native_pointer(oc_window_nil());
+        OC_ASSERT(!p);
+    }
+    oc_window_set_title(win, OC_STR8("Orca on Linux edited"));
+    oc_window_hide(win);
+    oc_window_show(win);
+    oc_window_destroy(win);
+    oc_terminate();
 
     // TODO(pld): test app.h
-    // - oc_init
-    // - oc_terminate
+    // - oc_window_is_hidden
+    // - oc_window_minimize
+    // - oc_window_maximize
+    // - oc_window_is_minimized
+    // - oc_window_is_maximized
+    //
+    // - oc_window_send_to_back
+    // - oc_window_send_to_front
+    // - oc_window_has_focus
+    // - oc_window_focus
+    // - oc_window_unfocus
+    // - oc_window_restore
+    //
     // - oc_should_quit
     // - oc_request_quit
     // - oc_set_cursor
     // - oc_pump_events
     // - oc_next_event
     // - oc_scancode_to_keycode
-    // - oc_window_create
-    // - oc_window_destroy
-    // - oc_window_native_pointer
     // - oc_window_should_close
     // - oc_window_request_close
     // - oc_window_cancel_close
-    // - oc_window_is_hidden
-    // - oc_window_hide
-    // - oc_window_show
-    // - oc_window_set_title
-    // - oc_window_is_minimized
-    // - oc_window_is_maximized
-    // - oc_window_minimize
-    // - oc_window_maximize
-    // - oc_window_restore
-    // - oc_window_has_focus
-    // - oc_window_focus
-    // - oc_window_unfocus
-    // - oc_window_send_to_back
-    // - oc_window_send_to_front
     // - oc_window_get_frame_rect
     // - oc_window_set_frame_rect
     // - oc_window_set_frame_position

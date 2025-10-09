@@ -125,8 +125,11 @@ void oc_init(void)
 
 void oc_terminate(void)
 {
+    oc_linux_app_data* linux = &oc_appData.linux;
+    oc_linux_x11* x11 = &linux->x11;
+
+    XCloseDisplay(x11->display);
     oc_terminate_common();
-    // TODO(pld): close X11 connection
     return;
 }
 bool oc_should_quit(void)
@@ -503,13 +506,24 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
 
 void oc_window_destroy(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+
+    xcb_destroy_window(conn, windowData->linux.x11Id);
+    xcb_flush(conn);
+    oc_window_recycle_ptr(windowData);
     return;
 }
 void* oc_window_native_pointer(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
-    return (NULL);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    void* ptr = NULL;
+    if(windowData)
+    {
+        ptr = (void*)(uptr)windowData->linux.x11Id;
+    }
+    return ptr;
 }
 
 bool oc_window_should_close(oc_window window)
@@ -548,7 +562,7 @@ void oc_window_hide(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData && windowData->linux.state == X11_WINDOW_STATE_NORMAL)
+    if(windowData)
     {
         xcb_client_message_event_t msg =
         {
@@ -568,9 +582,8 @@ void oc_window_show(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData && windowData->linux.state != X11_WINDOW_STATE_NORMAL)
+    if(windowData)
     {
-        OC_ASSERT(windowData->linux.state == X11_WINDOW_STATE_ICONIC);
         xcb_map_window(conn, windowData->linux.x11Id);
         xcb_flush(conn);
     }
