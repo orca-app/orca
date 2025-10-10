@@ -118,7 +118,6 @@ void overlay_ui(oc_debug_overlay* overlay)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.4 });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 0.5 });
 
                 oc_ui_box("log toolbar")
@@ -169,14 +168,14 @@ void overlay_ui(oc_debug_overlay* overlay)
                 {
                     if(panel->scroll.y >= scrollY)
                     {
-                        panel->scroll.y = oc_clamp_low(panel->childrenSum[1] - panel->rect.h, 0);
+                        panel->scroll.y = oc_clamp_low(panel->childrenSum.y - panel->rect.h, 0);
                     }
                     else
                     {
                         overlay->logScrollToLast = false;
                     }
                 }
-                else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
+                else if(panel->scroll.y >= (panel->childrenSum.y - panel->rect.h) - 1)
                 {
                     overlay->logScrollToLast = true;
                 }
@@ -1869,7 +1868,6 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
         oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
-        oc_ui_style_set_i32(OC_UI_CONSTRAIN_X, 1);
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
 
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
@@ -1897,7 +1895,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, procPanelSize });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
@@ -1907,7 +1905,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
                 oc_ui_box("browser-tabs")
@@ -1996,7 +1994,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_f32(OC_UI_SPACING, 5);
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
@@ -2023,7 +2021,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
             oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
 
@@ -2053,7 +2051,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
                 oc_ui_box("tabs")
@@ -2225,7 +2223,6 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
                 oc_ui_box("tabs")
                 {

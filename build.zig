@@ -1135,6 +1135,8 @@ pub fn build(b: *Build) !void {
 
     const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, orca_platform_install_opts);
 
+    const orca_platform_layer = b.step("platform-layer", "Build orca platform layer library");
+    orca_platform_layer.dependOn(&orca_platform_install.step);
     // warm
 
     const warm_lib = b.addLibrary(.{
