@@ -168,14 +168,14 @@ void overlay_ui(oc_debug_overlay* overlay)
                 {
                     if(panel->scroll.y >= scrollY)
                     {
-                        panel->scroll.y = oc_clamp_low(panel->childrenSum.y - panel->rect.h, 0);
+                        panel->scroll.y = oc_clamp_low(panel->contentSize.y - panel->rect.h, 0);
                     }
                     else
                     {
                         overlay->logScrollToLast = false;
                     }
                 }
-                else if(panel->scroll.y >= (panel->childrenSum.y - panel->rect.h) - 1)
+                else if(panel->scroll.y >= (panel->contentSize.y - panel->rect.h) - 1)
                 {
                     overlay->logScrollToLast = true;
                 }

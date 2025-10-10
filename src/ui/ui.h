@@ -280,9 +280,9 @@ struct oc_ui_box
     oc_ui_style style;
     u32 z;
 
+    //TODO: review
     oc_vec2 floatPos;
-    oc_vec2 childrenSum;
-    f32 spacing[2];
+    oc_vec2 contentSize;
     f32 minSize[2];
     oc_rect rect;
 

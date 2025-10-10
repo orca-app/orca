@@ -68,12 +68,13 @@ i32 ui_runloop(void* user)
             oc_ui_box("a")
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, width });
-                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 600 });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
                 oc_ui_style_set_f32(OC_UI_SPACING, 10);
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 1, 1 });
 
+                oc_ui_style_set_i32(OC_UI_WRAP, 1);
                 oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
 
                 /*
@@ -108,13 +109,13 @@ i32 ui_runloop(void* user)
 
                 oc_ui_box("e")
                 {
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 1, .minSize = 70, .maxSize = 200 });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 1 });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 0, .minSize = 70, .maxSize = 200 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 0 });
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
                 }
                 oc_ui_box("f")
                 {
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 1, .minSize = 70, .maxSize = 200 });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 0, .minSize = 70, .maxSize = 200 });
                     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 1, 1 });
                 }
