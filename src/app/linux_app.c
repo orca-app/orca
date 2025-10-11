@@ -164,7 +164,6 @@ static oc_window window_handle_from_x11_id(u32 winId)
 }
 static void log_generic_event(const char* name, xcb_generic_event_t* ev)
 {
-    return;
     oc_log_info(
         "EVENT:\n"
         "  response_type: %s (%u)\n"
@@ -197,7 +196,7 @@ void oc_pump_events(f64 timeout)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
 
-    // TODO(pld): XCB doesn't any helper for timed-wait event polling? Huh?
+    // TODO(pld): XCB doesn't have any helper for timed-wait event polling?
     OC_ASSERT(timeout == 0 || timeout == -1.0);
 
     xcb_generic_event_t* ev = NULL;
@@ -219,52 +218,58 @@ void oc_pump_events(f64 timeout)
         switch(ev->response_type)
         {
         case XCB_KEY_PRESS:
-            log_generic_event("KeyPress", ev);
+            type = "KeyPress";
             break;
         case XCB_KEY_RELEASE:
-            log_generic_event("KeyRelease", ev);
+            type = "KeyRelease";
             break;
         case XCB_BUTTON_PRESS:
-            log_generic_event("ButtonPress", ev);
+            type = "ButtonPress";
             break;
         case XCB_BUTTON_RELEASE:
-            log_generic_event("ButtonRelease", ev);
+            type = "ButtonRelease";
             break;
         case XCB_MOTION_NOTIFY:
-            log_generic_event("MotionNotify", ev);
+            type = "MotionNotify";
             break;
         case XCB_ENTER_NOTIFY:
-            log_generic_event("EnterNotify", ev);
+            type = "EnterNotify";
             break;
         case XCB_LEAVE_NOTIFY:
-            log_generic_event("LeaveNotify", ev);
+            type = "LeaveNotify";
             break;
         case XCB_FOCUS_IN:
-            log_generic_event("FocusIn", ev);
+            type = "FocusIn";
             break;
         case XCB_FOCUS_OUT:
-            log_generic_event("FocusOut", ev);
+            type = "FocusOut";
             break;
         case XCB_KEYMAP_NOTIFY:
-            log_generic_event("KeymapNotify", ev);
+            type = "KeymapNotify";
             break;
         case XCB_EXPOSE:
+            type = "Expose";
             oc_notpossible();
             break;
         case XCB_GRAPHICS_EXPOSURE:
+            type = "GraphicsExposure";
             oc_notpossible();
             break;
         case XCB_NO_EXPOSURE:
+            type = "NoExposure";
             oc_notpossible();
             break;
         case XCB_VISIBILITY_NOTIFY:
+            type = "VisiblityNotify";
             oc_notpossible();
             break;
         case XCB_CREATE_NOTIFY:
+            type = "CreateNotify";
             oc_notpossible();
             break;
         case XCB_DESTROY_NOTIFY:
         {
+            type = "DestroyNotify";
             xcb_destroy_notify_event_t* noti = (xcb_destroy_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -286,6 +291,7 @@ void oc_pump_events(f64 timeout)
         } break;
         case XCB_UNMAP_NOTIFY:
         {
+            type = "UnmapNotify";
             xcb_unmap_notify_event_t* noti = (xcb_unmap_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -296,6 +302,7 @@ void oc_pump_events(f64 timeout)
         } break;
         case XCB_MAP_NOTIFY:
         {
+            type = "MapNotify";
             xcb_map_notify_event_t* noti = (xcb_map_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -305,10 +312,12 @@ void oc_pump_events(f64 timeout)
             }
         } break;
         case XCB_MAP_REQUEST:
+            type = "MapRequest";
             oc_notpossible();
             break;
         case XCB_REPARENT_NOTIFY:
         {
+            type = "ReparentNotify";
             xcb_reparent_notify_event_t* noti = (xcb_reparent_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -320,17 +329,20 @@ void oc_pump_events(f64 timeout)
         } break;
         case XCB_CONFIGURE_NOTIFY:
         {
+            type = "ConfigureNotify";
             xcb_configure_notify_event_t* noti = (xcb_configure_notify_event_t*)ev;
             
         } break;
         case XCB_CONFIGURE_REQUEST:
+            type = "ConfigureRequest";
             oc_notpossible();
             break;
         case XCB_GRAVITY_NOTIFY:
-            log_generic_event("GravityNotify", ev);
+            type = "GravityNotify";
             break;
         case XCB_RESIZE_REQUEST:
         {
+            type = "ResizeRequest";
             xcb_resize_request_event_t* rr = (xcb_resize_request_event_t*)ev;
             oc_log_info(
                 "EVENT:\n"
@@ -349,33 +361,34 @@ void oc_pump_events(f64 timeout)
             );
         } break;
         case XCB_CIRCULATE_NOTIFY:
-            log_generic_event("CirculateNotify", ev);
+            type = "CirculateNotify";
             break;
         case XCB_CIRCULATE_REQUEST:
-            log_generic_event("CirculateRequest", ev);
+            type = "CirculateRequest";
             break;
         case XCB_PROPERTY_NOTIFY:
-            log_generic_event("PropertyNotify", ev);
+            type = "PropertyNotify";
             break;
         case XCB_SELECTION_CLEAR:
-            log_generic_event("SelectionClear", ev);
+            type = "SelectionClear";
             break;
         case XCB_SELECTION_REQUEST:
-            log_generic_event("SelectionRequest", ev);
+            type = "SelectionRequest";
             break;
         case XCB_SELECTION_NOTIFY:
-            log_generic_event("SelectionNotify", ev);
+            type = "SelectionNotify";
             break;
         case XCB_COLORMAP_NOTIFY:
-            log_generic_event("ColormapNotify", ev);
+            type = "ColormapNotify";
             break;
         case XCB_CLIENT_MESSAGE:
-            log_generic_event("ClientMessage", ev);
+            type = "ClientMessage";
             break;
         case XCB_MAPPING_NOTIFY:
-            log_generic_event("MappingNotify", ev);
+            type = "MappingNotify";
             break;
         }
+        log_generic_event(type, ev);
         ev = xcb_poll_for_event(conn);
     }
     // TODO(pld): handle I/O errors
@@ -572,7 +585,10 @@ void oc_window_hide(oc_window window)
             .type = linux->x11.atoms.WM_CHANGE_STATE,
             .data.data32[0] = X11_WINDOW_STATE_ICONIC,
         };
-        xcb_send_event(conn, false, linux->x11.rootWinId, 0, (const char*)&msg);
+        xcb_send_event(conn, false, linux->x11.rootWinId,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            (const char*)&msg);
         xcb_flush(conn);
     }
     return;

@@ -162,8 +162,11 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
 
     str.ptr = oc_arena_push_array(arena, char, str.len + 1);
     char* dst = str.ptr;
-    memcpy(dst, prefix.ptr, prefix.len);
-    dst += prefix.len;
+    if(prefix.len > 0)
+    {
+        memcpy(dst, prefix.ptr, prefix.len);
+        dst += prefix.len;
+    }
 
     oc_str8_elt* elt = oc_list_first_entry(list.list, oc_str8_elt, listElt);
     if(elt)
@@ -175,12 +178,18 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
 
     for(; elt != 0; elt = oc_list_next_entry(elt, oc_str8_elt, listElt))
     {
-        memcpy(dst, separator.ptr, separator.len);
-        dst += separator.len;
+        if(separator.len > 0)
+        {
+            memcpy(dst, separator.ptr, separator.len);
+            dst += separator.len;
+        }
         memcpy(dst, elt->string.ptr, elt->string.len);
         dst += elt->string.len;
     }
-    memcpy(dst, postfix.ptr, postfix.len);
+    if(postfix.len > 0)
+    {
+        memcpy(dst, postfix.ptr, postfix.len);
+    }
     str.ptr[str.len] = '\0';
     return (str);
 }
