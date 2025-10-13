@@ -1467,7 +1467,9 @@ pub fn build(b: *Build) !void {
             continue;
         }
 
-        const flags: []const []const u8 = &.{
+        var flags: [8][]const u8 = .{
+            "",
+            "",
             "-Isrc",
             "-Isrc/ext",
             "-Isrc/ext/angle/include",
@@ -1475,6 +1477,11 @@ pub fn build(b: *Build) !void {
             "-Isrc/util",
             "-Isrc/platform",
         };
+        if (optimize == .Debug) {
+            flags[0] = "-DOC_DEBUG=1";
+            // TODO(pld): not used in code?
+            flags[1] = "-DOC_LOG_COMPILE_DEBUG=1";
+        }
 
         const sketch_exe: *Build.Step.Compile = b.addExecutable(.{
             .name = sketch,
@@ -1486,7 +1493,7 @@ pub fn build(b: *Build) !void {
         });
         sketch_exe.addCSourceFiles(.{
             .files = &.{sketch_source},
-            .flags = flags,
+            .flags = &flags,
         });
 
         if (target.result.os.tag == .linux) {

@@ -59,19 +59,40 @@ extern "C" {
 #else
     // TODO(pld): msvc debugbreak instead of builtin_trap?
     #define _OC_ASSERT_(test, fmt, ...) \
-        do {  \
+        do  \
+        {  \
             if(!(test)) {  \
                 if(OC_DEBUG)  __builtin_trap();  \
                 oc_assert_fail(__FILE__, __FUNCTION__, __LINE__, #test, fmt, ##__VA_ARGS__);  \
             }  \
-        } while(0)
+        }  \
+        while(0)
     #define OC_ASSERT(test, ...) _OC_ASSERT_(test, OC_VA_NOPT("", ##__VA_ARGS__) OC_ARG1(__VA_ARGS__) OC_VA_COMMA_TAIL(__VA_ARGS__))
 
     #define OC_DEBUG_ASSERT(x, ...) do { if(OC_DEBUG)  OC_ASSERT(x, ##__VA_ARGS__); } while(0)
 #endif
 
-#define oc_notpossible() OC_ABORT("Not possible")
-#define oc_unimplemented() OC_ABORT("Unimplemented")
+#define oc_notpossible() \
+    do  \
+    {  \
+        if(OC_DEBUG)  OC_ASSERT(0, "Not possible");  \
+        else  OC_ABORT("Not possible");  \
+    }  \
+    while(0)
+#define oc_unimplemented() \
+    do  \
+    {  \
+        if(OC_DEBUG)  OC_ASSERT(0, "Unimplemented");  \
+        else  OC_ABORT("Unimplemented");  \
+    }  \
+    while(0)
+#define oc_unreachable() \
+    do  \
+    {  \
+        if(OC_DEBUG)  OC_ASSERT(0, "Unreachable");  \
+        else  __builtin_unreachable();  \
+    }  \
+    while(0)
 
 #define OC_STATIC_ASSERT(expr)  _Static_assert(expr, "")
 

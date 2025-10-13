@@ -31,6 +31,7 @@ typedef struct oc_linux_x11
         xcb_atom_t _NET_WM_NAME;
         xcb_atom_t _NET_WM_ICON_NAME;
         xcb_atom_t UTF8_STRING;
+        xcb_atom_t WM_STATE;
         xcb_atom_t WM_CHANGE_STATE;
     } atoms;
     u32 rootWinId;

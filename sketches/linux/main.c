@@ -587,24 +587,66 @@ int main(void)
         OC_ASSERT(!p);
     }
     oc_window_set_title(win, OC_STR8("Orca on Linux edited"));
-    oc_window_hide(win);
+
+    int tries = 0, max_tries = 100;
+
+    OC_ASSERT(oc_window_is_hidden(win));
+
+    // Withdrawn -> Normal
     oc_window_show(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Normal -> Iconic
+    oc_window_minimize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Iconic -> Normal
+    oc_window_show(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Normal -> Withdrawn
+    oc_window_hide(win);
+    tries = 0;
+    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Withdrawn -> Iconic
+    oc_window_minimize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Iconic -> Withdrawn
+    oc_window_hide(win);
+    tries = 0;
+    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Withdrawn -> Normal, again
+    oc_window_show(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
     oc_window_destroy(win);
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - oc_window_is_hidden
-    // - oc_window_minimize
     // - oc_window_maximize
-    // - oc_window_is_minimized
     // - oc_window_is_maximized
+    // - oc_window_restore
     //
     // - oc_window_send_to_back
     // - oc_window_send_to_front
     // - oc_window_has_focus
     // - oc_window_focus
     // - oc_window_unfocus
-    // - oc_window_restore
     //
     // - oc_should_quit
     // - oc_request_quit

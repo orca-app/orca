@@ -11,6 +11,7 @@
 #include "graphics/graphics.h"
 
 #include <errno.h>
+#include <poll.h>
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
 #include <xcb/xcb_ewmh.h>
@@ -50,13 +51,17 @@ static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) <= U32_MAX,
 // TODO(pld): quit
 // TODO(pld): dispatch main thread
 // TODO(pld): mouse cursor
+//
+
+// NOTE(pld): Thread safety: we assume a thread is pumping events and writing
+// into each window's windowData, but cannot delete or create new ones.
+// Meanwhile, another thread will dequeue oc_events and read windowData and
+// create/delete entries.
 
 static inline void* memz(void* buf, size_t n)
 {
     return (memset(buf, 0, n));
 }
-
-void free(void* ptr);
 
 void oc_init(void)
 {
@@ -83,6 +88,7 @@ void oc_init(void)
         DEF_ATOM(_NET_WM_NAME),
         DEF_ATOM(_NET_WM_ICON_NAME),
         DEF_ATOM(UTF8_STRING),
+        DEF_ATOM(WM_STATE),
         DEF_ATOM(WM_CHANGE_STATE),
         #undef DEF_ATOM
     };
@@ -132,21 +138,25 @@ void oc_terminate(void)
     oc_terminate_common();
     return;
 }
+
 bool oc_should_quit(void)
 {
     // TODO(pld)
     return (false);
 }
+
 void oc_request_quit(void)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
+
 void oc_set_cursor(oc_mouse_cursor cursor)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
+
 // TODO(pld): Does this lack thread safety?
 static oc_window window_handle_from_x11_id(u32 winId)
 {
@@ -162,6 +172,7 @@ static oc_window window_handle_from_x11_id(u32 winId)
     }
     return window;
 }
+
 static void log_generic_event(const char* name, xcb_generic_event_t* ev)
 {
     oc_log_info(
@@ -196,21 +207,53 @@ void oc_pump_events(f64 timeout)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
 
-    // TODO(pld): XCB doesn't have any helper for timed-wait event polling?
-    OC_ASSERT(timeout == 0 || timeout == -1.0);
+    {
+        int ok = xcb_flush(conn);
+        OC_ASSERT(ok > 0);
+    }
 
     xcb_generic_event_t* ev = NULL;
-    if(timeout == 0.0)
     {
-        ev = xcb_poll_for_event(conn);
-    }
-    else if(timeout == -1.0)
-    {
-        ev = xcb_wait_for_event(conn);
-    }
-    else
-    {
-        __builtin_unreachable();
+        int fd = xcb_get_file_descriptor(conn);
+        struct pollfd fds = { .fd = fd, .events = POLLIN };
+        int ok = 0;
+        f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);
+        f64 end = 0.0;
+        if(timeout < 0.0)
+        {
+            end = -1.0;
+        }
+        else if(timeout > 0.0)
+        {
+            end = start + timeout * 1e9;
+        }
+        while(true)
+        {
+            int ms = 0;
+            if(end < -1.0)
+            {
+                ms = -1;
+            }
+            else if(end > 0.0)
+            {
+                ms = (int)oc_clamp((end - start) / 1e6, 0.0, (double)INT_MAX);
+            }
+            ok = poll(&fds, 1, ms);
+            if(ok == -1 && errno == EINTR)
+            {
+                start = oc_clock_time(OC_CLOCK_MONOTONIC);
+            }
+            else
+            {
+                break;
+            }
+        }
+        OC_ASSERT(ok == 0 || ok == 1);
+        if(ok == 1)
+        {
+            OC_ASSERT(fds.revents == POLLIN);
+            ev = xcb_poll_for_event(conn);
+        }
     }
     while(ev)
     {
@@ -269,6 +312,7 @@ void oc_pump_events(f64 timeout)
             break;
         case XCB_DESTROY_NOTIFY:
         {
+            // TODO(pld): do not do this here
             type = "DestroyNotify";
             xcb_destroy_notify_event_t* noti = (xcb_destroy_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
@@ -368,6 +412,57 @@ void oc_pump_events(f64 timeout)
             break;
         case XCB_PROPERTY_NOTIFY:
             type = "PropertyNotify";
+            // TODO(pld): use timestamp?
+            xcb_property_notify_event_t* noti = (xcb_property_notify_event_t*)ev;
+            oc_window window = window_handle_from_x11_id(noti->window);
+            oc_window_data* windowData = oc_window_ptr_from_handle(window);
+            if(windowData && noti->atom == linux->x11.atoms.WM_STATE)
+            {
+                enum {
+                    X11_PROPERTY_NOTIFY_NEW_VALUE = 0,
+                    X11_PROPERTY_NOTIFY_DELETED = 1,
+                };
+                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                {
+                    xcb_get_property_cookie_t cookie = xcb_get_property(conn,
+                        false, windowData->linux.x11Id, linux->x11.atoms.WM_STATE,
+                        linux->x11.atoms.WM_STATE, 0, 1);
+                    xcb_flush(conn);
+                    xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, NULL);
+                    // TODO(pld): handle errors
+                    OC_ASSERT(reply);
+                    OC_ASSERT(reply->response_type == 1);
+                    if(reply->type == XCB_NONE)  break;
+                    OC_ASSERT(reply->type == linux->x11.atoms.WM_STATE);
+                    OC_ASSERT(reply->format == 32);
+                    OC_ASSERT(reply->bytes_after == 4);
+                    OC_ASSERT(reply->value_len == 1);
+                    uint32_t* p = xcb_get_property_value(reply);
+                    OC_ASSERT(p);
+                    x11_window_state state = *p;
+                    if(state == X11_WINDOW_STATE_WITHDRAWN)
+                    {
+                        windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
+                    }
+                    else if(state == X11_WINDOW_STATE_ICONIC && windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
+                    {
+                        windowData->linux.state = X11_WINDOW_STATE_ICONIC;
+                    }
+                    else
+                    {
+                        OC_ASSERT(state == windowData->linux.state);
+                    }
+                    free(reply);
+                }
+                else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
+                {
+                    windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
+                }
+                else
+                {
+                    oc_unreachable();
+                }
+            }
             break;
         case XCB_SELECTION_CLEAR:
             type = "SelectionClear";
@@ -439,31 +534,33 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         .backing_pixel = 0,
         .override_redirect = false,
         .save_under = false,
-        .event_mask = XCB_EVENT_MASK_KEY_PRESS |
-            XCB_EVENT_MASK_KEY_RELEASE |
-            XCB_EVENT_MASK_BUTTON_PRESS |
-            XCB_EVENT_MASK_BUTTON_RELEASE |
-            XCB_EVENT_MASK_ENTER_WINDOW |
-            XCB_EVENT_MASK_LEAVE_WINDOW |
-            XCB_EVENT_MASK_POINTER_MOTION |
-            XCB_EVENT_MASK_POINTER_MOTION_HINT |
-            XCB_EVENT_MASK_BUTTON_1_MOTION |
-            XCB_EVENT_MASK_BUTTON_2_MOTION |
-            XCB_EVENT_MASK_BUTTON_3_MOTION |
-            XCB_EVENT_MASK_BUTTON_4_MOTION |
-            XCB_EVENT_MASK_BUTTON_5_MOTION |
-            XCB_EVENT_MASK_BUTTON_MOTION |
-            XCB_EVENT_MASK_KEYMAP_STATE |
+        .event_mask =
+            //XCB_EVENT_MASK_KEY_PRESS |
+            //XCB_EVENT_MASK_KEY_RELEASE |
+            //XCB_EVENT_MASK_BUTTON_PRESS |
+            //XCB_EVENT_MASK_BUTTON_RELEASE |
+            //XCB_EVENT_MASK_ENTER_WINDOW |
+            //XCB_EVENT_MASK_LEAVE_WINDOW |
+            //XCB_EVENT_MASK_POINTER_MOTION |
+            //XCB_EVENT_MASK_POINTER_MOTION_HINT |
+            //XCB_EVENT_MASK_BUTTON_1_MOTION |
+            //XCB_EVENT_MASK_BUTTON_2_MOTION |
+            //XCB_EVENT_MASK_BUTTON_3_MOTION |
+            //XCB_EVENT_MASK_BUTTON_4_MOTION |
+            //XCB_EVENT_MASK_BUTTON_5_MOTION |
+            //XCB_EVENT_MASK_BUTTON_MOTION |
+            //XCB_EVENT_MASK_KEYMAP_STATE |
             //XCB_EVENT_MASK_EXPOSURE |
             //XCB_EVENT_MASK_VISIBILITY_CHANGE |
             XCB_EVENT_MASK_STRUCTURE_NOTIFY |
             //XCB_EVENT_MASK_RESIZE_REDIRECT |
-            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            //XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
             //XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
-            XCB_EVENT_MASK_FOCUS_CHANGE |
+            //XCB_EVENT_MASK_FOCUS_CHANGE |
             XCB_EVENT_MASK_PROPERTY_CHANGE |
-            XCB_EVENT_MASK_COLOR_MAP_CHANGE |
-            XCB_EVENT_MASK_OWNER_GRAB_BUTTON,
+            //XCB_EVENT_MASK_COLOR_MAP_CHANGE |
+            //XCB_EVENT_MASK_OWNER_GRAB_BUTTON |
+            0,
         .do_not_propogate_mask = 0,
         .colormap = XCB_COPY_FROM_PARENT,
         .cursor = XCB_CURSOR_NONE,
@@ -484,7 +581,7 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     };
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
         winId, XCB_ATOM_WM_HINTS,
-        XCB_ATOM_WM_HINTS, 8, sizeof(wmHints), &wmHints);
+        XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
     static const u32 wmNormalHints[18] = {
         /* flags: PPosition, PSize, PResizeInc, PWinGravity */
         [0] = 4 | 8 | 64 | 512,
@@ -496,11 +593,10 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     };
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
         winId, XCB_ATOM_WM_NORMAL_HINTS,
-        XCB_ATOM_WM_SIZE_HINTS, 8, sizeof(wmNormalHints), &wmNormalHints);
+        XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(wmNormalHints) / 4, &wmNormalHints);
     // TODO(pld): WM_CLASS?
     // TODO(pld): WM_PROTOCOLS?
     // TODO(pld): CLIENT_MACHINE?
-    xcb_flush(conn);
 
     oc_window_data* windowData = oc_window_alloc();
     windowData->linux.x11Id = winId;
@@ -512,7 +608,6 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     };
 
     oc_window_set_title(window, title);
-    oc_window_show(window);
 
     return (window);
 }
@@ -524,10 +619,10 @@ void oc_window_destroy(oc_window window)
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
 
     xcb_destroy_window(conn, windowData->linux.x11Id);
-    xcb_flush(conn);
     oc_window_recycle_ptr(windowData);
     return;
 }
+
 void* oc_window_native_pointer(oc_window window)
 {
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -544,6 +639,7 @@ bool oc_window_should_close(oc_window window)
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     return (windowData && windowData->shouldClose);
 }
+
 void oc_window_request_close(oc_window window)
 {
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -554,6 +650,7 @@ void oc_window_request_close(oc_window window)
     }
     return;
 }
+
 void oc_window_cancel_close(oc_window window)
 {
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
@@ -562,49 +659,7 @@ void oc_window_cancel_close(oc_window window)
     }
     return;
 }
-// TODO(pld): thread safety? I mean, AFAICT this is run on the WASM thread,
-// while pump_events is on the main thread. If the main thread destroy the
-// window in the middle of this function, we would crash...
-bool oc_window_is_hidden(oc_window window)
-{
-    oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    return (windowData && windowData->linux.state != X11_WINDOW_STATE_NORMAL);
-}
-void oc_window_hide(oc_window window)
-{
-    oc_linux_app_data* linux = &oc_appData.linux;
-    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
-    oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData)
-    {
-        xcb_client_message_event_t msg =
-        {
-            .response_type = XCB_CLIENT_MESSAGE,
-            .format = 32,
-            .window = windowData->linux.x11Id,
-            .type = linux->x11.atoms.WM_CHANGE_STATE,
-            .data.data32[0] = X11_WINDOW_STATE_ICONIC,
-        };
-        xcb_send_event(conn, false, linux->x11.rootWinId,
-            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
-            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
-            (const char*)&msg);
-        xcb_flush(conn);
-    }
-    return;
-}
-void oc_window_show(oc_window window)
-{
-    oc_linux_app_data* linux = &oc_appData.linux;
-    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
-    oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData)
-    {
-        xcb_map_window(conn, windowData->linux.x11Id);
-        xcb_flush(conn);
-    }
-    return;
-}
+
 void oc_window_set_title(oc_window window, oc_str8 title)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
@@ -625,33 +680,130 @@ void oc_window_set_title(oc_window window, oc_str8 title)
         xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
             windowData->linux.x11Id, linux->x11.atoms._NET_WM_ICON_NAME,
             linux->x11.atoms.UTF8_STRING, 8, saturated_len, title.ptr);
-        xcb_flush(conn);
     }
     return;
 }
-bool oc_window_is_minimized(oc_window window)
+
+void oc_window_show(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
-    return (false);
-}
-bool oc_window_is_maximized(oc_window window)
-{
-    OC_ASSERT(0 && "Unimplemented");
-    return (false);
-}
-void oc_window_minimize(oc_window window)
-{
-    OC_ASSERT(0 && "Unimplemented");
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData && windowData->linux.state != X11_WINDOW_STATE_NORMAL)
+    {
+        if(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
+        {
+            static const u32 wmHints[9] = {
+                /* flags: InputHint, StateHint */
+                1 | 2,
+                /* input: Passive (as we don't add WM_TAKE_FOCUS to the WM_PROTOCOLS
+                 * property) */
+                1,
+                /* initial_state */
+                X11_WINDOW_STATE_NORMAL,
+            };
+            xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                windowData->linux.x11Id, XCB_ATOM_WM_HINTS,
+                XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
+        }
+        xcb_map_window(conn, windowData->linux.x11Id);
+    }
     return;
 }
+
+bool oc_window_is_hidden(oc_window window)
+{
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    return (windowData && windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN);
+}
+
+void oc_window_hide(oc_window window)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData) {
+        xcb_unmap_window(conn, windowData->linux.x11Id);
+        xcb_unmap_notify_event_t msg =
+        {
+            .response_type = XCB_UNMAP_NOTIFY,
+            .event = linux->x11.rootWinId,
+            .window = windowData->linux.x11Id,
+            .from_configure = false,
+        };
+        xcb_send_event(conn, false, linux->x11.rootWinId,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            (const char*)&msg);
+    }
+}
+
+bool oc_window_is_minimized(oc_window window)
+{
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    return (windowData && windowData->linux.state == X11_WINDOW_STATE_ICONIC);
+}
+
+void oc_window_minimize(oc_window window)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData && windowData->linux.state != X11_WINDOW_STATE_ICONIC)
+    {
+        if(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
+        {
+            static const u32 wmHints[9] = {
+                /* flags: InputHint, StateHint */
+                1 | 2,
+                /* input: Passive (as we don't add WM_TAKE_FOCUS to the WM_PROTOCOLS
+                 * property) */
+                1,
+                /* initial_state */
+                X11_WINDOW_STATE_ICONIC,
+            };
+            xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                windowData->linux.x11Id, XCB_ATOM_WM_HINTS,
+                XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
+            xcb_map_window(conn, windowData->linux.x11Id);
+        }
+        else if(windowData->linux.state == X11_WINDOW_STATE_NORMAL)
+        {
+            xcb_client_message_event_t msg =
+            {
+                .response_type = XCB_CLIENT_MESSAGE,
+                .format = 32,
+                .window = windowData->linux.x11Id,
+                .type = linux->x11.atoms.WM_CHANGE_STATE,
+                .data.data32[0] = X11_WINDOW_STATE_ICONIC,
+            };
+            xcb_send_event(conn, false, linux->x11.rootWinId,
+                XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+                XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+                (const char*)&msg);
+            }
+        else
+        {
+            oc_unreachable();
+        }
+    }
+    return;
+}
+
+bool oc_window_is_maximized(oc_window window)
+{
+    oc_unimplemented();
+    return (false);
+}
+
 void oc_window_maximize(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 void oc_window_restore(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 
@@ -703,7 +855,7 @@ void oc_window_unfocus(oc_window window)
 }
 void oc_window_send_to_back(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 void oc_window_bring_to_front(oc_window window)
@@ -713,12 +865,12 @@ void oc_window_bring_to_front(oc_window window)
 }
 oc_rect oc_window_get_frame_rect(oc_window window)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_rect){0});
 }
 void oc_window_set_frame_rect(oc_window window, oc_rect rect)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 oc_rect oc_window_get_content_rect(oc_window window)
@@ -757,108 +909,108 @@ void oc_window_center(oc_window window)
 }
 oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_window_style style)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_rect){0});
 }
 oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_style style)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_rect){0});
 }
 i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (-1);
 }
 void oc_clipboard_clear(void)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 void oc_clipboard_set_string(oc_str8 string)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 oc_str8 oc_clipboard_get_string(oc_arena* arena)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_str8){0});
 }
 oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_str8){0});
 }
 bool oc_clipboard_has_tag(const char* tag)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (false);
 }
 void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_str8){0});
 }
 oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_file_dialog_result){0});
 }
 int oc_alert_popup(oc_str8 title, oc_str8 message, oc_str8_list options)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (-1);
 }
 int oc_file_move(oc_str8 from, oc_str8 to)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (-1);
 }
 int oc_file_remove(oc_str8 path)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (-1);
 }
 int oc_directory_create(oc_str8 path)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (-1);
 }
 
 /*
 void oc_surface_cleanup(oc_surface_data* surface)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 
 oc_vec2 oc_linux_surface_get_size(oc_surface_data* surface)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_vec2){0});
 }
 
 oc_vec2 oc_linux_surface_contents_scaling(oc_surface_data* surface)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return ((oc_vec2){0});
 }
 
 bool oc_linux_surface_get_hidden(oc_surface_data* surface)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return (false);
 }
 
 void oc_linux_surface_set_hidden(oc_surface_data* surface, bool hidden)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 
@@ -869,13 +1021,13 @@ void* oc_linux_surface_native_layer(oc_surface_data* surface)
 
 void oc_linux_surface_bring_to_front(oc_surface_data* surface)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 
 void oc_linux_surface_send_to_back(oc_surface_data* surface)
 {
-    OC_ASSERT(0 && "Unimplemented");
+    oc_unimplemented();
     return;
 }
 
