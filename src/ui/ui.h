@@ -69,10 +69,10 @@ typedef enum oc_ui_attribute
     OC_UI_SPACING,
     OC_UI_ALIGN_X,
     OC_UI_ALIGN_Y,
-    OC_UI_FLOATING_X,
-    OC_UI_FLOATING_Y,
-    OC_UI_FLOAT_TARGET_X,
-    OC_UI_FLOAT_TARGET_Y,
+    OC_UI_POSITION,
+    OC_UI_FOOTPRINT,
+    OC_UI_OFFSET_X,
+    OC_UI_OFFSET_Y,
     OC_UI_OVERFLOW_X,
     OC_UI_OVERFLOW_Y,
     OC_UI_WRAP,
@@ -102,10 +102,10 @@ typedef enum oc_ui_attribute_mask
     OC_UI_MASK_LAYOUT_SPACING = 1 << OC_UI_SPACING,
     OC_UI_MASK_LAYOUT_ALIGN_X = 1 << OC_UI_ALIGN_X,
     OC_UI_MASK_LAYOUT_ALIGN_Y = 1 << OC_UI_ALIGN_Y,
-    OC_UI_MASK_FLOATING_X = 1 << OC_UI_FLOATING_X,
-    OC_UI_MASK_FLOATING_Y = 1 << OC_UI_FLOATING_Y,
-    OC_UI_MASK_FLOAT_TARGET_X = 1 << OC_UI_FLOAT_TARGET_X,
-    OC_UI_MASK_FLOAT_TARGET_Y = 1 << OC_UI_FLOAT_TARGET_Y,
+    OC_UI_MASK_POSITION = 1 << OC_UI_POSITION,
+    OC_UI_MASK_FOOTPRINT = 1 << OC_UI_FOOTPRINT,
+    OC_UI_MASK_OFFSET_X = 1 << OC_UI_OFFSET_X,
+    OC_UI_MASK_OFFSET_Y = 1 << OC_UI_OFFSET_Y,
     OC_UI_MASK_OVERFLOW_X = 1 << OC_UI_OVERFLOW_X,
     OC_UI_MASK_OVERFLOW_Y = 1 << OC_UI_OVERFLOW_Y,
     OC_UI_MASK_COLOR = 1 << OC_UI_COLOR,
@@ -176,17 +176,6 @@ typedef union oc_ui_box_size
     oc_ui_size c[OC_UI_AXIS_COUNT];
 } oc_ui_box_size;
 
-typedef union oc_ui_box_floating
-{
-    struct
-    {
-        bool x;
-        bool y;
-    };
-
-    bool c[OC_UI_AXIS_COUNT];
-} oc_ui_box_floating;
-
 typedef enum oc_ui_draw_mask
 {
     //NOTE: these bits _disable_ the corresponding element when they're set.
@@ -196,11 +185,25 @@ typedef enum oc_ui_draw_mask
     OC_UI_DRAW_MASK_PROC = 1 << 3,
 } oc_ui_draw_mask;
 
+typedef enum oc_ui_box_position
+{
+    OC_UI_POSITION_FLOW,
+    OC_UI_POSITION_PARENT,
+} oc_ui_box_position;
+
+typedef enum oc_ui_box_footprint
+{
+    OC_UI_FOOTPRINT_SOLID,
+    OC_UI_FOOTPRINT_OVERLAP,
+    OC_UI_FOOTPRINT_UNSIZED,
+} oc_ui_box_footprint;
+
 typedef struct oc_ui_style
 {
     oc_ui_box_size size;
     oc_ui_layout layout;
-    oc_ui_box_floating floating;
+    oc_ui_box_position position;
+    oc_ui_box_footprint footprint;
     oc_vec2 floatTarget;
     oc_color color;
     oc_color bgColor;

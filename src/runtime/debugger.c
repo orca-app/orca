@@ -1823,10 +1823,10 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
                         {
                             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, xWidth });
                             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, lineH });
-                            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-                            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, xWidth * (execMarkerColumn - 1));
-                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+                            oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+                            oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+                            oc_ui_style_set_f32(OC_UI_OFFSET_X, xWidth * (execMarkerColumn - 1));
+                            oc_ui_style_set_f32(OC_UI_OFFSET_Y, 0);
                             oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
                         }
                     }
