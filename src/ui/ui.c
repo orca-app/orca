@@ -2835,6 +2835,7 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
 
     oc_vec2 contentSize = oc_ui_content_size_wrapped(box);
 
+    /*
     for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
     {
         if(align[i] == OC_UI_ALIGN_END)
@@ -2847,6 +2848,7 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
         currentPos.c[layoutAxis] = origin.c[layoutAxis]
                                  + 0.5 * (box->rect.c[2 + layoutAxis] - (contentSize.c[layoutAxis]));
     }
+    */
 
     //NOTE: clamp scroll to max contents and offset current position by it
     box->scroll.x = oc_clamp(box->scroll.x, 0, contentSize.x + 2 * margin.x - box->rect.w);
@@ -2854,11 +2856,27 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
     currentPos.x -= box->scroll.x;
     currentPos.y -= box->scroll.y;
 
+    f32 start = currentPos.c[layoutAxis];
+    f32 lineHeight = 0;
+    u32 colIndex = 0;
+
     oc_list_for(box->children, child, oc_ui_box, listElt)
     {
+        /*
         if(align[secondAxis] == OC_UI_ALIGN_CENTER)
         {
             currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5 * (box->rect.c[2 + secondAxis] - child->rect.c[2 + secondAxis] - 2 * child->style.borderSize);
+        }
+        */
+        if(!child->style.floating.c[layoutAxis]
+           && box->style.layout.wrap
+           && colIndex
+           && currentPos.c[layoutAxis] + child->rect.c[2 + layoutAxis] + 2 * child->style.borderSize + box->style.layout.margin.c[layoutAxis] > box->rect.c[2 + layoutAxis])
+        {
+            currentPos.c[layoutAxis] = start;
+            currentPos.c[secondAxis] += lineHeight + box->style.layout.spacing;
+            lineHeight = 0;
+            colIndex = 0;
         }
 
         oc_vec2 childPos = currentPos;
@@ -2885,6 +2903,8 @@ void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
         if(!child->style.floating.c[layoutAxis])
         {
             currentPos.c[layoutAxis] += child->rect.c[2 + layoutAxis] + 2 * child->style.borderSize + spacing;
+            lineHeight = oc_max(lineHeight, child->rect.c[2 + secondAxis]);
+            colIndex++;
         }
     }
     if(isnan(box->rect.w) || isnan(box->rect.h))
