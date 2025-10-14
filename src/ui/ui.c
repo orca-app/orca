@@ -2777,6 +2777,10 @@ oc_vec2 oc_ui_content_size_wrapped(oc_ui_box* box)
 
     oc_list_for(box->children, child, oc_ui_box, listElt)
     {
+        if(child->style.floating.c[mainAxis] || child->style.floating.c[crossAxis])
+        {
+            continue;
+        }
         f32 neededSpace = child->rect.c[2 + mainAxis] + 2 * child->style.borderSize;
         if(colIndex)
         {
@@ -2785,19 +2789,20 @@ oc_vec2 oc_ui_content_size_wrapped(oc_ui_box* box)
         if(colIndex && x + neededSpace > availableSpace)
         {
             sum.c[mainAxis] = oc_max(sum.c[mainAxis], x);
-            sum.c[crossAxis] += lineHeight;
-            if(child->listElt.next)
-            {
-                sum.c[crossAxis] += box->style.layout.spacing;
-            }
+            sum.c[crossAxis] += lineHeight + box->style.layout.spacing;
             x = 0;
             colIndex = 0;
             lineHeight = 0;
+            neededSpace = child->rect.c[2 + mainAxis] + 2 * child->style.borderSize;
         }
         x += neededSpace;
         lineHeight = oc_max(lineHeight, child->rect.c[2 + crossAxis] + 2 * child->style.borderSize);
         colIndex++;
     }
+    //last line
+    sum.c[mainAxis] = oc_max(sum.c[mainAxis], x);
+    sum.c[crossAxis] += lineHeight;
+
     return sum;
 }
 
@@ -2976,19 +2981,19 @@ void oc_ui_solve_layout(oc_ui_context* ui)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-/*
-typedef struct oc_ui_layout_line
-{
-    oc_list_elt listElt;
-    oc_list children;
-} oc_ui_layout_line;
-
 typedef struct oc_ui_layout_line_elt
 {
     oc_list_elt listElt;
     oc_ui_box* box;
 } oc_ui_layout_line_elt;
-*/
+
+typedef struct oc_ui_layout_line
+{
+    oc_list_elt listElt;
+    oc_vec2 size;
+    u32 itemCount;
+    oc_list items;
+} oc_ui_layout_line;
 
 void oc_ui_solve_layout(oc_ui_context* ui)
 {
@@ -3202,31 +3207,6 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                 oc_vec2 wrappedSize = oc_ui_content_size_wrapped(box);
                 box->rect.c[2 + crossAxis] = oc_max(box->rect.c[2 + crossAxis],
                                                     wrappedSize.c[crossAxis] + 2 * box->style.layout.margin.c[crossAxis]);
-                /*
-                f32 x = box->style.layout.margin.c[mainAxis];
-                f32 y = box->style.layout.margin.c[crossAxis];
-                f32 lineHeight = 0;
-                u32 colIndex = 0;
-
-                oc_list_for(box->children, child, oc_ui_box, listElt)
-                {
-                    if(colIndex && x + child->rect.c[2 + mainAxis] + box->style.layout.margin.c[mainAxis])
-                    {
-                        x = box->style.layout.margin.c[mainAxis];
-                        y += lineHeight;
-                        if(child->listElt.next)
-                        {
-                            y += box->style.layout.spacing;
-                        }
-                        colIndex = 0;
-                        lineHeight = 0;
-                    }
-                    x += child->rect.c[2 + mainAxis] + box->style.layout.spacing;
-                    lineHeight = oc_max(lineHeight, child->rect.c[2 + crossAxis]);
-                    colIndex++;
-                }
-                box->rect.c[2 + crossAxis] = oc_max(box->rect.c[2 + crossAxis], y + box->style.layout.margin.c[crossAxis]);
-                */
             }
         }
 
@@ -3248,7 +3228,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         }
 
         //NOTE: recompute children sum one last time once we shrunk/expanded them
-        box->contentSize = oc_ui_content_size_line(elt);
+        box->contentSize = oc_ui_content_size_wrapped(box);
     }
 
     //NOTE: layout boxes, top down
@@ -3263,20 +3243,43 @@ void oc_ui_solve_layout(oc_ui_context* ui)
             box->rect.y + box->style.layout.margin.y,
         };
         oc_vec2 pos = start;
-        f32 lineHeight = 0;
-        u32 colIndex = 0;
+        oc_ui_layout_line line = { 0 };
 
         oc_list_for(box->children, child, oc_ui_box, listElt)
         {
             if(!child->style.floating.c[mainAxis]
                && box->style.layout.wrap
-               && colIndex
+               && line.itemCount
                && pos.c[mainAxis] + child->rect.c[2 + mainAxis] + 2 * child->style.borderSize + box->style.layout.margin.c[mainAxis] > box->rect.c[2 + mainAxis])
             {
+                //End of line, align items inside line
+                f32 availableSpaceMainAxis = box->rect.c[2 + mainAxis] - 2 * box->style.layout.margin.c[mainAxis];
+                f32 offsetMainAxis = 0;
+                if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_END)
+                {
+                    offsetMainAxis = availableSpaceMainAxis - line.size.c[mainAxis];
+                }
+                else if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_CENTER)
+                {
+                    offsetMainAxis = (availableSpaceMainAxis - line.size.c[mainAxis]) / 2.0;
+                }
+                oc_list_for(line.items, item, oc_ui_layout_line_elt, listElt)
+                {
+                    item->box->rect.c[mainAxis] += offsetMainAxis;
+
+                    if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_END)
+                    {
+                        item->box->rect.c[crossAxis] += line.size.c[crossAxis] - (item->box->rect.c[2 + crossAxis] + 2 * item->box->style.borderSize);
+                    }
+                    else if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_CENTER)
+                    {
+                        item->box->rect.c[crossAxis] += (line.size.c[crossAxis] - (item->box->rect.c[2 + crossAxis] + 2 * item->box->style.borderSize)) / 2.0;
+                    }
+                }
+
                 pos.c[mainAxis] = start.c[mainAxis];
-                pos.c[crossAxis] += lineHeight + box->style.layout.spacing;
-                lineHeight = 0;
-                colIndex = 0;
+                pos.c[crossAxis] += line.size.c[crossAxis] + box->style.layout.spacing;
+                line = (oc_ui_layout_line){ 0 };
             }
 
             oc_vec2 childPos = pos;
@@ -3305,11 +3308,56 @@ void oc_ui_solve_layout(oc_ui_context* ui)
             if(!child->style.floating.c[mainAxis] && !oc_ui_box_hidden(child))
             {
                 pos.c[mainAxis] += child->rect.c[2 + mainAxis] + 2 * child->style.borderSize + box->style.layout.spacing;
-                lineHeight = oc_max(lineHeight, child->rect.c[2 + crossAxis]);
-                colIndex++;
+
+                oc_ui_layout_line_elt* lineElt = oc_arena_push_type(scratch.arena, oc_ui_layout_line_elt);
+                lineElt->box = child;
+
+                oc_list_push_back(&line.items, &lineElt->listElt);
+                line.size.c[mainAxis] = childPos.c[mainAxis] + child->rect.c[2 + mainAxis] + 2 * child->style.borderSize - start.c[mainAxis];
+                line.size.c[crossAxis] = oc_max(line.size.c[crossAxis], child->rect.c[2 + crossAxis]);
+                line.itemCount++;
             }
         }
+
+        //NOTE: align items of last line
+        //TODO: coalesce with align above
+        f32 availableSpaceMainAxis = box->rect.c[2 + mainAxis] - 2 * box->style.layout.margin.c[mainAxis];
+        f32 offsetMainAxis = 0;
+        if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_END)
+        {
+            offsetMainAxis = availableSpaceMainAxis - line.size.c[mainAxis];
+        }
+        else if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_CENTER)
+        {
+            offsetMainAxis = (availableSpaceMainAxis - line.size.c[mainAxis]) / 2.0;
+        }
+        oc_list_for(line.items, item, oc_ui_layout_line_elt, listElt)
+        {
+            item->box->rect.c[mainAxis] += offsetMainAxis;
+
+            if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_END)
+            {
+                item->box->rect.c[crossAxis] += line.size.c[crossAxis] - (item->box->rect.c[2 + crossAxis] + 2 * item->box->style.borderSize);
+            }
+            else if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_CENTER)
+            {
+                item->box->rect.c[crossAxis] += (line.size.c[crossAxis] - (item->box->rect.c[2 + crossAxis] + 2 * item->box->style.borderSize)) / 2.0;
+            }
+        }
+
+        //TODO: align whole (multi-line) contents inside box
+
+        //NOTE: clamp scroll to max contents and offset children by it
+        box->scroll.x = oc_clamp(box->scroll.x, 0, box->contentSize.x + 2 * box->style.layout.margin.x - box->rect.w);
+        box->scroll.y = oc_clamp(box->scroll.y, 0, box->contentSize.y + 2 * box->style.layout.margin.y - box->rect.h);
+        oc_list_for(box->children, child, oc_ui_box, listElt)
+        {
+            child->rect.x -= box->scroll.x;
+            child->rect.y -= box->scroll.y;
+        }
     }
+
+    //TODO: reintroduce scroll...
 
     oc_scratch_end(scratch);
 

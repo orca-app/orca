@@ -77,6 +77,8 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_i32(OC_UI_WRAP, 1);
                 oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_SCROLL);
 
+                //                oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_CENTER);
+                //                oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_CENTER);
                 /*
                 oc_ui_box("d")
                 {
@@ -110,7 +112,7 @@ i32 ui_runloop(void* user)
                 oc_ui_box("e")
                 {
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 0, .minSize = 70, .maxSize = 200 });
-                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100, .relax = 0 });
+                    oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 150, .relax = 0 });
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 1, 1 });
                 }
                 oc_ui_box("f")
