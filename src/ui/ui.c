@@ -3027,30 +3027,6 @@ void oc_ui_solve_layout(oc_ui_context* ui)
             oc_list_push_back(&boxes, &childElt->listElt);
         }
 
-        //NOTE: create one line with all children
-        /*
-        if(!oc_list_empty(elt->box->children))
-        {
-            //TODO: we need to put only non floating elements in lines...
-
-            oc_ui_layout_line* line = oc_arena_push_type(scratch.arena, oc_ui_layout_line);
-            oc_list_for(elt->box->children, child, oc_ui_box, listElt)
-            {
-                /////////////////////////////////////////////////:
-                //TODO: it doesn't really makes sense to be floating _only_ in one axis now
-                if(!oc_ui_box_hidden(child)
-                   && !child->style.floating.x
-                   && !child->style.floating.y)
-                {
-                    oc_ui_layout_line_elt* lineElt = oc_arena_push_type(scratch.arena, oc_ui_layout_line_elt);
-                    lineElt->box = child;
-                    oc_list_push_back(&line->children, &lineElt->listElt);
-                }
-            }
-            oc_list_push_back(&elt->lines, &line->listElt);
-        }
-        */
-
         //NOTE: set max size default value if needed while we're at it
         for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
         {
@@ -3275,10 +3251,67 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         box->contentSize = oc_ui_content_size_line(elt);
     }
 
-    oc_scratch_end(scratch);
+    //NOTE: layout boxes, top down
+    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
+    {
+        oc_ui_box* box = elt->box;
+        oc_ui_axis mainAxis = box->style.layout.axis;
+        oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
 
-    //TODO: use flat list to do that
-    oc_ui_layout_compute_rect(ui, ui->root, (oc_vec2){ 0, 0 });
+        oc_vec2 start = {
+            box->rect.x + box->style.layout.margin.x,
+            box->rect.y + box->style.layout.margin.y,
+        };
+        oc_vec2 pos = start;
+        f32 lineHeight = 0;
+        u32 colIndex = 0;
+
+        oc_list_for(box->children, child, oc_ui_box, listElt)
+        {
+            if(!child->style.floating.c[mainAxis]
+               && box->style.layout.wrap
+               && colIndex
+               && pos.c[mainAxis] + child->rect.c[2 + mainAxis] + 2 * child->style.borderSize + box->style.layout.margin.c[mainAxis] > box->rect.c[2 + mainAxis])
+            {
+                pos.c[mainAxis] = start.c[mainAxis];
+                pos.c[crossAxis] += lineHeight + box->style.layout.spacing;
+                lineHeight = 0;
+                colIndex = 0;
+            }
+
+            oc_vec2 childPos = pos;
+            for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
+            {
+                if(child->style.floating.c[i])
+                {
+                    oc_ui_style* style = child->targetStyle;
+                    if((child->targetStyle->animationMask & (OC_UI_MASK_FLOATING_X << i))
+                       && !child->fresh)
+                    {
+                        oc_ui_animate_f32(ui, &child->floatPos.c[i], child->style.floatTarget.c[i], style->animationTime);
+                    }
+                    else
+                    {
+                        child->floatPos.c[i] = child->style.floatTarget.c[i];
+                    }
+                    childPos.c[i] = box->rect.c[i] + child->floatPos.c[i];
+                }
+            }
+            child->rect.xy = (oc_vec2){
+                childPos.x + child->style.borderSize,
+                childPos.y + child->style.borderSize,
+            };
+
+            if(!child->style.floating.c[mainAxis] && !oc_ui_box_hidden(child))
+            {
+                pos.c[mainAxis] += child->rect.c[2 + mainAxis] + 2 * child->style.borderSize + box->style.layout.spacing;
+                lineHeight = oc_max(lineHeight, child->rect.c[2 + crossAxis]);
+                colIndex++;
+            }
+        }
+    }
+
+    oc_scratch_end(scratch);
 
     oc_vec2 p = oc_ui_mouse_position();
     oc_ui_layout_find_next_hovered(ui, p);
