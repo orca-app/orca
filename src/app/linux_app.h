@@ -51,10 +51,17 @@ typedef enum x11_window_state
     X11_WINDOW_STATE_ICONIC = 3,
 } x11_window_state;
 
+typedef enum oc_linux_window_flags
+{
+    OC_LINUX_WINDOW_X11_MAPPED = (1 << 0),
+    OC_LINUX_WINDOW_X11_MAP_IS_ICONIC = (1 << 1),
+} oc_linux_window_flags;
+
 typedef struct oc_linux_window_data
 {
     u32 x11Id;
     x11_window_state state;
+    oc_linux_window_flags flags;
     /* Left-outer corner from the parent's origin. */
     oc_vec2 posFromParent;
 } oc_linux_window_data;

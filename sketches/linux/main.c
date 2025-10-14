@@ -229,7 +229,7 @@ int main(void)
     }
 
     // platform_memory
-    if(1)
+    if(0)
     {
         const char* statm = "/proc/self/statm";
         oc_base_allocator* base = oc_base_allocator_default();
@@ -257,7 +257,7 @@ int main(void)
     }
 
     // platform_path
-    if(1)
+    if(0)
     {
         oc_arena_scope scratch = oc_scratch_begin();
 

@@ -341,7 +341,8 @@ void oc_pump_events(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
-                windowData->linux.state = X11_WINDOW_STATE_ICONIC;
+                if(0) windowData->linux.state = X11_WINDOW_STATE_ICONIC;
+                windowData->linux.flags &= ~OC_LINUX_WINDOW_X11_MAPPED;
             }
         } break;
         case XCB_MAP_NOTIFY:
@@ -352,7 +353,15 @@ void oc_pump_events(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
-                windowData->linux.state = X11_WINDOW_STATE_NORMAL;
+                if(0 && windowData->linux.flags & OC_LINUX_WINDOW_X11_MAP_IS_ICONIC)
+                {
+                    windowData->linux.state = X11_WINDOW_STATE_ICONIC;
+                }
+                else if(0)
+                {
+                    windowData->linux.state = X11_WINDOW_STATE_NORMAL;
+                }
+                windowData->linux.flags |= OC_LINUX_WINDOW_X11_MAPPED;
             }
         } break;
         case XCB_MAP_REQUEST:
@@ -440,22 +449,43 @@ void oc_pump_events(f64 timeout)
                     uint32_t* p = xcb_get_property_value(reply);
                     OC_ASSERT(p);
                     x11_window_state state = *p;
-                    if(state == X11_WINDOW_STATE_WITHDRAWN)
+                    if(state == X11_WINDOW_STATE_WITHDRAWN)  type = "PropertyNotify:WM_STATE:Withdrawn";
+                    else if(state == X11_WINDOW_STATE_ICONIC)  type = "PropertyNotify:WM_STATE:Iconic";
+                    else if(state == X11_WINDOW_STATE_NORMAL)  type = "PropertyNotify:WM_STATE:Normal";
+                    else  oc_unreachable();
+                    if(0 && state == X11_WINDOW_STATE_WITHDRAWN)
                     {
                         windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
                     }
-                    else if(state == X11_WINDOW_STATE_ICONIC && windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
+                    else if(0 && state == X11_WINDOW_STATE_ICONIC && windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
                     {
                         windowData->linux.state = X11_WINDOW_STATE_ICONIC;
                     }
-                    else
+                    else if(0 && state == X11_WINDOW_STATE_ICONIC && windowData->linux.state == X11_WINDOW_STATE_NORMAL)
+                    {
+                        /* Mutter (GNOME) does not unmap the window when
+                         * transitioning to the Iconic state, so the only we
+                         * know the window has transitioned is via the WM_STATE
+                         * property change. */
+                        windowData->linux.state = X11_WINDOW_STATE_ICONIC;
+                    }
+                    else if(0 && state == X11_WINDOW_STATE_NORMAL && windowData->linux.state == X11_WINDOW_STATE_ICONIC)
+                    {
+                        /* We also have to handle the converse of the above as
+                         * Mutter does not need to map the window when
+                         * transitioning from the Iconic to Normal state. */
+                        windowData->linux.state = X11_WINDOW_STATE_NORMAL;
+                    }
+                    else if(0)
                     {
                         OC_ASSERT(state == windowData->linux.state);
                     }
+                    windowData->linux.state = state;
                     free(reply);
                 }
                 else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
                 {
+                    type = "PropertyNotify:WM_STATE:Withdrawn";
                     windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
                 }
                 else
@@ -570,6 +600,10 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         contentRect.x, contentRect.y, contentRect.w, contentRect.h,
         0, XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT,
         attributesMask, &attributes);
+    if(OC_DEBUG)
+    {
+        xcb_flush(conn);
+    }
     static const u32 wmHints[9] = {
         /* flags: InputHint, StateHint */
         1 | 2,
@@ -705,8 +739,26 @@ void oc_window_show(oc_window window)
             xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
                 windowData->linux.x11Id, XCB_ATOM_WM_HINTS,
                 XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
+            windowData->linux.flags &= ~OC_LINUX_WINDOW_X11_MAP_IS_ICONIC;
         }
-        xcb_map_window(conn, windowData->linux.x11Id);
+        if(windowData->linux.flags & OC_LINUX_WINDOW_X11_MAPPED)
+        {
+            /* WM (e.g. Mutter) does not unmap the window when Iconic, we need
+             * to send an explicit MapRequest event to the root. */
+            xcb_map_request_event_t msg = {
+                .response_type = XCB_MAP_REQUEST,
+                .parent = XCB_NONE,
+                .window = windowData->linux.x11Id,
+            };
+            xcb_send_event(conn, false, linux->x11.rootWinId,
+                XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+                XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+                (const char*)&msg);
+        }
+        else
+        {
+            xcb_map_window(conn, windowData->linux.x11Id);
+        }
     }
     return;
 }
@@ -722,7 +774,10 @@ void oc_window_hide(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData) {
+    // TODO(pld): can't test any window value from the window state before
+    // we've flushed and pumped events? e.g. show, hide, show, flush: second
+    // show is ignored
+    if(windowData && windowData->linux.state != X11_WINDOW_STATE_WITHDRAWN) {
         xcb_unmap_window(conn, windowData->linux.x11Id);
         xcb_unmap_notify_event_t msg =
         {
@@ -766,6 +821,7 @@ void oc_window_minimize(oc_window window)
                 windowData->linux.x11Id, XCB_ATOM_WM_HINTS,
                 XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
             xcb_map_window(conn, windowData->linux.x11Id);
+            windowData->linux.flags |= OC_LINUX_WINDOW_X11_MAP_IS_ICONIC;
         }
         else if(windowData->linux.state == X11_WINDOW_STATE_NORMAL)
         {
