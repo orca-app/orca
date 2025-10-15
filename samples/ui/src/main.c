@@ -421,7 +421,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                     oc_ui_box("log")
                     {
                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1, .minSize = 200 });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1, .min = 200 });
                         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_2);
                         oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_BORDER);
                         oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);

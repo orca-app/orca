@@ -1159,7 +1159,7 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 2.5);
 
                     //TODO: this is a hack because we don't have another option to grow labels to the parent for now
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, .minSize = callstackContents->rect.w });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, .min = callstackContents->rect.w });
                 }
 
                 if(frameIndex == debugger->selectedFrame)

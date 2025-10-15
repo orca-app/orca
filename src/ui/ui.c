@@ -2481,13 +2481,14 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
 
     f32 availableSpaceMainAxis = box->rect.c[2 + mainAxis] - 2 * box->style.layout.margin.c[mainAxis];
     f32 offsetMainAxis = 0;
+
     if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_END)
     {
-        offsetMainAxis = availableSpaceMainAxis - line->size.c[mainAxis];
+        offsetMainAxis = oc_clamp_low(availableSpaceMainAxis - line->size.c[mainAxis], 0);
     }
     else if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_CENTER)
     {
-        offsetMainAxis = (availableSpaceMainAxis - line->size.c[mainAxis]) / 2.0;
+        offsetMainAxis = oc_clamp_low((availableSpaceMainAxis - line->size.c[mainAxis]) / 2.0, 0);
     }
     oc_list_for(line->items, item, oc_ui_layout_line_elt, listElt)
     {
@@ -2495,11 +2496,11 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
 
         if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_END)
         {
-            item->box->rect.c[crossAxis] += line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis);
+            item->box->rect.c[crossAxis] += oc_clamp_low(line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis), 0);
         }
         else if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_CENTER)
         {
-            item->box->rect.c[crossAxis] += (line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis)) / 2.0;
+            item->box->rect.c[crossAxis] += oc_clamp_low((line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis)) / 2.0, 0);
         }
     }
 }
@@ -2655,9 +2656,9 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         //NOTE: set max size default value if needed while we're at it
         for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
         {
-            if(elt->box->style.size.c[i].maxSize == 0)
+            if(elt->box->style.size.c[i].max == 0)
             {
-                elt->box->style.size.c[i].maxSize = FLT_MAX;
+                elt->box->style.size.c[i].max = FLT_MAX;
             }
         }
     }
@@ -2691,8 +2692,8 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
         {
             box->rect.c[2 + i] = oc_clamp(box->rect.c[2 + i],
-                                          box->style.size.c[i].minSize,
-                                          box->style.size.c[i].maxSize);
+                                          box->style.size.c[i].min,
+                                          box->style.size.c[i].max);
         }
     }
     //NOTE: compute parent-dependent desired size, top-down
@@ -2724,8 +2725,8 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                     break;
             }
             box->rect.c[2 + axis] = oc_clamp(box->rect.c[2 + axis],
-                                             box->style.size.c[axis].minSize,
-                                             box->style.size.c[axis].maxSize);
+                                             box->style.size.c[axis].min,
+                                             box->style.size.c[axis].max);
         }
     }
 
@@ -2759,8 +2760,8 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                     if(child->style.position == OC_UI_POSITION_FLOW
                        && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
                     {
-                        if((remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].maxSize)
-                           || (remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].minSize))
+                        if((remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
+                           || (remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min))
                         {
                             totalWeight += child->style.size.c[mainAxis].relax;
                         }
@@ -2774,15 +2775,15 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                         if(child->style.position == OC_UI_POSITION_FLOW
                            && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
                         {
-                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].maxSize
-                               || remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].minSize)
+                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max
+                               || remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
                             {
                                 //TODO: should remove child borders from computation?
                                 f32 addSpace = remainingSpace * child->style.size.c[mainAxis].relax / totalWeight;
 
                                 f32 newSize = oc_clamp(child->rect.c[2 + mainAxis] + addSpace,
-                                                       child->style.size.c[mainAxis].minSize,
-                                                       child->style.size.c[mainAxis].maxSize);
+                                                       child->style.size.c[mainAxis].min,
+                                                       child->style.size.c[mainAxis].max);
 
                                 newRemainingSpace -= newSize - child->rect.c[2 + mainAxis];
                                 child->rect.c[2 + mainAxis] = newSize;
@@ -2822,8 +2823,8 @@ void oc_ui_solve_layout(oc_ui_context* ui)
             {
                 //NOTE: should remove child borders?
                 child->rect.c[2 + crossAxis] = oc_clamp(child->rect.c[2 + crossAxis] + remainingSpace * child->style.size.c[crossAxis].relax,
-                                                        child->style.size.c[crossAxis].minSize,
-                                                        child->style.size.c[crossAxis].maxSize);
+                                                        child->style.size.c[crossAxis].min,
+                                                        child->style.size.c[crossAxis].max);
             }
         }
 

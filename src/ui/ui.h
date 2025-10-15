@@ -45,8 +45,8 @@ typedef struct oc_ui_size
     oc_ui_size_kind kind;
     f32 value;
     f32 relax;
-    f32 minSize;
-    f32 maxSize;
+    f32 min;
+    f32 max;
 } oc_ui_size;
 
 typedef enum oc_ui_overflow
