@@ -189,12 +189,12 @@ typedef enum oc_ui_box_position
 {
     OC_UI_POSITION_FLOW,
     OC_UI_POSITION_PARENT,
+    OC_UI_POSITION_FRAME,
 } oc_ui_box_position;
 
 typedef enum oc_ui_box_footprint
 {
     OC_UI_FOOTPRINT_SOLID,
-    OC_UI_FOOTPRINT_OVERLAP,
     OC_UI_FOOTPRINT_UNSIZED,
 } oc_ui_box_footprint;
 
@@ -286,7 +286,6 @@ struct oc_ui_box
     //TODO: review
     oc_vec2 floatPos;
     oc_vec2 contentSize;
-    f32 minSize[2];
     oc_rect rect;
 
     oc_list styleVariables;
