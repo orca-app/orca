@@ -718,11 +718,11 @@ void oc_ui_style_set_f32(oc_ui_attribute attr, f32 f)
             break;
 
         case OC_UI_OFFSET_X:
-            style->floatTarget.x = f;
+            style->offset.x = f;
             break;
 
         case OC_UI_OFFSET_Y:
-            style->floatTarget.y = f;
+            style->offset.y = f;
             break;
 
         case OC_UI_TEXT_SIZE:
@@ -2119,20 +2119,20 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
 
         if(mask & OC_UI_MASK_OFFSET_X)
         {
-            oc_ui_animate_f32(ui, &box->style.floatTarget.x, targetStyle->floatTarget.x, animationTime);
+            oc_ui_animate_f32(ui, &box->style.offset.x, targetStyle->offset.x, animationTime);
         }
         else
         {
-            box->style.floatTarget.x = targetStyle->floatTarget.x;
+            box->style.offset.x = targetStyle->offset.x;
         }
 
         if(mask & OC_UI_MASK_OFFSET_Y)
         {
-            oc_ui_animate_f32(ui, &box->style.floatTarget.y, targetStyle->floatTarget.y, animationTime);
+            oc_ui_animate_f32(ui, &box->style.offset.y, targetStyle->offset.y, animationTime);
         }
         else
         {
-            box->style.floatTarget.y = targetStyle->floatTarget.y;
+            box->style.offset.y = targetStyle->offset.y;
         }
 
         //TODO: non animatable attributes. use mask
@@ -2204,11 +2204,11 @@ void oc_ui_style_apply(oc_ui_style* dst,
     }
     if(oc_ui_style_apply_check(OC_UI_OFFSET_X, mask, specificity, specArray))
     {
-        dst->floatTarget.x = src->floatTarget.x;
+        dst->offset.x = src->offset.x;
     }
     if(oc_ui_style_apply_check(OC_UI_OFFSET_Y, mask, specificity, specArray))
     {
-        dst->floatTarget.y = src->floatTarget.y;
+        dst->offset.y = src->offset.y;
     }
 
     if(oc_ui_style_apply_check(OC_UI_COLOR, mask, specificity, specArray))
@@ -2525,7 +2525,7 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
                 case OC_UI_POSITION_PARENT:
                 case OC_UI_POSITION_FRAME:
                 {
-                    child->rect.xy = child->style.floatTarget;
+                    child->rect.xy = child->style.offset;
                 }
                 break;
 
@@ -2548,8 +2548,8 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
                     }
                     //NOTE: set child position and add it to current line
                     child->rect.xy = (oc_vec2){
-                        pos.x + child->style.borderSize,
-                        pos.y + child->style.borderSize,
+                        pos.x + child->style.offset.x + child->style.borderSize,
+                        pos.y + child->style.offset.y + child->style.borderSize,
                     };
 
                     oc_ui_layout_line_elt* lineElt = oc_arena_push_type(scratch.arena, oc_ui_layout_line_elt);

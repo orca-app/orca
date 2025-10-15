@@ -204,7 +204,7 @@ typedef struct oc_ui_style
     oc_ui_layout layout;
     oc_ui_box_position position;
     oc_ui_box_footprint footprint;
-    oc_vec2 floatTarget;
+    oc_vec2 offset;
     oc_color color;
     oc_color bgColor;
     oc_color borderColor;
