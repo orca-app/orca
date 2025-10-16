@@ -102,11 +102,12 @@ i32 ui_runloop(void* user)
 
                 {
                     oc_ui_radio_group_info alignInfoX = {
-                        .optionCount = 3,
+                        .optionCount = 4,
                         .options = (oc_str8[]){
                             OC_STR8_LIT("Left"),
                             OC_STR8_LIT("Right"),
                             OC_STR8_LIT("Center"),
+                            OC_STR8_LIT("Justify"),
                         },
                         .selectedIndex = (i32)alignX,
                     };
@@ -159,6 +160,8 @@ i32 ui_runloop(void* user)
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, 150, .relax = 0, .min = 70, .max = 200 });
                     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, 100 });
                     oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0, 1, 1 });
+
+                    oc_ui_style_set_f32(OC_UI_OFFSET_X, 20);
                 }
 
                 oc_ui_box("d")

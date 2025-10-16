@@ -28,6 +28,7 @@ typedef enum
     OC_UI_ALIGN_START,
     OC_UI_ALIGN_END,
     OC_UI_ALIGN_CENTER,
+    OC_UI_ALIGN_JUSTIFY,
 } oc_ui_align;
 
 typedef enum oc_ui_size_kind
