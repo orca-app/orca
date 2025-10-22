@@ -25,13 +25,19 @@ typedef struct oc_card
     oc_vec2 initialPos;
 } oc_card;
 
-typedef enum oc_card_border
+typedef enum oc_card_interaction
 {
-    OC_CARD_BORDER_TOP = 1,
-    OC_CARD_BORDER_BOTTOM = 1 << 1,
-    OC_CARD_BORDER_LEFT = 1 << 2,
-    OC_CARD_BORDER_RIGHT = 1 << 3,
-} oc_card_border;
+    OC_CARD_RESIZE_TOP = 1,
+    OC_CARD_RESIZE_BOTTOM = 1 << 1,
+    OC_CARD_RESIZE_LEFT = 1 << 2,
+    OC_CARD_RESIZE_RIGHT = 1 << 3,
+    OC_CARD_RESIZE = OC_CARD_RESIZE_TOP
+                   | OC_CARD_RESIZE_BOTTOM
+                   | OC_CARD_RESIZE_LEFT
+                   | OC_CARD_RESIZE_RIGHT,
+    OC_CARD_MOVE = 1 << 4,
+
+} oc_card_interaction;
 
 typedef struct oc_code_canvas
 {
@@ -41,9 +47,8 @@ typedef struct oc_code_canvas
     u64 cardCount;
     u64 nextId;
 
-    oc_card* draggedCard;
-    oc_card* resizedCard;
-    oc_card_border resizedBorders;
+    oc_card* interactedCard;
+    oc_card_interaction interaction;
     bool panning;
     oc_vec2 pan;
 
@@ -315,62 +320,67 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
         }
         oc_ui_attribute_mask animationMask = OC_UI_MASK_BG_COLOR;
 
-        if(card == canvas->draggedCard)
+        if(card == canvas->interactedCard)
         {
-            oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0.05, 1, 1 });
-            card->rect.x += mouseDelta.x;
-            card->rect.y += mouseDelta.y;
-            card->initialPos = card->rect.xy;
-        }
-        else if(card == canvas->resizedCard)
-        {
-            oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 1, 1 });
+            if(canvas->interaction == OC_CARD_MOVE)
+            {
+                oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0.05, 1, 1 });
+                card->rect.x += mouseDelta.x;
+                card->rect.y += mouseDelta.y;
+                card->initialPos = card->rect.xy;
+            }
+            else
+            {
+                oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 1, 1 });
 
-            if(canvas->resizedBorders & OC_CARD_BORDER_LEFT)
-            {
-                f32 delta = oc_clamp_high(mouseDelta.x, card->rect.w - OC_CARD_MIN_WIDTH);
-                card->rect.x += delta;
-                card->rect.w -= delta;
-            }
-            else if(canvas->resizedBorders & OC_CARD_BORDER_RIGHT)
-            {
-                f32 delta = oc_clamp_low(mouseDelta.x, OC_CARD_MIN_WIDTH - card->rect.w);
-                card->rect.w += delta;
-            }
+                if(canvas->interaction & OC_CARD_RESIZE_LEFT)
+                {
+                    f32 delta = oc_clamp_high(mouseDelta.x, card->rect.w - OC_CARD_MIN_WIDTH);
+                    card->rect.x += delta;
+                    card->rect.w -= delta;
+                }
+                else if(canvas->interaction & OC_CARD_RESIZE_RIGHT)
+                {
+                    f32 delta = oc_clamp_low(mouseDelta.x, OC_CARD_MIN_WIDTH - card->rect.w);
+                    card->rect.w += delta;
+                }
 
-            if(canvas->resizedBorders & OC_CARD_BORDER_TOP)
-            {
-                f32 delta = oc_clamp_high(mouseDelta.y, card->rect.h - OC_CARD_MIN_HEIGHT);
-                card->rect.y += delta;
-                card->rect.h -= delta;
-            }
-            else if(canvas->resizedBorders & OC_CARD_BORDER_BOTTOM)
-            {
-                f32 delta = oc_clamp_low(mouseDelta.y, OC_CARD_MIN_HEIGHT - card->rect.h);
-                card->rect.h += delta;
+                if(canvas->interaction & OC_CARD_RESIZE_TOP)
+                {
+                    f32 delta = oc_clamp_high(mouseDelta.y, card->rect.h - OC_CARD_MIN_HEIGHT);
+                    card->rect.y += delta;
+                    card->rect.h -= delta;
+                }
+                else if(canvas->interaction & OC_CARD_RESIZE_BOTTOM)
+                {
+                    f32 delta = oc_clamp_low(mouseDelta.y, OC_CARD_MIN_HEIGHT - card->rect.h);
+                    card->rect.h += delta;
+                }
             }
         }
         else if(oc_ui_get_sig().hover && oc_ui_get_sig().pressed)
         {
-            canvas->draggedCard = card;
+            canvas->interactedCard = card;
+            canvas->interaction = OC_CARD_MOVE;
         }
         else
         {
             animationMask |= OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y;
 
             u32 hoveredBorders = 0;
+
             if(mousePos.y > pannedRect.y - OC_CARD_BORDER_SIZE
                && mousePos.y < pannedRect.y + pannedRect.h + OC_CARD_BORDER_SIZE)
             {
                 if(mousePos.x > pannedRect.x - OC_CARD_BORDER_SIZE
                    && mousePos.x < pannedRect.x)
                 {
-                    hoveredBorders = OC_CARD_BORDER_LEFT;
+                    hoveredBorders = OC_CARD_RESIZE_LEFT;
                 }
                 else if(mousePos.x > pannedRect.x + pannedRect.w
                         && mousePos.x < pannedRect.x + pannedRect.w + OC_CARD_BORDER_SIZE)
                 {
-                    hoveredBorders = OC_CARD_BORDER_RIGHT;
+                    hoveredBorders = OC_CARD_RESIZE_RIGHT;
                 }
             }
 
@@ -380,12 +390,12 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
                 if(mousePos.y > pannedRect.y - OC_CARD_BORDER_SIZE
                    && mousePos.y < pannedRect.y)
                 {
-                    hoveredBorders |= OC_CARD_BORDER_TOP;
+                    hoveredBorders |= OC_CARD_RESIZE_TOP;
                 }
                 else if(mousePos.y > pannedRect.y + pannedRect.h
                         && mousePos.y < pannedRect.y + pannedRect.h + OC_CARD_BORDER_SIZE)
                 {
-                    hoveredBorders |= OC_CARD_BORDER_BOTTOM;
+                    hoveredBorders |= OC_CARD_RESIZE_BOTTOM;
                 }
             }
 
@@ -394,8 +404,8 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
                 oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 1, 1 });
                 if(oc_mouse_pressed(oc_ui_input(), OC_MOUSE_LEFT))
                 {
-                    canvas->resizedCard = card;
-                    canvas->resizedBorders = hoveredBorders;
+                    canvas->interactedCard = card;
+                    canvas->interaction = hoveredBorders;
                 }
             }
         }
@@ -444,32 +454,29 @@ i32 ui_runloop(void* user)
 
         oc_ui_frame(frameSize)
         {
-            oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
-            if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
+            if(canvas.interactedCard)
             {
-                if(canvas.draggedCard)
-                {
-                    oc_card_spacer(&canvas, canvas.draggedCard);
-                }
-                else if(canvas.resizedCard)
-                {
-                    oc_card_spacer(&canvas, canvas.resizedCard);
-                }
-            }
+                oc_list_remove(&canvas.cards, &canvas.interactedCard->listElt);
+                oc_list_push_back(&canvas.cards, &canvas.interactedCard->listElt);
 
-            if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
-            {
-                if(canvas.draggedCard || canvas.resizedCard)
+                oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
+                if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
+                {
+                    oc_card_spacer(&canvas, canvas.interactedCard);
+                }
+
+                if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
                 {
                     oc_list_for(canvas.cards, card, oc_card, listElt)
                     {
                         card->initialPos = card->rect.xy;
                     }
+                    canvas.interactedCard = 0;
+                    canvas.interaction = 0;
                 }
-
-                canvas.draggedCard = 0;
-                canvas.resizedCard = 0;
-                canvas.resizedBorders = 0;
+            }
+            else if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+            {
                 canvas.panning = false;
             }
 
@@ -485,8 +492,7 @@ i32 ui_runloop(void* user)
                 oc_card_ui(&canvas, card);
             }
 
-            if(!canvas.draggedCard
-               && !canvas.resizedCard
+            if(!canvas.interactedCard
                && oc_ui_get_sig().pressed)
             {
                 canvas.panning = true;
