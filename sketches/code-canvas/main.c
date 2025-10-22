@@ -394,19 +394,17 @@ typedef enum oc_card_spacer_direction
 typedef struct oc_card_spacer_item
 {
     oc_card* card;
-
     oc_vec2 newPos;
-    bool marked;
-    bool working;
 
 } oc_card_spacer_item;
 
 typedef struct oc_card_spacer_state
 {
-    u64 itemCount;
-    oc_card_spacer_item* items;
+    u32 itemCount;
+    u32 markedCount;
+    u32 workingCount;
 
-    u64 workingCount;
+    oc_card_spacer_item* items;
 
 } oc_card_spacer_state;
 
@@ -427,49 +425,47 @@ oc_vec2 oc_card_spacer_move_direction(oc_card_spacer_state* state, oc_card_space
     do
     {
         intersect = false;
-        for(u64 i = 0; i < state->itemCount; i++)
+        for(u64 i = 0; i < state->markedCount + state->workingCount; i++)
         {
             oc_card_spacer_item* other = &state->items[i];
-            if(other->marked)
+
+            oc_rect rectItem = {
+                .xy = newPos,
+                .wh = item->card->rect.wh,
+            };
+
+            oc_rect rectOther = {
+                other->newPos.x - OC_CARD_SPACER_MARGIN,
+                other->newPos.y - OC_CARD_SPACER_MARGIN,
+                other->card->rect.w + 2 * OC_CARD_SPACER_MARGIN,
+                other->card->rect.h + 2 * OC_CARD_SPACER_MARGIN,
+            };
+
+            if(oc_rect_overlap(rectItem, rectOther))
             {
-                oc_rect rectItem = {
-                    .xy = newPos,
-                    .wh = item->card->rect.wh,
-                };
-
-                oc_rect rectOther = {
-                    other->newPos.x - OC_CARD_SPACER_MARGIN,
-                    other->newPos.y - OC_CARD_SPACER_MARGIN,
-                    other->card->rect.w + 2 * OC_CARD_SPACER_MARGIN,
-                    other->card->rect.h + 2 * OC_CARD_SPACER_MARGIN,
-                };
-
-                if(oc_rect_overlap(rectItem, rectOther))
+                intersect = true;
+                switch(direction)
                 {
-                    intersect = true;
-                    switch(direction)
+                    case OC_CARD_SPACER_UP:
                     {
-                        case OC_CARD_SPACER_UP:
-                        {
-                            newPos.y = other->newPos.y - item->card->rect.h - OC_CARD_SPACER_MARGIN;
-                        }
-                        break;
-                        case OC_CARD_SPACER_DOWN:
-                        {
-                            newPos.y = other->newPos.y + other->card->rect.h + OC_CARD_SPACER_MARGIN;
-                        }
-                        break;
-                        case OC_CARD_SPACER_LEFT:
-                        {
-                            newPos.x = other->newPos.x - item->card->rect.w - OC_CARD_SPACER_MARGIN;
-                        }
-                        break;
-                        case OC_CARD_SPACER_RIGTH:
-                        {
-                            newPos.x = other->newPos.x + other->card->rect.w + OC_CARD_SPACER_MARGIN;
-                        }
-                        break;
+                        newPos.y = other->newPos.y - item->card->rect.h - OC_CARD_SPACER_MARGIN;
                     }
+                    break;
+                    case OC_CARD_SPACER_DOWN:
+                    {
+                        newPos.y = other->newPos.y + other->card->rect.h + OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
+                    case OC_CARD_SPACER_LEFT:
+                    {
+                        newPos.x = other->newPos.x - item->card->rect.w - OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
+                    case OC_CARD_SPACER_RIGTH:
+                    {
+                        newPos.x = other->newPos.x + other->card->rect.w + OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
                 }
             }
         }
@@ -485,8 +481,10 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
 
     //NOTE: create initial state
     oc_card_spacer_state state = {
-        .itemCount = canvas->cardCount,
         .items = oc_arena_push_array(scratch.arena, oc_card_spacer_item, canvas->cardCount),
+        .itemCount = canvas->cardCount,
+        .markedCount = 0,
+        .workingCount = 1,
     };
 
     oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
@@ -496,24 +494,26 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
 
         if(it.elt == initialCard)
         {
-            state.items[it.index].marked = true;
-            state.items[it.index].working = true;
+            oc_card_spacer_item tmp = state.items[0];
+            state.items[0] = state.items[it.index];
+            state.items[it.index] = tmp;
         }
     }
-    state.workingCount = 1;
 
     bool hadMoves = false;
+
     do
     {
         hadMoves = false;
+        u64 oldWorkingCount = state.workingCount;
 
-        for(u64 unmarkedIndex = 0; unmarkedIndex < state.itemCount; unmarkedIndex++)
+        for(u64 unmarkedIndex = state.markedCount + state.workingCount;
+            unmarkedIndex < state.itemCount;
+            unmarkedIndex++)
         {
-            if(!state.items[unmarkedIndex].marked)
-            {
-                oc_card_spacer_item* unmarkedItem = &state.items[unmarkedIndex];
 
-                /*
+            oc_card_spacer_item* unmarkedItem = &state.items[unmarkedIndex];
+            /*
                 //NOTE: collect the set of cards it intersects in the working set
                 //TODO: and the directions they were moved
 
@@ -534,34 +534,39 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
                 }
                 */
 
-                //NOTE: Compute smallest move for this card
-                oc_vec2 moves[4] = { 0 };
-                f32 smallestNorm = FLT_MAX;
-                i32 smallestIndex = 0;
+            //NOTE: Compute smallest move for this card
+            oc_vec2 moves[4] = { 0 };
+            f32 smallestNorm = FLT_MAX;
+            i32 smallestIndex = 0;
 
-                for(int i = 0; i < 4; i++)
+            for(int i = 0; i < 4; i++)
+            {
+                moves[i] = oc_card_spacer_move_direction(&state, unmarkedItem, i);
+                f32 norm = oc_max(fabs(unmarkedItem->card->rect.x - moves[i].x), fabs(unmarkedItem->card->rect.y - moves[i].y));
+                if(norm < smallestNorm)
                 {
-                    moves[i] = oc_card_spacer_move_direction(&state, unmarkedItem, i);
-                    f32 norm = oc_max(fabs(unmarkedItem->card->rect.x - moves[i].x), fabs(unmarkedItem->card->rect.y - moves[i].y));
-                    if(norm < smallestNorm)
-                    {
-                        smallestNorm = norm;
-                        smallestIndex = i;
-                    }
-                }
-
-                if(smallestNorm > 0)
-                {
-                    //NOTE: apply smallest move and mark card
-                    unmarkedItem->newPos = moves[smallestIndex];
-                    unmarkedItem->marked = true;
-
-                    //TODO: should put in new working set
-
-                    hadMoves = true;
+                    smallestNorm = norm;
+                    smallestIndex = i;
                 }
             }
+
+            if(smallestNorm > 0)
+            {
+                //NOTE: apply smallest move and put card in working set
+                unmarkedItem->newPos = moves[smallestIndex];
+
+                oc_card_spacer_item tmp = state.items[state.markedCount + state.workingCount];
+                state.items[state.markedCount + state.workingCount] = state.items[unmarkedIndex];
+                state.items[unmarkedIndex] = tmp;
+                state.workingCount++;
+
+                hadMoves = true;
+            }
         }
+
+        //NOTE: move old working set to marked set
+        state.markedCount += oldWorkingCount;
+        state.workingCount -= oldWorkingCount;
     }
     while(hadMoves);
 
