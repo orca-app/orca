@@ -5,14 +5,8 @@
 *  See LICENSE.txt for licensing information
 *
 **************************************************************************/
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
-#define _USE_MATH_DEFINES //NOTE: necessary for MSVC
 #include <math.h>
-
 #include "orca.h"
 
 oc_vec2 frameSize = { 1200, 838 };
@@ -28,7 +22,7 @@ typedef struct oc_card
     oc_list_elt listElt;
     u64 id;
     oc_rect rect;
-
+    oc_vec2 initialPos;
 } oc_card;
 
 typedef enum oc_card_border
@@ -71,309 +65,11 @@ void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
     canvas->nextId++;
 
     card->rect = (oc_rect){ x, y, 200, 200 };
+    card->initialPos = card->rect.xy;
 
     oc_list_push_back(&canvas->cards, &card->listElt);
     canvas->cardCount++;
 }
-
-/*
-void oc_card_spacer(oc_code_canvas* canvas, oc_card* movedCard, oc_vec2 delta)
-{
-    //TODO: create an initial state with all cards unmarked except the moved card
-
-    //TODO: iterate on the existing states to generate new states from them
-    {
-        //TODO: for each state
-        {
-            //TODO: if the intersection set is empty, put that state in the list of valid states and continue
-
-            //TODO: for each unmarked card that intersects with any card in the just moved set
-            {
-                //TODO: generate 4 axis aligned moves that pushed that card so that it doesn't intersect
-                // with any marked card
-                // prune moves that are opposite to the last move of the cards it intersects with (ie card must be pushed away, not swapped),
-                // unless we'd prune all moves
-                //TODO: for each created new states
-                {
-                    //TODO: copy that state N-1 times (N=number of moves), so that we get 4 states, to which we add
-                    // our for moves.
-                    // This
-                }
-            }
-            // we end up with M new states, some of which we must prune because the cards we just moved might overlap
-        }
-    }
-}
-*/
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//TODO: another outline where we don't have to prune after the fact, but keep things order-independent
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/*
-typedef struct oc_card_spacer_item
-{
-    bool marked;
-    bool working;
-    oc_card* card;
-    oc_vec2 newPos;
-} oc_card_spacer_item;
-
-typedef struct oc_card_spacer_state
-{
-    oc_list_elt listElt;
-    oc_card_spacer_item* items;
-} oc_card_spacer_state;
-
-oc_card_spacer_state* oc_card_spacer_state_create(oc_arena* arena, u64 cardCount)
-{
-    oc_card_spacer_state* state = oc_arena_push_type(arena, oc_card_spacer_state);
-    state->items = oc_arena_push_array(arena, oc_card_spacer_item, cardCount);
-    return state;
-}
-
-typedef enum oc_card_spacer_direction
-{
-    OC_CARD_SPACER_UP,
-    OC_CARD_SPACER_DOWN,
-    OC_CARD_SPACER_LEFT,
-    OC_CARD_SPACER_RIGHT,
-} oc_card_spacer_direction;
-
-oc_vec2 oc_card_spacer_move(oc_card_spacer_state* state, u64 itemIndex, oc_card_spacer_direction direction, u64 cardCount)
-{
-    //NOTE: pushes a card in one direction so that it doesn't intersect any marked cards
-
-    oc_vec2 newPos = state->items[itemIndex].card->rect.xy;
-
-    u64 intersectCount = 1;
-    while(intersectCount)
-    {
-        intersectCount = 0;
-        for(u64 i = 0; i < cardCount; i++)
-        {
-            if(state->items[i].marked
-               && oc_card_spacer_intersect(&state->items[i], &state->items[itemIndex]))
-            {
-                intersectCount++;
-
-                oc_rect itemRect = {
-                    .xy = newPos,
-                    .wh = state->items[itemIndex].card->rect.wh,
-                };
-                oc_rect intersectedRect = {
-                    .xy = state->items[i].newPos,
-                    .wh = state->items[i].card->rect.wh,
-                };
-
-                switch(direction)
-                {
-                    case OC_CARD_SPACER_UP:
-                    {
-                        newPos.y = intersectedRect.y - state->items[itemIndex].card->rect.h;
-                    }
-                    break;
-                    case OC_CARD_SPACER_DOWN:
-                    {
-                        newPos.y = intersectedRect.y + intersectedRect.h;
-                    }
-                    break;
-                    case OC_CARD_SPACER_LEFT:
-                    {
-                        newPos.x = intersectedRect.x - state->items[itemIndex].card->rect.w;
-                    }
-                    break;
-                    case OC_CARD_SPACER_RIGHT:
-                    {
-                        newPos.x = intersectedRect.x + intersectedRect.w;
-                    }
-                    break;
-                }
-            }
-        }
-    }
-    return newPos;
-}
-
-void oc_card_spacer(oc_code_canvas* canvas, oc_card* movedCard, oc_vec2 delta)
-{
-    // a "state" consists of
-    // - unmarked cards: cards that have not been moved yet
-    // - a working set: cards that have been moved and not examined for new collisions
-    // - marked cards: cards that have been moved and have pushed any other intersecting cards
-    // a state with an empty working set is a valid state
-
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_list states = { 0 };
-
-    // Create an initial state with all cards unmarked except the moved card, which is marked and
-    // in the working set
-
-    oc_card_spacer_state* initialState = oc_card_spacer_state_create(scratch.arena, canvas->cardCount);
-    oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
-    {
-        initialState->items[it.index].card = it.elt;
-        if(it.elt == movedCard)
-        {
-            initialState->items[it.index].marked = true;
-            initialState->items[it.index].working = true;
-        }
-    }
-    oc_list_push_back(&states, &initialState->listElt);
-
-    oc_list validStates = { 0 };
-    u32 validStateCount = 0;
-
-    //iterate on the existing states to generate new states, until we have enough valid states
-    while(validStateCount < 4)
-    {
-        oc_list newStates = { 0 };
-        oc_list_for_safe(states, state, oc_card_spacer_state, listElt)
-        {
-            // for each card Cw in the working set
-            for(u64 workingIndex = 0; workingIndex < canvas->cardCount; workingIndex++)
-            {
-                if(state->items[workingIndex].working)
-                {
-                    // for each unmarked card Cj that intersect with Cw
-                    u64 intersectCount = 0;
-                    for(u64 intersectIndex = 0; intersectIndex < canvas->cardCount; intersectIndex++)
-                    {
-                        if(!state->items[intersectIndex].marked
-                           && oc_card_spacer_intersect(&state->items[workingIndex], &state->items[intersectIndex]))
-                        {
-                            intersectCount++;
-                            // generate 4 axis aligned moves that push that card so that Cj doesn't intersect with any marked card.
-                            // prune moves that are opposite to the moves of the cards it intersects with in the working set
-                            // (note: this avoids cards being swapped)
-
-                            u32 moveCount = 0;
-                            oc_vec2 moves[4];
-                            for(u32 dirIndex = 0; dirIndex < 4; dirIndex++)
-                            {
-                                bool prune = false;
-                                for(u64 pusherIndex = 0; pusherIndex < canvas->cardCount; pusherIndex++)
-                                {
-                                    if(state->items[pusherIndex].working
-                                       && oc_card_spacer_intersect(&state->items[pusherIndex], &state->items[intersectIndex]))
-                                    {
-                                        //TODO: if direction of pusher is opposite of dirindex, prune
-                                    }
-                                }
-                                if(!prune)
-                                {
-                                    //TODO generate move in direction dirIndex
-                                }
-                            }
-
-                            // for each move, create a new state by appending to state
-                            for(u32 moveIndex = 0; moveIndex < moveCount; moveIndex++)
-                            {
-                                oc_card_spacer_state* newState = oc_card_spacer_state_create(scratch.arena, canvas->cardCount);
-                                memcpy(newState->items, state->items, canvas->cardCount * sizeof(oc_card_spacer_item));
-
-                                newState->items[workingIndex].working = false;
-                                newState->items[intersectIndex].marked = true;
-                                newState->items[intersectIndex].working = true;
-                                newState->items[intersectIndex].newPos = oc_vec2_add(newState->items[intersectIndex].card->rect.xy,
-                                                                                     moves[moveIndex]);
-
-                                oc_list_push_back(&newStates, &newState->listElt);
-                            }
-                        }
-                    }
-                    if(!intersectCount)
-                    {
-                        oc_list_remove(&states, &state->listElt);
-                        oc_list_push_back(&validStates, &state->listElt);
-                        validStateCount++;
-                    }
-                }
-            }
-        }
-    }
-
-    //TODO: select best valid state
-    oc_card_spacer_state* bestState = oc_list_first_entry(validStates, oc_card_spacer_state, listElt);
-    for(u64 i = 0; i < canvas->cardCount; i++)
-    {
-        bestState->items[i].card->rect.xy = bestState->items[i].newPos;
-    }
-
-    oc_scratch_end(scratch);
-}
-*/
-
-/*
-typedef struct oc_card_spacer_move
-{
-    oc_card* card;
-    u32 movedRound;
-    oc_vec2 newPos;
-} oc_card_spacer_move;
-
-typedef struct oc_card_spacer_state
-{
-    oc_list_elt listElt;
-    oc_card_spacer_move* moves;
-
-} oc_card_spacer_state;
-
-void oc_card_spacer(oc_code_canvas* canvas, oc_card* movedCard, oc_vec2 delta)
-{
-    //TODO: generate valid placements
-    oc_arena_scope scratch = oc_scratch_begin();
-
-    //NOTE: Make first state
-    oc_card_spacer_state* initialState = oc_arena_push_type(scratch.arena, oc_card_spacer_state);
-    initialState.moves = oc_arena_push_array(scratch.arena, oc_card_spacer_move, canvas->cardCount);
-
-    oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
-    {
-        initialState.moves[it.index].card = it.elt;
-        if(it.elt == movedCard)
-        {
-            initialState.moves[it.index].moved = true;
-            initialState.moves[it.index].movedRound = 1;
-        }
-    }
-
-    oc_list states = { 0 };
-    oc_list_push_back(&states, &initialState->listElt);
-
-    //NOTE: iterate to generate valid states
-    oc_list newStates = { 0 };
-    oc_list validState = { 0 };
-    u32 validStateCount = 0;
-    u32 round = 2;
-
-    while(!validStateCount < 4) //TODO: review this condition
-    {
-        //NOTE: we take each state and create new possible states from it.
-        oc_list_for(states, state, oc_card_spacer_state, listElt)
-        {
-            //NOTE: for each unmoved card that intersects any card in the just moved set,
-            // we generate moves pushing that card away from intersecting any moved card
-            for(u64 i=0; i<canvas->cardCount; i++)
-            {
-                if(state->moves[i].movedRound == 0)
-                {
-                    for(u64 j=0; j<canvas->cardCount; j++)
-                    {
-                        if(state->moves[j].movedRound == round-1
-                        && oc_card_spacer_intersect(state->moves[i], state->moves[j]))
-                        {
-                            //TODO: generate moves
-                        }
-                    }
-                }
-            }
-        }
-        round++;
-    }
-    //TODO: select best placement
-
-    oc_scratch_end(scratch);
-}
-*/
 
 enum
 {
@@ -420,7 +116,7 @@ bool oc_rect_overlap(oc_rect a, oc_rect b)
 oc_vec2 oc_card_spacer_move_direction(oc_card_spacer_state* state, oc_card_spacer_item* item, oc_card_spacer_direction direction)
 {
     bool intersect = false;
-    oc_vec2 newPos = item->card->rect.xy;
+    oc_vec2 newPos = item->card->initialPos;
 
     do
     {
@@ -490,7 +186,7 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
     oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
     {
         state.items[it.index].card = it.elt;
-        state.items[it.index].newPos = it.elt->rect.xy;
+        state.items[it.index].newPos = it.elt->initialPos;
 
         if(it.elt == initialCard)
         {
@@ -542,7 +238,7 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
             for(int i = 0; i < 4; i++)
             {
                 moves[i] = oc_card_spacer_move_direction(&state, unmarkedItem, i);
-                f32 norm = oc_max(fabs(unmarkedItem->card->rect.x - moves[i].x), fabs(unmarkedItem->card->rect.y - moves[i].y));
+                f32 norm = oc_max(fabs(unmarkedItem->card->initialPos.x - moves[i].x), fabs(unmarkedItem->card->initialPos.y - moves[i].y));
                 if(norm < smallestNorm)
                 {
                     smallestNorm = norm;
@@ -612,11 +308,19 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
         oc_ui_style_set_f32(OC_UI_BORDER_SIZE, OC_CARD_BORDER_SIZE);
         oc_ui_style_set_f32(OC_UI_ROUNDNESS, 5);
 
+        if(card->initialPos.x != card->rect.x
+           || card->initialPos.y != card->rect.y)
+        {
+            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.4, 0.4, 1 });
+        }
+        oc_ui_attribute_mask animationMask = OC_UI_MASK_BG_COLOR;
+
         if(card == canvas->draggedCard)
         {
             oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0.05, 1, 1 });
             card->rect.x += mouseDelta.x;
             card->rect.y += mouseDelta.y;
+            card->initialPos = card->rect.xy;
         }
         else if(card == canvas->resizedCard)
         {
@@ -652,6 +356,8 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
         }
         else
         {
+            animationMask |= OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y;
+
             u32 hoveredBorders = 0;
             if(mousePos.y > pannedRect.y - OC_CARD_BORDER_SIZE
                && mousePos.y < pannedRect.y + pannedRect.h + OC_CARD_BORDER_SIZE)
@@ -693,6 +399,8 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
                 }
             }
         }
+        oc_ui_style_set_i32(OC_UI_ANIMATION_MASK, animationMask);
+        oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, 0.3);
     }
 
     oc_scratch_end(scratch);
@@ -736,11 +444,27 @@ i32 ui_runloop(void* user)
 
         oc_ui_frame(frameSize)
         {
-            if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+            oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
+            if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
             {
                 if(canvas.draggedCard)
                 {
                     oc_card_spacer(&canvas, canvas.draggedCard);
+                }
+                else if(canvas.resizedCard)
+                {
+                    oc_card_spacer(&canvas, canvas.resizedCard);
+                }
+            }
+
+            if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+            {
+                if(canvas.draggedCard || canvas.resizedCard)
+                {
+                    oc_list_for(canvas.cards, card, oc_card, listElt)
+                    {
+                        card->initialPos = card->rect.xy;
+                    }
                 }
 
                 canvas.draggedCard = 0;
