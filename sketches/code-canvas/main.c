@@ -406,6 +406,8 @@ typedef struct oc_card_spacer_state
     u64 itemCount;
     oc_card_spacer_item* items;
 
+    u64 workingCount;
+
 } oc_card_spacer_state;
 
 bool oc_rect_overlap(oc_rect a, oc_rect b)
@@ -481,30 +483,93 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
+    //NOTE: create initial state
     oc_card_spacer_state state = {
         .itemCount = canvas->cardCount,
         .items = oc_arena_push_array(scratch.arena, oc_card_spacer_item, canvas->cardCount),
     };
 
-    oc_card_spacer_item* item = 0;
     oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
     {
         state.items[it.index].card = it.elt;
         state.items[it.index].newPos = it.elt->rect.xy;
 
-        //TODO: test, change that
-        if(it.elt != initialCard)
+        if(it.elt == initialCard)
         {
             state.items[it.index].marked = true;
-        }
-        else
-        {
-            item = &state.items[it.index];
+            state.items[it.index].working = true;
         }
     }
+    state.workingCount = 1;
 
-    //TODO test, change that
-    item->card->rect.xy = oc_card_spacer_move_direction(&state, item, OC_CARD_SPACER_UP);
+    bool hadMoves = false;
+    do
+    {
+        hadMoves = false;
+
+        for(u64 unmarkedIndex = 0; unmarkedIndex < state.itemCount; unmarkedIndex++)
+        {
+            if(!state.items[unmarkedIndex].marked)
+            {
+                oc_card_spacer_item* unmarkedItem = &state.items[unmarkedIndex];
+
+                /*
+                //NOTE: collect the set of cards it intersects in the working set
+                //TODO: and the directions they were moved
+
+                u64 intersectingCount = 0;
+                oc_card_spacer_item* intersecting = oc_arena_push_array(scratch.arena, oc_card_spacer_item*, state.workingCount);
+
+                for(u64 workingIndex = 0; workingIndex < state.itemCount; workingIndex++)
+                {
+                    if(state.items[workingIndex].working)
+                    {
+                        oc_card_spacer_item* workingItem = &state.items[workingIndex];
+                        if(oc_card_spacer_overlap(unmarkedItem, workingItem))
+                        {
+                            intersecting[intersectingCount] = workingItem;
+                            intersectingCount++;
+                        }
+                    }
+                }
+                */
+
+                //NOTE: Compute smallest move for this card
+                oc_vec2 moves[4] = { 0 };
+                f32 smallestNorm = FLT_MAX;
+                i32 smallestIndex = 0;
+
+                for(int i = 0; i < 4; i++)
+                {
+                    moves[i] = oc_card_spacer_move_direction(&state, unmarkedItem, i);
+                    f32 norm = oc_max(fabs(unmarkedItem->card->rect.x - moves[i].x), fabs(unmarkedItem->card->rect.y - moves[i].y));
+                    if(norm < smallestNorm)
+                    {
+                        smallestNorm = norm;
+                        smallestIndex = i;
+                    }
+                }
+
+                if(smallestNorm > 0)
+                {
+                    //NOTE: apply smallest move and mark card
+                    unmarkedItem->newPos = moves[smallestIndex];
+                    unmarkedItem->marked = true;
+
+                    //TODO: should put in new working set
+
+                    hadMoves = true;
+                }
+            }
+        }
+    }
+    while(hadMoves);
+
+    //NOTE: apply state
+    for(u64 i = 0; i < state.itemCount; i++)
+    {
+        state.items[i].card->rect.xy = state.items[i].newPos;
+    }
 
     oc_scratch_end(scratch);
 }
@@ -519,6 +584,11 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
     oc_str8 idStr = oc_str8_pushf(scratch.arena, "card-%llu", card->id);
     oc_ui_box_str8(idStr)
     {
+        oc_ui_set_text(idStr);
+        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 32);
+        oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 0, 0, 0, 1 });
+
         oc_rect pannedRect = {
             card->rect.x - canvas->pan.x,
             card->rect.y - canvas->pan.y,
