@@ -17,13 +17,24 @@ oc_canvas_context context;
 oc_font fontRegular;
 oc_font fontBold;
 
+typedef struct oc_card_group oc_card_group;
+
 typedef struct oc_card
 {
     oc_list_elt listElt;
+    oc_list_elt groupElt;
+    oc_card_group* group;
+
     u64 id;
     oc_rect rect;
     oc_vec2 initialPos;
 } oc_card;
+
+typedef struct oc_card_group
+{
+    oc_list_elt listElt;
+    oc_list cards;
+} oc_card_group;
 
 typedef enum oc_card_interaction
 {
@@ -43,12 +54,17 @@ typedef struct oc_code_canvas
 {
     oc_arena arena;
     oc_list cards;
-    oc_list freeList;
+    oc_list cardFreeList;
+
+    oc_list groups;
+    oc_list groupFreeList;
+
     u64 cardCount;
     u64 nextId;
 
     oc_card* interactedCard;
     oc_card_interaction interaction;
+    oc_card_group* interactedGroup;
     bool panning;
     oc_vec2 pan;
 
@@ -61,11 +77,13 @@ void oc_code_canvas_init(oc_code_canvas* canvas)
 
 void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
 {
-    oc_card* card = oc_list_pop_front_entry(&canvas->freeList, oc_card, listElt);
+    oc_card* card = oc_list_pop_front_entry(&canvas->cardFreeList, oc_card, listElt);
     if(!card)
     {
-        card = oc_arena_push_type(&canvas->arena, oc_card);
+        card = oc_arena_push_type_uninitialized(&canvas->arena, oc_card);
     }
+    memset(card, 0, sizeof(oc_card));
+
     card->id = canvas->nextId;
     canvas->nextId++;
 
@@ -76,10 +94,54 @@ void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
     canvas->cardCount++;
 }
 
+oc_card_group* oc_code_canvas_create_group(oc_code_canvas* canvas)
+{
+    oc_card_group* group = oc_list_pop_front_entry(&canvas->groupFreeList, oc_card_group, listElt);
+    if(!group)
+    {
+        group = oc_arena_push_type_uninitialized(&canvas->arena, oc_card_group);
+    }
+    memset(group, 0, sizeof(oc_card_group));
+
+    oc_list_push_back(&canvas->groups, &group->listElt);
+    return group;
+}
+
+void oc_card_remove_from_group(oc_code_canvas* canvas, oc_card_group* group, oc_card* card)
+{
+    oc_list_remove(&group->cards, &card->groupElt);
+    card->group = 0;
+
+    if(group->cards.first == group->cards.last)
+    {
+        oc_card* lastCard = oc_list_first_entry(group->cards, oc_card, groupElt);
+        OC_ASSERT(lastCard);
+
+        oc_list_remove(&group->cards, &lastCard->groupElt);
+        lastCard->group = 0;
+    }
+    if(oc_list_empty(group->cards))
+    {
+        oc_list_remove(&canvas->groups, &group->listElt);
+        oc_list_push_back(&canvas->groupFreeList, &group->listElt);
+    }
+}
+
+void oc_card_add_to_group(oc_code_canvas* canvas, oc_card_group* group, oc_card* card)
+{
+    if(card->group)
+    {
+        oc_card_remove_from_group(canvas, card->group, card);
+    }
+    oc_list_push_back(&group->cards, &card->groupElt);
+    card->group = group;
+}
+
 enum
 {
     OC_CARD_BORDER_SIZE = 4,
     OC_CARD_SPACER_MARGIN = 16,
+    OC_CARD_GROUPING_THRESHOLD = 20,
     OC_CARD_MIN_WIDTH = 50,
     OC_CARD_MIN_HEIGHT = 50,
 };
@@ -365,7 +427,10 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
         }
         else
         {
-            animationMask |= OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y;
+            if(card->group != canvas->interactedGroup)
+            {
+                animationMask |= OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y;
+            }
 
             u32 hoveredBorders = 0;
 
@@ -459,24 +524,63 @@ i32 ui_runloop(void* user)
                 oc_list_remove(&canvas.cards, &canvas.interactedCard->listElt);
                 oc_list_push_back(&canvas.cards, &canvas.interactedCard->listElt);
 
+                //TODO: maybe move/resize card here rather than in oc_card_ui
+
+                //NOTE: form groups
+
+                oc_rect r = {
+                    canvas.interactedCard->rect.x - OC_CARD_GROUPING_THRESHOLD,
+                    canvas.interactedCard->rect.y - OC_CARD_GROUPING_THRESHOLD,
+                    canvas.interactedCard->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
+                    canvas.interactedCard->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
+                };
+                bool grouped = false;
+                oc_list_for(canvas.cards, card, oc_card, listElt)
+                {
+                    if(card != canvas.interactedCard && oc_rect_overlap(r, card->rect))
+                    {
+                        grouped = true;
+                        if(card->group)
+                        {
+                            if(card->group != canvas.interactedCard->group)
+                            {
+                                oc_card_add_to_group(&canvas, card->group, canvas.interactedCard);
+                            }
+                        }
+                        else
+                        {
+                            //TODO: create a new group group
+                            oc_card_group* group = oc_code_canvas_create_group(&canvas);
+                            oc_card_add_to_group(&canvas, group, canvas.interactedCard);
+                            oc_card_add_to_group(&canvas, group, card);
+                        }
+                    }
+                }
+                if(!grouped && canvas.interactedCard->group)
+                {
+                    oc_card_remove_from_group(&canvas, canvas.interactedCard->group, canvas.interactedCard);
+                }
+
                 oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
                 if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
                 {
                     oc_card_spacer(&canvas, canvas.interactedCard);
                 }
+            }
 
-                if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+            if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+            {
+
+                if(canvas.interactedCard || canvas.interactedGroup)
                 {
                     oc_list_for(canvas.cards, card, oc_card, listElt)
                     {
                         card->initialPos = card->rect.xy;
                     }
-                    canvas.interactedCard = 0;
-                    canvas.interaction = 0;
                 }
-            }
-            else if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
-            {
+                canvas.interactedCard = 0;
+                canvas.interaction = 0;
+                canvas.interactedGroup = 0;
                 canvas.panning = false;
             }
 
@@ -487,12 +591,73 @@ i32 ui_runloop(void* user)
                 canvas.pan.y -= delta.y;
             }
 
+            oc_vec2 mousePos = oc_ui_get_sig().mouse;
+            oc_vec2 mouseDelta = oc_ui_get_sig().delta;
+
+            if(canvas.interactedGroup)
+            {
+                oc_list_for(canvas.interactedGroup->cards, card, oc_card, groupElt)
+                {
+                    card->rect.x += mouseDelta.x;
+                    card->rect.y += mouseDelta.y;
+                }
+                /*
+                                if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
+                {
+                    oc_card_spacer(&canvas, canvas.interactedCard);
+                }
+                */
+            }
+
+            oc_list_for(canvas.groups, group, oc_card_group, listElt)
+            {
+                oc_list_for(group->cards, card, oc_card, groupElt)
+                {
+                    oc_rect r = {
+                        card->rect.x - OC_CARD_GROUPING_THRESHOLD - canvas.pan.x,
+                        card->rect.y - OC_CARD_GROUPING_THRESHOLD - canvas.pan.y,
+                        card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
+                        card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
+                    };
+
+                    oc_rect borderRect = {
+                        card->rect.x - OC_CARD_BORDER_SIZE - canvas.pan.x,
+                        card->rect.y - OC_CARD_BORDER_SIZE - canvas.pan.y,
+                        card->rect.w + 2 * OC_CARD_BORDER_SIZE,
+                        card->rect.h + 2 * OC_CARD_BORDER_SIZE,
+                    };
+
+                    oc_str8 idStr = oc_str8_pushf(scratch.arena, "group-halo-%llu", card->id);
+                    oc_ui_box_str8(idStr)
+                    {
+                        oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+                        oc_ui_style_set_f32(OC_UI_OFFSET_X, r.x);
+                        oc_ui_style_set_f32(OC_UI_OFFSET_Y, r.y);
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.w });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.h });
+
+                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0.2, 0.2, 1 });
+                        oc_ui_style_set_f32(OC_UI_ROUNDNESS, 10);
+
+                        if(oc_ui_get_sig().pressed
+                           && (mousePos.x < borderRect.x
+                               || mousePos.x > borderRect.x + borderRect.w
+                               || mousePos.y < borderRect.y
+                               || mousePos.y > borderRect.y + borderRect.h))
+                        {
+                            canvas.interactedGroup = group;
+                        }
+                    }
+                }
+            }
+
             oc_list_for(canvas.cards, card, oc_card, listElt)
             {
                 oc_card_ui(&canvas, card);
             }
 
             if(!canvas.interactedCard
+               && !canvas.interactedGroup
                && oc_ui_get_sig().pressed)
             {
                 canvas.panning = true;
