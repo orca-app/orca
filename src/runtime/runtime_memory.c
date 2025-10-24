@@ -119,6 +119,7 @@ void oc_wasm_list_push(oc_wasm_list* list, oc_wasm_list_elt* elt)
         list->last = eltAddr;
     }
     list->first = eltAddr;
+    list->count++;
 }
 
 void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt)
@@ -138,6 +139,7 @@ void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt)
         list->first = eltAddr;
     }
     list->last = eltAddr;
+    list->count++;
 }
 
 oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString)

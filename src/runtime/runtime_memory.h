@@ -20,6 +20,7 @@ typedef struct oc_wasm_list
 {
     u32 first;
     u32 last;
+    u64 count;
 } oc_wasm_list;
 
 typedef struct oc_wasm_list_elt

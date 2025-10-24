@@ -12,6 +12,7 @@
 void oc_list_init(oc_list* list)
 {
     list->first = list->last = 0;
+    list->count = 0;
 }
 
 void oc_list_insert(oc_list* list, oc_list_elt* afterElt, oc_list_elt* elt)
@@ -27,7 +28,7 @@ void oc_list_insert(oc_list* list, oc_list_elt* afterElt, oc_list_elt* elt)
         list->last = elt;
     }
     afterElt->next = elt;
-
+    list->count++;
     OC_DEBUG_ASSERT(elt->next != elt, "oc_list_insert(): can't insert an element into itself");
 }
 
@@ -45,7 +46,7 @@ void oc_list_insert_before(oc_list* list, oc_list_elt* beforeElt, oc_list_elt* e
         list->first = elt;
     }
     beforeElt->prev = elt;
-
+    list->count++;
     OC_DEBUG_ASSERT(elt->next != elt, "oc_list_insert_before(): can't insert an element into itself");
 }
 
@@ -70,6 +71,9 @@ void oc_list_remove(oc_list* list, oc_list_elt* elt)
         list->last = elt->prev;
     }
     elt->prev = elt->next = 0;
+
+    OC_DEBUG_ASSERT(list->count);
+    list->count--;
 }
 
 void oc_list_push_front(oc_list* list, oc_list_elt* elt)
@@ -85,6 +89,7 @@ void oc_list_push_front(oc_list* list, oc_list_elt* elt)
         list->last = elt;
     }
     list->first = elt;
+    list->count++;
 }
 
 oc_list_elt* oc_list_pop_front(oc_list* list)
@@ -114,6 +119,7 @@ void oc_list_push_back(oc_list* list, oc_list_elt* elt)
         list->first = elt;
     }
     list->last = elt;
+    list->count++;
 }
 
 oc_list_elt* oc_list_pop_back(oc_list* list)

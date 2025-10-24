@@ -59,7 +59,6 @@ typedef struct oc_code_canvas
     oc_list groups;
     oc_list groupFreeList;
 
-    u64 cardCount;
     u64 nextId;
 
     oc_card* interactedCard;
@@ -91,7 +90,6 @@ void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
     card->initialPos = card->rect.xy;
 
     oc_list_push_back(&canvas->cards, &card->listElt);
-    canvas->cardCount++;
 }
 
 oc_card_group* oc_code_canvas_create_group(oc_code_canvas* canvas)
@@ -145,6 +143,8 @@ enum
     OC_CARD_MIN_WIDTH = 50,
     OC_CARD_MIN_HEIGHT = 50,
 };
+
+const f32 OC_CARD_ANIMATION_TIME = 0.3;
 
 typedef enum oc_card_spacer_direction
 {
@@ -238,16 +238,14 @@ oc_vec2 oc_card_spacer_move_direction(oc_card_spacer_state* state, oc_card_space
     return newPos;
 }
 
-void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
+void oc_card_spacer(oc_code_canvas* canvas, u32 initialCardCount, oc_card** initialCards)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
     //NOTE: create initial state
     oc_card_spacer_state state = {
-        .items = oc_arena_push_array(scratch.arena, oc_card_spacer_item, canvas->cardCount),
-        .itemCount = canvas->cardCount,
-        .markedCount = 0,
-        .workingCount = 1,
+        .items = oc_arena_push_array(scratch.arena, oc_card_spacer_item, oc_list_count(canvas->cards)),
+        .itemCount = oc_list_count(canvas->cards),
     };
 
     oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
@@ -255,11 +253,15 @@ void oc_card_spacer(oc_code_canvas* canvas, oc_card* initialCard)
         state.items[it.index].card = it.elt;
         state.items[it.index].newPos = it.elt->initialPos;
 
-        if(it.elt == initialCard)
+        for(u32 i = 0; i < initialCardCount; i++)
         {
-            oc_card_spacer_item tmp = state.items[0];
-            state.items[0] = state.items[it.index];
-            state.items[it.index] = tmp;
+            if(it.elt == initialCards[i])
+            {
+                oc_card_spacer_item tmp = state.items[state.workingCount];
+                state.items[state.workingCount] = state.items[it.index];
+                state.items[it.index] = tmp;
+                state.workingCount++;
+            }
         }
     }
 
@@ -475,7 +477,7 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
             }
         }
         oc_ui_style_set_i32(OC_UI_ANIMATION_MASK, animationMask);
-        oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, 0.3);
+        oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, OC_CARD_ANIMATION_TIME);
     }
 
     oc_scratch_end(scratch);
@@ -526,6 +528,12 @@ i32 ui_runloop(void* user)
 
                 //TODO: maybe move/resize card here rather than in oc_card_ui
 
+                oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
+                if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
+                {
+                    oc_card_spacer(&canvas, 1, &canvas.interactedCard);
+                }
+
                 //NOTE: form groups
 
                 oc_rect r = {
@@ -537,34 +545,59 @@ i32 ui_runloop(void* user)
                 bool grouped = false;
                 oc_list_for(canvas.cards, card, oc_card, listElt)
                 {
-                    if(card != canvas.interactedCard && oc_rect_overlap(r, card->rect))
+                    if(card != canvas.interactedCard)
                     {
-                        grouped = true;
-                        if(card->group)
+                        if(oc_rect_overlap(r, card->rect))
                         {
-                            if(card->group != canvas.interactedCard->group)
+                            grouped = true;
+                            if(card->group)
                             {
-                                oc_card_add_to_group(&canvas, card->group, canvas.interactedCard);
+                                if(card->group != canvas.interactedCard->group)
+                                {
+                                    oc_card_add_to_group(&canvas, card->group, canvas.interactedCard);
+                                }
+                            }
+                            else if(canvas.interactedCard->group)
+                            {
+                                oc_card_add_to_group(&canvas, canvas.interactedCard->group, card);
+                            }
+                            else
+                            {
+                                oc_card_group* group = oc_code_canvas_create_group(&canvas);
+                                oc_card_add_to_group(&canvas, group, canvas.interactedCard);
+                                oc_card_add_to_group(&canvas, group, card);
                             }
                         }
-                        else
+                        else if(card->group && card->group == canvas.interactedCard->group)
                         {
-                            //TODO: create a new group group
-                            oc_card_group* group = oc_code_canvas_create_group(&canvas);
-                            oc_card_add_to_group(&canvas, group, canvas.interactedCard);
-                            oc_card_add_to_group(&canvas, group, card);
+                            //NOTE: card isn't close enough with interacted card anymore, so we check if it still
+                            // close to other cards in the group, and if not we remove it from the group
+                            oc_rect r2 = {
+                                card->rect.x - OC_CARD_GROUPING_THRESHOLD,
+                                card->rect.y - OC_CARD_GROUPING_THRESHOLD,
+                                card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
+                                card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
+                            };
+
+                            bool remove = true;
+                            oc_list_for(card->group->cards, other, oc_card, groupElt)
+                            {
+                                if(card != other && oc_rect_overlap(r2, other->rect))
+                                {
+                                    remove = false;
+                                    break;
+                                }
+                            }
+                            if(remove)
+                            {
+                                oc_card_remove_from_group(&canvas, card->group, card);
+                            }
                         }
                     }
                 }
                 if(!grouped && canvas.interactedCard->group)
                 {
                     oc_card_remove_from_group(&canvas, canvas.interactedCard->group, canvas.interactedCard);
-                }
-
-                oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
-                if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
-                {
-                    oc_card_spacer(&canvas, canvas.interactedCard);
                 }
             }
 
@@ -594,23 +627,38 @@ i32 ui_runloop(void* user)
             oc_vec2 mousePos = oc_ui_get_sig().mouse;
             oc_vec2 mouseDelta = oc_ui_get_sig().delta;
 
-            if(canvas.interactedGroup)
+            if(canvas.interactedGroup
+               && (fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0))
             {
-                oc_list_for(canvas.interactedGroup->cards, card, oc_card, groupElt)
+                oc_card** movedCards = oc_arena_push_array(scratch.arena, oc_card*, oc_list_count(canvas.interactedGroup->cards));
+
+                oc_list_for_indexed(canvas.interactedGroup->cards, it, oc_card, groupElt)
                 {
+                    oc_card* card = it.elt;
+
+                    movedCards[it.index] = card;
                     card->rect.x += mouseDelta.x;
                     card->rect.y += mouseDelta.y;
+                    card->initialPos = card->rect.xy;
                 }
-                /*
-                                if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
-                {
-                    oc_card_spacer(&canvas, canvas.interactedCard);
-                }
-                */
+
+                oc_card_spacer(&canvas, oc_list_count(canvas.interactedGroup->cards), movedCards);
             }
 
-            oc_list_for(canvas.groups, group, oc_card_group, listElt)
+            //TODO: move somewhere else
+            const oc_color groupColors[8] = {
+                { 0.702, 0.961, 0.737, 1, OC_COLOR_SPACE_SRGB },
+                { 0.980, 0.569, 0.541, 1, OC_COLOR_SPACE_SRGB },
+                { 0.843, 0.965, 1, 1, OC_COLOR_SPACE_SRGB },
+                { 0.984, 0.682, 0.486, 1, OC_COLOR_SPACE_SRGB },
+                { 0.886, 0.796, 0.969, 1, OC_COLOR_SPACE_SRGB },
+                { 1, 0.902, 0.604, 1, OC_COLOR_SPACE_SRGB },
+                { 0.820, 0.741, 1, 1, OC_COLOR_SPACE_SRGB },
+                { 0.976, 1, 0.710, 1, OC_COLOR_SPACE_SRGB },
+            };
+            oc_list_for_indexed(canvas.groups, it, oc_card_group, listElt)
             {
+                oc_card_group* group = it.elt;
                 oc_list_for(group->cards, card, oc_card, groupElt)
                 {
                     oc_rect r = {
@@ -636,8 +684,14 @@ i32 ui_runloop(void* user)
                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.w });
                         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.h });
 
-                        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 1, 0.2, 0.2, 1 });
+                        oc_ui_style_set_color(OC_UI_BG_COLOR, groupColors[it.index % 8]);
                         oc_ui_style_set_f32(OC_UI_ROUNDNESS, 10);
+
+                        if(card != canvas.interactedCard && group != canvas.interactedGroup)
+                        {
+                            oc_ui_style_set_i32(OC_UI_ANIMATION_MASK, OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y);
+                            oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, OC_CARD_ANIMATION_TIME);
+                        }
 
                         if(oc_ui_get_sig().pressed
                            && (mousePos.x < borderRect.x
@@ -682,6 +736,8 @@ int main()
     oc_code_canvas_create_card(&canvas, 100, 100);
     oc_code_canvas_create_card(&canvas, 400, 100);
     oc_code_canvas_create_card(&canvas, 200, 500);
+    oc_code_canvas_create_card(&canvas, 500, 400);
+    oc_code_canvas_create_card(&canvas, 700, 100);
 
     oc_rect windowRect = { .x = 100, .y = 100, .w = frameSize.x, .h = frameSize.y };
     oc_window window = oc_window_create(windowRect, OC_STR8("Code Canvas"), 0);

@@ -71,6 +71,8 @@ extern "C" {
 #define oc_list_pop_front_entry(list, type, member) (oc_list_empty(*list) ? 0 : oc_list_entry(oc_list_pop_front(list), type, member))
 #define oc_list_pop_back_entry(list, type, member) (oc_list_empty(*list) ? 0 : oc_list_entry(oc_list_pop_back(list), type, member))
 
+#define oc_list_count(list) (list.count)
+
 typedef struct oc_list_elt oc_list_elt;
 
 struct oc_list_elt
@@ -83,6 +85,7 @@ typedef struct oc_list
 {
     oc_list_elt* first;
     oc_list_elt* last;
+    u64 count;
 } oc_list;
 
 ORCA_API bool oc_list_empty(oc_list list);
