@@ -11,7 +11,7 @@ const ResolvedTarget = Build.ResolvedTarget;
 const MACOS_VERSION_MIN = "13.0.0";
 
 const SourceFileCollector = struct {
-    files: std.ArrayListUnmanaged([]const u8),
+    files: std.ArrayList([]const u8),
     extension: []const u8,
     b: *Build,
 
@@ -317,7 +317,7 @@ pub fn build(b: *Build) !void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .sanitize_c = false,
+            .sanitize_c = .off,
         }),
     });
     z_lib.addIncludePath(b.path("src/ext/zlib/"));
@@ -339,7 +339,7 @@ pub fn build(b: *Build) !void {
         .target = target,
         .optimize = optimize,
         .link_libc = true,
-        .sanitize_c = false,
+        .sanitize_c = .off,
     });
 
     var curl_sources = SourceFileCollector.init(b, ".c");
@@ -558,18 +558,22 @@ pub fn build(b: *Build) !void {
         }
     };
 
-    var orca_tool_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    defer orca_tool_compile_flags.deinit();
-    try orca_tool_compile_flags.append("-Werror");
-    try orca_tool_compile_flags.append("-DFLAG_IMPLEMENTATION");
-    try orca_tool_compile_flags.append("-DOC_NO_APP_LAYER");
-    try orca_tool_compile_flags.append("-DOC_BUILD_DLL");
-    try orca_tool_compile_flags.append("-DCURL_STATICLIB");
-    try orca_tool_compile_flags.append(b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
+    var orca_tool_compile_flags: std.ArrayList([]const u8) = .empty;
+    defer orca_tool_compile_flags.deinit(b.allocator);
+    try orca_tool_compile_flags.appendSlice(b.allocator, &.{
+        "-Werror",
+        "-DFLAG_IMPLEMENTATION",
+        "-DOC_NO_APP_LAYER",
+        "-DOC_BUILD_DLL",
+        "-DCURL_STATICLIB",
+        b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}),
+    });
 
     if (optimize == .Debug) {
-        try orca_tool_compile_flags.append("-DOC_DEBUG");
-        try orca_tool_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
+        try orca_tool_compile_flags.appendSlice(b.allocator, &.{
+            "-DOC_DEBUG",
+            "-DOC_LOG_COMPILE_DEBUG",
+        });
     }
 
     const orca_tool_exe = b.addExecutable(.{
@@ -577,7 +581,7 @@ pub fn build(b: *Build) !void {
         .root_module = b.createModule(.{
             .target = target,
             .optimize = optimize,
-            .sanitize_c = false, // seems to be some UB in stb_image when resizing icons :(
+            .sanitize_c = .off, // seems to be some UB in stb_image when resizing icons :(
         }),
     });
     orca_tool_exe.addIncludePath(b.path("src/"));
@@ -817,18 +821,22 @@ pub fn build(b: *Build) !void {
 
     // platform lib
 
-    var orca_platform_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    defer orca_platform_compile_flags.deinit();
-    try orca_platform_compile_flags.append("-std=c11");
-    try orca_platform_compile_flags.append("-Werror");
-    try orca_platform_compile_flags.append("-DOC_BUILD_DLL");
-    try orca_platform_compile_flags.append("-D_USE_MATH_DEFINES");
+    var orca_platform_compile_flags: std.ArrayList([]const u8) = .empty;
+    defer orca_platform_compile_flags.deinit(b.allocator);
+    try orca_platform_compile_flags.appendSlice(b.allocator, &.{
+        "-std=c11",
+        "-Werror",
+        "-DOC_BUILD_DLL",
+        "-D_USE_MATH_DEFINES",
+    });
     if (optimize == .Debug) {
-        try orca_platform_compile_flags.append("-DOC_DEBUG");
-        try orca_platform_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
+        try orca_platform_compile_flags.appendSlice(b.allocator, &.{
+            "-DOC_DEBUG",
+            "-DOC_LOG_COMPILE_DEBUG",
+        });
     }
     if (target.result.os.tag.isDarwin()) {
-        try orca_platform_compile_flags.append(compile_flag_min_macos_version);
+        try orca_platform_compile_flags.append(b.allocator, compile_flag_min_macos_version);
     }
     // if (target.result.os.tag == .windows) {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libEGL.dll");
@@ -853,8 +861,8 @@ pub fn build(b: *Build) !void {
     orca_platform_lib.addIncludePath(b.path("src/ext/dawn/include"));
     orca_platform_lib.addLibraryPath(angle_include_path);
 
-    var orca_platform_files: std.ArrayList([]const u8) = .init(b.allocator);
-    try orca_platform_files.append("src/orca.c");
+    var orca_platform_files: std.ArrayList([]const u8) = .empty;
+    try orca_platform_files.append(b.allocator, "src/orca.c");
 
     orca_platform_lib.addLibraryPath(angle_lib_path);
     orca_platform_lib.addLibraryPath(dawn_lib_path);
@@ -890,7 +898,7 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
         orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
 
-        try orca_platform_files.append("src/orca.m");
+        try orca_platform_files.append(b.allocator, "src/orca.m");
     }
 
     orca_platform_lib.addCSourceFiles(.{
@@ -925,7 +933,7 @@ pub fn build(b: *Build) !void {
             .target = target,
             .optimize = optimize,
             .link_libc = true,
-            .sanitize_c = false,
+            .sanitize_c = .off,
         }),
     });
 
@@ -944,12 +952,14 @@ pub fn build(b: *Build) !void {
         "src/warm/warm_adapter.c",
     };
 
-    var warm_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    try warm_compile_flags.append("-std=c11");
-    try warm_compile_flags.append("-Werror");
-    try warm_compile_flags.append("-g");
-    try warm_compile_flags.append("-O0");
-    try warm_compile_flags.append("-fno-sanitize=undefined");
+    var warm_compile_flags: std.ArrayList([]const u8) = .empty;
+    try warm_compile_flags.appendSlice(b.allocator, &.{
+        "-std=c11",
+        "-Werror",
+        "-g",
+        "-O0",
+        "-fno-sanitize=undefined",
+    });
 
     warm_lib.addIncludePath(b.path("src"));
     warm_lib.addCSourceFiles(.{
@@ -965,15 +975,19 @@ pub fn build(b: *Build) !void {
 
     // orca runtime exe
 
-    var orca_runtime_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
-    defer orca_runtime_compile_flags.deinit();
+    var orca_runtime_compile_flags: std.ArrayList([]const u8) = .empty;
+    defer orca_runtime_compile_flags.deinit(b.allocator);
 
     if (optimize == .Debug) {
-        try orca_runtime_compile_flags.append("-DOC_DEBUG");
-        try orca_runtime_compile_flags.append("-DOC_LOG_COMPILE_DEBUG");
+        try orca_runtime_compile_flags.appendSlice(b.allocator, &.{
+            "-DOC_DEBUG",
+            "-DOC_LOG_COMPILE_DEBUG",
+        });
     }
-    try orca_runtime_compile_flags.append("-std=c11");
-    try orca_runtime_compile_flags.append("-Werror");
+    try orca_runtime_compile_flags.appendSlice(b.allocator, &.{
+        "-std=c11",
+        "-Werror",
+    });
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
@@ -1125,8 +1139,8 @@ pub fn build(b: *Build) !void {
     var wasm_libc_sources = SourceFileCollector.init(b, ".c");
     defer wasm_libc_sources.deinit();
 
-    var wasm_libc_objs: std.ArrayList(*Build.Step.Compile) = .init(b.allocator);
-    try wasm_libc_objs.ensureUnusedCapacity(1024); // there are 496 .c files in the libc so this should be enough
+    var wasm_libc_objs: std.ArrayList(*Build.Step.Compile) = .empty;
+    try wasm_libc_objs.ensureUnusedCapacity(b.allocator, 1024); // there are 496 .c files in the libc so this should be enough
 
     for (wasm_libc_source_paths) |path| {
         wasm_libc_sources.files.shrinkRetainingCapacity(0);
@@ -1154,7 +1168,7 @@ pub fn build(b: *Build) !void {
                 .files = &.{filepath},
                 .flags = libc_flags,
             });
-            try wasm_libc_objs.append(obj);
+            try wasm_libc_objs.append(b.allocator, obj);
         }
     }
 
@@ -1294,8 +1308,8 @@ pub fn build(b: *Build) !void {
         // zig fmt: on
 
         for (all_samples) |config| {
-            var sources: std.ArrayList([]const u8) = .init(b.allocator);
-            try sources.ensureTotalCapacity(config.sources.len);
+            var sources: std.ArrayList([]const u8) = .empty;
+            try sources.ensureTotalCapacity(b.allocator, config.sources.len);
             for (config.sources) |shortpath| {
                 const path = b.pathJoin(&.{ "samples", config.name, "src", shortpath });
                 sources.appendAssumeCapacity(path);

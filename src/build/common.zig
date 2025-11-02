@@ -22,12 +22,12 @@ pub fn copyFolder(
     const src_dir: std.fs.Dir = try cwd.openDir(src, .{ .iterate = true });
     const dest_dir: std.fs.Dir = try cwd.openDir(dest, .{ .iterate = true });
 
-    var required_filenames = std.ArrayList([]const u8).init(allocator);
-    try required_filenames.appendSlice(opts.required_filenames);
+    var required_filenames: std.ArrayList([]const u8) = .empty;
+    try required_filenames.appendSlice(allocator, opts.required_filenames);
 
-    var normalized_ignore_patterns = std.ArrayList([]u8).init(allocator);
+    var normalized_ignore_patterns: std.ArrayList([]u8) = .empty;
     for (opts.ignore_patterns) |pattern| {
-        try normalized_ignore_patterns.append(try std.fs.path.resolve(allocator, &.{pattern}));
+        try normalized_ignore_patterns.append(allocator, try std.fs.path.resolve(allocator, &.{pattern}));
     }
 
     var src_walker = try src_dir.walk(allocator);

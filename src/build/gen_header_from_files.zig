@@ -12,7 +12,7 @@ const Options = struct {
 
     fn parse(args: []const [:0]const u8, arena: std.mem.Allocator) !Options {
         var out_path: ?[]const u8 = null;
-        var in_paths = std.ArrayList([]const u8).init(arena);
+        var in_paths: std.ArrayList([]const u8) = .empty;
         var namespace: ?[]const u8 = null;
         var root: ?[]const u8 = null;
 
@@ -27,7 +27,7 @@ const Options = struct {
                 out_path = split_iter.next();
             } else if (std.mem.eql(u8, arg, "--file")) {
                 if (split_iter.next()) |path| {
-                    try in_paths.append(path);
+                    try in_paths.append(arena, path);
                 }
             } else if (std.mem.eql(u8, arg, "--namespace")) {
                 namespace = split_iter.next();
@@ -80,8 +80,8 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
 
-    var concat = std.ArrayList(u8).init(allocator);
-    defer concat.deinit();
+    var concat: std.ArrayList(u8) = .empty;
+    defer concat.deinit(allocator);
 
     const filename: []const u8 = std.fs.path.basename(opts.out_path);
     const filename_no_ext: []const u8 = basenameNoExtension(filename);
@@ -90,7 +90,7 @@ pub fn main() !void {
         c.* = std.ascii.toUpper(c.*);
     }
 
-    var writer = concat.writer();
+    var writer = concat.writer(allocator);
 
     try writer.print("/*********************************************************************\n", .{});
     try writer.print("*\n", .{});

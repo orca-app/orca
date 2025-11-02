@@ -253,13 +253,13 @@ const GeneratedBindings = struct {
 };
 
 fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings {
-    var bindings_host_array = std.ArrayList(u8).init(opts.arena);
-    try bindings_host_array.ensureUnusedCapacity(1024 * 1024);
-    var host = bindings_host_array.writer();
+    var bindings_host_array: std.ArrayList(u8) = .empty;
+    try bindings_host_array.ensureUnusedCapacity(opts.arena, 1024 * 1024);
+    var host = bindings_host_array.writer(opts.arena);
 
-    var bindings_guest_array = std.ArrayList(u8).init(opts.arena);
-    try bindings_guest_array.ensureUnusedCapacity(1024 * 1024);
-    var guest = bindings_guest_array.writer();
+    var bindings_guest_array: std.ArrayList(u8) = .empty;
+    try bindings_guest_array.ensureUnusedCapacity(opts.arena, 1024 * 1024);
+    var guest = bindings_guest_array.writer(opts.arena);
 
     if (opts.guest_include_path) |path| {
         for (bindings) |binding| {
@@ -486,9 +486,9 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
         const num_returns: usize = if (binding.ret.tag == .Struct or binding.ret.tag == .Void) 0 else 1;
 
         const param_types: []const u8 = blk: {
-            var params_str = std.ArrayList(u8).init(opts.arena);
-            try params_str.ensureUnusedCapacity(1024 * 4);
-            var writer = params_str.writer();
+            var params_str: std.ArrayList(u8) = .empty;
+            try params_str.ensureUnusedCapacity(opts.arena, 1024 * 4);
+            var writer = params_str.writer(opts.arena);
 
             if (num_args == 0) {
                 try writer.writeAll("\t\twa_value_type paramTypes[1];\n");
