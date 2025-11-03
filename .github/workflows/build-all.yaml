@@ -52,7 +52,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - uses: mlugg/setup-zig@v1
+      - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
 
@@ -86,7 +86,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - uses: mlugg/setup-zig@v1
+      - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
 
@@ -120,7 +120,7 @@ jobs:
         with:
           python-version: '3.10'
 
-      - uses: mlugg/setup-zig@v1
+      - uses: mlugg/setup-zig@v2
         with:
           version: 0.15.2
 
