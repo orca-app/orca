@@ -24,6 +24,7 @@ typedef struct oc_card
     oc_list_elt listElt;
     oc_list_elt groupElt;
     oc_card_group* group;
+    u64 initialGroupId;
 
     u64 id;
     oc_rect rect;
@@ -33,6 +34,7 @@ typedef struct oc_card
 typedef struct oc_card_group
 {
     oc_list_elt listElt;
+    u64 id;
     oc_list cards;
 } oc_card_group;
 
@@ -60,6 +62,7 @@ typedef struct oc_code_canvas
     oc_list groupFreeList;
 
     u64 nextId;
+    u64 nextGroupId;
 
     oc_card* interactedCard;
     oc_card_interaction interaction;
@@ -72,6 +75,7 @@ typedef struct oc_code_canvas
 void oc_code_canvas_init(oc_code_canvas* canvas)
 {
     oc_arena_init(&canvas->arena);
+    canvas->nextGroupId = 1;
 }
 
 void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
@@ -131,7 +135,10 @@ void oc_card_add_to_group(oc_code_canvas* canvas, oc_card_group* group, oc_card*
     {
         oc_card_remove_from_group(canvas, card->group, card);
     }
+
     oc_list_push_back(&group->cards, &card->groupElt);
+
+    OC_ASSERT(card->groupElt.next != &card->groupElt);
     card->group = group;
 }
 
@@ -483,6 +490,130 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
     oc_scratch_end(scratch);
 }
 
+void oc_canvas_compute_groups(oc_code_canvas* canvas)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    //NOTE: allocate previous group ids array
+    u64 prevGroupCount = oc_list_count(canvas->groups);
+    u64* prevGroupIds = oc_arena_push_array(scratch.arena, u64, prevGroupCount);
+
+    //NOTE: collect previous group ids array and recycle previous groups
+    {
+        u64 index = 0;
+        for(oc_card_group* group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt);
+            group != 0;
+            group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt),
+                           index++)
+        {
+            prevGroupIds[index] = group->id;
+            oc_list_push_front(&canvas->groupFreeList, &group->listElt);
+        }
+    }
+
+    //NOTE: form new groups based on spatial arrangement
+    oc_list_for(canvas->cards, card, oc_card, listElt)
+    {
+        oc_rect r = {
+            card->rect.x - OC_CARD_GROUPING_THRESHOLD,
+            card->rect.y - OC_CARD_GROUPING_THRESHOLD,
+            card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
+            card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
+        };
+        for(oc_card* other = oc_list_first_entry(canvas->cards, oc_card, listElt);
+            other != card;
+            other = oc_list_next_entry(other, oc_card, listElt))
+        {
+            card->group = 0;
+            if(oc_rect_overlap(r, other->rect))
+            {
+                if(!card->group)
+                {
+                    if(!other->group)
+                    {
+                        oc_card_group* group = oc_code_canvas_create_group(canvas);
+                        oc_card_add_to_group(canvas, group, card);
+                        oc_card_add_to_group(canvas, group, other);
+                    }
+                    else
+                    {
+                        oc_card_add_to_group(canvas, other->group, card);
+                    }
+                }
+                else
+                {
+                    if(!other->group)
+                    {
+                        oc_card_add_to_group(canvas, card->group, other);
+                    }
+                    else if(other->group != card->group)
+                    {
+                        //NOTE: here we must merge other->group and card->group. We move all cards of other->group
+                        // to card->group
+                        oc_list_for_safe(other->group->cards, cardToMove, oc_card, groupElt)
+                        {
+                            oc_card_add_to_group(canvas, card->group, cardToMove);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    //NOTE: now give stable group identifier to each group
+    u64* countArray = oc_arena_push_array_uninitialized(scratch.arena, u64, prevGroupCount);
+    bool* reused = oc_arena_push_array(scratch.arena, bool, prevGroupCount);
+
+    oc_list_for(canvas->groups, group, oc_card_group, listElt)
+    {
+        memset(countArray, 0, sizeof(u64) * prevGroupCount);
+
+        //NOTE: count how many cards in this group were in each previous group
+        u64 biggestPrevGroupIndex = 0;
+        u64 biggestPrevGroupCount = 0;
+
+        oc_list_for(group->cards, card, oc_card, groupElt)
+        {
+            if(card->initialGroupId)
+            {
+                i64 groupIndex = -1;
+                for(u64 i = 0; i < prevGroupCount; i++)
+                {
+                    if(prevGroupIds[i] == card->initialGroupId)
+                    {
+                        groupIndex = i;
+                        break;
+                    }
+                }
+                OC_ASSERT(groupIndex >= 0);
+
+                countArray[groupIndex]++;
+                if(countArray[groupIndex] > biggestPrevGroupCount)
+                {
+                    biggestPrevGroupCount = countArray[groupIndex];
+                    biggestPrevGroupIndex = groupIndex;
+                }
+            }
+        }
+        //NOTE: if group has cards that were in previous groups, give the new group the id of
+        // the previous group from which it has the most cards, unless this group id has already
+        // been reused, in which case we generate a new id.
+        // We also generate a new id if group had no cards that were in a previous group.
+
+        if(biggestPrevGroupCount == 0 || reused[biggestPrevGroupIndex])
+        {
+            group->id = canvas->nextGroupId;
+            canvas->nextGroupId++;
+        }
+        else
+        {
+            group->id = prevGroupIds[biggestPrevGroupIndex];
+            reused[biggestPrevGroupIndex] = true;
+        }
+    }
+
+    oc_scratch_end(scratch);
+}
+
 oc_code_canvas canvas = { 0 };
 
 i32 ui_runloop(void* user)
@@ -532,10 +663,10 @@ i32 ui_runloop(void* user)
                 if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
                 {
                     oc_card_spacer(&canvas, 1, &canvas.interactedCard);
+                    oc_canvas_compute_groups(&canvas);
                 }
 
-                //NOTE: form groups
-
+                /*
                 oc_rect r = {
                     canvas.interactedCard->rect.x - OC_CARD_GROUPING_THRESHOLD,
                     canvas.interactedCard->rect.y - OC_CARD_GROUPING_THRESHOLD,
@@ -599,6 +730,7 @@ i32 ui_runloop(void* user)
                 {
                     oc_card_remove_from_group(&canvas, canvas.interactedCard->group, canvas.interactedCard);
                 }
+                */
             }
 
             if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
@@ -609,6 +741,7 @@ i32 ui_runloop(void* user)
                     oc_list_for(canvas.cards, card, oc_card, listElt)
                     {
                         card->initialPos = card->rect.xy;
+                        card->initialGroupId = card->group ? card->group->id : 0;
                     }
                 }
                 canvas.interactedCard = 0;
@@ -656,9 +789,8 @@ i32 ui_runloop(void* user)
                 { 0.820, 0.741, 1, 1, OC_COLOR_SPACE_SRGB },
                 { 0.976, 1, 0.710, 1, OC_COLOR_SPACE_SRGB },
             };
-            oc_list_for_indexed(canvas.groups, it, oc_card_group, listElt)
+            oc_list_for(canvas.groups, group, oc_card_group, listElt)
             {
-                oc_card_group* group = it.elt;
                 oc_list_for(group->cards, card, oc_card, groupElt)
                 {
                     oc_rect r = {
@@ -684,7 +816,7 @@ i32 ui_runloop(void* user)
                         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.w });
                         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.h });
 
-                        oc_ui_style_set_color(OC_UI_BG_COLOR, groupColors[it.index % 8]);
+                        oc_ui_style_set_color(OC_UI_BG_COLOR, groupColors[group->id % 8]);
                         oc_ui_style_set_f32(OC_UI_ROUNDNESS, 10);
 
                         if(card != canvas.interactedCard && group != canvas.interactedGroup)
