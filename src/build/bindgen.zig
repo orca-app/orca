@@ -253,13 +253,11 @@ const GeneratedBindings = struct {
 };
 
 fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings {
-    var bindings_host_array: std.ArrayList(u8) = .empty;
-    try bindings_host_array.ensureUnusedCapacity(opts.arena, 1024 * 1024);
-    var host = bindings_host_array.writer(opts.arena);
+    var bindings_host_writer: std.io.Writer.Allocating = try .initCapacity(opts.arena, 1024 * 1024);
+    var host = &bindings_host_writer.writer;
 
-    var bindings_guest_array: std.ArrayList(u8) = .empty;
-    try bindings_guest_array.ensureUnusedCapacity(opts.arena, 1024 * 1024);
-    var guest = bindings_guest_array.writer(opts.arena);
+    var bindings_guest_writer: std.io.Writer.Allocating = try .initCapacity(opts.arena, 1024 * 1024);
+    var guest = &bindings_guest_writer.writer;
 
     if (opts.guest_include_path) |path| {
         for (bindings) |binding| {
@@ -486,9 +484,8 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
         const num_returns: usize = if (binding.ret.tag == .Struct or binding.ret.tag == .Void) 0 else 1;
 
         const param_types: []const u8 = blk: {
-            var params_str: std.ArrayList(u8) = .empty;
-            try params_str.ensureUnusedCapacity(opts.arena, 1024 * 4);
-            var writer = params_str.writer(opts.arena);
+            var params_writer: std.io.Writer.Allocating = try .initCapacity(opts.arena, 1024 * 4);
+            var writer = &params_writer.writer;
 
             if (num_args == 0) {
                 try writer.writeAll("\t\twa_value_type paramTypes[1];\n");
@@ -510,7 +507,7 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
                 try writer.writeAll("};\n");
             }
 
-            break :blk params_str.items;
+            break :blk params_writer.written();
         };
 
         const return_types: []const u8 = blk: {
@@ -540,8 +537,8 @@ fn generateBindings(opts: Options, bindings: []const Binding) !GeneratedBindings
     try host.writeAll("\treturn(ret);\n}\n");
 
     return GeneratedBindings{
-        .host = bindings_host_array.items,
-        .guest = bindings_guest_array.items,
+        .host = bindings_host_writer.written(),
+        .guest = bindings_guest_writer.written(),
     };
 }
 

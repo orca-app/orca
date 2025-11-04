@@ -80,9 +80,6 @@ pub fn main() !void {
 
     const opts = try Options.parse(args, allocator);
 
-    var concat: std.ArrayList(u8) = .empty;
-    defer concat.deinit(allocator);
-
     const filename: []const u8 = std.fs.path.basename(opts.out_path);
     const filename_no_ext: []const u8 = basenameNoExtension(filename);
     const guard_name: []u8 = try allocator.dupe(u8, filename_no_ext);
@@ -90,7 +87,8 @@ pub fn main() !void {
         c.* = std.ascii.toUpper(c.*);
     }
 
-    var writer = concat.writer(allocator);
+    var concat_writer: std.io.Writer.Allocating = try .initCapacity(opts.arena, 1024 * 1024);
+    var writer = &concat_writer.writer;
 
     try writer.print("/*********************************************************************\n", .{});
     try writer.print("*\n", .{});
@@ -135,7 +133,7 @@ pub fn main() !void {
 
     try cwd.writeFile(.{
         .sub_path = opts.out_path,
-        .data = concat.items,
+        .data = concat_writer.written(),
         .flags = .{ .truncate = true },
     });
 }
