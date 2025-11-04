@@ -952,19 +952,16 @@ pub fn build(b: *Build) !void {
         "src/warm/warm_adapter.c",
     };
 
-    var warm_compile_flags: std.ArrayList([]const u8) = .empty;
-    try warm_compile_flags.appendSlice(b.allocator, &.{
-        "-std=c11",
-        "-Werror",
-        "-g",
-        "-O0",
-        "-fno-sanitize=undefined",
-    });
-
     warm_lib.addIncludePath(b.path("src"));
     warm_lib.addCSourceFiles(.{
         .files = warm_sources,
-        .flags = warm_compile_flags.items,
+        .flags = &.{
+            "-std=c11",
+            "-Werror",
+            "-g",
+            "-O0",
+            "-fno-sanitize=undefined",
+        },
     });
 
     const warm_install_opts: Build.Step.InstallArtifact.Options = .{
@@ -1136,14 +1133,20 @@ pub fn build(b: *Build) !void {
         "src/orca-libc/src/string",
     };
 
-    var wasm_libc_sources = SourceFileCollector.init(b, ".c");
-    defer wasm_libc_sources.deinit();
-
-    var wasm_libc_objs: std.ArrayList(*Build.Step.Compile) = .empty;
-    try wasm_libc_objs.ensureUnusedCapacity(b.allocator, 1024); // there are 496 .c files in the libc so this should be enough
+    const wasm_libc_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "c",
+        .root_module = b.createModule(.{
+            .target = wasm_target,
+            .optimize = wasm_optimize,
+            .link_libc = false,
+            .single_threaded = true,
+        }),
+    });
 
     for (wasm_libc_source_paths) |path| {
-        wasm_libc_sources.files.shrinkRetainingCapacity(0);
+        var wasm_libc_sources = SourceFileCollector.init(b, ".c");
+        defer wasm_libc_sources.deinit();
         try wasm_libc_sources.collect(path);
 
         const libc_group: []const u8 = std.fs.path.basename(path);
@@ -1168,22 +1171,9 @@ pub fn build(b: *Build) !void {
                 .files = &.{filepath},
                 .flags = libc_flags,
             });
-            try wasm_libc_objs.append(b.allocator, obj);
-        }
-    }
 
-    const wasm_libc_lib = b.addLibrary(.{
-        .linkage = .static,
-        .name = "c",
-        .root_module = b.createModule(.{
-            .target = wasm_target,
-            .optimize = wasm_optimize,
-            .link_libc = false,
-            .single_threaded = true,
-        }),
-    });
-    for (wasm_libc_objs.items) |obj| {
-        wasm_libc_lib.addObject(obj);
+            wasm_libc_lib.addObject(obj);
+        }
     }
 
     const libc_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_libc_lib, libc_install_opts);
