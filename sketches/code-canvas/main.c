@@ -23,8 +23,9 @@ typedef struct oc_card
 {
     oc_list_elt listElt;
     oc_list_elt groupElt;
+
     oc_card_group* group;
-    u64 initialGroupId;
+    u64 prevGroupId;
 
     u64 id;
     oc_rect rect;
@@ -67,6 +68,7 @@ typedef struct oc_code_canvas
     oc_card* interactedCard;
     oc_card_interaction interaction;
     oc_card_group* interactedGroup;
+
     bool panning;
     oc_vec2 pan;
 
@@ -494,26 +496,19 @@ void oc_canvas_compute_groups(oc_code_canvas* canvas)
 {
     oc_arena_scope scratch = oc_scratch_begin();
 
-    //NOTE: allocate previous group ids array
-    u64 prevGroupCount = oc_list_count(canvas->groups);
-    u64* prevGroupIds = oc_arena_push_array(scratch.arena, u64, prevGroupCount);
-
-    //NOTE: collect previous group ids array and recycle previous groups
+    //NOTE: recycle previous groups
+    for(oc_card_group* group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt);
+        group != 0;
+        group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt))
     {
-        u64 index = 0;
-        for(oc_card_group* group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt);
-            group != 0;
-            group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt),
-                           index++)
-        {
-            prevGroupIds[index] = group->id;
-            oc_list_push_front(&canvas->groupFreeList, &group->listElt);
-        }
+        oc_list_push_front(&canvas->groupFreeList, &group->listElt);
     }
 
     //NOTE: form new groups based on spatial arrangement
     oc_list_for(canvas->cards, card, oc_card, listElt)
     {
+        card->group = 0;
+
         oc_rect r = {
             card->rect.x - OC_CARD_GROUPING_THRESHOLD,
             card->rect.y - OC_CARD_GROUPING_THRESHOLD,
@@ -524,7 +519,6 @@ void oc_canvas_compute_groups(oc_code_canvas* canvas)
             other != card;
             other = oc_list_next_entry(other, oc_card, listElt))
         {
-            card->group = 0;
             if(oc_rect_overlap(r, other->rect))
             {
                 if(!card->group)
@@ -559,26 +553,65 @@ void oc_canvas_compute_groups(oc_code_canvas* canvas)
             }
         }
     }
-    //NOTE: now give stable group identifier to each group
-    u64* countArray = oc_arena_push_array_uninitialized(scratch.arena, u64, prevGroupCount);
-    bool* reused = oc_arena_push_array(scratch.arena, bool, prevGroupCount);
+
+    //NOTE: now give stable group identifier to each group. First we gather previous group id from cards
+
+    /////////////////////////////////////////////////////////////////////
+    //TODO: the problem with gather prev group id from cards here (or at the beginning of dragging) is that new groups created when dragging
+    // are not stable, since they don't match any previous group
+    // OTOH, if we gather prev groups each frame, they don't necessarily match initial group ids either...
+    // maybe we should just have prevGroupId instead of _initial_ group Id?
+    /////////////////////////////////////////////////////////////////////
+
+    u64 maxPrevGroupCount = oc_list_count(canvas->cards) / 2;
+    u64* prevGroupIds = oc_arena_push_array_uninitialized(scratch.arena, u64, maxPrevGroupCount);
+    u64 prevGroupCount = 0;
+
+    oc_list_for(canvas->cards, card, oc_card, listElt)
+    {
+        if(card->prevGroupId > 0)
+        {
+            i64 groupIndex = -1;
+            for(u64 i = 0; i < prevGroupCount; i++)
+            {
+                if(prevGroupIds[i] == card->prevGroupId)
+                {
+                    groupIndex = i;
+                    break;
+                }
+            }
+            if(groupIndex < 0)
+            {
+                OC_ASSERT(prevGroupCount < maxPrevGroupCount);
+                groupIndex = prevGroupCount;
+                prevGroupIds[groupIndex] = card->prevGroupId;
+                prevGroupCount++;
+            }
+        }
+    }
+
+    //NOTE: now, for each group, we count the number of card for each prevGroupId, and
+    // select the largest contingent to set the new group id.
+    u64* countArray = oc_arena_push_array_uninitialized(scratch.arena, u64, maxPrevGroupCount);
+    bool* reused = oc_arena_push_array(scratch.arena, bool, maxPrevGroupCount);
 
     oc_list_for(canvas->groups, group, oc_card_group, listElt)
     {
-        memset(countArray, 0, sizeof(u64) * prevGroupCount);
+        memset(countArray, 0, sizeof(u64) * maxPrevGroupCount);
 
-        //NOTE: count how many cards in this group were in each previous group
+        //NOTE: count how many cards in this group were in each previous group,
+        // and select the previous group with the most cards
         u64 biggestPrevGroupIndex = 0;
         u64 biggestPrevGroupCount = 0;
 
         oc_list_for(group->cards, card, oc_card, groupElt)
         {
-            if(card->initialGroupId)
+            if(card->prevGroupId > 0)
             {
                 i64 groupIndex = -1;
                 for(u64 i = 0; i < prevGroupCount; i++)
                 {
-                    if(prevGroupIds[i] == card->initialGroupId)
+                    if(prevGroupIds[i] == card->prevGroupId)
                     {
                         groupIndex = i;
                         break;
@@ -609,6 +642,12 @@ void oc_canvas_compute_groups(oc_code_canvas* canvas)
             group->id = prevGroupIds[biggestPrevGroupIndex];
             reused[biggestPrevGroupIndex] = true;
         }
+    }
+
+    //NOTE: finally set each card prevGroupId
+    oc_list_for(canvas->cards, card, oc_card, listElt)
+    {
+        card->prevGroupId = card->group ? card->group->id : 0;
     }
 
     oc_scratch_end(scratch);
@@ -652,96 +691,30 @@ i32 ui_runloop(void* user)
 
         oc_ui_frame(frameSize)
         {
-            if(canvas.interactedCard)
+            if(canvas.interactedCard || canvas.interactedGroup)
             {
-                oc_list_remove(&canvas.cards, &canvas.interactedCard->listElt);
-                oc_list_push_back(&canvas.cards, &canvas.interactedCard->listElt);
-
+                if(canvas.interactedCard)
+                {
+                    oc_list_remove(&canvas.cards, &canvas.interactedCard->listElt);
+                    oc_list_push_back(&canvas.cards, &canvas.interactedCard->listElt);
+                }
                 //TODO: maybe move/resize card here rather than in oc_card_ui
-
                 oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
                 if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
                 {
                     oc_card_spacer(&canvas, 1, &canvas.interactedCard);
                     oc_canvas_compute_groups(&canvas);
                 }
-
-                /*
-                oc_rect r = {
-                    canvas.interactedCard->rect.x - OC_CARD_GROUPING_THRESHOLD,
-                    canvas.interactedCard->rect.y - OC_CARD_GROUPING_THRESHOLD,
-                    canvas.interactedCard->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
-                    canvas.interactedCard->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
-                };
-                bool grouped = false;
-                oc_list_for(canvas.cards, card, oc_card, listElt)
-                {
-                    if(card != canvas.interactedCard)
-                    {
-                        if(oc_rect_overlap(r, card->rect))
-                        {
-                            grouped = true;
-                            if(card->group)
-                            {
-                                if(card->group != canvas.interactedCard->group)
-                                {
-                                    oc_card_add_to_group(&canvas, card->group, canvas.interactedCard);
-                                }
-                            }
-                            else if(canvas.interactedCard->group)
-                            {
-                                oc_card_add_to_group(&canvas, canvas.interactedCard->group, card);
-                            }
-                            else
-                            {
-                                oc_card_group* group = oc_code_canvas_create_group(&canvas);
-                                oc_card_add_to_group(&canvas, group, canvas.interactedCard);
-                                oc_card_add_to_group(&canvas, group, card);
-                            }
-                        }
-                        else if(card->group && card->group == canvas.interactedCard->group)
-                        {
-                            //NOTE: card isn't close enough with interacted card anymore, so we check if it still
-                            // close to other cards in the group, and if not we remove it from the group
-                            oc_rect r2 = {
-                                card->rect.x - OC_CARD_GROUPING_THRESHOLD,
-                                card->rect.y - OC_CARD_GROUPING_THRESHOLD,
-                                card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
-                                card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
-                            };
-
-                            bool remove = true;
-                            oc_list_for(card->group->cards, other, oc_card, groupElt)
-                            {
-                                if(card != other && oc_rect_overlap(r2, other->rect))
-                                {
-                                    remove = false;
-                                    break;
-                                }
-                            }
-                            if(remove)
-                            {
-                                oc_card_remove_from_group(&canvas, card->group, card);
-                            }
-                        }
-                    }
-                }
-                if(!grouped && canvas.interactedCard->group)
-                {
-                    oc_card_remove_from_group(&canvas, canvas.interactedCard->group, canvas.interactedCard);
-                }
-                */
             }
 
             if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
             {
-
                 if(canvas.interactedCard || canvas.interactedGroup)
                 {
                     oc_list_for(canvas.cards, card, oc_card, listElt)
                     {
                         card->initialPos = card->rect.xy;
-                        card->initialGroupId = card->group ? card->group->id : 0;
+                        card->prevGroupId = card->group ? card->group->id : 0;
                     }
                 }
                 canvas.interactedCard = 0;
@@ -832,6 +805,11 @@ i32 ui_runloop(void* user)
                                || mousePos.y > borderRect.y + borderRect.h))
                         {
                             canvas.interactedGroup = group;
+
+                            //////////////////////////////////////////////
+                            //TODO: we need to save the list of moved cards here, because groups can changes
+                            // while moving them across the canvas
+                            //////////////////////////////////////////////
                         }
                     }
                 }
