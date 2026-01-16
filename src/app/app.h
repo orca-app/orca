@@ -370,6 +370,9 @@ ORCA_API void oc_window_center(oc_window window);
 ORCA_API oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_window_style style);
 ORCA_API oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_style style);
 
+//FIXME(pld): Debug for tests
+u64 oc_window_debug_stack_pos(oc_window window);
+
 //------------------------------------------------------------------------------------------
 //SECTION: vsync
 //------------------------------------------------------------------------------------------

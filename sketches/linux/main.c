@@ -592,6 +592,27 @@ int main(void)
 
     OC_ASSERT(oc_window_is_hidden(win));
 
+    enum
+    {
+        LINUX_WINDOW_HIDE,
+        LINUX_WINDOW_SHOW,
+        LINUX_WINDOW_MINIMIZE,
+        LINUX_WINDOW_MAXIMIZE,
+        LINUX_WINDOW_RESTORE,
+
+        LINUX_WINDOW_MAX,
+    };
+    enum
+    {
+        LINUX_HIDDEN = 01,
+        LINUX_MINIMIZED = 02,
+        LINUX_MAXIMIZED = 04,
+    };
+    static u8 matrix[LINUX_WINDOW_MAX][LINUX_WINDOW_MAX] = {
+                               /* HIDE, SHOW, MIN,  MAX, REST */
+        [LINUX_WINDOW_HIDE] = {   01,   00,   },
+    };
+
     // Withdrawn -> Normal
     oc_window_show(win);
     tries = 0;
@@ -634,16 +655,123 @@ int main(void)
     while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
     OC_ASSERT(tries < max_tries);
 
+    // Normal -> Maximized
+    oc_window_maximize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Maximized -> Iconic
+    oc_window_minimize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Iconic -> Maximized
+    oc_window_maximize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Maximized -> Withdrawn
+    oc_window_hide(win);
+    tries = 0;
+    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Withdrawn -> Maximized
+    oc_window_maximize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Maximized -> Normal
+    oc_window_show(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Normal -> Restored
+    oc_window_restore(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Restored -> Maximized
+    oc_window_maximize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Maximized -> Restored
+    oc_window_restore(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Restored -> Iconic
+    oc_window_minimize(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Iconic -> Restored
+    oc_window_restore(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Restored -> Withdrawn
+    oc_window_hide(win);
+    tries = 0;
+    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Withdrawn -> Restored
+    oc_window_restore(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // Restored -> Normal
+    oc_window_show(win);
+    tries = 0;
+    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    u64 stack_pos0 = oc_window_debug_stack_pos(win), stack_pos = U64_MAX;
+    // ? -> back
+    oc_window_send_to_back(win);
+    tries = 0;
+    while(!(stack_pos < stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
+    OC_ASSERT(tries < max_tries);
+    stack_pos0 = stack_pos;
+
+    // back -> front
+    oc_window_bring_to_front(win);
+    tries = 0;
+    while(!(stack_pos > stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
+    OC_ASSERT(tries < max_tries);
+    stack_pos0 = stack_pos;
+
+    // front -> back
+    oc_window_send_to_back(win);
+    tries = 0;
+    while(!(stack_pos < stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
+    OC_ASSERT(tries < max_tries);
+    stack_pos0 = stack_pos;
+
+    // back -> front, again
+    oc_window_bring_to_front(win);
+    tries = 0;
+    while(!(stack_pos > stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
+    OC_ASSERT(tries < max_tries);
+    stack_pos0 = stack_pos;
+
     oc_window_destroy(win);
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - oc_window_maximize
-    // - oc_window_is_maximized
-    // - oc_window_restore
-    //
-    // - oc_window_send_to_back
-    // - oc_window_send_to_front
     // - oc_window_has_focus
     // - oc_window_focus
     // - oc_window_unfocus
@@ -668,6 +796,7 @@ int main(void)
     // - oc_window_center
     // - oc_window_content_rect_for_frame_rect
     // - oc_window_frame_rect_for_content_rect
+    // - oc_window_set_size
     // - oc_vsync_init
     // - oc_vsync_wait
     // - oc_dispatch_on_main_thread_sync
@@ -684,7 +813,6 @@ int main(void)
     // - oc_file_move
     // - oc_file_remove
     // - oc_directory_create
-    // - oc_window_set_size
     // TODO(pld): graphics
     // TODO(pld): text
     // TODO(pld): ui

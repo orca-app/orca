@@ -82,14 +82,18 @@ void oc_init(void)
         const oc_str8 s;
         xcb_intern_atom_cookie_t cookie;
         xcb_atom_t* atom;
-    } atoms[] = {
+    } atoms[] =
+    {
         #define DEF_ATOM(name)  \
             { .s = OC_STR8_LIT(#name), .cookie = 0, .atom = &x11->atoms. name }
-        DEF_ATOM(_NET_WM_NAME),
-        DEF_ATOM(_NET_WM_ICON_NAME),
         DEF_ATOM(UTF8_STRING),
-        DEF_ATOM(WM_STATE),
         DEF_ATOM(WM_CHANGE_STATE),
+        DEF_ATOM(WM_STATE),
+        DEF_ATOM(_NET_WM_ICON_NAME),
+        DEF_ATOM(_NET_WM_NAME),
+        DEF_ATOM(_NET_WM_STATE),
+        DEF_ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
+        DEF_ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
         #undef DEF_ATOM
     };
     for(u64 i = 0; i < oc_array_size(atoms); i++)
@@ -99,7 +103,7 @@ void oc_init(void)
     xcb_flush(conn);
     for(u64 i = 0; i < oc_array_size(atoms); i++)
     {
-        xcb_intern_atom_reply_t *reply = NULL;
+        xcb_intern_atom_reply_t* reply = NULL;
         reply = xcb_intern_atom_reply(conn, atoms[i].cookie, NULL);
         // TODO(pld): error handling, crash?
         OC_ASSERT(reply);
@@ -425,12 +429,14 @@ void oc_pump_events(f64 timeout)
             xcb_property_notify_event_t* noti = (xcb_property_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
-            if(windowData && noti->atom == linux->x11.atoms.WM_STATE)
+            if(!windowData)  break;
+
+            enum {
+                X11_PROPERTY_NOTIFY_NEW_VALUE = 0,
+                X11_PROPERTY_NOTIFY_DELETED = 1,
+            };
+            if(noti->atom == linux->x11.atoms.WM_STATE)
             {
-                enum {
-                    X11_PROPERTY_NOTIFY_NEW_VALUE = 0,
-                    X11_PROPERTY_NOTIFY_DELETED = 1,
-                };
                 if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = xcb_get_property(conn,
@@ -446,7 +452,7 @@ void oc_pump_events(f64 timeout)
                     OC_ASSERT(reply->format == 32);
                     OC_ASSERT(reply->bytes_after == 4);
                     OC_ASSERT(reply->value_len == 1);
-                    uint32_t* p = xcb_get_property_value(reply);
+                    u32* p = xcb_get_property_value(reply);
                     OC_ASSERT(p);
                     x11_window_state state = *p;
                     if(state == X11_WINDOW_STATE_WITHDRAWN)  type = "PropertyNotify:WM_STATE:Withdrawn";
@@ -486,6 +492,43 @@ void oc_pump_events(f64 timeout)
                 else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
                 {
                     type = "PropertyNotify:WM_STATE:Withdrawn";
+                    windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
+                }
+                else
+                {
+                    oc_unreachable();
+                }
+            }
+            else if(noti->atom == linux->x11.atoms._NET_WM_STATE)
+            {
+                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                {
+                    type = "PropertyNotify:_NET_WM_STATE:(new value)";
+                    xcb_get_property_cookie_t cookie = xcb_get_property(conn,
+                        false, windowData->linux.x11Id, linux->x11.atoms._NET_WM_STATE,
+                        XCB_ATOM_ATOM, 0, oc_array_size(windowData->linux.netState));
+                    xcb_flush(conn);
+                    xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, NULL);
+                    // TODO(pld): handle errors
+                    OC_ASSERT(reply);
+                    OC_ASSERT(reply->response_type == 1);
+                    if(reply->type == XCB_NONE)  break;
+                    OC_ASSERT(reply->type == XCB_ATOM_ATOM);
+                    OC_ASSERT(reply->format == 32);
+                    OC_ASSERT(reply->bytes_after == 0);
+                    u32* p = xcb_get_property_value(reply);
+                    OC_ASSERT(p);
+                    xcb_atom_t* hints = p;
+                    u32 hintsLen = reply->value_len;
+                    OC_ASSERT(hintsLen <= oc_array_size(windowData->linux.netState));
+                    memcpy(windowData->linux.netState, hints, hintsLen * 4);
+                    memz(&windowData->linux.netState[hintsLen], sizeof(windowData->linux.netState) - hintsLen * 4);
+                    windowData->linux.netStateLen = hintsLen;
+                    free(reply);
+                }
+                else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
+                {
+                    type = "PropertyNotify:_NET_WM_STATE:Withdrawn";
                     windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
                 }
                 else
@@ -552,7 +595,8 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         XCB_CW_COLORMAP |
         XCB_CW_CURSOR |
         0;
-    xcb_create_window_value_list_t attributes = {
+    xcb_create_window_value_list_t attributes =
+    {
         .background_pixmap = XCB_BACK_PIXMAP_NONE,
         .background_pixel = 0,
         .border_pixmap = XCB_COPY_FROM_PARENT,
@@ -604,7 +648,8 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     {
         xcb_flush(conn);
     }
-    static const u32 wmHints[9] = {
+    static const u32 wmHints[9] =
+    {
         /* flags: InputHint, StateHint */
         1 | 2,
         /* input: Passive (as we don't add WM_TAKE_FOCUS to the WM_PROTOCOLS
@@ -616,7 +661,8 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
         winId, XCB_ATOM_WM_HINTS,
         XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
-    static const u32 wmNormalHints[18] = {
+    static const u32 wmNormalHints[18] =
+    {
         /* flags: PPosition, PSize, PResizeInc, PWinGravity */
         [0] = 4 | 8 | 64 | 512,
         /* width_inc, height_inc */
@@ -701,7 +747,7 @@ void oc_window_set_title(oc_window window, oc_str8 title)
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
     {
-        uint32_t saturated_len = oc_clamp_high(title.len, UINT32_MAX);
+        u32 saturated_len = oc_clamp_high(title.len, UINT32_MAX);
         xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
             windowData->linux.x11Id, XCB_ATOM_WM_NAME,
             XCB_ATOM_STRING, 8, saturated_len, title.ptr);
@@ -727,7 +773,8 @@ void oc_window_show(oc_window window)
     {
         if(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
         {
-            static const u32 wmHints[9] = {
+            static const u32 wmHints[9] =
+            {
                 /* flags: InputHint, StateHint */
                 1 | 2,
                 /* input: Passive (as we don't add WM_TAKE_FOCUS to the WM_PROTOCOLS
@@ -745,7 +792,8 @@ void oc_window_show(oc_window window)
         {
             /* WM (e.g. Mutter) does not unmap the window when Iconic, we need
              * to send an explicit MapRequest event to the root. */
-            xcb_map_request_event_t msg = {
+            xcb_map_request_event_t msg =
+            {
                 .response_type = XCB_MAP_REQUEST,
                 .parent = XCB_NONE,
                 .window = windowData->linux.x11Id,
@@ -808,7 +856,8 @@ void oc_window_minimize(oc_window window)
     {
         if(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
         {
-            static const u32 wmHints[9] = {
+            static const u32 wmHints[9] =
+            {
                 /* flags: InputHint, StateHint */
                 1 | 2,
                 /* input: Passive (as we don't add WM_TAKE_FOCUS to the WM_PROTOCOLS
@@ -848,18 +897,83 @@ void oc_window_minimize(oc_window window)
 
 bool oc_window_is_maximized(oc_window window)
 {
-    oc_unimplemented();
-    return (false);
+    oc_linux_app_data* linux = &oc_appData.linux;
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData && windowData->linux.state == X11_WINDOW_STATE_NORMAL)
+    {
+        bool horz = false, vert = false;
+        for(u32 i = 0; i < windowData->linux.netStateLen; i++)
+        {
+            if(windowData->linux.netState[i] == linux->x11.atoms._NET_WM_STATE_MAXIMIZED_HORZ)
+            {
+                horz = true;
+            }
+            else if(windowData->linux.netState[i] == linux->x11.atoms._NET_WM_STATE_MAXIMIZED_VERT)
+            {
+                vert = true;
+            }
+        }
+        return horz && vert;
+    }
+    else
+    {
+        return (false);
+    }
 }
 
 void oc_window_maximize(oc_window window)
 {
-    oc_unimplemented();
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData)
+    {
+        oc_window_show(window);
+
+        xcb_client_message_event_t msg =
+        {
+            .response_type = XCB_CLIENT_MESSAGE,
+            .format = 32,
+            .window = windowData->linux.x11Id,
+            .type = linux->x11.atoms._NET_WM_STATE,
+            .data.data32[0] = X11_NET_WM_STATE_ADD,
+            .data.data32[1] = linux->x11.atoms._NET_WM_STATE_MAXIMIZED_HORZ,
+            .data.data32[2] = linux->x11.atoms._NET_WM_STATE_MAXIMIZED_VERT,
+            .data.data32[3] = X11_EWMH_SOURCE_INDICATION_NORMAL,
+        };
+        xcb_send_event(conn, false, linux->x11.rootWinId,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            (const char*)&msg);
+    }
     return;
 }
+
 void oc_window_restore(oc_window window)
 {
-    oc_unimplemented();
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+
+    if(windowData) {
+        oc_window_show(window);
+
+        xcb_client_message_event_t msg =
+        {
+            .response_type = XCB_CLIENT_MESSAGE,
+            .format = 32,
+            .window = windowData->linux.x11Id,
+            .type = linux->x11.atoms._NET_WM_STATE,
+            .data.data32[0] = X11_NET_WM_STATE_REMOVE,
+            .data.data32[1] = linux->x11.atoms._NET_WM_STATE_MAXIMIZED_HORZ,
+            .data.data32[2] = linux->x11.atoms._NET_WM_STATE_MAXIMIZED_VERT,
+            .data.data32[3] = X11_EWMH_SOURCE_INDICATION_NORMAL,
+        };
+        xcb_send_event(conn, false, linux->x11.rootWinId,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            (const char*)&msg);
+    }
     return;
 }
 
@@ -885,6 +999,7 @@ bool oc_window_has_focus(oc_window window)
     }
     return (focused);
 }
+
 void oc_window_focus(oc_window window)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
@@ -897,6 +1012,7 @@ void oc_window_focus(oc_window window)
     }
     return;
 }
+
 void oc_window_unfocus(oc_window window)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
@@ -909,16 +1025,75 @@ void oc_window_unfocus(oc_window window)
     }
     return;
 }
+
 void oc_window_send_to_back(oc_window window)
 {
-    oc_unimplemented();
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData)
+    {
+        xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_STACK_MODE;
+        xcb_configure_window_value_list_t config =
+        {
+            .stack_mode = XCB_STACK_MODE_BELOW,
+        };
+        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+    }
     return;
 }
+
 void oc_window_bring_to_front(oc_window window)
 {
-    // TODO(pld)
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData)
+    {
+        xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_STACK_MODE;
+        xcb_configure_window_value_list_t config =
+        {
+            .stack_mode = XCB_STACK_MODE_ABOVE,
+        };
+        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+    }
     return;
 }
+
+u64 oc_window_debug_stack_pos(oc_window window)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+
+    xcb_query_tree_cookie_t cookie = xcb_query_tree(conn, windowData->linux.x11Id);
+    xcb_flush(conn);
+    xcb_query_tree_reply_t* reply = NULL;
+    reply = xcb_query_tree_reply(conn, cookie, NULL);
+    OC_ASSERT(reply);
+    OC_ASSERT(reply->root == linux->x11.rootWinId);
+    OC_ASSERT(reply->parent != XCB_NONE);
+    xcb_window_t parent = reply->parent;
+    free(reply);
+
+    cookie = xcb_query_tree(conn, linux->x11.rootWinId);
+    xcb_flush(conn);
+    reply = xcb_query_tree_reply(conn, cookie, NULL);
+    OC_ASSERT(reply);
+    OC_ASSERT(reply->root == linux->x11.rootWinId);
+    OC_ASSERT(reply->parent == XCB_NONE);
+    OC_ASSERT(reply->children_len >= 1);
+    xcb_window_t* children = xcb_query_tree_children(reply);
+    OC_ASSERT(children);
+
+    u64 i = 0;
+    for(; i < reply->children_len; i++)
+    {
+        if(children[i] == windowData->linux.x11Id || children[i] == parent)  break;
+    }
+    return (i);
+}
+
 oc_rect oc_window_get_frame_rect(oc_window window)
 {
     oc_unimplemented();
@@ -948,7 +1123,8 @@ void oc_window_set_content_rect(oc_window window, oc_rect rect)
             XCB_CONFIG_WINDOW_WIDTH |
             XCB_CONFIG_WINDOW_HEIGHT |
             0;
-        xcb_configure_window_value_list_t config = {
+        xcb_configure_window_value_list_t config =
+        {
             .x = rect.x,
             .y = rect.y,
             .width = rect.w,

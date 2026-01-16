@@ -28,11 +28,14 @@ typedef struct oc_linux_x11
 {
     Display* display;
     struct {
-        xcb_atom_t _NET_WM_NAME;
-        xcb_atom_t _NET_WM_ICON_NAME;
         xcb_atom_t UTF8_STRING;
-        xcb_atom_t WM_STATE;
         xcb_atom_t WM_CHANGE_STATE;
+        xcb_atom_t WM_STATE;
+        xcb_atom_t _NET_WM_ICON_NAME;
+        xcb_atom_t _NET_WM_NAME;
+        xcb_atom_t _NET_WM_STATE;
+        xcb_atom_t _NET_WM_STATE_MAXIMIZED_HORZ;
+        xcb_atom_t _NET_WM_STATE_MAXIMIZED_VERT;
     } atoms;
     u32 rootWinId;
     u32 winIdToHandleLen;
@@ -51,6 +54,20 @@ typedef enum x11_window_state
     X11_WINDOW_STATE_ICONIC = 3,
 } x11_window_state;
 
+typedef enum x11_net_wm_state_action
+{
+    X11_NET_WM_STATE_REMOVE = 0,
+    X11_NET_WM_STATE_ADD = 1,
+    X11_NET_WM_STATE_TOGGLE = 2,
+} x11_net_wm_state_action;
+
+typedef enum x11_ewmh_source_indication
+{
+    X11_EWMH_SOURCE_INDICATION_NONE = 0,
+    X11_EWMH_SOURCE_INDICATION_NORMAL = 1,
+    X11_EWMH_SOURCE_INDICATION_OTHER = 2,
+} x11_ewmh_source_indication;
+
 typedef enum oc_linux_window_flags
 {
     OC_LINUX_WINDOW_X11_MAPPED = (1 << 0),
@@ -61,6 +78,8 @@ typedef struct oc_linux_window_data
 {
     u32 x11Id;
     x11_window_state state;
+    xcb_atom_t netState[32];
+    u32 netStateLen;
     oc_linux_window_flags flags;
     /* Left-outer corner from the parent's origin. */
     oc_vec2 posFromParent;
