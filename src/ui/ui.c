@@ -188,7 +188,6 @@ typedef struct oc_ui_context
     oc_ui_stack_elt* boxStack;
     oc_ui_stack_elt* clipStack;
 
-    u32 z;
     oc_ui_box* hovered;
     oc_ui_box* focus;
     oc_ui_box* nextFocus;
@@ -1521,7 +1520,7 @@ bool oc_ui_box_hovering(oc_ui_box* box, oc_vec2 p)
     bool result = false;
     if(hit)
     {
-        if(ui->hovered && box->z < ui->hovered->z)
+        if(ui->hovered)
         {
             oc_ui_box* hovered = ui->hovered;
 
@@ -3137,7 +3136,6 @@ void oc_ui_frame_begin(oc_vec2 size)
     ui->frameTime = time;
 
     ui->clipStack = 0;
-    ui->z = 0;
 
     ui->nextBoxTags = (oc_list){ 0 };
     ui->overlayList = (oc_list){ 0 };
