@@ -612,13 +612,21 @@ void wa_move_register_if_used_in_stack_range(wa_build_context* context,
 
             if(opd->index == slotIndex)
             {
+                //NOTE: slotIndex is used in stack range
                 if(newReg == UINT32_MAX)
                 {
+                    //NOTE: allocate a new register to save old value to.
                     OC_DEBUG_ASSERT(opd->index >= 0 && opd->index < context->regCount);
                     newReg = wa_allocate_register(context, context->regs[opd->index].type);
                 }
 
                 wa_retain_register(context, newReg);
+
+                /////////////////////////////////////////////////////////
+                //TODO: pb is that we release register in which we will move
+                // another value, but next time this register could be allocated
+                // and the moved value would be erased
+                /////////////////////////////////////////////////////////
 
                 //TODO: move that below with count
                 wa_release_register(context, slotIndex);
@@ -782,6 +790,13 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
     wa_block_move_results_to_output_slots(context, block, instr);
 
     wa_func_type* type = block->begin->blockType;
+    if(context->opdStackLen - block->scopeBase > type->returnCount)
+    {
+        wa_compile_error(context,
+                         instr,
+                         "block type mismatch. %llu operands left on stack\n",
+                         context->opdStackLen - block->scopeBase);
+    }
 
     //NOTE - pop slots until scope is empty,
     //     - pop block scope
@@ -850,6 +865,10 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         wa_operand opd = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
         if(opd.index != retIndex)
         {
+            //NOTE retain the retIndex slot to avoid it being deallocated during the call to
+            // wa_move_register_if_used_in_stack_range()
+            wa_retain_register(context, retIndex);
+
             //NOTE:
             //  if return operand isn't already stored at retIndex, we will move it there, so we need
             //  to save register retIndex to a new reg first if it's used in other return operands
@@ -860,6 +879,12 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
             wa_emit_index(context, retIndex);
         }
     }
+    for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
+    {
+        wa_operand opd = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
+        wa_release_register(context, opd.index);
+    }
+
     wa_emit_opcode(context, WA_INSTR_return);
 
     //WARN: wa_compile_return() is also used by conditional or table branches when they target the top-level scope,
@@ -1249,14 +1274,24 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             if(context->controlStackLen == 1)
             {
-                //TODO: is this sufficient to elide all previous returns?
+                if(context->opdStackLen - block->scopeBase > type->returnCount)
+                {
+                    wa_compile_error(context,
+                                     instr,
+                                     "type mismatch, %llu operands left on stack after function end",
+                                     context->controlStackLen - block->scopeBase);
+                }
+
                 wa_instr* prev = oc_list_prev_entry(instr, wa_instr, listElt);
                 if(!prev || prev->op != WA_INSTR_return)
                 {
                     wa_compile_return(context, type, instr);
                 }
+
                 wa_patch_jump_targets(context, block);
                 wa_control_stack_pop(context);
+
+                //TODO: is this sufficient to elide all previous returns?
 
                 OC_ASSERT(oc_list_last(instructions) == &instr->listElt);
             }
@@ -1527,7 +1562,11 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     wa_compile_error(context, instr, "select operands must be of same type\n");
                 }
                 out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
-                out[0] = inOpds[0].type;
+
+                //WARN: push opd1 type as result because if stack is polymorphic, opd1 could be of
+                // known type t and opd0 of 'unknown' type. We want to pick the known type to check
+                // following operands.
+                out[0] = inOpds[1].type;
 
                 u32 outIndex = wa_operand_stack_push_reg(context, out[0], instr);
 
