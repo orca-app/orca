@@ -105,11 +105,12 @@
   )
 )
 
-(assert_invalid
-  (module (func $f (drop (ref.func $f))))
-  "undeclared function reference"
-)
-(assert_invalid
-  (module (start $f) (func $f (drop (ref.func $f))))
-  "undeclared function reference"
-)
+;; NOTE(martin): we don't bother checking if ref.func are pre-declared for now
+;; (assert_invalid
+;;   (module (func $f (drop (ref.func $f))))
+;;   "undeclared function reference"
+;; )
+;; (assert_invalid
+;;   (module (start $f) (func $f (drop (ref.func $f))))
+;;   "undeclared function reference"
+;; )

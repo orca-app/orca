@@ -674,6 +674,15 @@ void wa_parse_tables(wa_parser* parser, wa_module* module)
     }
     module->tableCount += module->tableImportCount;
 
+    for(u32 i = 0; i < module->tableCount; i++)
+    {
+        wa_table_type* table = &module->tables[i];
+        if(table->limits.kind == WA_LIMIT_MIN_MAX && table->limits.min > table->limits.max)
+        {
+            wa_parse_error(parser, "table %u limits min is greater that limits max.\n", i);
+        }
+    }
+
     //NOTE: check section size
     if(wa_reader_has_more(&parser->reader))
     {
@@ -718,6 +727,20 @@ void wa_parse_memories(wa_parser* parser, wa_module* module)
         }
     }
     module->memoryCount += module->memoryImportCount;
+
+    for(u32 i = 0; i < module->memoryCount; i++)
+    {
+        wa_limits* mem = &module->memories[i];
+        if(mem->kind == WA_LIMIT_MIN_MAX
+           && mem->max < mem->min)
+        {
+            wa_parse_error(parser, "memory %u has a limits.min greater than limits.max", i);
+        }
+        if(mem->min > 65536 || mem->max > 65536)
+        {
+            wa_parse_error(parser, "memory %u has a more than 65536 pages (4GiB)", i);
+        }
+    }
 
     //NOTE: check section size
     if(wa_reader_has_more(&parser->reader))
@@ -766,16 +789,39 @@ void wa_parse_exports(wa_parser* parser, wa_module* module)
             break;
             case WA_EXPORT_TABLE:
             {
+                if(export->index >= module->tableCount)
+                {
+                    wa_parse_error(parser,
+                                   "Invalid type index in table export (table count: %u, got index %u)\n",
+                                   module->tableCount,
+                                   export->index);
+                }
+
                 //TODO
             }
             break;
             case WA_EXPORT_MEMORY:
             {
+                if(export->index >= module->memoryCount)
+                {
+                    wa_parse_error(parser,
+                                   "Invalid type index in memory export (memory count: %u, got index %u)\n",
+                                   module->memoryCount,
+                                   export->index);
+                }
+
                 //TODO
             }
             break;
             case WA_EXPORT_GLOBAL:
             {
+                if(export->index >= module->globalCount)
+                {
+                    wa_parse_error(parser,
+                                   "Invalid type index in global export (global count: %u, got index %u)\n",
+                                   module->globalCount,
+                                   export->index);
+                }
                 //TODO
             }
             break;
@@ -812,6 +858,19 @@ void wa_parse_start(wa_parser* parser, wa_module* module)
 
     module->hasStart = true;
     module->startIndex = wa_read_leb128_u32(&parser->reader);
+
+    if(module->startIndex >= module->functionCount)
+    {
+        wa_parse_error(parser, "invalid start index %u.\n", module->startIndex);
+    }
+    else
+    {
+        wa_func_type* type = module->functions[module->startIndex].type;
+        if(type->paramCount || type->returnCount)
+        {
+            wa_parse_error(parser, "start function has non-void type");
+        }
+    }
 
     //NOTE: check section size
     if(wa_reader_has_more(&parser->reader))
@@ -902,7 +961,7 @@ void wa_parse_expression(wa_parser* parser, u32 localCount, oc_list* list, bool 
                                "found non-constant instruction %s while parsing constant expression.\n",
                                wa_instr_strings[instr->op]);
             }
-            //TODO add constraint on global get
+            //TODO move constraints on global get from compile to here?
         }
 
         //NOTE: memory.init and data.drop need a data count section
@@ -1128,8 +1187,11 @@ void wa_parse_elements(wa_parser* parser, wa_module* module)
             if(prefix & 0x02)
             {
                 //NOTE: explicit table index
-                //TODO validate index
                 element->tableIndex = wa_read_leb128_u32(&parser->reader);
+            }
+            if(element->tableIndex >= module->tableCount)
+            {
+                wa_parse_error(parser, "invalid table index %u in element %u.", element->tableIndex, eltIndex);
             }
             wa_parse_constant_expression(parser, &element->tableOffset);
         }
@@ -1270,6 +1332,10 @@ void wa_parse_data(wa_parser* parser, wa_module* module)
                 //NOTE: explicit memory index
                 //TODO validate index
                 seg->memoryIndex = wa_read_leb128_u32(&parser->reader);
+            }
+            if(seg->memoryIndex >= module->memoryCount)
+            {
+                wa_parse_error(parser, "invalid memory index %u in data segment", seg->memoryIndex);
             }
             wa_parse_constant_expression(parser, &seg->memoryOffset);
         }
