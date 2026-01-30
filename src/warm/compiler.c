@@ -1278,56 +1278,55 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             wa_compile_branch(context, instr, label);
 
-            /*
-            //TODO: simplify this.
-            //NOTE: pop and push operands. This ensures that the types left on
-            // the stack after the br_if are the same as the target block output types,
-            // even if the stack is polymorphic.
+            ////////////////////////////////////////////////////////////////////////////////////////
+            //TODO simplify this
+            // if current stack is polymorphic, we must constrain the stack so that
+            // the types left on the stack after the br_if are the same as the target
+            // block output types.
             // if we didn't do this, we could be left with a fully polymorphic stack that would
             // validate any subsequent instruction.
-            wa_block* block = wa_control_stack_lookup(context, label);
-            if(block)
+            ////////////////////////////////////////////////////////////////////////////////////////
+            wa_block* targetBlock = wa_control_stack_lookup(context, label);
+            wa_block* currentBlock = &context->controlStack[context->controlStackLen - 1];
+            if(targetBlock && currentBlock->polymorphic)
             {
-                u32 opdCount = (block->begin->op == WA_INSTR_loop)
-                                 ? block->type->paramCount
-                                 : block->type->returnCount;
+                u32 opdCount = (targetBlock->begin->op == WA_INSTR_loop)
+                                 ? targetBlock->type->paramCount
+                                 : targetBlock->type->returnCount;
 
-                wa_value_type* opdTypes = (block->begin->op == WA_INSTR_loop)
-                                            ? block->type->params
-                                            : block->type->returns;
+                wa_value_type* opdTypes = (targetBlock->begin->op == WA_INSTR_loop)
+                                            ? targetBlock->type->params
+                                            : targetBlock->type->returns;
 
-                //NOTE: retain registers so that they're not released when we pop them
-                for(u32 i = 0; i < opdCount; i++)
+                u32 availableOperands = context->opdStackLen - currentBlock->scopeBase;
+                if(availableOperands < opdCount)
                 {
-                    wa_operand opd = wa_operand_stack_lookup(context, i);
-                    if(opd.type != WA_TYPE_UNKNOWN)
+                    u32 shift = opdCount - availableOperands;
+
+                    if(context->opdStack == 0 || context->opdStackLen + shift >= context->opdStackCap)
                     {
-                        wa_retain_register(context, opd.index);
+                        context->opdStackCap = (context->opdStackCap + 8) * 2;
+                        wa_operand_slot* tmp = context->opdStack;
+                        context->opdStack = oc_arena_push_array(&context->checkArena, wa_operand_slot, context->opdStackCap);
+                        OC_ASSERT(context->opdStack, "out of memory");
+                        if(tmp)
+                        {
+                            memcpy(context->opdStack, tmp, context->opdStackLen * sizeof(wa_operand_slot));
+                        }
                     }
-                }
-                wa_operand* opds = wa_operand_stack_get_operands(scratch.arena,
-                                                                 context,
-                                                                 instr,
-                                                                 opdCount,
-                                                                 opdTypes,
-                                                                 true);
-                for(u32 i = 0; i < opdCount; i++)
-                {
-                    if(opds[i].type == WA_TYPE_UNKNOWN)
+                    context->opdStackLen += shift;
+
+                    memmove(context->opdStack + currentBlock->scopeBase + shift,
+                            context->opdStack + currentBlock->scopeBase,
+                            sizeof(wa_operand_slot) * availableOperands);
+
+                    for(u32 i = 0; i < shift; i++)
                     {
-                        wa_operand_stack_push_reg(context, opdTypes[i], instr);
-                    }
-                    else
-                    {
-                        wa_operand_slot slot = {
-                            .index = opds[i].index,
-                        };
-                        wa_operand_stack_push(context, slot);
-                        wa_release_register(context, slot.index);
+                        u32 reg = wa_allocate_register(context, opdTypes[i]);
+                        context->opdStack[currentBlock->scopeBase + i].index = reg;
                     }
                 }
             }
-            */
 
             context->code[jumpOffset].valI64 = context->codeLen - jumpOffset;
         }
