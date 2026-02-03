@@ -99,7 +99,8 @@
                 "kind": "pointer",
                 "type": {
                     "kind": "char"
-                },
+                }
+            },
             "len": {
                 "count": "msgLen"
             }
@@ -238,7 +239,7 @@
         },
         {
             "name": "function",
-			"type": "type": {
+			"type": {
                 "kind": "pointer",
                 "type": {
                     "kind": "char"
@@ -259,7 +260,7 @@
         },
         {
             "name": "note",
-			"type": "type": {
+			"type": {
                 "kind": "pointer",
                 "type": {
                     "kind": "char"
@@ -275,7 +276,7 @@
     ]
 },
 {
-    "kind": "proc"
+    "kind": "proc",
 	"name": "oc_hostcall_get_host_platform",
 	"handler": "oc_hostapi_get_host_platform",
 	"return": {
@@ -284,7 +285,7 @@
 	"params": []
 },
 {
-    "kind": "proc"
+    "kind": "proc",
 	"name": "oc_hostcall_request_quit",
 	"handler": "oc_hostapi_request_quit",
 	"return": {
@@ -396,7 +397,7 @@
                 "kind": "pointer",
                 "type": {
                     "kind": "namedType",
-                    "name": "oc_arena",
+                    "name": "oc_arena"
                 }
             }
         }
@@ -819,65 +820,160 @@
         }
     ]
 },
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
 {
-	"name": "oc_canvas_renderer_submit",
-	"cname": "oc_bridge_canvas_renderer_submit",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-        {"name": "renderer",
-         "type": {"name": "oc_canvas_renderer", "tag": "S"}},
-		{"name": "surface",
-		 "type": {"name": "oc_surface", "tag": "S"}},
-		{"name": "msaaSampleCount",
-		  "type" : {"name": "u32", "tag": "i"}},
-		{"name": "clear",
-		 "type": {"name": "bool", "tag": "i"}},
-		{"name": "clearColor",
-		 "type": {"name": "oc_color", "tag": "S"}},
-		{"name": "primitiveCount",
-		 "type": {"name": "u32", "tag": "i"}},
-		{"name": "primitives",
-		 "type": {"name": "oc_primitive*", "tag": "p"},
-		 "len": {"count": "primitiveCount"}},
-		{"name": "eltCount",
-		 "type": {"name": "u32", "tag": "i"}},
-		{"name": "elements",
-		 "type": {"name": "oc_path_elt*", "tag": "p"},
-		 "len": {"count": "eltCount"}}]
+    "kind": "typename",
+    "name": "oc_canvas_renderer",
+    "type": {
+        "kind": "struct"
+    }
 },
 {
-    "name": "oc_canvas_present",
-    "cname": "oc_canvas_present",
-    "ret": {"name": "void", "tag": "v"},
-    "args": [
-        {"name": "renderer",
-         "type": {"name": "oc_canvas_renderer", "tag": "S"}},
-        {"name": "surface",
-         "type": {"name": "oc_surface", "tag": "S"}}]
+    "kind": "proc",
+	"name": "oc_hostcall_canvas_renderer_submit",
+	"handler": "oc_hostapi_canvas_renderer_submit",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "renderer",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_canvas_renderer"
+            }
+        },
+		{
+            "name": "surface",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_surface"
+            }
+        },
+		{
+            "name": "msaaSampleCount",
+            "type" : {
+                "kind": "u32"
+            }
+        },
+		{
+            "name": "clear",
+            "type": {
+                "kind": "bool"
+            }
+        },
+		{
+            "name": "clearColor",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_color"
+            }
+        },
+		{
+            "name": "primitiveCount",
+            "type": {
+                "kind": "u32"
+            }
+        },
+		{
+            "name": "primitives",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_primitive"
+                }
+            },
+            "len": {
+                "count": "primitiveCount"
+            }
+        },
+		{
+            "name": "eltCount",
+            "type": {
+                "kind": "u32"
+            }
+        },
+		{
+            "name": "elements",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_path_elt"
+                }
+            },
+            "len": {
+                "count": "eltCount"
+            }
+        }
+    ]
 },
 {
-	"name": "oc_gles_surface_create",
-	"cname": "oc_bridge_gles_surface_create",
-	"ret": {"name": "oc_surface", "tag": "S"},
-	"args": []
+    "kind": "proc",
+    "name": "oc_hostcall_canvas_present",
+    "handler": "oc_hostapi_canvas_present",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "renderer",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_canvas_renderer"
+            }
+        },
+        {
+            "name": "surface",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_surface"
+            }
+        }
+    ]
 },
 {
-	"name": "oc_gles_surface_make_current",
-	"cname": "oc_gles_surface_make_current",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "surface",
-		 "type": {"name": "oc_surface", "tag": "S"}}]
+    "kind": "proc",
+	"name": "oc_hostcall_gles_surface_create",
+	"handler": "oc_hostapi_gles_surface_create",
+	"return": {
+        "kind": "namedType",
+        "name": "oc_surface"
+    },
+	"params": []
 },
 {
-	"name": "oc_gles_surface_swap_buffers",
-	"cname": "oc_gles_surface_swap_buffers",
-	"ret": {"name": "void", "tag": "v"},
-	"args": [
-		{"name": "surface",
-		 "type": {"name": "oc_surface", "tag": "S"}}]
+    "kind": "proc",
+	"name": "oc_hostcall_gles_surface_make_current",
+	"handler": "oc_hostapi_gles_surface_make_current",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "surface",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_surface"
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_gles_surface_swap_buffers",
+	"handler": "oc_hostapi_gles_surface_swap_buffers",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "surface",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_surface"
+            }
+        }
+    ]
 }
 ]

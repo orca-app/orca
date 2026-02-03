@@ -930,6 +930,45 @@ pub fn build(b: *Build) !void {
     bindgen_step.dependOn(&bindgen_run.step);
 
     /////////////////////////////////////////////////////////
+    // binding generator (wip)
+
+    const gen_host_interface_exe: *Build.Step.Compile = b.addExecutable(.{
+        .name = "gen_host_interface",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+
+    const gen_host_interface_sources: []const []const u8 = &.{
+        "src/build/gen_host_interface.c",
+    };
+
+    var gen_host_interface_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
+    try gen_host_interface_compile_flags.append("-std=c11");
+    try gen_host_interface_compile_flags.append("-Werror");
+    try gen_host_interface_compile_flags.append("-g");
+    try gen_host_interface_compile_flags.append("-O0");
+    try gen_host_interface_compile_flags.append("-fno-sanitize=undefined");
+
+    gen_host_interface_exe.addIncludePath(b.path("src"));
+    gen_host_interface_exe.addCSourceFiles(.{
+        .files = gen_host_interface_sources,
+        .flags = gen_host_interface_compile_flags.items,
+    });
+
+    const gen_host_interface_install = b.addInstallArtifact(gen_host_interface_exe, .{});
+
+    const gen_host_interface_run: *Build.Step.Run = b.addRunArtifact(gen_host_interface_exe);
+    if (b.args) |args| {
+        gen_host_interface_run.addArgs(args);
+    }
+    gen_host_interface_run.step.dependOn(&gen_host_interface_install.step);
+
+    const gen_host_interface_step = b.step("gen-host-interface", "Generate wasm bindings from a json spec file");
+    gen_host_interface_step.dependOn(&gen_host_interface_run.step);
+
+    /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
 
     const stage_angle_dawn_src = b.addUpdateSourceFiles();
