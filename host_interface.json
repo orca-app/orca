@@ -3,7 +3,7 @@
     "kind": "typename",
     "name": "oc_clock_kind",
     "type": {
-        "kind": "struct"
+        "kind": "enum"
     }
 },
 {
@@ -684,6 +684,13 @@
     ]
 },
 {
+    "kind": "typename",
+    "name": "oc_rect",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
     "kind": "proc",
 	"name": "oc_hostcall_image_upload_region_rgba8",
 	"handler": "oc_hostapi_image_upload_region_rgba8",
@@ -721,6 +728,13 @@
             }
         }
     ]
+},
+{
+    "kind": "typename",
+    "name": "oc_surface",
+    "type": {
+        "kind": "struct"
+    }
 },
 {
     "kind": "proc",
@@ -823,6 +837,27 @@
 {
     "kind": "typename",
     "name": "oc_canvas_renderer",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_color",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_primitive",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_path_elt",
     "type": {
         "kind": "struct"
     }
