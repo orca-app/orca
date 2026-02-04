@@ -620,7 +620,6 @@ int main(int argc, char** argv)
                                  &hostcallPath,
                                  &(oc_arg_parser_arg_options){
                                      .desc = OC_STR8("output path for hostcalls definitions."),
-                                     .required = true,
                                  });
 
     oc_arg_parser_add_named_str8(&argParser,
@@ -651,15 +650,20 @@ int main(int argc, char** argv)
         oc_file_close(in);
     }
 
-    oc_file hostCallsFile = oc_catch(oc_file_open(hostcallPath,
-                                                  OC_FILE_ACCESS_WRITE,
-                                                  &(oc_file_open_options){
-                                                      .flags = OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE,
-                                                  }))
+    oc_file hostCallsFile = oc_file_nil();
+
+    if(hostcallPath.len)
     {
-        printf("Error: can't open hostcalls header '%.*s' for writing\n", oc_str8_ip(hostcallPath));
-        result = -1;
-        goto end;
+        hostCallsFile = oc_catch(oc_file_open(hostcallPath,
+                                              OC_FILE_ACCESS_WRITE,
+                                              &(oc_file_open_options){
+                                                  .flags = OC_FILE_OPEN_CREATE | OC_FILE_OPEN_TRUNCATE,
+                                              }))
+        {
+            printf("Error: can't open hostcalls header '%.*s' for writing\n", oc_str8_ip(hostcallPath));
+            result = -1;
+            goto end;
+        }
     }
 
     oc_file stubsFile = oc_catch(oc_file_open(bindingPath,
@@ -786,10 +790,12 @@ int main(int argc, char** argv)
                           &hostapiBindingList,
                           OC_STR8("// Hostcall handlers prototypes\n"));
 
+        /*
         oc_list_for(procList, proc, proc_desc, listElt)
         {
             gen_handler_prototype(scratch.arena, &hostapiBindingList, proc);
         }
+        */
         oc_str8_list_push(scratch.arena,
                           &hostapiBindingList,
                           OC_STR8("\n// Handler stubs\n"));
@@ -806,13 +812,15 @@ int main(int argc, char** argv)
         gen_hostapi_binding(scratch.arena, &hostapiBindingList, apiName, procList);
     }
 
-    oc_str8 hostcallDecl = oc_str8_list_join(scratch.arena, hostcallDeclList);
-    oc_file_write(hostCallsFile, hostcallDecl.len, hostcallDecl.ptr);
+    if(hostcallPath.len)
+    {
+        oc_str8 hostcallDecl = oc_str8_list_join(scratch.arena, hostcallDeclList);
+        oc_file_write(hostCallsFile, hostcallDecl.len, hostcallDecl.ptr);
+        oc_file_close(hostCallsFile);
+    }
 
     oc_str8 hostapiBinding = oc_str8_list_join(scratch.arena, hostapiBindingList);
     oc_file_write(stubsFile, hostapiBinding.len, hostapiBinding.ptr);
-
-    oc_file_close(hostCallsFile);
     oc_file_close(stubsFile);
 
 end:

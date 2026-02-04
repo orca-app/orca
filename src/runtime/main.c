@@ -158,9 +158,8 @@ static bool s_is_test_module = false;
 
 #include "host_handlers.c"
 #include "wasmbind/core_stubs.c"
-
 #include "wasmbind/gles_api_bind_manual.c"
-#include "wasmbind/gles_api_bind_gen.c"
+#include "wasmbind/gles_stubs.c"
 
 wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_func* function, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
 {
@@ -485,6 +484,7 @@ int load_app(oc_runtime* app)
         };
 
         bindgen_link_core_api(scratch.arena, &package);
+        bindgen_link_gles_api(scratch.arena, &package);
 
         int err = 0;
         /*
@@ -492,7 +492,6 @@ int load_app(oc_runtime* app)
         err |= bindgen_link_clock_api(scratch.arena, &package);
         err |= bindgen_link_io_api(scratch.arena, &package);
         */
-        err |= bindgen_link_gles_api(scratch.arena, &package);
         err |= manual_link_gles_api(scratch.arena, &package);
 
         if(err)
