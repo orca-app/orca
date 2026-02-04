@@ -345,8 +345,11 @@
 		{
             "name": "size",
             "type": {
-                "kind": "namedType",
-                "name": "oc_vec2"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
             }
         }
 	]

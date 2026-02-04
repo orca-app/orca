@@ -406,14 +406,14 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
         {
             oc_str8_list_pushf(arena,
                                list,
-                               "\tu64 %.*s_offset = (u64)(*(u32*)&params[%llu]);\n",
+                               "\tu64 %.*s_argOffset = (u64)(*(u32*)&params[%llu]);\n",
                                oc_str8_ip(param->name),
                                oc_str8_ip(param->typeDesc.string),
                                i);
 
             oc_str8_list_pushf(arena,
                                list,
-                               "\t%.*s %.*s = (%.*s)((char*)_mem + %.*s_offset);\n",
+                               "\t%.*s %.*s_arg = (%.*s)((char*)_mem + %.*s_argOffset);\n",
                                oc_str8_ip(param->typeDesc.string),
                                oc_str8_ip(param->name),
                                oc_str8_ip(param->typeDesc.string),
@@ -423,7 +423,7 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
         {
             oc_str8_list_pushf(arena,
                                list,
-                               "\t%.*s %.*s = *(%.*s*)&params[%llu];\n",
+                               "\t%.*s %.*s_arg = *(%.*s*)&params[%llu];\n",
                                oc_str8_ip(param->typeDesc.string),
                                oc_str8_ip(param->name),
                                oc_str8_ip(param->typeDesc.string),
@@ -443,13 +443,13 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
             //NOTE: Compute size of arg, detecting overflow
             oc_str8_list_pushf(arena,
                                list,
-                               "\t\tu64 size = %u * sizeof(*%.*s);\n",
+                               "\t\tu64 size = %u * sizeof(*%.*s_arg);\n",
                                param->len.countConst,
                                oc_str8_ip(param->name));
 
             oc_str8_list_pushf(arena,
                                list,
-                               "\t\tOC_ASSERT_DIALOG(size/%u == sizeof(*%.*s), \"argument length overflows\");\n",
+                               "\t\tOC_ASSERT_DIALOG(size/%u == sizeof(*%.*s_arg), \"argument length overflows\");\n",
                                param->len.countConst,
                                oc_str8_ip(param->name));
 
@@ -457,20 +457,20 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
             {
                 oc_str8_list_pushf(arena,
                                    list,
-                                   "\t\tOC_ASSERT_DIALOG((%.*s * size)/size == %.*s, \"argument length overflows\");\n",
+                                   "\t\tOC_ASSERT_DIALOG((%.*s_arg * size)/size == %.*s_arg, \"argument length overflows\");\n",
                                    oc_str8_ip(param->len.countArg),
                                    oc_str8_ip(param->len.countArg));
 
                 oc_str8_list_pushf(arena,
                                    list,
-                                   "\t\tsize *= %.*s;\n",
+                                   "\t\tsize *= %.*s_arg;\n",
                                    oc_str8_ip(param->len.countArg));
             }
 
             //NOTE: check size of arg, detecting out-of-bounds and overflow
             oc_str8_list_pushf(arena,
                                list,
-                               "\t\tOC_ASSERT_DIALOG((%.*s_offset + size < _memSize) && (%.*s_offset + size >= %.*s_offset), \"argument is out of bounds\");\n",
+                               "\t\tOC_ASSERT_DIALOG((%.*s_argOffset + size < _memSize) && (%.*s_argOffset + size >= %.*s_argOffset), \"argument is out of bounds\");\n",
                                oc_str8_ip(param->name),
                                oc_str8_ip(param->name),
                                oc_str8_ip(param->name));
@@ -485,7 +485,7 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
 
                 for(int i = 0; i < param->len.checkArgCount; i++)
                 {
-                    oc_str8_list_push(arena, list, param->len.checkArgs[i]);
+                    oc_str8_list_pushf(arena, list, "%.*s_arg", oc_str8_ip(param->len.checkArgs[i]));
 
                     if(i < param->len.checkArgCount - 1)
                     {
@@ -520,7 +520,7 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
     for(int i = 0; i < proc->paramCount; i++)
     {
         param_desc* param = &proc->params[i];
-        oc_str8_list_push(arena, list, param->name);
+        oc_str8_list_pushf(arena, list, "%.*s_arg", oc_str8_ip(param->name));
         if(i < proc->paramCount - 1)
         {
             oc_str8_list_push(arena, list, OC_STR8(", "));

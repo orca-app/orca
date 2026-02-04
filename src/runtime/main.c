@@ -151,8 +151,9 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 
 static bool s_is_test_module = false;
 
-#include "bridge_io.c"
-#include "runtime_clipboard.c"
+//#include "bridge_io.c"
+//#include "runtime_clipboard.c"
+
 #include "runtime_memory.c"
 
 #include "wasmbind/host_handlers.c"
