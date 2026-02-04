@@ -32,3 +32,8 @@ void oc_clipboard_set_string(oc_str8 string)
 {
     oc_hostcall_clipboard_set_string(&string);
 }
+
+void oc_request_quit()
+{
+    oc_hostcall_request_quit();
+}

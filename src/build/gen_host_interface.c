@@ -414,7 +414,6 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
                                list,
                                "\tu64 %.*s_argOffset = (u64)(*(u32*)&params[%llu]);\n",
                                oc_str8_ip(param->name),
-                               oc_str8_ip(param->typeDesc.string),
                                i);
 
             oc_str8_list_pushf(arena,
