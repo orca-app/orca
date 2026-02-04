@@ -159,6 +159,13 @@ oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString)
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------
 
+typedef struct oc_wasm_arena
+{
+    i32 base;
+    oc_wasm_list chunks;
+    i32 currentChunk;
+} oc_wasm_arena;
+
 oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size)
 {
     return oc_wasm_arena_push_aligned(arena, size, 1);

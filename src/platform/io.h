@@ -19,7 +19,7 @@ extern "C" {
 // IO API
 //----------------------------------------------------------------
 
-typedef struct
+typedef struct oc_file
 {
     u64 h;
 } oc_file;

@@ -87,7 +87,7 @@ typedef struct oc_wasm_str8_list
     u64 len;
 } oc_wasm_str8_list;
 
-#define oc_wasm_str8_to_native(wasmString) ((oc_str8){ .ptr = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len), .len = wasmString.len })
+#define oc_wasm_str8_to_native(wasmString) ((oc_str8){ .ptr = oc_wasm_address_to_ptr((wasmString).ptr, (wasmString).len), .len = (wasmString).len })
 
 oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString);
 

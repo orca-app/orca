@@ -151,18 +151,15 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 
 static bool s_is_test_module = false;
 
-#include "bridges.c"
 #include "bridge_io.c"
 #include "runtime_clipboard.c"
 #include "runtime_memory.c"
 
-#include "wasmbind/clock_api_bind_gen.c"
-#include "wasmbind/core_api_bind_gen.c"
+#include "wasmbind/host_handlers.c"
+#include "wasmbind/core_stubs.c"
+
 #include "wasmbind/gles_api_bind_manual.c"
 #include "wasmbind/gles_api_bind_gen.c"
-#include "wasmbind/io_api_bind_gen.c"
-#include "wasmbind/surface_api_bind_manual.c"
-#include "wasmbind/surface_api_bind_gen.c"
 
 wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_func* function, u32 argCount, wa_value* args, u32 retCount, wa_value* returns)
 {
@@ -486,12 +483,15 @@ int load_app(oc_runtime* app)
             .name = OC_STR8("env"),
         };
 
+        bindgen_link_core_api(scratch.arena, &package);
+
         int err = 0;
-        err |= bindgen_link_core_api(scratch.arena, &package);
+        /*
         err |= bindgen_link_surface_api(scratch.arena, &package);
         err |= bindgen_link_clock_api(scratch.arena, &package);
         err |= bindgen_link_io_api(scratch.arena, &package);
         err |= bindgen_link_gles_api(scratch.arena, &package);
+        */
         err |= manual_link_gles_api(scratch.arena, &package);
 
         if(err)

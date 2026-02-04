@@ -29,7 +29,7 @@ typedef int64_t i64;
 typedef float f32;
 typedef double f64;
 
-typedef union
+typedef union oc_vec2
 {
     struct
     {
@@ -40,7 +40,7 @@ typedef union
     f32 c[2];
 } oc_vec2;
 
-typedef union
+typedef union oc_vec3
 {
     struct
     {
@@ -52,7 +52,7 @@ typedef union
     f32 c[3];
 } oc_vec3;
 
-typedef union
+typedef union oc_vec2i
 {
     struct
     {
@@ -63,7 +63,7 @@ typedef union
     i32 c[2];
 } oc_vec2i;
 
-typedef union
+typedef union oc_vec4
 {
     struct
     {
@@ -81,7 +81,7 @@ typedef struct oc_mat2x3
     f32 m[6];
 } oc_mat2x3;
 
-typedef union
+typedef union oc_rect
 {
     struct
     {
