@@ -491,8 +491,8 @@ int load_app(oc_runtime* app)
         err |= bindgen_link_surface_api(scratch.arena, &package);
         err |= bindgen_link_clock_api(scratch.arena, &package);
         err |= bindgen_link_io_api(scratch.arena, &package);
-        err |= bindgen_link_gles_api(scratch.arena, &package);
         */
+        err |= bindgen_link_gles_api(scratch.arena, &package);
         err |= manual_link_gles_api(scratch.arena, &package);
 
         if(err)

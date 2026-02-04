@@ -22,10 +22,10 @@ u64 orca_check_cstring(wa_instance* instance, const char* ptr)
     return (len + 1); //include null-terminator
 }
 
-u64 orca_image_upload_region_rgba8_length(wa_instance* instance, oc_rect rect)
+u64 orca_image_upload_region_rgba8_length(wa_instance* instance, oc_rect* rect)
 {
     u64 pixelFormatWidth = sizeof(u8) * 4;
-    u64 len = rect.w * rect.h * pixelFormatWidth;
+    u64 len = rect->w * rect->h * pixelFormatWidth;
     return len;
 }
 
@@ -525,18 +525,95 @@ void oc_hostapi_file_listdir(oc_wasm_arena* wasmArena, oc_file* directory, oc_wa
 // graphics handlers
 //------------------------------------------------------------------------
 
-oc_vec2 oc_hostapi_image_size(oc_image image);
-oc_image oc_hostapi_image_create(oc_canvas_renderer renderer, u32 width, u32 height);
-void oc_hostapi_image_destroy(oc_image image);
-void oc_hostapi_image_upload_region_rgba8(oc_image image, oc_rect region, u8* pixels);
-oc_vec2 oc_hostapi_surface_get_size(oc_surface surface);
-oc_vec2 oc_hostapi_surface_contents_scaling(oc_surface surface);
-void oc_hostapi_surface_bring_to_front(oc_surface surface);
-void oc_hostapi_surface_send_to_back(oc_surface surface);
-oc_canvas_renderer oc_hostapi_canvas_renderer_create();
-oc_surface oc_hostapi_canvas_surface_create(oc_canvas_renderer renderer);
-void oc_hostapi_canvas_renderer_submit(oc_canvas_renderer renderer, oc_surface surface, u32 msaaSampleCount, bool clear, oc_color clearColor, u32 primitiveCount, oc_primitive* primitives, u32 eltCount, oc_path_elt* elements);
-void oc_hostapi_canvas_present(oc_canvas_renderer renderer, oc_surface surface);
-oc_surface oc_hostapi_gles_surface_create();
-void oc_hostapi_gles_surface_make_current(oc_surface surface);
-void oc_hostapi_gles_surface_swap_buffers(oc_surface surface);
+void oc_hostapi_image_size(oc_image* image, oc_vec2* returnPointer)
+{
+    *returnPointer = oc_image_size(*image);
+}
+
+void oc_hostapi_image_create(oc_canvas_renderer* renderer, u32 width, u32 height, oc_image* returnPointer)
+{
+    *returnPointer = oc_image_create(*renderer, width, height);
+}
+
+void oc_hostapi_image_destroy(oc_image* image)
+{
+    oc_image_destroy(*image);
+}
+
+void oc_hostapi_image_upload_region_rgba8(oc_image* image, oc_rect* region, u8* pixels)
+{
+    oc_image_upload_region_rgba8(*image, *region, pixels);
+}
+
+void oc_hostapi_surface_get_size(oc_surface* surface, oc_vec2* returnPointer)
+{
+    *returnPointer = oc_surface_get_size(*surface);
+}
+
+void oc_hostapi_surface_contents_scaling(oc_surface* surface, oc_vec2* returnPointer)
+{
+    *returnPointer = oc_surface_contents_scaling(*surface);
+}
+
+void oc_hostapi_surface_bring_to_front(oc_surface* surface)
+{
+    oc_surface_bring_to_front(*surface);
+}
+
+void oc_hostapi_surface_send_to_back(oc_surface* surface)
+{
+    oc_surface_send_to_back(*surface);
+}
+
+void oc_hostapi_canvas_renderer_create(oc_canvas_renderer* returnPointer)
+{
+    *returnPointer = oc_canvas_renderer_create();
+}
+
+void oc_hostapi_canvas_surface_create(oc_canvas_renderer* renderer, oc_surface* returnPointer)
+{
+    *returnPointer = oc_canvas_surface_create_for_window(*renderer, __orcaApp.window);
+}
+
+#include "graphics/graphics_common.h"
+
+void oc_hostapi_canvas_renderer_submit(oc_canvas_renderer* renderer,
+                                       oc_surface* surface,
+                                       u32 msaaSampleCount,
+                                       bool clear,
+                                       oc_color* clearColor,
+                                       u32 primitiveCount,
+                                       oc_primitive* primitives,
+                                       u32 eltCount,
+                                       oc_path_elt* elements)
+{
+    oc_canvas_renderer_submit(*renderer,
+                              *surface,
+                              msaaSampleCount,
+                              clear,
+                              *clearColor,
+                              primitiveCount,
+                              primitives,
+                              eltCount,
+                              elements);
+}
+
+void oc_hostapi_canvas_present(oc_canvas_renderer* renderer, oc_surface* surface)
+{
+    oc_canvas_present(*renderer, *surface);
+}
+
+void oc_hostapi_gles_surface_create(oc_surface* returnPointer)
+{
+    *returnPointer = oc_gles_surface_create_for_window(__orcaApp.window);
+}
+
+void oc_hostapi_gles_surface_make_current(oc_surface* surface)
+{
+    oc_gles_surface_make_current(*surface);
+}
+
+void oc_hostapi_gles_surface_swap_buffers(oc_surface* surface)
+{
+    oc_gles_surface_swap_buffers(*surface);
+}

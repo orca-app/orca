@@ -16,6 +16,11 @@ ORCA_EXPORT void* oc_arena_push_aligned_stub(oc_arena* arena, u64 size, u32 alig
     return (oc_arena_push_aligned(arena, size, alignment));
 }
 
+void oc_window_set_title(oc_str8 title)
+{
+    oc_hostcall_window_set_title(&title);
+}
+
 oc_str8 oc_clipboard_get_string(oc_arena* arena)
 {
     oc_str8 ret = { 0 };

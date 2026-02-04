@@ -119,7 +119,7 @@ void gen_hostcall_prototype(oc_arena* arena, oc_str8_list* list, proc_desc* proc
 
     oc_str8_list_pushf(arena,
                        list,
-                       " %.*s(",
+                       " ORCA_IMPORT(%.*s)(",
                        oc_str8_ip(proc->name));
 
     if(proc->paramCount == 0)
@@ -235,26 +235,32 @@ param_type_desc parse_param_type(oc_arena* arena, json_node* root, json_node* no
         desc.isPointer = true;
         desc.wasmType = OC_STR8("WA_TYPE_I32");
     }
-    else if(oc_str8_cmp(unwrappedKindNode->string, OC_STR8("bool"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u8"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i8"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u16"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i16"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u32"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i32")))
+    else if(!oc_str8_cmp(unwrappedKindNode->string, OC_STR8("void")))
+    {
+        //TODO: maybe handle void for return type differently, because we
+        // still want to catch bad usage of void in params?
+    }
+    else if(!oc_str8_cmp(unwrappedKindNode->string, OC_STR8("bool"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u8"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i8"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u16"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i16"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u32"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i32"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("enum")))
     {
         desc.wasmType = OC_STR8("WA_TYPE_I32");
     }
-    else if(oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u64"))
-            || oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i64")))
+    else if(!oc_str8_cmp(unwrappedKindNode->string, OC_STR8("u64"))
+            || !oc_str8_cmp(unwrappedKindNode->string, OC_STR8("i64")))
     {
         desc.wasmType = OC_STR8("WA_TYPE_I64");
     }
-    else if(oc_str8_cmp(unwrappedKindNode->string, OC_STR8("f32")))
+    else if(!oc_str8_cmp(unwrappedKindNode->string, OC_STR8("f32")))
     {
         desc.wasmType = OC_STR8("WA_TYPE_F32");
     }
-    else if(oc_str8_cmp(unwrappedKindNode->string, OC_STR8("f64")))
+    else if(!oc_str8_cmp(unwrappedKindNode->string, OC_STR8("f64")))
     {
         desc.wasmType = OC_STR8("WA_TYPE_F64");
     }
@@ -563,7 +569,11 @@ void gen_hostapi_binding(oc_arena* arena, oc_str8_list* list, oc_str8 apiName, o
         oc_str8_list_pushf(arena, list, "\t\tbinding.kind = WA_BINDING_HOST_FUNCTION;\n");
         oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.proc = %.*s_stub;\n", oc_str8_ip(proc->handler));
         oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.paramCount = %u;\n", proc->paramCount);
-        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.returnCount = 1;\n");
+
+        u32 returnCount = oc_str8_cmp(proc->returnType.string, OC_STR8("void"))
+                            ? 1
+                            : 0;
+        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.returnCount = %u;\n", returnCount);
         oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.params = paramTypes;\n");
         oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.returns = returnTypes;\n");
         oc_str8_list_pushf(arena, list, "\t\twa_import_package_push_binding(arena, package, &binding);\n");
@@ -711,6 +721,10 @@ int main(int argc, char** argv)
         oc_str8_list_push(scratch.arena,
                           &hostcallDeclList,
                           OC_STR8("#pragma once\n\n"));
+
+        oc_str8_list_push(scratch.arena,
+                          &hostcallDeclList,
+                          OC_STR8("#include \"platform/platform.h\"\n\n"));
 
         oc_str8_list_push(scratch.arena,
                           &hostcallDeclList,

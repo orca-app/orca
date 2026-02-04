@@ -105,7 +105,6 @@
     #elif OC_PLATFORM_ORCA
         #include "app/orca_app.c"
         #include "graphics/graphics_common.c"
-        #include "graphics/orca_surface_stubs.c"
     #else
         #error "Unsupported platform"
     #endif

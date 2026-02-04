@@ -689,15 +689,28 @@
 	"name": "oc_hostcall_image_size",
 	"handler": "oc_hostapi_image_size",
 	"return": {
-        "kind": "namedType",
-        "name": "oc_vec2"
+        "kind": "void"
     },
 	"params": [
         {
             "name": "image",
             "type": {
-                "kind": "namedType",
-                "name": "oc_image"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type":
+                {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
             }
         }
     ]
@@ -707,15 +720,17 @@
 	"name": "oc_hostcall_image_create",
 	"handler": "oc_hostapi_image_create",
 	"return": {
-        "kind": "namedType",
-        "name": "oc_image"
+        "kind": "void"
     },
 	"params": [
         {
             "name": "renderer",
             "type": {
-                "kind": "namedType",
-                "name": "oc_canvas_renderer"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
             }
         },
         {
@@ -728,6 +743,16 @@
             "name": "height",
             "type": {
                 "kind": "u32"
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
             }
         }
     ]
@@ -743,8 +768,11 @@
         {
             "name": "image",
             "type": {
-                "kind": "namedType",
-                "name": "oc_image"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
             }
         }
     ]
@@ -767,15 +795,21 @@
 		{
             "name": "image",
             "type": {
-                "kind": "namedType",
-                "name": "oc_image"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
             }
         },
 		{
             "name": "region",
             "type": {
-                "kind": "namedType",
-                "name": "oc_rect"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_rect"
+                }
             }
         },
 		{
@@ -807,15 +841,28 @@
     "name": "oc_hostcall_surface_get_size",
     "handler": "oc_hostapi_surface_get_size",
     "return": {
-        "kind": "namedType",
-        "name": "oc_vec2"
+        "kind": "void"
     },
     "params": [
         {
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type":
+                {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
             }
         }
     ]
@@ -825,15 +872,27 @@
     "name": "oc_hostcall_surface_contents_scaling",
     "handler": "oc_hostapi_surface_contents_scaling",
     "return": {
-        "kind": "namedType",
-        "name": "oc_vec2"
+        "kind": "void"
     },
     "params": [
         {
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
             }
         }
     ]
@@ -849,8 +908,11 @@
         {
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         }
     ]
@@ -866,8 +928,11 @@
         {
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         }
     ]
@@ -877,25 +942,47 @@
 	"name": "oc_hostcall_canvas_renderer_create",
 	"handler": "oc_hostapi_canvas_renderer_create",
 	"return": {
-        "kind": "namedType",
-        "name": "oc_canvas_renderer"
+        "kind": "void"
     },
-	"params": []
+	"params": [
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        }
+	]
 },
 {
     "kind": "proc",
 	"name": "oc_hostcall_canvas_surface_create",
 	"handler": "oc_hostapi_canvas_surface_create",
 	"return": {
-        "kind": "namedType",
-        "name": "oc_surface"
+        "kind": "void"
     },
 	"params": [
         {
             "name": "renderer",
             "type": {
-                "kind": "namedType",
-                "name": "oc_canvas_renderer"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         }
     ]
@@ -939,15 +1026,21 @@
         {
             "name": "renderer",
             "type": {
-                "kind": "namedType",
-                "name": "oc_canvas_renderer"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
             }
         },
 		{
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         },
 		{
@@ -965,8 +1058,11 @@
 		{
             "name": "clearColor",
             "type": {
-                "kind": "namedType",
-                "name": "oc_color"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_color"
+                }
             }
         },
 		{
@@ -1020,15 +1116,21 @@
         {
             "name": "renderer",
             "type": {
-                "kind": "namedType",
-                "name": "oc_canvas_renderer"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
             }
         },
         {
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         }
     ]
@@ -1038,10 +1140,20 @@
 	"name": "oc_hostcall_gles_surface_create",
 	"handler": "oc_hostapi_gles_surface_create",
 	"return": {
-        "kind": "namedType",
-        "name": "oc_surface"
+        "kind": "void"
     },
-	"params": []
+	"params": [
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+	]
 },
 {
     "kind": "proc",
@@ -1054,8 +1166,11 @@
 		{
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         }
     ]
@@ -1071,8 +1186,11 @@
 		{
             "name": "surface",
             "type": {
-                "kind": "namedType",
-                "name": "oc_surface"
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
             }
         }
     ]
