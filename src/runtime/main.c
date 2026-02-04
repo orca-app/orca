@@ -156,7 +156,7 @@ static bool s_is_test_module = false;
 
 #include "runtime_memory.c"
 
-#include "wasmbind/host_handlers.c"
+#include "host_handlers.c"
 #include "wasmbind/core_stubs.c"
 
 #include "wasmbind/gles_api_bind_manual.c"
