@@ -80,7 +80,7 @@ jobs:
 
   build-macos-x64:
     needs: [determine-version]
-    runs-on: macos-13
+    runs-on: macos-15-intel
     steps:
       - uses: actions/setup-python@v4
         with:
