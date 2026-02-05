@@ -1,6 +1,7 @@
 # Typical usage, run from orca root:
 #   python scripts/gles_gen.py --spec src/ext/gl.xml --header=src/graphics/orca_gl31.h --json=src/wasmbind/gles_api.json --log=zig-out/log/gles_gen.log
 
+import textwrap
 import xml.etree.ElementTree as et
 from argparse import ArgumentParser
 
@@ -79,57 +80,54 @@ def gen_argcount_len_entry(name, argName, tokens):
     entry += '}'
     return entry
 
-def get_type_desc(typeString):
-    typeString = typeString.removeprefix('const ').removesuffix('const').strip()
+def get_type_desc(typeString, indent):
+
+    typeString = typeString.strip()
+
     res = ''
-    if typeString.endswith('*'):
-        typeString = typeString[:len(typeString)-1].strip()
-        res = '{ "kind": "pointer", "type": ' + get_type_desc(typeString) + '}'
-    else:
-        glTypeToPrimitive = {
-            "void": "void",
 
-            "GLenum": "u32",
-            "GLbitfield": "u32",
+    constPtr = False
 
-            "GLboolean": "u8",
-            "GLbyte": "i8",
-            "GLubyte": "u8",
-            "GLchar": "char",
+    if typeString.endswith('const'):
+        constPtr = True
+        typeString = typeString.removesuffix('const').strip()
 
-            "GLshort": "i16",
-            "GLushort": "u16",
-            "GLhalf": "i32",
-            "GLhalfARB": "i32",
-
-            "GLuint": "u32",
-            "GLint": "i32",
-            "GLclampx": "i32",
-            "GLsizei": "i32",
-            "GLfixed": "i32",
-
-            #TODO check actual sizes
-            "GLintptr": "i32",
-            "GLsizeiptr": "i32",
-
-            "GLuint64": "u64",
-            "GLint64": "i64",
-
-            "GLfloat": "f32",
-            "GLclampf": "f32",
-
-            "GLdouble": "f64",
-            "GLclampd": "f64",
-
-            #NOTE: we treat sync objects as opaque 64bit values
-            #TODO we should _also_ make sure that Wasm code treat them as 64bit values
-            "GLsync": "i64"
-        }
-        s = glTypeToPrimitive.get(typeString)
-        if not s:
-            print("Couldn't find type equivalent for gl type'" + typeString + "'");
+        if not typeString.endswith('*'):
+            print("typespec ending with const should be a pointer: " + typeString )
             exit(-1)
-        res = '{ "kind": "' + s + '"}'
+
+
+    if typeString.endswith('*'):
+        typeString = typeString[:-1].strip()
+        res = '{\n'
+        indent += 1
+        res += '\t'*indent + '"kind": "pointer",\n'
+        res += '\t'*indent + '"type": '
+        res += get_type_desc(typeString, indent)
+        if constPtr:
+            res += ',\n'
+            res += '\t'*indent + '"attributes": [ "const"]\n'
+        else:
+            res += '\n'
+        indent -= 1
+        res += '\t'*indent + '}'
+    else:
+        const = False
+        if typeString.startswith('const'):
+            const = True
+            typeString = typeString.removeprefix('const').strip()
+
+        res = '{\n'
+        indent += 1
+        res += '\t'*indent + '"kind": "namedType",\n'
+        res += '\t'*indent + '"name": "' + typeString + '"'
+        if const:
+            res += ',\n'
+            res += '\t'*indent + '"attributes": [ "const" ]\n'
+        else:
+            res += '\n'
+        indent -= 1
+        res += '\t'*indent + '}'
 
     return res
 
@@ -175,6 +173,194 @@ def gen_gles_bindgen_json(spec, filename):
     ]
 
     json = '[\n'
+
+    json += textwrap.dedent("""\
+        {
+            "kind": "typename",
+            "name": "void",
+            "type": {
+                "kind": "void"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLenum",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "u32",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLbitfield",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLboolean",
+            "type": {
+                "kind": "u8"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLbyte",
+            "type": {
+                "kind": "i8"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLubyte",
+            "type": {
+                "kind": "u8"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLchar",
+            "type": {
+                "kind": "char"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLshort",
+            "type": {
+                "kind": "i16"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLushort",
+            "type": {
+                "kind": "u16"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLhalf",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLhalfARB",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLuint",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLint",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLclampx",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLsizei",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLfixed",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLintptr",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLsizeiptr",
+            "type": {
+                "kind": "u32"
+            },
+            "host": "u32"
+        },
+        {
+            "kind": "typename",
+            "name": "GLuint64",
+            "type": {
+                "kind": "u64"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLint64",
+            "type": {
+                "kind": "i64"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLfloat",
+            "type": {
+                "kind": "f32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLclampf",
+            "type": {
+                "kind": "f32"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLdouble",
+            "type": {
+                "kind": "f64"
+            }
+        },
+        {
+            "kind": "typename",
+            "name": "GLclampd",
+            "type": {
+                "kind": "f64"
+            }
+        },
+        {
+            "kind": "typename",
+            "name":"GLsync",
+            "type": {
+                "kind": "i64"
+            }
+        },
+        """)
+
+
     for name in api:
         if name in manualBind:
             continue
@@ -197,7 +383,7 @@ def gen_gles_bindgen_json(spec, filename):
             if ptype.tail != None:
                 retType += ptype.tail
 
-        retType = get_type_desc(retType.strip())
+        retType = get_type_desc(retType, 1)
 
         entry = '{\n\t"kind": "proc",\n'
         entry += '\t"name": "' + name + '",\n'
@@ -225,16 +411,11 @@ def gen_gles_bindgen_json(spec, filename):
                 if typeNode.tail != None:
                     typeName += typeNode.tail
 
-            typeName = typeName.strip()
-
-            if typeName.endswith('**'):
-                print("Warning: function " + name + ": parameter " + argName + " has 2 (or more) levels of indirection")
-
-            typeDesc = get_type_desc(typeName)
+            typeDesc = get_type_desc(typeName, 3)
 
             entry += '\n'
             entry += '\t\t{\n\t\t\t"name": "'+ argName +'",\n'
-            entry += '\t\t\t"type": ' + typeDesc + '\n'
+            entry += '\t\t\t"type": ' + typeDesc
 
             lenString = param.get('len')
 

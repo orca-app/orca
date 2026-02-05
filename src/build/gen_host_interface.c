@@ -44,6 +44,7 @@ typedef struct param_type_desc
 {
     oc_str8 string;
     bool isPointer;
+    bool isVoid;
     oc_str8 wasmType;
     oc_str8 guestType;
 
@@ -160,6 +161,24 @@ json_node* find_named_type(json_node* root, oc_str8 name)
     return 0;
 }
 
+bool has_attribute(json_node* node, oc_str8 attribute)
+{
+    bool result = false;
+    json_node* attributes = json_find_kind(node, OC_STR8("attributes"), JSON_LIST);
+    if(attributes)
+    {
+        oc_list_for(attributes->children, child, json_node, listElt)
+        {
+            if(child->kind == JSON_STRING && !oc_str8_cmp(child->string, attribute))
+            {
+                result = true;
+                break;
+            }
+        }
+    }
+    return result;
+}
+
 oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
 {
     oc_str8 typeString = { 0 };
@@ -184,6 +203,11 @@ oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
         {
             typeString = nameNode->string;
         }
+
+        if(has_attribute(node, OC_STR8("const")))
+        {
+            typeString = oc_str8_pushf(arena, "const %.*s", oc_str8_ip(typeString));
+        }
     }
     else if(!oc_str8_cmp(kindNode->string, OC_STR8("pointer")))
     {
@@ -192,6 +216,11 @@ oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
         oc_str8 sub = get_native_type(arena, root, typeNode);
 
         typeString = oc_str8_pushf(arena, "%.*s*", oc_str8_ip(sub));
+
+        if(has_attribute(node, OC_STR8("const")))
+        {
+            typeString = oc_str8_pushf(arena, "%.*s const", oc_str8_ip(typeString));
+        }
     }
     else if(!oc_str8_cmp(kindNode->string, OC_STR8("struct")))
     {
@@ -201,6 +230,11 @@ oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
     else
     {
         typeString = kindNode->string;
+
+        if(has_attribute(node, OC_STR8("const")))
+        {
+            typeString = oc_str8_pushf(arena, "const %.*s", oc_str8_ip(typeString));
+        }
     }
     return typeString;
 }
@@ -234,6 +268,15 @@ param_type_desc parse_param_type(oc_arena* arena, json_node* root, json_node* no
     {
         desc.isPointer = true;
         desc.wasmType = OC_STR8("WA_TYPE_I32");
+
+        json_node* pointedTypeNode = json_expect_field(unwrappedTypeNode, OC_STR8("type"), JSON_OBJECT);
+        pointedTypeNode = unwrap_named_types(root, pointedTypeNode);
+
+        json_node* pointedTypeKind = json_expect_field(pointedTypeNode, OC_STR8("kind"), JSON_STRING);
+        if(!oc_str8_cmp(pointedTypeKind->string, OC_STR8("void")))
+        {
+            desc.isVoid = true;
+        }
     }
     else if(!oc_str8_cmp(unwrappedKindNode->string, OC_STR8("void")))
     {
@@ -446,17 +489,29 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
             oc_str8_list_pushf(arena, list, "\t{\n\t\t// Check argument '%.*s'\n", oc_str8_ip(param->name));
 
             //NOTE: Compute size of arg, detecting overflow
-            oc_str8_list_pushf(arena,
-                               list,
-                               "\t\tu64 size = %u * sizeof(*%.*s_arg);\n",
-                               param->len.countConst,
-                               oc_str8_ip(param->name));
+            oc_str8 sizeofString = { 0 };
+
+            if(param->typeDesc.isVoid)
+            {
+                //NOTE: special case void*, consider it points to items of type 1
+                sizeofString = OC_STR8("1");
+            }
+            else
+            {
+                sizeofString = oc_str8_pushf(arena, "sizeof(*%.*s_arg)", oc_str8_ip(param->name));
+            }
 
             oc_str8_list_pushf(arena,
                                list,
-                               "\t\tOC_ASSERT_DIALOG(size/%u == sizeof(*%.*s_arg), \"argument length overflows\");\n",
+                               "\t\tu64 size = %u * %.*s;\n",
                                param->len.countConst,
-                               oc_str8_ip(param->name));
+                               oc_str8_ip(sizeofString));
+
+            oc_str8_list_pushf(arena,
+                               list,
+                               "\t\tOC_ASSERT_DIALOG(size/%u == %.*s, \"argument length overflows\");\n",
+                               param->len.countConst,
+                               oc_str8_ip(sizeofString));
 
             if(param->len.countArg.len)
             {
