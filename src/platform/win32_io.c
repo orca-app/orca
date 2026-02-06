@@ -408,14 +408,112 @@ void oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
 
 oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
 {
-    //TODO
-    return (oc_fd_result){ 0 };
+    oc_io_error err = OC_IO_OK;
+    HANDLE tmpFile = INVALID_HANDLE_VALUE;
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    WCHAR* tmpDirPathW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
+    DWORD tmpDirPathWSize = GetTempPath2W(MAX_PATH, tmpDirPathW);
+
+    if(tmpDirPathWSize > MAX_PATH || (tmpDirPathWSize == 0))
+    {
+        err = oc_fd_last_error();
+    }
+    else
+    {
+        WCHAR* tmpFileNameW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
+
+        // Generate a temporary file name.
+        UINT r = GetTempFileNameW(tmpDirPathW,
+                                  L"tmp",
+                                  0,
+                                  tmpFileNameW);
+
+        if(r == 0)
+        {
+            err = oc_fd_last_error();
+        }
+        else
+        {
+            if(flags & OC_FILE_MAKETMP_DIRECTORY)
+            {
+                bool created = false;
+                while(!created)
+                {
+                    //NOTE: This is a bit lame but Win32 doesn't seem to have a way to
+                    // create a temp directory directly. Instead we create a temp file,
+                    // delete it and create a similarly name directory. This could fail
+                    // due to two processes/threads racing to use the same name, so we
+                    // retry in a loop until we get a valid handle or an error that is
+                    // not 'already exists'.
+                    DeleteFileW(tmpFileNameW);
+                    created = CreateDirectoryW(tmpFileNameW, NULL);
+
+                    if(!created)
+                    {
+                        if(GetLastError() != ERROR_ALREADY_EXISTS)
+                        {
+                            err = oc_fd_last_error();
+                            break;
+                        }
+                        else
+                        {
+                            r = GetTempFileNameW(tmpDirPathW,
+                                                 L"tmp",
+                                                 0,
+                                                 tmpFileNameW);
+                            if(r == 0)
+                            {
+                                err = oc_fd_last_error();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if(created)
+                {
+                    tmpFile = CreateFileW(tmpFileNameW,
+                                          GENERIC_READ,
+                                          0,
+                                          NULL,
+                                          OPEN_EXISTING,
+                                          FILE_FLAG_BACKUP_SEMANTICS,
+                                          NULL);
+                }
+            }
+            else
+            {
+                tmpFile = CreateFileW(tmpFileNameW,
+                                      GENERIC_WRITE,
+                                      0,
+                                      NULL,
+                                      CREATE_ALWAYS,
+                                      FILE_ATTRIBUTE_NORMAL,
+                                      NULL);
+            }
+
+            if(tmpFile == INVALID_HANDLE_VALUE)
+            {
+                err = oc_fd_last_error();
+            }
+        }
+    }
+    oc_scratch_end(scratch);
+
+    if(err)
+    {
+        return oc_result_error(oc_fd_result, err);
+    }
+    else
+    {
+        return oc_result_value(oc_fd_result, (oc_file_desc)tmpFile);
+    }
 }
 
 oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path)
 {
-    //TODO
-    return 0;
+    return -1;
 }
 
 oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags flags)
