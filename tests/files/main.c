@@ -686,7 +686,8 @@ int test_resolve(oc_arena* arena)
 {
     oc_log_info("test resolve\n");
 
-    //NOTE: abs path
+//NOTE: abs path
+#if OC_PLATFORM_MACOS
     oc_str8 path = OC_STR8("/usr/bin");
     oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
     if(r.error || oc_str8_cmp(r.path, OC_STR8("/usr/bin")))
@@ -695,6 +696,17 @@ int test_resolve(oc_arena* arena)
         return -1;
     }
     oc_fd_close(r.fd);
+
+#elif OC_PLATFORM_WINDOWS
+    oc_str8 path = OC_STR8("C:\\Users");
+    oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+    if(r.error || oc_str8_cmp(r.path, OC_STR8("C:\\Users")))
+    {
+        oc_log_error("Bad path resolution.\n");
+        return -1;
+    }
+    oc_fd_close(r.fd);
+#endif
 
     //NOTE: relative path
     path = OC_STR8("tests/files/data/regular.txt");
@@ -717,6 +729,7 @@ int test_resolve(oc_arena* arena)
     }
     oc_fd_close(r.fd);
 
+#ifndef OC_PLATFORM_WINDOWS
     //NOTE: relative path with symlink
     path = OC_STR8("tests/files/data/symlink");
     r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
@@ -726,6 +739,7 @@ int test_resolve(oc_arena* arena)
         return -1;
     }
     oc_fd_close(r.fd);
+#endif
 
     //NOTE: relative path with non-existing end
     path = OC_STR8("tests/files/data/directory/foo/../bar");
@@ -774,6 +788,7 @@ int test_resolve(oc_arena* arena)
     }
     oc_fd_close(r.fd);
 
+#ifndef OC_PLATFORM_WINDOWS
     //NOTE: path with symlink
     r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("symlink"), 0);
     if(r.error || oc_str8_cmp(r.path, OC_STR8("regular.txt")))
@@ -782,6 +797,7 @@ int test_resolve(oc_arena* arena)
         return -1;
     }
     oc_fd_close(r.fd);
+#endif
 
     //NOTE: path with valid '..'
     r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/../regular.txt"), 0);
@@ -821,6 +837,7 @@ int test_resolve(oc_arena* arena)
     }
     oc_file_slot* jailSlot = oc_file_slot_from_handle(&oc_globalFileTable, jail);
 
+#ifndef OC_PLATFORM_WINDOWS
     //NOTE: path with escaping symlink to file
     r = oc_io_resolve(arena, jailSlot->fd, OC_STR8("file_escape"), 0);
     if(r.error != OC_IO_ERR_WALKOUT)
@@ -836,6 +853,7 @@ int test_resolve(oc_arena* arena)
         oc_log_error("Bad path resolution.\n");
         return -1;
     }
+#endif
 
     return 0;
 }

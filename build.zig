@@ -1529,6 +1529,11 @@ pub fn build(b: *Build) !void {
     makeapp.step.dependOn(&wasm_sdk_install.step);
 
     ///////////////////////////////////////////////////////////////
+    // build only platform layer
+    const build_platform = b.step("orca-platform-layer", "Build orca platform layer");
+    build_platform.dependOn(&orca_platform_install.step);
+
+    ///////////////////////////////////////////////////////////////
     // zig build - default install step builds and installs a dev build of orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
@@ -1930,5 +1935,51 @@ pub fn build(b: *Build) !void {
                 tests.dependOn(&install.step);
             }
         }
+    }
+
+    const file_tests = b.step("test-files", "Test file I/O");
+
+    const file_tests_exe = b.addExecutable(.{
+        .name = "test_files",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    {
+        file_tests_exe.addIncludePath(b.path("src"));
+        file_tests_exe.addCSourceFiles(.{
+            .files = &.{"tests/files/main.c"},
+            .flags = &.{},
+        });
+        file_tests_exe.linkLibrary(orca_platform_lib);
+
+        if (target.result.os.tag == .windows) {
+            file_tests_exe.linkSystemLibrary("shlwapi");
+        }
+
+        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+            .dest_dir = .{ .override = .{ .custom = "tests" } },
+        };
+
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(file_tests_exe, tests_install_opts);
+
+        const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+
+        const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+        const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+        const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+
+        const test_dir_path = b.path("tests/files");
+
+        const run_test = b.addRunArtifact(file_tests_exe);
+        run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
+        run_test.step.dependOn(&install_orca_platform_tests.step);
+        run_test.step.dependOn(&install_angle_libs_tests.step);
+        run_test.step.dependOn(&install_dawn_libs_tests.step);
+        run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
+
+        file_tests.dependOn(&run_test.step);
     }
 }

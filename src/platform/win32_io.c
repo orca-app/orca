@@ -25,10 +25,92 @@ oc_file_desc oc_file_desc_nil(void)
     return NULL;
 }
 
+const DWORD OC_WIN32_REGULAR_ATTRIBUTE_SET =
+    FILE_ATTRIBUTE_ARCHIVE
+    | FILE_ATTRIBUTE_COMPRESSED
+    | FILE_ATTRIBUTE_ENCRYPTED
+    | FILE_ATTRIBUTE_HIDDEN
+    | FILE_ATTRIBUTE_NORMAL
+    | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
+    | FILE_ATTRIBUTE_OFFLINE
+    | FILE_ATTRIBUTE_READONLY
+    | FILE_ATTRIBUTE_SPARSE_FILE
+    | FILE_ATTRIBUTE_SYSTEM
+    | FILE_ATTRIBUTE_TEMPORARY;
+
+oc_io_error oc_fd_last_error()
+{
+    oc_io_error error = 0;
+
+    int winError = GetLastError();
+    switch(winError)
+    {
+        case ERROR_SUCCESS:
+            error = OC_IO_OK;
+            break;
+
+        case ERROR_ACCESS_DENIED:
+            error = OC_IO_ERR_PERM;
+            break;
+
+        case ERROR_FILE_NOT_FOUND:
+        case ERROR_PATH_NOT_FOUND:
+        case ERROR_INVALID_DRIVE:
+        case ERROR_DIRECTORY:
+            error = OC_IO_ERR_NO_ENTRY;
+            break;
+
+        case ERROR_TOO_MANY_OPEN_FILES:
+            error = OC_IO_ERR_MAX_FILES;
+            break;
+
+        case ERROR_NOT_ENOUGH_MEMORY:
+        case ERROR_OUTOFMEMORY:
+            error = OC_IO_ERR_MEM;
+            break;
+
+        case ERROR_DEV_NOT_EXIST:
+            error = OC_IO_ERR_NO_DEVICE;
+            break;
+
+        case ERROR_FILE_EXISTS:
+        case ERROR_ALREADY_EXISTS:
+            error = OC_IO_ERR_EXISTS;
+            break;
+
+        case ERROR_BUFFER_OVERFLOW:
+        case ERROR_FILENAME_EXCED_RANGE:
+            error = OC_IO_ERR_PATH_LENGTH;
+            break;
+
+        case ERROR_FILE_TOO_LARGE:
+            error = OC_IO_ERR_FILE_SIZE;
+            break;
+
+            //TODO: complete
+
+        default:
+            error = OC_IO_ERR_UNKNOWN;
+            break;
+    }
+    return (error);
+}
+
 oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
 {
-    //TODO
-    return (oc_str16){ 0 };
+    oc_str16 res = { 0 };
+
+    res.len = GetFinalPathNameByHandleW(handle, NULL, 0, FILE_NAME_NORMALIZED);
+    if(res.len)
+    {
+        res.ptr = oc_arena_push_array(arena, u16, res.len);
+        if(!GetFinalPathNameByHandleW(handle, res.ptr, res.len, FILE_NAME_NORMALIZED))
+        {
+            res.len = 0;
+            res.ptr = 0;
+        }
+    }
+    return (res);
 }
 
 static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
@@ -141,7 +223,7 @@ oc_fd_result oc_fd_open_at(oc_file_desc rootFd, oc_str8 path, oc_file_access acc
 
     if(handle == INVALID_HANDLE_VALUE)
     {
-        return oc_result_error(oc_fd_result, -1);
+        return oc_result_error(oc_fd_result, oc_fd_last_error());
     }
     else
     {
@@ -158,25 +240,131 @@ oc_io_error oc_fd_close(oc_file_desc fd)
 
 oc_file_desc oc_fd_dup(oc_file_desc fd)
 {
-    //TODO
-    return NULL;
+    oc_file_desc dupFd = INVALID_HANDLE_VALUE;
+    DuplicateHandle(GetCurrentProcess(),
+                    fd,
+                    GetCurrentProcess(),
+                    &dupFd,
+                    0,
+                    FALSE,
+                    DUPLICATE_SAME_ACCESS);
+    return dupFd;
 }
 
-void oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
+enum
 {
-    //TODO
+    OC_NTP_01_JAN_1601 = -9435484800LL,
+    OC_WIN32_TICKS_PER_SECOND = 10000000LL
+};
+
+oc_datestamp oc_datestamp_from_win32_filetime(FILETIME ft)
+{
+    oc_datestamp d = { 0 };
+
+    i64 win32Ticks = (((u64)ft.dwHighDateTime) << 32) | (u64)ft.dwLowDateTime;
+
+    i64 win32Seconds = win32Ticks / OC_WIN32_TICKS_PER_SECOND;
+    u64 win32Rem = 0;
+    if(win32Ticks < 0)
+    {
+        win32Seconds -= OC_WIN32_TICKS_PER_SECOND;
+        win32Rem = win32Ticks - win32Seconds * OC_WIN32_TICKS_PER_SECOND;
+    }
+    else
+    {
+        win32Rem = win32Ticks % OC_WIN32_TICKS_PER_SECOND;
+    }
+
+    d.seconds = win32Seconds + OC_NTP_01_JAN_1601;
+    d.fraction = (win32Rem * (1ULL << 32)) / OC_WIN32_TICKS_PER_SECOND;
+
+    return (d);
 }
 
 oc_fd_stat_result oc_fd_stat(oc_file_desc fd)
 {
-    //TODO
-    return (oc_fd_stat_result){ 0 };
+    oc_file_status status = { 0 };
+    oc_io_error error = OC_IO_OK;
+
+    BY_HANDLE_FILE_INFORMATION info;
+    if(!GetFileInformationByHandle(fd, &info))
+    {
+        error = oc_fd_last_error();
+    }
+    else
+    {
+        status.size = (((u64)info.nFileSizeHigh) << 32) | ((u64)info.nFileSizeLow);
+        status.uid = ((u64)info.nFileIndexHigh << 32) | ((u64)info.nFileIndexLow);
+
+        if((info.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+        {
+            FILE_ATTRIBUTE_TAG_INFO tagInfo;
+            if(!GetFileInformationByHandleEx(fd, FileAttributeTagInfo, &tagInfo, sizeof(tagInfo)))
+            {
+                error = oc_fd_last_error();
+            }
+            else if(tagInfo.ReparseTag == IO_REPARSE_TAG_SYMLINK)
+            {
+                status.type = OC_FILE_SYMLINK;
+            }
+            else
+            {
+                status.type = OC_FILE_UNKNOWN;
+            }
+        }
+        else if(info.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        {
+            status.type = OC_FILE_DIRECTORY;
+        }
+        else if(info.dwFileAttributes & OC_WIN32_REGULAR_ATTRIBUTE_SET)
+        {
+            status.type = OC_FILE_REGULAR;
+        }
+        else
+        {
+            //TODO: might want to check for socket/block/character devices? (otoh MS STL impl. doesn't seem to do it)
+            status.type = OC_FILE_UNKNOWN;
+        }
+
+        status.perm = OC_FILE_OWNER_READ | OC_FILE_GROUP_READ | OC_FILE_OTHER_READ;
+        if(!(info.dwFileAttributes & FILE_ATTRIBUTE_READONLY))
+        {
+            status.perm = OC_FILE_OWNER_WRITE | OC_FILE_GROUP_WRITE | OC_FILE_OTHER_WRITE;
+        }
+
+        FILETIME win32CreationDate;
+        FILETIME win32AccessDate;
+        FILETIME win32ModificationDate;
+
+        GetFileTime(fd, &win32CreationDate, &win32AccessDate, &win32ModificationDate);
+
+        status.creationDate = oc_datestamp_from_win32_filetime(win32CreationDate);
+        status.accessDate = oc_datestamp_from_win32_filetime(win32AccessDate);
+        status.modificationDate = oc_datestamp_from_win32_filetime(win32ModificationDate);
+    }
+
+    if(error)
+    {
+        return oc_result_error(oc_fd_stat_result, error);
+    }
+    else
+    {
+        return oc_result_value(oc_fd_stat_result, status);
+    }
 }
 
 oc_fd_stat_result oc_fd_stat_at(oc_file_desc rootFd, oc_str8 path)
 {
-    //TODO
-    return (oc_fd_stat_result){ 0 };
+    oc_io_error error = OC_IO_OK;
+    //TODO: should use oc_file_open instead?
+    oc_file_desc fd = oc_catch(oc_fd_open_at(rootFd, path, OC_FILE_ACCESS_NONE, OC_FILE_OPEN_DEFAULT))
+    {
+        return oc_result_error(oc_fd_stat_result, oc_fd_last_error());
+    }
+
+    oc_fd_stat_result r = oc_fd_stat(fd);
+    oc_fd_close(fd);
+    return r;
 }
 
 oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence)
@@ -187,14 +375,35 @@ oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence)
 
 oc_fd_readwrite_result oc_fd_read(oc_file_desc fd, u64 size, char* buffer)
 {
-    //TODO
-    return (oc_fd_readwrite_result){ 0 };
+    DWORD bytesRead = 0;
+
+    if(!ReadFile(fd, buffer, size, &bytesRead, NULL))
+    {
+        return oc_result_error(oc_fd_readwrite_result, oc_fd_last_error());
+    }
+    else
+    {
+        return oc_result_value(oc_fd_readwrite_result, (u64)bytesRead);
+    }
 }
 
 oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer)
 {
+    DWORD bytesWritten = 0;
+
+    if(!WriteFile(fd, buffer, size, &bytesWritten, NULL))
+    {
+        return oc_result_error(oc_fd_readwrite_result, oc_fd_last_error());
+    }
+    else
+    {
+        return oc_result_value(oc_fd_readwrite_result, (u64)bytesWritten);
+    }
+}
+
+void oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
+{
     //TODO
-    return (oc_fd_readwrite_result){ 0 };
 }
 
 oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
@@ -228,77 +437,6 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 }
 
 /*
-const DWORD OC_WIN32_REGULAR_ATTRIBUTE_SET =
-    FILE_ATTRIBUTE_ARCHIVE
-    | FILE_ATTRIBUTE_COMPRESSED
-    | FILE_ATTRIBUTE_ENCRYPTED
-    | FILE_ATTRIBUTE_HIDDEN
-    | FILE_ATTRIBUTE_NORMAL
-    | FILE_ATTRIBUTE_NOT_CONTENT_INDEXED
-    | FILE_ATTRIBUTE_OFFLINE
-    | FILE_ATTRIBUTE_READONLY
-    | FILE_ATTRIBUTE_SPARSE_FILE
-    | FILE_ATTRIBUTE_SYSTEM
-    | FILE_ATTRIBUTE_TEMPORARY;
-
-oc_io_error oc_io_raw_last_error()
-{
-    oc_io_error error = 0;
-
-    int winError = GetLastError();
-    switch(winError)
-    {
-        case ERROR_SUCCESS:
-            error = OC_IO_OK;
-            break;
-
-        case ERROR_ACCESS_DENIED:
-            error = OC_IO_ERR_PERM;
-            break;
-
-        case ERROR_FILE_NOT_FOUND:
-        case ERROR_PATH_NOT_FOUND:
-        case ERROR_INVALID_DRIVE:
-        case ERROR_DIRECTORY:
-            error = OC_IO_ERR_NO_ENTRY;
-            break;
-
-        case ERROR_TOO_MANY_OPEN_FILES:
-            error = OC_IO_ERR_MAX_FILES;
-            break;
-
-        case ERROR_NOT_ENOUGH_MEMORY:
-        case ERROR_OUTOFMEMORY:
-            error = OC_IO_ERR_MEM;
-            break;
-
-        case ERROR_DEV_NOT_EXIST:
-            error = OC_IO_ERR_NO_DEVICE;
-            break;
-
-        case ERROR_FILE_EXISTS:
-        case ERROR_ALREADY_EXISTS:
-            error = OC_IO_ERR_EXISTS;
-            break;
-
-        case ERROR_BUFFER_OVERFLOW:
-        case ERROR_FILENAME_EXCED_RANGE:
-            error = OC_IO_ERR_PATH_LENGTH;
-            break;
-
-        case ERROR_FILE_TOO_LARGE:
-            error = OC_IO_ERR_FILE_SIZE;
-            break;
-
-            //TODO: complete
-
-        default:
-            error = OC_IO_ERR_UNKNOWN;
-            break;
-    }
-    return (error);
-}
-
 oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
 {
     oc_str16 res = { 0 };
