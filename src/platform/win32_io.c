@@ -11,10 +11,223 @@
 #include <shlwapi.h>
 #include <winioctl.h>
 
-#include "platform_io_common.c"
-#include "platform_io_internal.c"
+#include "native_io.c"
 #include "win32_string_helpers.h"
+#include "util\wrapped_types.h"
 
+bool oc_file_desc_is_nil(oc_file_desc fd)
+{
+    return fd == NULL;
+}
+
+oc_file_desc oc_file_desc_nil(void)
+{
+    return NULL;
+}
+
+oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
+{
+    //TODO
+    return (oc_str16){ 0 };
+}
+
+static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
+{
+    oc_str16 result = { 0 };
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
+
+    if(dirPathW.len && pathW.len)
+    {
+        u64 fullPathWSize = dirPathW.len + pathW.len;
+        LPWSTR fullPathW = oc_arena_push_array(scratch.arena, u16, fullPathWSize);
+        memcpy(fullPathW, dirPathW.ptr, (dirPathW.len - 1) * sizeof(u16));
+        fullPathW[dirPathW.len - 1] = '\\';
+        memcpy(fullPathW + dirPathW.len, pathW.ptr, pathW.len * sizeof(u16));
+
+        result.len = fullPathWSize;
+        result.ptr = oc_arena_push_array(arena, wchar_t, result.len);
+
+        if(PathCanonicalizeW(result.ptr, fullPathW))
+        {
+            result.len = lstrlenW(result.ptr);
+        }
+        else
+        {
+            result.ptr = 0;
+            result.len = 0;
+        }
+    }
+    oc_scratch_end(scratch);
+
+    return (result);
+}
+
+oc_fd_result oc_fd_open_at(oc_file_desc rootFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags)
+{
+    HANDLE handle = INVALID_HANDLE_VALUE;
+
+    // convert flags
+    DWORD win32AccessFlags = 0;
+    DWORD win32ShareMode = FILE_SHARE_READ | FILE_SHARE_WRITE;
+    DWORD win32CreateFlags = 0;
+    DWORD win32AttributeFlags = FILE_ATTRIBUTE_NORMAL
+                              | FILE_FLAG_BACKUP_SEMANTICS;
+
+    if(accessRights & OC_FILE_ACCESS_READ)
+    {
+        win32AccessFlags |= GENERIC_READ;
+    }
+    if(accessRights & OC_FILE_ACCESS_WRITE)
+    {
+        if(openFlags & OC_FILE_OPEN_APPEND)
+        {
+            win32AccessFlags |= FILE_APPEND_DATA;
+        }
+        else
+        {
+            win32AccessFlags |= GENERIC_WRITE;
+        }
+    }
+
+    if(openFlags & OC_FILE_OPEN_TRUNCATE)
+    {
+        if(openFlags & OC_FILE_OPEN_CREATE)
+        {
+            win32CreateFlags |= CREATE_ALWAYS;
+        }
+        else
+        {
+            win32CreateFlags |= TRUNCATE_EXISTING;
+        }
+    }
+    if(openFlags & OC_FILE_OPEN_CREATE)
+    {
+        if(!(win32CreateFlags & CREATE_ALWAYS))
+        {
+            win32CreateFlags |= OPEN_ALWAYS;
+        }
+    }
+    if(!(win32CreateFlags & OPEN_ALWAYS)
+       && !(win32CreateFlags & CREATE_ALWAYS)
+       && !(win32CreateFlags & TRUNCATE_EXISTING))
+    {
+        win32CreateFlags |= OPEN_EXISTING;
+    }
+
+    if(openFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST)
+    {
+        win32AttributeFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
+    }
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
+
+    if(rootFd == NULL || rootFd == INVALID_HANDLE_VALUE)
+    {
+        handle = CreateFileW(pathW.ptr, win32AccessFlags, win32ShareMode, NULL, win32CreateFlags, win32AttributeFlags, NULL);
+    }
+    else
+    {
+        oc_str16 fullPathW = win32_get_path_at_null_terminated(scratch.arena, rootFd, path);
+        if(fullPathW.len)
+        {
+            handle = CreateFileW(fullPathW.ptr, win32AccessFlags, win32ShareMode, NULL, win32CreateFlags, win32AttributeFlags, NULL);
+        }
+    }
+    oc_scratch_end(scratch);
+
+    if(handle == INVALID_HANDLE_VALUE)
+    {
+        return oc_result_error(oc_fd_result, -1);
+    }
+    else
+    {
+        return oc_result_value(oc_fd_result, handle);
+    }
+}
+
+oc_io_error oc_fd_close(oc_file_desc fd)
+{
+    CloseHandle(fd);
+    //TODO
+    return 0;
+}
+
+oc_file_desc oc_fd_dup(oc_file_desc fd)
+{
+    //TODO
+    return NULL;
+}
+
+void oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
+{
+    //TODO
+}
+
+oc_fd_stat_result oc_fd_stat(oc_file_desc fd)
+{
+    //TODO
+    return (oc_fd_stat_result){ 0 };
+}
+
+oc_fd_stat_result oc_fd_stat_at(oc_file_desc rootFd, oc_str8 path)
+{
+    //TODO
+    return (oc_fd_stat_result){ 0 };
+}
+
+oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence)
+{
+    //TODO
+    return (oc_fd_seek_result){ 0 };
+}
+
+oc_fd_readwrite_result oc_fd_read(oc_file_desc fd, u64 size, char* buffer)
+{
+    //TODO
+    return (oc_fd_readwrite_result){ 0 };
+}
+
+oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer)
+{
+    //TODO
+    return (oc_fd_readwrite_result){ 0 };
+}
+
+oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
+{
+    //TODO
+    return (oc_fd_result){ 0 };
+}
+
+oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path)
+{
+    //TODO
+    return 0;
+}
+
+oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags flags)
+{
+    //TODO
+    return 0;
+}
+
+oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc rootFd, oc_str8 path)
+{
+    //TODO
+    return (oc_fd_read_link_result){ 0 };
+}
+
+oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
+{
+    //TODO
+    return (oc_file_list){ 0 };
+}
+
+/*
 const DWORD OC_WIN32_REGULAR_ATTRIBUTE_SET =
     FILE_ATTRIBUTE_ARCHIVE
     | FILE_ATTRIBUTE_COMPRESSED
@@ -115,39 +328,6 @@ bool oc_file_desc_is_nil(oc_file_desc fd)
     return (fd == NULL || fd == INVALID_HANDLE_VALUE);
 }
 
-static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
-{
-    oc_str16 result = { 0 };
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-
-    oc_str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
-    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
-
-    if(dirPathW.len && pathW.len)
-    {
-        u64 fullPathWSize = dirPathW.len + pathW.len;
-        LPWSTR fullPathW = oc_arena_push_array(scratch.arena, u16, fullPathWSize);
-        memcpy(fullPathW, dirPathW.ptr, (dirPathW.len - 1) * sizeof(u16));
-        fullPathW[dirPathW.len - 1] = '\\';
-        memcpy(fullPathW + dirPathW.len, pathW.ptr, pathW.len * sizeof(u16));
-
-        result.len = fullPathWSize;
-        result.ptr = oc_arena_push_array(arena, wchar_t, result.len);
-
-        if(PathCanonicalizeW(result.ptr, fullPathW))
-        {
-            result.len = lstrlenW(result.ptr);
-        }
-        else
-        {
-            result.ptr = 0;
-            result.len = 0;
-        }
-    }
-    oc_scratch_end(scratch);
-
-    return (result);
-}
 
 oc_file_desc oc_io_raw_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags)
 {
@@ -671,3 +851,4 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 
     return list;
 }
+*/

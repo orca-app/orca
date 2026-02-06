@@ -1343,7 +1343,7 @@ oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 #include <shtypes.h>
 #undef interface
 
-#include "platform/platform_io_internal.h"
+#include "platform/native_io.h"
 
 oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle); // defined in win32_io.c
 

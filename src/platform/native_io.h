@@ -77,6 +77,7 @@ ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_a
                                                                             oc_file_open_flags flags,
                                                                             oc_file_dialog_desc* desc,
                                                                             oc_file_table* table);
+
 ORCA_API oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table);
 
 typedef oc_result_type(oc_file_list, oc_io_error) oc_fd_listdir_result;
@@ -105,6 +106,8 @@ typedef oc_result_type(oc_file_desc, oc_io_error) oc_fd_result;
 
 oc_fd_result oc_fd_open_at(oc_file_desc rootFd, oc_str8 path, oc_file_access accessRights, oc_file_open_flags openFlags);
 oc_io_error oc_fd_close(oc_file_desc fd);
+oc_file_desc oc_fd_dup(oc_file_desc fd);
+void oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd);
 
 typedef oc_result_type(oc_file_status, oc_io_error) oc_fd_stat_result;
 

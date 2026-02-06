@@ -128,7 +128,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
         path = oc_path_append(scratch.arena, OC_STR8("."), path);
     }
 
-    oc_file_desc fd = rootFd == OC_FILE_AT_FDCWD ? rootFd : dup(rootFd);
+    oc_file_desc fd = rootFd == OC_FILE_AT_FDCWD ? rootFd : oc_fd_dup(rootFd);
     oc_str8_list normElements = { 0 };
     oc_str8_list pathElements = oc_path_split(scratch.arena, path);
     oc_str8_elt* elt = 0;
@@ -273,7 +273,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
 
     if(result.error)
     {
-        close(fd);
+        oc_fd_close(fd);
     }
     else
     {
@@ -663,7 +663,7 @@ oc_io_cmp oc_io_remove(oc_io_req* req, oc_file_table* table)
         else
         {
             cmp.error = oc_fd_remove(resolve.fd, resolve.name, req->removeFlags);
-            close(resolve.fd);
+            oc_fd_close(resolve.fd);
         }
 
         oc_scratch_end(scratch);
@@ -745,7 +745,7 @@ oc_io_error oc_io_copy_recursive(oc_file srcDir, oc_file dstDir, oc_io_req* req,
 }
 */
 
-#include <copyfile.h>
+//#include <copyfile.h>
 
 oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
 {
@@ -773,7 +773,8 @@ oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
         return cmp;
     }
 
-    fcopyfile(srcSlot->fd, dstSlot->fd, NULL, COPYFILE_ALL);
+    oc_fd_copyfile(srcSlot->fd, dstSlot->fd);
+    //fcopyfile(srcSlot->fd, dstSlot->fd, NULL, COPYFILE_ALL);
 
     return cmp;
 }

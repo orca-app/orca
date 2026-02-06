@@ -457,6 +457,7 @@ pub fn build_libzip(b: *Build, zlib: *Build.Step.Compile, target: Build.Resolved
         });
     }
     lib_mod.addIncludePath(b.path("src/ext/libzip/lib"));
+    lib_mod.addIncludePath(b.path("src/ext/zlib"));
 
     // TODO: generate this at build time
     lib_mod.addCSourceFile(.{
@@ -1503,6 +1504,7 @@ pub fn build(b: *Build) !void {
         .root_module = b.createModule(.{
             .target = b.graph.host,
             .optimize = .Debug,
+            .link_libc = true,
         }),
     });
     makeapp_exe.addIncludePath(b.path("src"));
