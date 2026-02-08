@@ -745,8 +745,6 @@ oc_io_error oc_io_copy_recursive(oc_file srcDir, oc_file dstDir, oc_io_req* req,
 }
 */
 
-//#include <copyfile.h>
-
 oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
 {
     //NOTE: this only copies files to files
@@ -774,7 +772,6 @@ oc_io_cmp oc_io_copy(oc_io_req* req, oc_file_table* table)
     }
 
     oc_fd_copyfile(srcSlot->fd, dstSlot->fd);
-    //fcopyfile(srcSlot->fd, dstSlot->fd, NULL, COPYFILE_ALL);
 
     return cmp;
 }

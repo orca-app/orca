@@ -301,6 +301,11 @@ oc_io_error oc_fd_close(oc_file_desc fd)
     }
 }
 
+oc_file_desc oc_fd_dup(oc_file_desc fd)
+{
+    return dup(fd);
+}
+
 oc_fd_stat_result oc_fd_stat(oc_file_desc fd)
 {
     oc_fd_stat_result result = { 0 };
@@ -683,4 +688,18 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
     }
 
     return list;
+}
+
+//TODO: this is not posix!
+#include <copyfile.h>
+
+oc_io_error oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
+{
+    oc_io_error err = OC_IO_OK;
+    int r = fcopyfile(srcFd, dstFd, NULL, COPYFILE_ALL);
+    if(r)
+    {
+        err = oc_fd_convert_errno();
+    }
+    return err;
 }
