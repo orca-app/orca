@@ -7,12 +7,11 @@
 **************************************************************************/
 
 #include "platform_memory.h"
-
-void* ORCA_IMPORT(oc_mem_grow)(u64 size);
+#include "wasmbind/hostcalls.h"
 
 void* orca_oc_base_reserve(oc_base_allocator* context, u64 size)
 {
-    return (oc_mem_grow(size));
+    return ((void*)oc_hostcall_mem_grow(size));
 }
 
 void orca_oc_base_nop(oc_base_allocator* context, void* ptr, u64 size) {}

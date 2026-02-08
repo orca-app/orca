@@ -80,26 +80,28 @@ const GenerateWasmBindingsParams = struct {
     exe: *Build.Step.Compile,
     api: []const u8,
     spec_path: []const u8,
-    host_bindings_path: []const u8,
-    guest_bindings_path: ?[]const u8 = null,
-    guest_include_path: ?[]const u8 = null,
+    hostcalls_path: ?[]const u8 = null,
+    stubs_path: []const u8,
 };
 
 fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.UpdateSourceFiles {
     const copy_outputs_to_src: *Build.Step.UpdateSourceFiles = b.addUpdateSourceFiles();
 
     const run = b.addRunArtifact(params.exe);
-    run.addArg(std.mem.join(b.allocator, "", &.{ "--api-name=", params.api }) catch @panic("OOM"));
-    run.addPrefixedFileArg("--spec-path=", b.path(params.spec_path));
-    const host_bindings_path = run.addPrefixedOutputFileArg("--bindings-path=", params.host_bindings_path);
-    copy_outputs_to_src.addCopyFileToSource(host_bindings_path, params.host_bindings_path);
-    if (params.guest_bindings_path) |path| {
-        const guest_bindings_path = run.addPrefixedOutputFileArg("--guest-stubs-path=", path);
-        copy_outputs_to_src.addCopyFileToSource(guest_bindings_path, path);
+    run.addArg("--api");
+    run.addArg(params.api);
+    run.addArg("--in");
+    run.addFileArg(b.path(params.spec_path));
+
+    if (params.hostcalls_path) |path| {
+        run.addArg("--hostcalls");
+        const hostcalls_path = run.addOutputFileArg(path);
+        copy_outputs_to_src.addCopyFileToSource(hostcalls_path, path);
     }
-    if (params.guest_include_path) |path| {
-        run.addArg(std.mem.join(b.allocator, "", &.{ "--guest-include-path=", path }) catch @panic("OOM"));
-    }
+
+    run.addArg("--binding");
+    const stubs_path = run.addOutputFileArg(params.stubs_path);
+    copy_outputs_to_src.addCopyFileToSource(stubs_path, params.stubs_path);
 
     copy_outputs_to_src.step.dependOn(&run.step);
 
@@ -931,6 +933,45 @@ pub fn build(b: *Build) !void {
     bindgen_step.dependOn(&bindgen_run.step);
 
     /////////////////////////////////////////////////////////
+    // binding generator (wip)
+
+    const gen_host_interface_exe: *Build.Step.Compile = b.addExecutable(.{
+        .name = "gen_host_interface",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+        }),
+    });
+
+    const gen_host_interface_sources: []const []const u8 = &.{
+        "src/build/gen_host_interface.c",
+    };
+
+    var gen_host_interface_compile_flags: std.ArrayList([]const u8) = .init(b.allocator);
+    try gen_host_interface_compile_flags.append("-std=c11");
+    try gen_host_interface_compile_flags.append("-Werror");
+    try gen_host_interface_compile_flags.append("-g");
+    try gen_host_interface_compile_flags.append("-O0");
+    try gen_host_interface_compile_flags.append("-fno-sanitize=undefined");
+
+    gen_host_interface_exe.addIncludePath(b.path("src"));
+    gen_host_interface_exe.addCSourceFiles(.{
+        .files = gen_host_interface_sources,
+        .flags = gen_host_interface_compile_flags.items,
+    });
+
+    const gen_host_interface_install = b.addInstallArtifact(gen_host_interface_exe, .{});
+
+    const gen_host_interface_run: *Build.Step.Run = b.addRunArtifact(gen_host_interface_exe);
+    if (b.args) |args| {
+        gen_host_interface_run.addArgs(args);
+    }
+    gen_host_interface_run.step.dependOn(&gen_host_interface_install.step);
+
+    const gen_host_interface_step = b.step("gen-host-interface", "Generate wasm bindings from a json spec file");
+    gen_host_interface_step.dependOn(&gen_host_interface_run.step);
+
+    /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
 
     const stage_angle_dawn_src = b.addUpdateSourceFiles();
@@ -959,45 +1000,19 @@ pub fn build(b: *Build) !void {
 
     // generate wasm bindings
 
-    const orca_runtime_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
+    const orca_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
+        .exe = gen_host_interface_exe,
         .api = "core",
-        .spec_path = "src/wasmbind/core_api.json",
-        .host_bindings_path = "src/wasmbind/core_api_bind_gen.c",
-        .guest_bindings_path = "src/wasmbind/core_api_stubs.c",
-    });
-
-    const orca_runtime_bindgen_surface: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
-        .api = "surface",
-        .spec_path = "src/wasmbind/surface_api.json",
-        .host_bindings_path = "src/wasmbind/surface_api_bind_gen.c",
-        .guest_bindings_path = "src/graphics/orca_surface_stubs.c",
-        .guest_include_path = "graphics/graphics.h",
-    });
-
-    const orca_runtime_bindgen_clock: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
-        .api = "clock",
-        .spec_path = "src/wasmbind/clock_api.json",
-        .host_bindings_path = "src/wasmbind/clock_api_bind_gen.c",
-        .guest_include_path = "platform/platform_clock.h",
-    });
-
-    const orca_runtime_bindgen_io: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
-        .api = "io",
-        .spec_path = "src/wasmbind/io_api.json",
-        .host_bindings_path = "src/wasmbind/io_api_bind_gen.c",
-        .guest_bindings_path = "src/platform/orca_io_stubs.c",
-        .guest_include_path = "platform/platform_io_dialog.h",
+        .spec_path = "src/wasmbind/host_interface.json",
+        .hostcalls_path = "src/wasmbind/hostcalls.h",
+        .stubs_path = "src/wasmbind/core_stubs.c",
     });
 
     const orca_runtime_bindgen_gles: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
+        .exe = gen_host_interface_exe,
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
-        .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
+        .stubs_path = "src/wasmbind/gles_stubs.c",
     });
 
     // wgpu shaders header
@@ -1124,11 +1139,8 @@ pub fn build(b: *Build) !void {
 
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_core.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_surface.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_clock.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_io.step);
     orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
+    orca_platform_lib.step.dependOn(&orca_bindgen_core.step);
 
     const orca_platform_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .bin },
@@ -1264,10 +1276,7 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.step.dependOn(&install_angle_libs.step);
     orca_runtime_exe.step.dependOn(&install_dawn_libs.step);
 
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_core.step);
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_surface.step);
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_clock.step);
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_io.step);
+    orca_runtime_exe.step.dependOn(&orca_bindgen_core.step);
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const orca_runtime_exe_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
@@ -1474,10 +1483,7 @@ pub fn build(b: *Build) !void {
 
     wasm_sdk_obj.step.dependOn(&stage_angle_dawn_src.step);
 
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_core.step);
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_surface.step);
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_clock.step);
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_io.step);
+    wasm_sdk_obj.step.dependOn(&orca_bindgen_core.step);
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const wasm_sdk_lib = b.addLibrary(.{

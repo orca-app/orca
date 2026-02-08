@@ -188,7 +188,6 @@ typedef struct oc_ui_context
     oc_ui_stack_elt* boxStack;
     oc_ui_stack_elt* clipStack;
 
-    u32 z;
     oc_ui_box* hovered;
     oc_ui_box* focus;
     oc_ui_box* nextFocus;
@@ -1521,7 +1520,7 @@ bool oc_ui_box_hovering(oc_ui_box* box, oc_vec2 p)
     bool result = false;
     if(hit)
     {
-        if(ui->hovered && box->z < ui->hovered->z)
+        if(ui->hovered)
         {
             oc_ui_box* hovered = ui->hovered;
 
@@ -2433,6 +2432,17 @@ f32 oc_ui_box_total_size(oc_ui_box* box, oc_ui_axis axis)
     return box->rect.c[2 + axis] + 2 * box->style.borderSize;
 }
 
+oc_rect oc_ui_box_border_rect(oc_ui_box* box)
+{
+    oc_rect r = {
+        box->rect.x - box->style.borderSize,
+        box->rect.y - box->style.borderSize,
+        box->rect.w + 2 * box->style.borderSize,
+        box->rect.h + 2 * box->style.borderSize,
+    };
+    return r;
+}
+
 oc_rect oc_rect_union(oc_rect r1, oc_rect r2)
 {
     if(r1.w < 0 || r1.h < 0)
@@ -2621,11 +2631,11 @@ oc_rect oc_ui_layout_contents_rect(oc_ui_box* box)
         {
             if(child->style.position == OC_UI_POSITION_FLOW)
             {
-                flowRect = oc_rect_union(flowRect, child->rect);
+                flowRect = oc_rect_union(flowRect, oc_ui_box_border_rect(child));
             }
             else
             {
-                fixedRect = oc_rect_union(fixedRect, child->rect);
+                fixedRect = oc_rect_union(fixedRect, oc_ui_box_border_rect(child));
             }
         }
     }
@@ -2648,7 +2658,7 @@ oc_vec2 oc_ui_layout_flow_size(oc_ui_box* box)
            && child->style.position == OC_UI_POSITION_FLOW
            && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
         {
-            contentRect = oc_rect_union(contentRect, child->rect);
+            contentRect = oc_rect_union(contentRect, oc_ui_box_border_rect(child));
         }
     }
     return contentRect.wh;
@@ -2983,6 +2993,36 @@ void oc_ui_draw_box(oc_ui_box* box)
         return;
     }
 
+    if(draw)
+    {
+        //NOTE: background
+        if(!(style->drawMask & OC_UI_DRAW_MASK_BACKGROUND)
+           && style->bgColor.a != 0)
+        {
+            oc_set_color(style->bgColor);
+            oc_ui_rectangle_fill(box->rect, style->roundness);
+        }
+
+        //NOTE: draw border
+        if(!(style->drawMask & OC_UI_DRAW_MASK_BORDER)
+           && style->borderSize != 0
+           && style->borderColor.a != 0)
+        {
+            oc_set_width(style->borderSize);
+            oc_set_color(style->borderColor);
+
+            oc_rect rect = {
+                box->rect.x - 0.5 * style->borderSize,
+                box->rect.y - 0.5 * style->borderSize,
+                box->rect.w + style->borderSize,
+                box->rect.h + style->borderSize,
+            };
+            f32 roundness = style->roundness ? style->roundness + style->borderSize : 0;
+
+            oc_ui_rectangle_stroke(rect, roundness);
+        }
+    }
+
     {
         //NOTE: push clip rect
         oc_rect clipRect = oc_ui_box_clip_rect(box);
@@ -2996,14 +3036,6 @@ void oc_ui_draw_box(oc_ui_box* box)
 
     if(draw)
     {
-        //NOTE: background
-        if(!(style->drawMask & OC_UI_DRAW_MASK_BACKGROUND)
-           && style->bgColor.a != 0)
-        {
-            oc_set_color(style->bgColor);
-            oc_ui_rectangle_fill(box->rect, style->roundness);
-        }
-
         //NOTE: custom proc
         if(!(style->drawMask & OC_UI_DRAW_MASK_PROC)
            && box->drawProc)
@@ -3075,26 +3107,6 @@ void oc_ui_draw_box(oc_ui_box* box)
     {
         oc_clip_pop();
     }
-
-    //NOTE: draw border
-    if(draw
-       && !(style->drawMask & OC_UI_DRAW_MASK_BORDER)
-       && style->borderSize != 0
-       && style->borderColor.a != 0)
-    {
-        oc_set_width(style->borderSize);
-        oc_set_color(style->borderColor);
-
-        oc_rect rect = {
-            box->rect.x - 0.5 * style->borderSize,
-            box->rect.y - 0.5 * style->borderSize,
-            box->rect.w + style->borderSize,
-            box->rect.h + style->borderSize,
-        };
-        f32 roundness = style->roundness ? style->roundness + style->borderSize : 0;
-
-        oc_ui_rectangle_stroke(rect, roundness);
-    }
 }
 
 void oc_ui_draw()
@@ -3124,7 +3136,6 @@ void oc_ui_frame_begin(oc_vec2 size)
     ui->frameTime = time;
 
     ui->clipStack = 0;
-    ui->z = 0;
 
     ui->nextBoxTags = (oc_list){ 0 };
     ui->overlayList = (oc_list){ 0 };

@@ -20,6 +20,7 @@ typedef struct wa_jump_target
 
 typedef struct wa_block
 {
+    wa_func_type* type;
     wa_instr* begin;
     u64 beginOffset;
     u64 elseOffset;
@@ -60,6 +61,8 @@ typedef struct wa_build_context
     oc_arena checkArena; // temp arena for checking
     oc_arena codeArena;  // temp arena for building code
     wa_module* module;
+
+    bool compileConstantExpr;
 
     u32 regCount;
     wa_register_slot regs[WA_MAX_REG];
@@ -131,7 +134,7 @@ bool wa_block_is_nil(wa_block* block)
     return (block->begin == 0);
 }
 
-void wa_control_stack_push(wa_build_context* context, wa_instr* instr)
+void wa_control_stack_push(wa_build_context* context, wa_instr* instr, wa_func_type* type)
 {
     if(context->controlStack == 0 || context->controlStackLen >= context->controlStackCap)
     {
@@ -146,6 +149,7 @@ void wa_control_stack_push(wa_build_context* context, wa_instr* instr)
         }
     }
     context->controlStack[context->controlStackLen] = (wa_block){
+        .type = type,
         .begin = instr,
         .beginOffset = context->codeLen,
         .scopeBase = context->opdStackLen,
@@ -612,13 +616,21 @@ void wa_move_register_if_used_in_stack_range(wa_build_context* context,
 
             if(opd->index == slotIndex)
             {
+                //NOTE: slotIndex is used in stack range
                 if(newReg == UINT32_MAX)
                 {
+                    //NOTE: allocate a new register to save old value to.
                     OC_DEBUG_ASSERT(opd->index >= 0 && opd->index < context->regCount);
                     newReg = wa_allocate_register(context, context->regs[opd->index].type);
                 }
 
                 wa_retain_register(context, newReg);
+
+                /////////////////////////////////////////////////////////
+                //TODO: pb is that we release register in which we will move
+                // another value, but next time this register could be allocated
+                // and the moved value would be erased
+                /////////////////////////////////////////////////////////
 
                 //TODO: move that below with count
                 wa_release_register(context, slotIndex);
@@ -702,7 +714,7 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
         // wa_free_slot(context, index);
     }
 
-    wa_control_stack_push(context, instr);
+    wa_control_stack_push(context, instr, instr->blockType);
     wa_push_block_inputs(context, type);
 
     oc_scratch_end(scratch);
@@ -765,9 +777,18 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
 
         //NOTE: if there was no else branch, we must still generate a fake else branch to copy the block inputs to
         //      the output.
-        wa_func_type* type = block->begin->blockType;
+        wa_func_type* type = block->type;
 
         wa_block_move_results_to_output_slots(context, block, instr);
+
+        if(context->opdStackLen - block->scopeBase > type->returnCount)
+        {
+            wa_compile_error(context,
+                             instr,
+                             "block type mismatch. %llu operands left on stack\n",
+                             context->opdStackLen - block->scopeBase);
+        }
+
         wa_operand_stack_pop_scope(context, block);
         wa_push_block_inputs(context, type);
 
@@ -781,7 +802,14 @@ void wa_block_end(wa_build_context* context, wa_block* block, wa_instr* instr)
 
     wa_block_move_results_to_output_slots(context, block, instr);
 
-    wa_func_type* type = block->begin->blockType;
+    wa_func_type* type = block->type;
+    if(context->opdStackLen - block->scopeBase > type->returnCount)
+    {
+        wa_compile_error(context,
+                         instr,
+                         "block type mismatch. %llu operands left on stack\n",
+                         context->opdStackLen - block->scopeBase);
+    }
 
     //NOTE - pop slots until scope is empty,
     //     - pop block scope
@@ -850,6 +878,10 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
         wa_operand opd = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
         if(opd.index != retIndex)
         {
+            //NOTE retain the retIndex slot to avoid it being deallocated during the call to
+            // wa_move_register_if_used_in_stack_range()
+            wa_retain_register(context, retIndex);
+
             //NOTE:
             //  if return operand isn't already stored at retIndex, we will move it there, so we need
             //  to save register retIndex to a new reg first if it's used in other return operands
@@ -860,6 +892,12 @@ int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* i
             wa_emit_index(context, retIndex);
         }
     }
+    for(u32 retIndex = 0; retIndex < type->returnCount; retIndex++)
+    {
+        wa_operand opd = wa_operand_stack_lookup(context, type->returnCount - retIndex - 1);
+        wa_release_register(context, opd.index);
+    }
+
     wa_emit_opcode(context, WA_INSTR_return);
 
     //WARN: wa_compile_return() is also used by conditional or table branches when they target the top-level scope,
@@ -923,6 +961,7 @@ void wa_build_context_clear(wa_build_context* context)
     //TODO: see why we can't just memset all (ie can't we just reconstruct the arenas)
     oc_arena_clear(&context->checkArena);
 
+    context->compileConstantExpr = false;
     context->codeLen = 0;
 
     context->opdStackLen = 0;
@@ -1031,7 +1070,16 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
             break;
             case WA_IMM_GLOBAL_INDEX:
             {
-                if(imm->index >= module->globalCount)
+                if(context->compileConstantExpr && imm->index >= module->globalImportCount)
+                {
+                    wa_compile_error(context,
+                                     instr,
+                                     "invalid global index %u in constant expr (import global count: %u)\n",
+                                     imm->index,
+                                     module->globalImportCount);
+                    check = false;
+                }
+                else if(imm->index >= module->globalCount)
                 {
                     wa_compile_error(context,
                                      instr,
@@ -1039,6 +1087,19 @@ bool wa_validate_immediates(wa_build_context* context, wa_func* func, wa_instr* 
                                      imm->index,
                                      module->globalCount);
                     check = false;
+                }
+                else
+                {
+                    if(instr->op == WA_INSTR_global_set && !module->globals[imm->index].mut)
+                    {
+                        wa_compile_error(context, instr, "global.set on immutable global %u.\n", imm->index);
+                        check = false;
+                    }
+                    if(instr->op == WA_INSTR_global_get && context->compileConstantExpr && module->globals[imm->index].mut)
+                    {
+                        wa_compile_error(context, instr, "global.get in constant expr must refer to immutable global.\n");
+                        check = false;
+                    }
                 }
             }
             break;
@@ -1112,7 +1173,8 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     //TODO: remove the need to pass instr -- this will break else checks if first instr is an "if"...
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
-    wa_control_stack_push(context, oc_list_first_entry(instructions, wa_instr, listElt));
+    //TODO: this can break branches if first instr is a loop...?
+    wa_control_stack_push(context, oc_list_first_entry(instructions, wa_instr, listElt), type);
 
     oc_arena_scope scratch = oc_scratch_begin();
 
@@ -1168,9 +1230,19 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             }
             else
             {
-                wa_func_type* type = ifBlock->begin->blockType;
+                wa_func_type* type = ifBlock->type;
 
                 wa_block_move_results_to_output_slots(context, ifBlock, instr);
+
+                //TODO: coalesce with the same checks in wa_block_end()
+                if(context->opdStackLen - ifBlock->scopeBase > type->returnCount)
+                {
+                    wa_compile_error(context,
+                                     instr,
+                                     "block type mismatch. %llu operands left on stack\n",
+                                     context->opdStackLen - ifBlock->scopeBase);
+                }
+
                 wa_operand_stack_pop_scope(context, ifBlock);
                 wa_push_block_inputs(context, type);
 
@@ -1203,7 +1275,58 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             wa_emit_index(context, opd->index);
 
             u32 label = instr->imm[0].index;
+
             wa_compile_branch(context, instr, label);
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            //TODO simplify this
+            // if current stack is polymorphic, we must constrain the stack so that
+            // the types left on the stack after the br_if are the same as the target
+            // block output types.
+            // if we didn't do this, we could be left with a fully polymorphic stack that would
+            // validate any subsequent instruction.
+            ////////////////////////////////////////////////////////////////////////////////////////
+            wa_block* targetBlock = wa_control_stack_lookup(context, label);
+            wa_block* currentBlock = &context->controlStack[context->controlStackLen - 1];
+            if(targetBlock && currentBlock->polymorphic)
+            {
+                u32 opdCount = (targetBlock->begin->op == WA_INSTR_loop)
+                                 ? targetBlock->type->paramCount
+                                 : targetBlock->type->returnCount;
+
+                wa_value_type* opdTypes = (targetBlock->begin->op == WA_INSTR_loop)
+                                            ? targetBlock->type->params
+                                            : targetBlock->type->returns;
+
+                u32 availableOperands = context->opdStackLen - currentBlock->scopeBase;
+                if(availableOperands < opdCount)
+                {
+                    u32 shift = opdCount - availableOperands;
+
+                    if(context->opdStack == 0 || context->opdStackLen + shift >= context->opdStackCap)
+                    {
+                        context->opdStackCap = (context->opdStackCap + 8) * 2;
+                        wa_operand_slot* tmp = context->opdStack;
+                        context->opdStack = oc_arena_push_array(&context->checkArena, wa_operand_slot, context->opdStackCap);
+                        OC_ASSERT(context->opdStack, "out of memory");
+                        if(tmp)
+                        {
+                            memcpy(context->opdStack, tmp, context->opdStackLen * sizeof(wa_operand_slot));
+                        }
+                    }
+                    context->opdStackLen += shift;
+
+                    memmove(context->opdStack + currentBlock->scopeBase + shift,
+                            context->opdStack + currentBlock->scopeBase,
+                            sizeof(wa_operand_slot) * availableOperands);
+
+                    for(u32 i = 0; i < shift; i++)
+                    {
+                        u32 reg = wa_allocate_register(context, opdTypes[i]);
+                        context->opdStack[currentBlock->scopeBase + i].index = reg;
+                    }
+                }
+            }
 
             context->code[jumpOffset].valI64 = context->codeLen - jumpOffset;
         }
@@ -1231,16 +1354,57 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                 wa_emit_i64(context, 0);
             }
 
-            // each entry jumps to a block that moves the results to the correct slots
-            // and jumps to the actual destination
-            //TODO: we can avoid this trampoline for branches that don't need result values
-            for(u32 i = 0; i < instr->immCount; i++)
+            u32 defaultLabel = instr->imm[instr->immCount - 1].index;
+            wa_block* defaultBlock = wa_control_stack_lookup(context, defaultLabel);
+            if(!defaultBlock)
             {
-                context->code[patchOffsets[i]].valI64 = context->codeLen - baseOffset;
-                u32 label = instr->imm[i].index;
-                wa_compile_branch(context, instr, label);
+                wa_compile_error(context, instr, "block level %u not found\n", defaultLabel);
             }
-            wa_block_set_polymorphic(context);
+            else
+            {
+                //TODO:we could have a helper to avoid checking block->begin->op each time we
+                // need the direction of the block
+                wa_func_type* defaultType = defaultBlock->type;
+                u32 defaultArity = (defaultBlock->begin->op == WA_INSTR_loop)
+                                     ? defaultType->paramCount
+                                     : defaultType->returnCount;
+
+                // each entry jumps to a block that moves the results to the correct slots
+                // and jumps to the actual destination
+                //TODO: we can avoid this trampoline for branches that don't need result values
+
+                for(u32 i = 0; i < instr->immCount; i++)
+                {
+                    u32 label = instr->imm[i].index;
+
+                    //NOTE: each branch must have the same arity as the default branch
+                    wa_block* block = wa_control_stack_lookup(context, label);
+                    if(block)
+                    {
+                        wa_func_type* blockType = block->type;
+
+                        u32 blockArity = (block->begin->op == WA_INSTR_loop)
+                                           ? blockType->paramCount
+                                           : blockType->returnCount;
+
+                        if(blockArity != defaultArity)
+                        {
+                            wa_compile_error(context,
+                                             instr,
+                                             "br_table label %u has arity %u, but default label has arity %u\n",
+                                             label,
+                                             blockArity,
+                                             defaultLabel,
+                                             defaultArity);
+                        }
+                    }
+                    //NOTE: else, invalid label is caught in wa_compile_branch()
+
+                    context->code[patchOffsets[i]].valI64 = context->codeLen - baseOffset;
+                    wa_compile_branch(context, instr, label);
+                }
+                wa_block_set_polymorphic(context);
+            }
         }
         else if(instr->op == WA_INSTR_end)
         {
@@ -1249,14 +1413,24 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
 
             if(context->controlStackLen == 1)
             {
-                //TODO: is this sufficient to elide all previous returns?
+                if(context->opdStackLen - block->scopeBase > type->returnCount)
+                {
+                    wa_compile_error(context,
+                                     instr,
+                                     "type mismatch, %llu operands left on stack after function end",
+                                     context->controlStackLen - block->scopeBase);
+                }
+
                 wa_instr* prev = oc_list_prev_entry(instr, wa_instr, listElt);
                 if(!prev || prev->op != WA_INSTR_return)
                 {
                     wa_compile_return(context, type, instr);
                 }
+
                 wa_patch_jump_targets(context, block);
                 wa_control_stack_pop(context);
+
+                //TODO: is this sufficient to elide all previous returns?
 
                 OC_ASSERT(oc_list_last(instructions) == &instr->listElt);
             }
@@ -1506,6 +1680,77 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                      "found memory instruction, but the module has no declared memory.\n");
                 }
             }
+            if(instr->op >= WA_INSTR_i32_load && instr->op <= WA_INSTR_i64_store32)
+            {
+                u32 naturalAlign = 0;
+                switch(instr->op)
+                {
+                    case WA_INSTR_i32_load8_s:
+                    case WA_INSTR_i32_load8_u:
+                    case WA_INSTR_i64_load8_s:
+                    case WA_INSTR_i64_load8_u:
+                    case WA_INSTR_i32_store8:
+                    case WA_INSTR_i64_store8:
+                        naturalAlign = 0;
+                        break;
+
+                    case WA_INSTR_i32_load16_s:
+                    case WA_INSTR_i32_load16_u:
+                    case WA_INSTR_i64_load16_s:
+                    case WA_INSTR_i64_load16_u:
+                    case WA_INSTR_i32_store16:
+                    case WA_INSTR_i64_store16:
+                        naturalAlign = 1;
+                        break;
+
+                    case WA_INSTR_i32_load:
+                    case WA_INSTR_f32_load:
+                    case WA_INSTR_i64_load32_s:
+                    case WA_INSTR_i64_load32_u:
+                    case WA_INSTR_i32_store:
+                    case WA_INSTR_f32_store:
+                    case WA_INSTR_i64_store32:
+                        naturalAlign = 2;
+                        break;
+
+                    case WA_INSTR_i64_load:
+                    case WA_INSTR_f64_load:
+                    case WA_INSTR_i64_store:
+                    case WA_INSTR_f64_store:
+                        naturalAlign = 3;
+                        break;
+
+                    default:
+                        OC_ABORT("unreachable");
+                }
+                if(instr->imm[0].memArg.align > naturalAlign)
+                {
+                    wa_compile_error(context,
+                                     instr,
+                                     "alignment for load instruction is larger than natural alignment.\n");
+                }
+            }
+
+            if(instr->op == WA_INSTR_table_init)
+            {
+                u32 eltIndex = instr->imm[0].index;
+                u32 tableIndex = instr->imm[1].index;
+
+                if(module->tables[tableIndex].type != module->elements[eltIndex].type)
+                {
+                    wa_compile_error(context, instr, "type mismatch between table.init table %u and element %u", tableIndex, eltIndex);
+                }
+            }
+            else if(instr->op == WA_INSTR_table_copy)
+            {
+                u32 table1 = instr->imm[0].index;
+                u32 table2 = instr->imm[1].index;
+
+                if(module->tables[table1].type != module->tables[table2].type)
+                {
+                    wa_compile_error(context, instr, "type mismatch between table.copy operands table %u and table %u", table1, table2);
+                }
+            }
 
             //NOTE: custom checks and emit
             if(instr->op == WA_INSTR_unreachable)
@@ -1527,7 +1772,11 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                     wa_compile_error(context, instr, "select operands must be of same type\n");
                 }
                 out = oc_arena_push_array(scratch.arena, wa_value_type, outCount);
-                out[0] = inOpds[0].type;
+
+                //WARN: push opd1 type as result because if stack is polymorphic, opd1 could be of
+                // known type t and opd0 of 'unknown' type. We want to pick the known type to check
+                // following operands.
+                out[0] = inOpds[1].type;
 
                 u32 outIndex = wa_operand_stack_push_reg(context, out[0], instr);
 
@@ -1577,6 +1826,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
             else if(instr->op == WA_INSTR_global_set)
             {
                 u32 globalIndex = instr->imm[0].valU32;
+
                 wa_emit_opcode(context, WA_INSTR_global_set);
                 wa_emit_index(context, globalIndex);
                 wa_emit_index(context, inOpds[0].index);
@@ -1623,6 +1873,19 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
     context.codeCap = 4;
     context.code = oc_arena_push_array(&context.codeArena, wa_code, 4);
 
+    //NOTE: check duplicate export names
+    for(u32 i = 0; i < module->exportCount; i++)
+    {
+        for(u32 j = i + 1; j < module->exportCount; j++)
+        {
+            if(!oc_str8_cmp(module->exports[i].name, module->exports[j].name))
+            {
+                wa_compile_error(&context, 0, "duplicate function name %.*s.\n", oc_str8_ip(module->exports[i].name));
+            }
+        }
+    }
+
+    //NOTE: compile all functions
     for(u32 funcIndex = module->functionImportCount; funcIndex < module->functionCount; funcIndex++)
     {
         wa_func* func = &module->functions[funcIndex];
@@ -1689,6 +1952,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         wa_global_desc* global = &module->globals[globalIndex];
 
         wa_build_context_clear(&context);
+        context.compileConstantExpr = true;
         context.regCount = 0;
 
         i64 t = 0x7f - (i64)global->type + 1;
@@ -1705,12 +1969,18 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
     {
         wa_element* element = &module->elements[eltIndex];
 
+        if(element->mode == WA_ELEMENT_ACTIVE && element->type != module->tables[element->tableIndex].type)
+        {
+            wa_compile_error(&context, 0, "active element %u targets table %u but is of different type", eltIndex, element->tableIndex);
+        }
+
         if(!oc_list_empty(element->tableOffset))
         {
             ///////////////////////////////////////////////////////////////////////////
             //TODO: this should go in wa_compile_expression to avoid forgetting it?
             ///////////////////////////////////////////////////////////////////////////
             wa_build_context_clear(&context);
+            context.compileConstantExpr = true;
             context.regCount = 0;
 
             wa_compile_expression(&context, (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1], 0, element->tableOffset);
@@ -1724,6 +1994,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
             for(u32 exprIndex = 0; exprIndex < element->initCount; exprIndex++)
             {
                 wa_build_context_clear(&context);
+                context.compileConstantExpr = true;
                 context.regCount = 0;
 
                 i64 t = 0x7f - (i64)element->type + 1;
@@ -1746,6 +2017,7 @@ void wa_compile_code(oc_arena* arena, wa_module* module)
         if(!oc_list_empty(seg->memoryOffset))
         {
             wa_build_context_clear(&context);
+            context.compileConstantExpr = true;
             context.regCount = 0;
 
             wa_compile_expression(&context, (wa_func_type*)&WA_BLOCK_VALUE_TYPES[1], 0, seg->memoryOffset);

@@ -1,0 +1,1198 @@
+[
+{
+    "kind": "typename",
+    "name": "oc_clock_kind",
+    "type": {
+        "kind": "enum"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_clock_time",
+	"handler": "oc_hostapi_clock_time",
+	"return": {
+        "kind": "f32"
+    },
+	"params": [
+        {
+            "name": "clock",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_clock_kind"
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_log_level",
+    "type": {
+        "kind": "enum"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_log",
+	"handler": "oc_hostapi_log",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "level",
+			"type": {
+                "kind": "namedType",
+                "name": "oc_log_level"
+            }
+        },
+        {
+            "name": "functionLen",
+			"type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "name": "function",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "count": "functionLen"
+            }
+        },
+        {
+            "name": "fileLen",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "name": "file",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "count": "fileLen"
+            }
+        },
+        {
+            "name": "line",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "name": "msgLen",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "name": "msg",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "count": "msgLen"
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_mem_grow",
+	"handler": "oc_hostapi_mem_grow",
+	"return": {
+        "kind": "i32"
+    },
+	"params": [
+        {
+            "name": "size",
+            "type": {
+                "kind": "u64"
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_assert_fail",
+	"handler": "oc_hostapi_assert_fail",
+	"attributes": [
+        "noreturn"
+	],
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "file",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "file"
+                ]
+            }
+        },
+        {
+            "name": "function",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "function"
+                ]
+            }
+        },
+        {
+            "name": "line",
+            "type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "name": "src",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "src"
+                ]
+            }
+        },
+        {
+            "name": "note",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "note"
+                ]}
+        }
+    ]
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_exit",
+    "handler": "oc_hostapi_exit",
+    "return": {
+        "kind": "void"
+    },
+    "params":[
+        {
+            "name": "ec",
+            "type": {
+                "kind": "i32"
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_abort_ext",
+	"handler": "oc_hostapi_abort_ext",
+	"attributes": [
+        "noreturn"
+	],
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "file",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "file"
+                ]
+            }
+        },
+        {
+            "name": "function",
+			"type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "function"
+                ]
+            }
+        },
+        {
+            "name": "line",
+			"type": {
+                "kind": "i32"
+            }
+        },
+        {
+            "name": "note",
+			"type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "char"
+                }
+            },
+            "len": {
+                "proc": "orca_check_cstring",
+                "args": [
+                    "note"
+                ]
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_get_host_platform",
+	"handler": "oc_hostapi_get_host_platform",
+	"return": {
+        "kind": "i32"
+    },
+	"params": []
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_request_quit",
+	"handler": "oc_hostapi_request_quit",
+	"return": {
+        "kind": "void"
+    },
+	"params": []
+},
+{
+    "kind": "typename",
+    "name": "oc_str8",
+    "host": "oc_wasm_str8",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_window_set_title",
+	"handler": "oc_hostapi_window_set_title",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "title",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_str8"
+                }
+            }
+        }
+	]
+},
+{
+    "kind": "typename",
+    "name": "oc_vec2",
+    "type": {
+        "kind": "union"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_window_set_size",
+	"handler": "oc_hostapi_window_set_size",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "size",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
+            }
+        }
+	]
+},
+{
+    "kind": "typename",
+    "name": "oc_scan_code",
+    "type": {
+        "kind": "enum"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_key_code",
+    "type": {
+        "kind": "enum"
+    }
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_scancode_to_keycode",
+    "handler": "oc_hostapi_scancode_to_keycode",
+    "return": {
+        "kind": "namedType",
+        "name": "oc_key_code"
+    },
+    "params": [
+        {
+            "name": "scanCode",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_scan_code"
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_arena",
+    "host": "oc_wasm_arena",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_clipboard_get_string",
+	"handler": "oc_hostapi_clipboard_get_string",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "arena",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_arena"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_str8"
+                }
+            }
+        }
+     ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_clipboard_set_string",
+	"handler": "oc_hostapi_clipboard_set_string",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "value",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_str8"
+                }
+            }
+        }
+	]
+},
+{
+    "kind": "typename",
+    "name": "oc_io_cmp",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_io_req",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_io_wait_single_req",
+	"handler": "oc_hostapi_io_wait_single_req",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "req",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_io_req"
+                }
+            },
+            "len": {
+                "components": 1
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_io_cmp"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_file",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_file_access",
+    "type": {
+        "kind": "enum"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_file_open_flags",
+    "type": {
+        "kind": "enum"
+    }
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_file_open_with_request",
+    "handler": "oc_hostapi_file_open_with_request",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "path",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_str8"
+                }
+            }
+        },
+        {
+            "name": "rights",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_file_access"
+            }
+        },
+        {
+            "name": "flags",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_file_open_flags"
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_file"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_file_open_with_dialog_result",
+    "host": "oc_wasm_file_open_with_dialog_result",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_file_dialog_desc",
+    "host": "oc_wasm_file_dialog_desc",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_file_open_with_dialog",
+    "handler": "oc_hostapi_file_open_with_dialog",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "arena",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_arena"
+                }
+            }
+        },
+        {
+            "name": "rights",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_file_access"
+            }
+        },
+        {
+            "name": "flags",
+            "type": {
+                "kind": "namedType",
+                "name": "oc_file_open_flags"
+            }
+        },
+        {
+            "name": "desc",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_file_dialog_desc"
+                }
+            },
+            "len": {
+                "components": 1
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_file_open_with_dialog_result"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_file_list",
+    "host": "oc_wasm_file_list",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_file_listdir",
+    "handler": "oc_hostapi_file_listdir",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "arena",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_arena"
+                }
+            }
+        },
+        {
+            "name": "directory",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_file"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_file_list"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_image",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_image_size",
+	"handler": "oc_hostapi_image_size",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "image",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type":
+                {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_image_create",
+	"handler": "oc_hostapi_image_create",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "renderer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        },
+        {
+            "name": "width",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "name": "height",
+            "type": {
+                "kind": "u32"
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_image_destroy",
+	"handler": "oc_hostapi_image_destroy",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "image",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_rect",
+    "type": {
+        "kind": "union"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_image_upload_region_rgba8",
+	"handler": "oc_hostapi_image_upload_region_rgba8",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "image",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_image"
+                }
+            }
+        },
+		{
+            "name": "region",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_rect"
+                }
+            }
+        },
+		{
+            "name": "pixels",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "u8"
+                }
+            },
+            "len": {
+                "proc": "orca_image_upload_region_rgba8_length",
+                "args": [
+                    "region"
+                ]
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_surface",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_surface_get_size",
+    "handler": "oc_hostapi_surface_get_size",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type":
+                {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_surface_contents_scaling",
+    "handler": "oc_hostapi_surface_contents_scaling",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_vec2"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_surface_bring_to_front",
+    "handler": "oc_hostapi_surface_bring_to_front",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_surface_send_to_back",
+    "handler": "oc_hostapi_surface_send_to_back",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_canvas_renderer_create",
+	"handler": "oc_hostapi_canvas_renderer_create",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        }
+	]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_canvas_surface_create",
+	"handler": "oc_hostapi_canvas_surface_create",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "renderer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        },
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "typename",
+    "name": "oc_canvas_renderer",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_color",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_primitive",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "typename",
+    "name": "oc_path_elt",
+    "type": {
+        "kind": "struct"
+    }
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_canvas_renderer_submit",
+	"handler": "oc_hostapi_canvas_renderer_submit",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "renderer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        },
+		{
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        },
+		{
+            "name": "msaaSampleCount",
+            "type" : {
+                "kind": "u32"
+            }
+        },
+		{
+            "name": "clear",
+            "type": {
+                "kind": "bool"
+            }
+        },
+		{
+            "name": "clearColor",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_color"
+                }
+            }
+        },
+		{
+            "name": "primitiveCount",
+            "type": {
+                "kind": "u32"
+            }
+        },
+		{
+            "name": "primitives",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_primitive"
+                }
+            },
+            "len": {
+                "count": "primitiveCount"
+            }
+        },
+		{
+            "name": "eltCount",
+            "type": {
+                "kind": "u32"
+            }
+        },
+		{
+            "name": "elements",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_path_elt"
+                }
+            },
+            "len": {
+                "count": "eltCount"
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+    "name": "oc_hostcall_canvas_present",
+    "handler": "oc_hostapi_canvas_present",
+    "return": {
+        "kind": "void"
+    },
+    "params": [
+        {
+            "name": "renderer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_canvas_renderer"
+                }
+            }
+        },
+        {
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_gles_surface_create",
+	"handler": "oc_hostapi_gles_surface_create",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+        {
+            "name": "returnPointer",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+	]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_gles_surface_make_current",
+	"handler": "oc_hostapi_gles_surface_make_current",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+    ]
+},
+{
+    "kind": "proc",
+	"name": "oc_hostcall_gles_surface_swap_buffers",
+	"handler": "oc_hostapi_gles_surface_swap_buffers",
+	"return": {
+        "kind": "void"
+    },
+	"params": [
+		{
+            "name": "surface",
+            "type": {
+                "kind": "pointer",
+                "type": {
+                    "kind": "namedType",
+                    "name": "oc_surface"
+                }
+            }
+        }
+    ]
+}
+]

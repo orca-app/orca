@@ -282,7 +282,6 @@ struct oc_ui_box
 
     oc_ui_style* targetStyle;
     oc_ui_style style;
-    u32 z;
 
     //TODO: review
     oc_vec2 floatPos;

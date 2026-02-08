@@ -6,5 +6,9 @@
 *
 **************************************************************************/
 #include "platform.h"
+#include "wasmbind/hostcalls.h"
 
-oc_host_platform ORCA_IMPORT(oc_get_host_platform)();
+oc_host_platform oc_get_host_platform()
+{
+    return oc_hostcall_get_host_platform();
+}

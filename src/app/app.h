@@ -475,10 +475,8 @@ ORCA_API int oc_directory_create(oc_str8 path);
 
 void oc_window_set_title(oc_str8 title);
 void oc_window_set_size(oc_vec2 size);
-
-void ORCA_IMPORT(oc_request_quit)(void);
-oc_key_code ORCA_IMPORT(oc_scancode_to_keycode)(oc_scan_code scanCode);
-
+void oc_request_quit(void);
+oc_key_code oc_scancode_to_keycode(oc_scan_code scanCode);
 void oc_clipboard_set_string(oc_str8 string);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)

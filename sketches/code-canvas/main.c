@@ -1,0 +1,924 @@
+/*************************************************************************
+*
+*  Orca
+*  Copyright 2023 Martin Fouilleul and the Orca project contributors
+*  See LICENSE.txt for licensing information
+*
+**************************************************************************/
+
+#include <math.h>
+#include "orca.h"
+
+oc_vec2 frameSize = { 1200, 838 };
+
+oc_surface surface;
+oc_canvas_renderer renderer;
+oc_canvas_context context;
+oc_font fontRegular;
+oc_font fontBold;
+
+typedef struct oc_card_group oc_card_group;
+
+typedef struct oc_card
+{
+    oc_list_elt listElt;
+    oc_list_elt groupElt;
+    oc_list_elt interactedElt;
+    bool interacted;
+
+    oc_card_group* group;
+    u64 prevGroupId;
+
+    u64 id;
+    oc_rect rect;
+    oc_vec2 initialPos;
+} oc_card;
+
+typedef struct oc_card_group
+{
+    oc_list_elt listElt;
+    u64 id;
+    oc_list cards;
+} oc_card_group;
+
+typedef enum oc_card_interaction
+{
+    OC_CARD_RESIZE_TOP = 1,
+    OC_CARD_RESIZE_BOTTOM = 1 << 1,
+    OC_CARD_RESIZE_LEFT = 1 << 2,
+    OC_CARD_RESIZE_RIGHT = 1 << 3,
+    OC_CARD_RESIZE = OC_CARD_RESIZE_TOP
+                   | OC_CARD_RESIZE_BOTTOM
+                   | OC_CARD_RESIZE_LEFT
+                   | OC_CARD_RESIZE_RIGHT,
+    OC_CARD_MOVE = 1 << 4,
+
+} oc_card_interaction;
+
+typedef struct oc_code_canvas
+{
+    oc_arena arena;
+    oc_list cards;
+    oc_list cardFreeList;
+
+    oc_list groups;
+    oc_list groupFreeList;
+
+    u64 nextId;
+    u64 nextGroupId;
+
+    oc_list interactedCards;
+    oc_card_interaction interaction;
+
+    /*
+    oc_card* interactedCard;
+    oc_card_group* interactedGroup;
+    */
+    bool panning;
+    oc_vec2 pan;
+
+} oc_code_canvas;
+
+void oc_code_canvas_init(oc_code_canvas* canvas)
+{
+    oc_arena_init(&canvas->arena);
+    canvas->nextGroupId = 1;
+}
+
+void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
+{
+    oc_card* card = oc_list_pop_front_entry(&canvas->cardFreeList, oc_card, listElt);
+    if(!card)
+    {
+        card = oc_arena_push_type_uninitialized(&canvas->arena, oc_card);
+    }
+    memset(card, 0, sizeof(oc_card));
+
+    card->id = canvas->nextId;
+    canvas->nextId++;
+
+    card->rect = (oc_rect){ x, y, 200, 200 };
+    card->initialPos = card->rect.xy;
+
+    oc_list_push_back(&canvas->cards, &card->listElt);
+}
+
+oc_card_group* oc_code_canvas_create_group(oc_code_canvas* canvas)
+{
+    oc_card_group* group = oc_list_pop_front_entry(&canvas->groupFreeList, oc_card_group, listElt);
+    if(!group)
+    {
+        group = oc_arena_push_type_uninitialized(&canvas->arena, oc_card_group);
+    }
+    memset(group, 0, sizeof(oc_card_group));
+
+    oc_list_push_back(&canvas->groups, &group->listElt);
+    return group;
+}
+
+void oc_card_remove_from_group(oc_code_canvas* canvas, oc_card_group* group, oc_card* card)
+{
+    oc_list_remove(&group->cards, &card->groupElt);
+    card->group = 0;
+
+    if(group->cards.first == group->cards.last)
+    {
+        oc_card* lastCard = oc_list_first_entry(group->cards, oc_card, groupElt);
+        OC_ASSERT(lastCard);
+
+        oc_list_remove(&group->cards, &lastCard->groupElt);
+        lastCard->group = 0;
+    }
+    if(oc_list_empty(group->cards))
+    {
+        oc_list_remove(&canvas->groups, &group->listElt);
+        oc_list_push_back(&canvas->groupFreeList, &group->listElt);
+    }
+}
+
+void oc_card_add_to_group(oc_code_canvas* canvas, oc_card_group* group, oc_card* card)
+{
+    if(card->group)
+    {
+        oc_card_remove_from_group(canvas, card->group, card);
+    }
+
+    oc_list_push_back(&group->cards, &card->groupElt);
+
+    OC_ASSERT(card->groupElt.next != &card->groupElt);
+    card->group = group;
+}
+
+enum
+{
+    OC_CARD_BORDER_SIZE = 4,
+    OC_CARD_SPACER_MARGIN = 16,
+    OC_CARD_GROUPING_THRESHOLD = 20,
+    OC_CARD_MIN_WIDTH = 50,
+    OC_CARD_MIN_HEIGHT = 50,
+};
+
+const f32 OC_CARD_ANIMATION_TIME = 0.3;
+
+typedef enum oc_card_spacer_direction
+{
+    OC_CARD_SPACER_UP,
+    OC_CARD_SPACER_DOWN,
+    OC_CARD_SPACER_LEFT,
+    OC_CARD_SPACER_RIGTH,
+} oc_card_spacer_direction;
+
+typedef struct oc_card_spacer_item
+{
+    oc_card* card;
+    oc_vec2 newPos;
+
+} oc_card_spacer_item;
+
+typedef struct oc_card_spacer_state
+{
+    u32 itemCount;
+    u32 markedCount;
+    u32 workingCount;
+
+    oc_card_spacer_item* items;
+
+} oc_card_spacer_state;
+
+bool oc_rect_overlap(oc_rect a, oc_rect b)
+{
+    bool overlap = (a.x < b.x + b.w)
+                && (a.x + a.w > b.x)
+                && (a.y < b.y + b.h)
+                && (a.y + a.h > b.y);
+    return overlap;
+}
+
+oc_vec2 oc_card_spacer_move_direction(oc_card_spacer_state* state, oc_card_spacer_item* item, oc_card_spacer_direction direction)
+{
+    bool intersect = false;
+    oc_vec2 newPos = item->card->initialPos;
+
+    do
+    {
+        intersect = false;
+        for(u64 i = 0; i < state->markedCount + state->workingCount; i++)
+        {
+            oc_card_spacer_item* other = &state->items[i];
+
+            oc_rect rectItem = {
+                .xy = newPos,
+                .wh = item->card->rect.wh,
+            };
+
+            oc_rect rectOther = {
+                other->newPos.x - OC_CARD_SPACER_MARGIN,
+                other->newPos.y - OC_CARD_SPACER_MARGIN,
+                other->card->rect.w + 2 * OC_CARD_SPACER_MARGIN,
+                other->card->rect.h + 2 * OC_CARD_SPACER_MARGIN,
+            };
+
+            if(oc_rect_overlap(rectItem, rectOther))
+            {
+                intersect = true;
+                switch(direction)
+                {
+                    case OC_CARD_SPACER_UP:
+                    {
+                        newPos.y = other->newPos.y - item->card->rect.h - OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
+                    case OC_CARD_SPACER_DOWN:
+                    {
+                        newPos.y = other->newPos.y + other->card->rect.h + OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
+                    case OC_CARD_SPACER_LEFT:
+                    {
+                        newPos.x = other->newPos.x - item->card->rect.w - OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
+                    case OC_CARD_SPACER_RIGTH:
+                    {
+                        newPos.x = other->newPos.x + other->card->rect.w + OC_CARD_SPACER_MARGIN;
+                    }
+                    break;
+                }
+            }
+        }
+    }
+    while(intersect);
+
+    return newPos;
+}
+
+void oc_card_spacer(oc_code_canvas* canvas, u32 initialCardCount, oc_card** initialCards)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    //NOTE: create initial state
+    oc_card_spacer_state state = {
+        .items = oc_arena_push_array(scratch.arena, oc_card_spacer_item, oc_list_count(canvas->cards)),
+        .itemCount = oc_list_count(canvas->cards),
+    };
+
+    oc_list_for_indexed(canvas->cards, it, oc_card, listElt)
+    {
+        state.items[it.index].card = it.elt;
+        state.items[it.index].newPos = it.elt->initialPos;
+
+        for(u32 i = 0; i < initialCardCount; i++)
+        {
+            if(it.elt == initialCards[i])
+            {
+                oc_card_spacer_item tmp = state.items[state.workingCount];
+                state.items[state.workingCount] = state.items[it.index];
+                state.items[it.index] = tmp;
+                state.workingCount++;
+            }
+        }
+    }
+
+    bool hadMoves = false;
+
+    do
+    {
+        hadMoves = false;
+        u64 oldWorkingCount = state.workingCount;
+
+        for(u64 unmarkedIndex = state.markedCount + state.workingCount;
+            unmarkedIndex < state.itemCount;
+            unmarkedIndex++)
+        {
+
+            oc_card_spacer_item* unmarkedItem = &state.items[unmarkedIndex];
+            /*
+                //NOTE: collect the set of cards it intersects in the working set
+                //TODO: and the directions they were moved
+
+                u64 intersectingCount = 0;
+                oc_card_spacer_item* intersecting = oc_arena_push_array(scratch.arena, oc_card_spacer_item*, state.workingCount);
+
+                for(u64 workingIndex = 0; workingIndex < state.itemCount; workingIndex++)
+                {
+                    if(state.items[workingIndex].working)
+                    {
+                        oc_card_spacer_item* workingItem = &state.items[workingIndex];
+                        if(oc_card_spacer_overlap(unmarkedItem, workingItem))
+                        {
+                            intersecting[intersectingCount] = workingItem;
+                            intersectingCount++;
+                        }
+                    }
+                }
+                */
+
+            //NOTE: Compute smallest move for this card
+            oc_vec2 moves[4] = { 0 };
+            f32 smallestNorm = FLT_MAX;
+            i32 smallestIndex = 0;
+
+            for(int i = 0; i < 4; i++)
+            {
+                moves[i] = oc_card_spacer_move_direction(&state, unmarkedItem, i);
+                f32 norm = oc_max(fabs(unmarkedItem->card->initialPos.x - moves[i].x), fabs(unmarkedItem->card->initialPos.y - moves[i].y));
+                if(norm < smallestNorm)
+                {
+                    smallestNorm = norm;
+                    smallestIndex = i;
+                }
+            }
+
+            if(smallestNorm > 0)
+            {
+                //NOTE: apply smallest move and put card in working set
+                unmarkedItem->newPos = moves[smallestIndex];
+
+                oc_card_spacer_item tmp = state.items[state.markedCount + state.workingCount];
+                state.items[state.markedCount + state.workingCount] = state.items[unmarkedIndex];
+                state.items[unmarkedIndex] = tmp;
+                state.workingCount++;
+
+                hadMoves = true;
+            }
+        }
+
+        //NOTE: move old working set to marked set
+        state.markedCount += oldWorkingCount;
+        state.workingCount -= oldWorkingCount;
+    }
+    while(hadMoves);
+
+    //NOTE: apply state
+    for(u64 i = 0; i < state.itemCount; i++)
+    {
+        state.items[i].card->rect.xy = state.items[i].newPos;
+    }
+
+    oc_scratch_end(scratch);
+}
+
+void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
+{
+    //NOTE: get mouse pos in the parent's frame
+    oc_vec2 mousePos = oc_ui_get_sig().mouse;
+    oc_vec2 mouseDelta = oc_ui_get_sig().delta;
+
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 idStr = oc_str8_pushf(scratch.arena, "card-%llu", card->id);
+    oc_ui_box_str8(idStr)
+    {
+        oc_ui_set_text(idStr);
+        oc_ui_style_set_var_str8(OC_UI_FONT, OC_UI_THEME_FONT_REGULAR);
+        oc_ui_style_set_f32(OC_UI_TEXT_SIZE, 32);
+        oc_ui_style_set_color(OC_UI_COLOR, (oc_color){ 0, 0, 0, 1 });
+
+        oc_rect pannedRect = {
+            card->rect.x - canvas->pan.x,
+            card->rect.y - canvas->pan.y,
+            card->rect.w,
+            card->rect.h,
+        };
+
+        oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_FRAME);
+        oc_ui_style_set_f32(OC_UI_OFFSET_X, pannedRect.x);
+        oc_ui_style_set_f32(OC_UI_OFFSET_Y, pannedRect.y);
+        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, pannedRect.w });
+        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, pannedRect.h });
+
+        oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.3, 0.3, 0.3, 1 });
+        oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 0.1, 0.1, 0.1, 1 });
+        oc_ui_style_set_f32(OC_UI_BORDER_SIZE, OC_CARD_BORDER_SIZE);
+        oc_ui_style_set_f32(OC_UI_ROUNDNESS, 5);
+
+        if(card->initialPos.x != card->rect.x
+           || card->initialPos.y != card->rect.y)
+        {
+            oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0.4, 0.4, 0.4, 1 });
+        }
+        oc_ui_attribute_mask animationMask = OC_UI_MASK_BG_COLOR;
+        if(!card->interacted && !canvas->panning)
+        {
+            animationMask |= OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y;
+        }
+
+        oc_ui_style_set_i32(OC_UI_ANIMATION_MASK, animationMask);
+        oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, OC_CARD_ANIMATION_TIME);
+    }
+
+    oc_scratch_end(scratch);
+}
+
+void oc_canvas_compute_groups(oc_code_canvas* canvas)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    //NOTE: recycle previous groups
+    for(oc_card_group* group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt);
+        group != 0;
+        group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt))
+    {
+        oc_list_push_front(&canvas->groupFreeList, &group->listElt);
+    }
+
+    //NOTE: form new groups based on spatial arrangement
+    oc_list_for(canvas->cards, card, oc_card, listElt)
+    {
+        card->group = 0;
+
+        oc_rect r = {
+            card->rect.x - OC_CARD_GROUPING_THRESHOLD,
+            card->rect.y - OC_CARD_GROUPING_THRESHOLD,
+            card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
+            card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
+        };
+        for(oc_card* other = oc_list_first_entry(canvas->cards, oc_card, listElt);
+            other != card;
+            other = oc_list_next_entry(other, oc_card, listElt))
+        {
+            if(oc_rect_overlap(r, other->rect))
+            {
+                if(!card->group)
+                {
+                    if(!other->group)
+                    {
+                        oc_card_group* group = oc_code_canvas_create_group(canvas);
+                        oc_card_add_to_group(canvas, group, card);
+                        oc_card_add_to_group(canvas, group, other);
+                    }
+                    else
+                    {
+                        oc_card_add_to_group(canvas, other->group, card);
+                    }
+                }
+                else
+                {
+                    if(!other->group)
+                    {
+                        oc_card_add_to_group(canvas, card->group, other);
+                    }
+                    else if(other->group != card->group)
+                    {
+                        //NOTE: here we must merge other->group and card->group. We move all cards of other->group
+                        // to card->group
+                        oc_list_for_safe(other->group->cards, cardToMove, oc_card, groupElt)
+                        {
+                            oc_card_add_to_group(canvas, card->group, cardToMove);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    //NOTE: now give stable group identifier to each group. First we gather previous group id from cards
+
+    /////////////////////////////////////////////////////////////////////
+    //TODO: the problem with gather prev group id from cards here (or at the beginning of dragging) is that new groups created when dragging
+    // are not stable, since they don't match any previous group
+    // OTOH, if we gather prev groups each frame, they don't necessarily match initial group ids either...
+    // maybe we should just have prevGroupId instead of _initial_ group Id?
+    /////////////////////////////////////////////////////////////////////
+
+    u64 maxPrevGroupCount = oc_list_count(canvas->cards) / 2;
+    u64* prevGroupIds = oc_arena_push_array_uninitialized(scratch.arena, u64, maxPrevGroupCount);
+    u64 prevGroupCount = 0;
+
+    oc_list_for(canvas->cards, card, oc_card, listElt)
+    {
+        if(card->prevGroupId > 0)
+        {
+            i64 groupIndex = -1;
+            for(u64 i = 0; i < prevGroupCount; i++)
+            {
+                if(prevGroupIds[i] == card->prevGroupId)
+                {
+                    groupIndex = i;
+                    break;
+                }
+            }
+            if(groupIndex < 0)
+            {
+                OC_ASSERT(prevGroupCount < maxPrevGroupCount);
+                groupIndex = prevGroupCount;
+                prevGroupIds[groupIndex] = card->prevGroupId;
+                prevGroupCount++;
+            }
+        }
+    }
+
+    //NOTE: now, for each group, we count the number of card for each prevGroupId, and
+    // select the largest contingent to set the new group id.
+    u64* countArray = oc_arena_push_array_uninitialized(scratch.arena, u64, maxPrevGroupCount);
+    bool* reused = oc_arena_push_array(scratch.arena, bool, maxPrevGroupCount);
+
+    oc_list_for(canvas->groups, group, oc_card_group, listElt)
+    {
+        memset(countArray, 0, sizeof(u64) * maxPrevGroupCount);
+
+        //NOTE: count how many cards in this group were in each previous group,
+        // and select the previous group with the most cards
+        u64 biggestPrevGroupIndex = 0;
+        u64 biggestPrevGroupCount = 0;
+
+        oc_list_for(group->cards, card, oc_card, groupElt)
+        {
+            if(card->prevGroupId > 0)
+            {
+                i64 groupIndex = -1;
+                for(u64 i = 0; i < prevGroupCount; i++)
+                {
+                    if(prevGroupIds[i] == card->prevGroupId)
+                    {
+                        groupIndex = i;
+                        break;
+                    }
+                }
+                OC_ASSERT(groupIndex >= 0);
+
+                countArray[groupIndex]++;
+                if(countArray[groupIndex] > biggestPrevGroupCount)
+                {
+                    biggestPrevGroupCount = countArray[groupIndex];
+                    biggestPrevGroupIndex = groupIndex;
+                }
+            }
+        }
+        //NOTE: if group has cards that were in previous groups, give the new group the id of
+        // the previous group from which it has the most cards, unless this group id has already
+        // been reused, in which case we generate a new id.
+        // We also generate a new id if group had no cards that were in a previous group.
+
+        if(biggestPrevGroupCount == 0 || reused[biggestPrevGroupIndex])
+        {
+            group->id = canvas->nextGroupId;
+            canvas->nextGroupId++;
+        }
+        else
+        {
+            group->id = prevGroupIds[biggestPrevGroupIndex];
+            reused[biggestPrevGroupIndex] = true;
+        }
+    }
+
+    //NOTE: finally set each card prevGroupId
+    oc_list_for(canvas->cards, card, oc_card, listElt)
+    {
+        card->prevGroupId = card->group ? card->group->id : 0;
+    }
+
+    oc_scratch_end(scratch);
+}
+
+oc_code_canvas canvas = { 0 };
+
+i32 ui_runloop(void* user)
+{
+    context = oc_canvas_context_create();
+
+    oc_ui_context* ui = oc_ui_context_create(fontRegular);
+
+    while(!oc_should_quit())
+    {
+        oc_arena_scope scratch = oc_scratch_begin();
+
+        oc_event* event = 0;
+        while((event = oc_next_event(scratch.arena)) != 0)
+        {
+            oc_ui_process_event(event);
+
+            switch(event->type)
+            {
+                case OC_EVENT_WINDOW_CLOSE:
+                {
+                    oc_request_quit();
+                }
+                break;
+
+                case OC_EVENT_WINDOW_RESIZE:
+                {
+                    frameSize = (oc_vec2){ event->move.content.w, event->move.content.h };
+                }
+                break;
+
+                default:
+                    break;
+            }
+        }
+
+        oc_ui_frame(frameSize)
+        {
+            if(!oc_list_empty(canvas.interactedCards))
+            {
+                oc_vec2 mouseDelta = oc_mouse_delta(oc_ui_input());
+                if(fabs(mouseDelta.x) > 0 || fabs(mouseDelta.y) > 0)
+                {
+                    oc_card** movedCards = oc_arena_push_array(scratch.arena, oc_card*, oc_list_count(canvas.interactedCards));
+
+                    oc_list_for_indexed(canvas.interactedCards, it, oc_card, interactedElt)
+                    {
+                        oc_card* card = it.elt;
+                        movedCards[it.index] = card;
+
+                        oc_list_remove(&canvas.cards, &card->listElt);
+                        oc_list_push_back(&canvas.cards, &card->listElt);
+
+                        if(canvas.interaction == OC_CARD_MOVE)
+                        {
+                            oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0.05, 1, 1 });
+                            card->rect.x += mouseDelta.x;
+                            card->rect.y += mouseDelta.y;
+                        }
+                        else
+                        {
+                            oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 1, 1 });
+
+                            if(canvas.interaction & OC_CARD_RESIZE_LEFT)
+                            {
+                                f32 delta = oc_clamp_high(mouseDelta.x, card->rect.w - OC_CARD_MIN_WIDTH);
+                                card->rect.x += delta;
+                                card->rect.w -= delta;
+                            }
+                            else if(canvas.interaction & OC_CARD_RESIZE_RIGHT)
+                            {
+                                f32 delta = oc_clamp_low(mouseDelta.x, OC_CARD_MIN_WIDTH - card->rect.w);
+                                card->rect.w += delta;
+                            }
+
+                            if(canvas.interaction & OC_CARD_RESIZE_TOP)
+                            {
+                                f32 delta = oc_clamp_high(mouseDelta.y, card->rect.h - OC_CARD_MIN_HEIGHT);
+                                card->rect.y += delta;
+                                card->rect.h -= delta;
+                            }
+                            else if(canvas.interaction & OC_CARD_RESIZE_BOTTOM)
+                            {
+                                f32 delta = oc_clamp_low(mouseDelta.y, OC_CARD_MIN_HEIGHT - card->rect.h);
+                                card->rect.h += delta;
+                            }
+                        }
+                        card->initialPos = card->rect.xy;
+                    }
+
+                    oc_card_spacer(&canvas, oc_list_count(canvas.interactedCards), movedCards);
+                    oc_canvas_compute_groups(&canvas);
+                }
+            }
+
+            if(oc_mouse_released(oc_ui_input(), OC_MOUSE_LEFT))
+            {
+                if(!oc_list_empty(canvas.interactedCards))
+                {
+                    oc_list_for(canvas.cards, card, oc_card, listElt)
+                    {
+                        card->initialPos = card->rect.xy;
+                        card->prevGroupId = card->group ? card->group->id : 0;
+                    }
+
+                    oc_list_for_safe(canvas.interactedCards, card, oc_card, interactedElt)
+                    {
+                        card->interacted = false;
+                        oc_list_remove(&canvas.interactedCards, &card->interactedElt);
+                    }
+                }
+                canvas.interaction = 0;
+                canvas.panning = false;
+            }
+
+            if(canvas.panning)
+            {
+                oc_vec2 delta = oc_ui_get_sig().delta;
+                canvas.pan.x -= delta.x;
+                canvas.pan.y -= delta.y;
+            }
+
+            oc_vec2 mousePos = oc_ui_get_sig().mouse;
+            oc_vec2 mouseDelta = oc_ui_get_sig().delta;
+
+            //TODO: move somewhere else
+            const oc_color groupColors[8] = {
+                { 0.702, 0.961, 0.737, 1, OC_COLOR_SPACE_SRGB },
+                { 0.980, 0.569, 0.541, 1, OC_COLOR_SPACE_SRGB },
+                { 0.843, 0.965, 1, 1, OC_COLOR_SPACE_SRGB },
+                { 0.984, 0.682, 0.486, 1, OC_COLOR_SPACE_SRGB },
+                { 0.886, 0.796, 0.969, 1, OC_COLOR_SPACE_SRGB },
+                { 1, 0.902, 0.604, 1, OC_COLOR_SPACE_SRGB },
+                { 0.820, 0.741, 1, 1, OC_COLOR_SPACE_SRGB },
+                { 0.976, 1, 0.710, 1, OC_COLOR_SPACE_SRGB },
+            };
+
+            oc_card_group* interactedGroup = 0;
+            oc_list_for(canvas.groups, group, oc_card_group, listElt)
+            {
+                oc_list_for(group->cards, card, oc_card, groupElt)
+                {
+                    oc_rect r = {
+                        card->rect.x - OC_CARD_GROUPING_THRESHOLD - canvas.pan.x,
+                        card->rect.y - OC_CARD_GROUPING_THRESHOLD - canvas.pan.y,
+                        card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
+                        card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
+                    };
+
+                    oc_rect borderRect = {
+                        card->rect.x - OC_CARD_BORDER_SIZE - canvas.pan.x,
+                        card->rect.y - OC_CARD_BORDER_SIZE - canvas.pan.y,
+                        card->rect.w + 2 * OC_CARD_BORDER_SIZE,
+                        card->rect.h + 2 * OC_CARD_BORDER_SIZE,
+                    };
+
+                    oc_str8 idStr = oc_str8_pushf(scratch.arena, "group-halo-%llu", card->id);
+                    oc_ui_box_str8(idStr)
+                    {
+                        oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+                        oc_ui_style_set_f32(OC_UI_OFFSET_X, r.x);
+                        oc_ui_style_set_f32(OC_UI_OFFSET_Y, r.y);
+                        oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.w });
+                        oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, r.h });
+
+                        oc_ui_style_set_color(OC_UI_BG_COLOR, groupColors[group->id % 8]);
+                        oc_ui_style_set_f32(OC_UI_ROUNDNESS, 10);
+
+                        if(!card->interacted)
+                        {
+                            oc_ui_style_set_i32(OC_UI_ANIMATION_MASK, OC_UI_MASK_OFFSET_X | OC_UI_MASK_OFFSET_Y);
+                            oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, OC_CARD_ANIMATION_TIME);
+                        }
+
+                        if(oc_ui_get_sig().pressed
+                           && (mousePos.x < borderRect.x
+                               || mousePos.x > borderRect.x + borderRect.w
+                               || mousePos.y < borderRect.y
+                               || mousePos.y > borderRect.y + borderRect.h))
+                        {
+                            interactedGroup = group;
+                        }
+                    }
+                }
+            }
+            if(interactedGroup)
+            {
+                oc_list_for(interactedGroup->cards, card, oc_card, groupElt)
+                {
+                    card->interacted = true;
+                    oc_list_push_back(&canvas.interactedCards, &card->interactedElt);
+                }
+                canvas.interaction = OC_CARD_MOVE;
+            }
+
+            oc_list_for(canvas.cards, card, oc_card, listElt)
+            {
+                if(!interactedGroup)
+                {
+                    oc_rect pannedRect = {
+                        card->rect.x - canvas.pan.x,
+                        card->rect.y - canvas.pan.y,
+                        card->rect.w,
+                        card->rect.h,
+                    };
+
+                    if(oc_ui_get_sig().pressed
+                       && mousePos.x > pannedRect.x
+                       && mousePos.x < pannedRect.x + pannedRect.w
+                       && mousePos.y > pannedRect.y
+                       && mousePos.y < pannedRect.y + pannedRect.h)
+                    {
+                        card->interacted = true;
+                        oc_list_push_back(&canvas.interactedCards, &card->interactedElt);
+                        canvas.interaction = OC_CARD_MOVE;
+                    }
+                    else
+                    {
+                        u32 hoveredBorders = 0;
+
+                        if(mousePos.y > pannedRect.y - OC_CARD_BORDER_SIZE
+                           && mousePos.y < pannedRect.y + pannedRect.h + OC_CARD_BORDER_SIZE)
+                        {
+                            if(mousePos.x > pannedRect.x - OC_CARD_BORDER_SIZE
+                               && mousePos.x < pannedRect.x)
+                            {
+                                hoveredBorders = OC_CARD_RESIZE_LEFT;
+                            }
+                            else if(mousePos.x > pannedRect.x + pannedRect.w
+                                    && mousePos.x < pannedRect.x + pannedRect.w + OC_CARD_BORDER_SIZE)
+                            {
+                                hoveredBorders = OC_CARD_RESIZE_RIGHT;
+                            }
+                        }
+
+                        if(mousePos.x > pannedRect.x - OC_CARD_BORDER_SIZE
+                           && mousePos.x < pannedRect.x + pannedRect.w + OC_CARD_BORDER_SIZE)
+                        {
+                            if(mousePos.y > pannedRect.y - OC_CARD_BORDER_SIZE
+                               && mousePos.y < pannedRect.y)
+                            {
+                                hoveredBorders |= OC_CARD_RESIZE_TOP;
+                            }
+                            else if(mousePos.y > pannedRect.y + pannedRect.h
+                                    && mousePos.y < pannedRect.y + pannedRect.h + OC_CARD_BORDER_SIZE)
+                            {
+                                hoveredBorders |= OC_CARD_RESIZE_BOTTOM;
+                            }
+                        }
+
+                        if(hoveredBorders)
+                        {
+                            if(oc_mouse_pressed(oc_ui_input(), OC_MOUSE_LEFT))
+                            {
+                                card->interacted = true;
+                                oc_list_push_back(&canvas.interactedCards, &card->interactedElt);
+                                canvas.interaction = hoveredBorders;
+                            }
+                        }
+                    }
+                }
+
+                oc_card_ui(&canvas, card);
+            }
+
+            if(oc_list_empty(canvas.interactedCards)
+               && oc_ui_get_sig().pressed)
+            {
+                canvas.panning = true;
+            }
+        }
+
+        oc_ui_draw();
+        oc_canvas_render(renderer, context, surface);
+        oc_canvas_present(renderer, surface);
+
+        oc_scratch_end(scratch);
+    }
+    return (0);
+}
+
+int main()
+{
+    oc_init();
+    oc_clock_init(); //TODO put that in oc_init()?
+
+    oc_code_canvas_init(&canvas);
+    oc_code_canvas_create_card(&canvas, 100, 100);
+    oc_code_canvas_create_card(&canvas, 400, 100);
+    oc_code_canvas_create_card(&canvas, 200, 500);
+    oc_code_canvas_create_card(&canvas, 500, 400);
+    oc_code_canvas_create_card(&canvas, 700, 100);
+
+    oc_rect windowRect = { .x = 100, .y = 100, .w = frameSize.x, .h = frameSize.y };
+    oc_window window = oc_window_create(windowRect, OC_STR8("Code Canvas"), 0);
+
+    oc_rect contentRect = oc_window_get_content_rect(window);
+
+    oc_window_set_title(window, OC_STR8("Code Canvas"));
+
+    renderer = oc_canvas_renderer_create();
+    surface = oc_canvas_surface_create_for_window(renderer, window);
+
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_font* fonts[2] = { &fontRegular, &fontBold };
+    oc_str8 fontNames[2] = {
+        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Regular.ttf")),
+        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Bold.ttf"))
+    };
+
+    for(int i = 0; i < 2; i++)
+    {
+        oc_file file = oc_catch(oc_file_open(fontNames[i], OC_FILE_ACCESS_READ, 0))
+        {
+            oc_log_error("Couldn't open file %.*s\n", oc_str8_ip(fontNames[i]));
+            return -1;
+        }
+        u64 size = oc_file_size(file);
+        char* buffer = (char*)oc_arena_push(scratch.arena, size);
+        oc_file_read(file, size, buffer);
+        oc_file_close(file);
+        oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
+                                       OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
+                                       OC_UNICODE_LATIN_EXTENDED_A,
+                                       OC_UNICODE_LATIN_EXTENDED_B,
+                                       OC_UNICODE_SPECIALS };
+
+        *fonts[i] = oc_font_create_from_memory(oc_str8_from_buffer(size, buffer), 5, ranges);
+    }
+    oc_scratch_end(scratch);
+
+    // start app
+    oc_window_bring_to_front(window);
+    oc_window_focus(window);
+
+    oc_thread* runloopThread = oc_thread_create(ui_runloop, 0);
+
+    while(!oc_should_quit())
+    {
+        oc_pump_events(-1);
+        //TODO: what to do with mem scratch here?
+    }
+
+    i64 exitCode = 0;
+    oc_thread_join(runloopThread, &exitCode);
+
+    oc_surface_destroy(surface);
+    oc_terminate();
+
+    return (0);
+}

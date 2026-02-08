@@ -1,9 +1,0 @@
-[
-{
-	"name": "oc_clock_time",
-	"cname": "oc_clock_time",
-	"ret": {"name": "time", "tag": "F"},
-	"args": [ {"name": "clock",
-	           "type": {"name": "oc_clock_kind", "tag": "i"}}]
-}
-]
