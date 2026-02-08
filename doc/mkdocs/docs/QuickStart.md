@@ -5,11 +5,11 @@ This is a short introduction to developing an application that can be run by the
 
 ## What is an Orca app?
 
-An Orca app is a WebAssembly module designed for the Orca runtime. Your app interacts with the Orca runtime via WebAssembly imports and exports. For example, you can import functions from the Orca runtime to get user input, and export functions to the Orca runtime to draw to the screen.
+An Orca app is a bundle containing a WebAssembly module and additional resources (e.g. fonts, images, etc.), designed to be run by the Orca runtime. Your app interacts with the Orca runtime via WebAssembly imports and exports. For example, you can import functions from the Orca runtime to get user input, and export functions to the Orca runtime to draw to the screen.
 
 You can, in principle, write an Orca app in any programming language that supports WebAssembly. However, at this early stage, C is the only officially supported language.
 
-Orca also ships with a core library which facilitates interaction with the Orca runtime and provides features like UI. It also ships with a C standard library implementation designed to work on WebAssembly. These libraries should be linked to your app as part of producing your WebAssembly module. You can get the paths to these libraries by running `orca sdk-path`:
+Orca also ships with a core library which facilitates interaction with the Orca runtime and provides features like 2D vector graphics and UI. It also ships with a C standard library implementation designed to work on WebAssembly. These libraries should be linked to your app as part of producing your WebAssembly module. You can get the paths to these libraries by running `orca sdk-path`:
 
 - The Orca core library is located in `$(orca sdk-path)/bin`
 - The Orca lib C root is located in  `$(orca sdk-path)/orca-libc` 
@@ -34,8 +34,7 @@ clang "${wasmFlags[@]}" -L "$ORCA_DIR"/bin -lorca_wasm -o module.wasm src/main.c
 
 ```
 
-Once you have compiled your WebAssembly module, you can bundle this module into an executable using the `orca bundle` command. The application bundle can include images, fonts, or any other private data that the app needs in order to function. These files can be read or written from the app without asking the user for permission. The resulting Orca executables are therefore self-contained.
-
+Once you have compiled your WebAssembly module, you can bundle this module into an executable using the `orca bundle` command. The application bundle can include images, fonts, or any other private data that the app needs in order to function. 
 ![Example Orca application bundle](images/app_bundle.png)
 
 For example here's how we bundle the breakout example app:
@@ -43,6 +42,21 @@ For example here's how we bundle the breakout example app:
 ```
 orca bundle --name Breakout --icon icon.png --resource-dir data module.wasm
 ```
+
+This produces a `Breakout.orca` image, that can be run by the Orca runtime:
+
+```
+orca run Breakout.orca
+```
+
+Alternatively, you can produce a standalone executable by passing the `--standalone` flag like this: 
+
+```
+orca bundle --name Breakout --icon icon.png --resource-dir data module.wasm
+```
+
+On macOS, this produces a `Breakout.app` bundle. On Windows, this produces a `Breakout` folder containing a `Breakout.exe` executable and all additional resources.  
+
 
 ## Basic structure
 
