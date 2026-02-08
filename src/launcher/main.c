@@ -486,6 +486,7 @@ i32 launcher_runloop(void* data)
             {
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
+                /*
                 oc_ui_box("search-bar-frame")
                 {
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -514,6 +515,7 @@ i32 launcher_runloop(void* data)
                         oc_arena_clear(&launcher.searchBarArena);
                     }
                 }
+                */
                 oc_ui_box("library")
                 {
                     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
@@ -639,6 +641,7 @@ int main(int argc, char** argv)
                        &(oc_arg_parser_options){
                            .desc = OC_STR8("The Orca command line interface provides a number of devtools to make,"
                                            " install, and run Orca apps from a terminal."),
+                           .requireCommand = true, //NOTE: no command will open the launcher UI. Disabled for now
                        });
 
     //NOTE: version subparser
@@ -797,6 +800,7 @@ int main(int argc, char** argv)
     }
 
     //NOTE: if we didn't have any command, start the launcher
+    /*
     oc_init();
 
     oc_thread* runloopThread = oc_thread_create(launcher_runloop, 0);
@@ -811,4 +815,6 @@ int main(int argc, char** argv)
 
     oc_terminate();
     return exitCode;
+    */
+    return 0;
 }
