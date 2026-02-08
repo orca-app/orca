@@ -57,7 +57,7 @@ pub fn main() !void {
     defer std.process.argsFree(allocator, args);
     const opts = try Options.parse(args);
 
-    var wast_files = std.ArrayList([]const u8).init(allocator);
+    var wast_files: std.ArrayList([]const u8) = .empty;
     {
         var dir = try std.fs.cwd().openDir(opts.wast_dir, .{ .iterate = true });
         var walker = try dir.walk(allocator);
@@ -68,7 +68,7 @@ pub fn main() !void {
             if (std.mem.eql(u8, ext, ".wast")) {
                 // we have to clone the path as walker.next() or walker.deinit() will override/kill it
                 const path = try allocator.dupe(u8, entry.path);
-                try wast_files.append(path);
+                try wast_files.append(allocator, path);
             }
         }
     }

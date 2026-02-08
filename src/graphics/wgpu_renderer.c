@@ -643,10 +643,12 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
         };
 
         desc.requiredFeatures = (WGPUFeatureName[]){ WGPUFeatureName_TimestampQuery };
+        /*
         if(renderer->hasTimestamps)
         {
             desc.requiredFeatureCount = 1;
         }
+        */
 
         renderer->device = wgpuAdapterCreateDevice(adapter, &desc);
         OC_ASSERT(renderer->device, "Failed to create WebGPU device");
@@ -1306,6 +1308,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
     }
 
     //NOTE: create timestamps query set and buffers
+    /*
     if(renderer->hasTimestamps)
     {
         {
@@ -1337,6 +1340,7 @@ oc_canvas_renderer oc_canvas_renderer_create(void)
             }
         }
     }
+    */
     //NOTE: create debug display options buffer
     {
         WGPUBufferDescriptor desc = {
@@ -3229,6 +3233,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
     {
         renderer->rollingBufferIndex = (renderer->rollingBufferIndex + 1) % OC_WGPU_CANVAS_ROLLING_BUFFER_COUNT;
 
+        /*
         if(renderer->hasTimestamps)
         {
             while(wgpuBufferGetMapState(renderer->timestampsReadBuffer[renderer->rollingBufferIndex]) != WGPUBufferMapState_Unmapped)
@@ -3236,6 +3241,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                 wgpuDeviceTick(renderer->device);
             }
         }
+        */
 
         f64 submitStart = oc_clock_time(OC_CLOCK_MONOTONIC);
 
@@ -3351,10 +3357,12 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
 
         WGPUCommandEncoder encoder = wgpuDeviceCreateCommandEncoder(renderer->device, NULL);
 
+        /*
         if(renderer->hasTimestamps && (renderer->debugRecordOptions.timingFlags & OC_WGPU_CANVAS_TIMING_FRAME))
         {
             wgpuCommandEncoderWriteTimestamp(encoder, renderer->timestampsQuerySet, OC_WGPU_CANVAS_TIMESTAMP_INDEX_FRAME_BEGIN);
         }
+        */
 
         WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, NULL);
         wgpuQueueSubmit(renderer->queue, 1, &command);
@@ -3734,6 +3742,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
         }
 
         //NOTE: resolve frame timestamps
+        /*
         if(renderer->hasTimestamps && (renderer->debugRecordOptions.timingFlags & OC_WGPU_CANVAS_TIMING_FRAME))
         {
             wgpuCommandEncoderWriteTimestamp(encoder, renderer->timestampsQuerySet, OC_WGPU_CANVAS_TIMESTAMP_INDEX_FRAME_END);
@@ -3752,6 +3761,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
                                                  0,
                                                  2 * sizeof(u64));
         }
+        */
 
         command = wgpuCommandEncoderFinish(encoder, NULL);
         wgpuQueueSubmit(renderer->queue, 1, &command);
@@ -3763,6 +3773,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
         wgpuTextureViewRelease(frameBuffer);
 
         //NOTE: read back frame timestamps
+        /*
         if(frameCounters)
         {
             frameCounters->batchCount = batchCount;
@@ -3793,6 +3804,7 @@ void oc_wgpu_canvas_submit(oc_canvas_renderer_base* rendererBase,
             }
             oc_wgpu_canvas_stats_add_sample(&renderer->cpuEncodeTime, frameCounters->cpuEncodeTime);
         }
+        */
         renderer->lastFrameTimeStamp = submitStart;
     }
 

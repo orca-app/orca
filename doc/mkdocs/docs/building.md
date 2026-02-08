@@ -7,7 +7,7 @@ The following instructions are only relevant for those who want to develop the o
 All of the installation requirements for regular users also apply for developers, with these additions:
 
 - [Python 3.10](https://www.python.org/) or newer
-- [Zig 0.14.x](https://ziglang.org/download/)
+- [Zig 0.15.2](https://ziglang.org/download/)
 
 ## Building from source
 
