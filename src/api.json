@@ -1322,6 +1322,12 @@
                                     }
                                 },
                                 "doc": "Points to the last element in the list."
+                            },
+                            {
+                                "name": "count",
+                                "type": {
+                                    "kind": "u64"
+                                }
                             }
                         ]
                     }
@@ -6404,7 +6410,7 @@
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_EVENT_PATHDROP",
-                                "doc": "A path drop event. This event is sent when the user drops files onto the application's window. The `paths` field contains the event's details.",
+                                "doc": "A path drop event. This event is sent when the application is launched due to opening a document, or when the user drops files onto the application's window. The `paths` field contains the event's details.",
                                 "value": 17
                             },
                             {
@@ -6415,9 +6421,15 @@
                             },
                             {
                                 "kind": "enum-constant",
+                                "name": "OC_EVENT_FINISH_LAUNCHING",
+                                "doc": "This event is sent when the application has finished launching.",
+                                "value": 19
+                            },
+                            {
+                                "kind": "enum-constant",
                                 "name": "OC_EVENT_QUIT",
                                 "doc": "A quit event. This event is sent when the application has been requested to quit.",
-                                "value": 19
+                                "value": 20
                             }
                         ]
                     }
@@ -9239,14 +9251,6 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_open_flags",
-                    "doc": "The type of file open flags describing file open options.",
-                    "type": {
-                        "kind": "u16"
-                    }
-                },
-                {
-                    "kind": "typename",
-                    "name": "oc_file_open_flags_enum",
                     "doc": "Flags for the `oc_file_open()` function.",
                     "type": {
                         "kind": "enum",
@@ -9257,7 +9261,7 @@
                         "constants": [
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_FILE_OPEN_NONE",
+                                "name": "OC_FILE_OPEN_DEFAULT",
                                 "doc": "No options.",
                                 "value": 0
                             },
@@ -9278,24 +9282,37 @@
                                 "name": "OC_FILE_OPEN_CREATE",
                                 "doc": "Create the file if it does not exist.",
                                 "value": 4
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_resolve_flags",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "bitflags": true,
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_RESOLVE_DEFAULT",
+                                "doc": "No options",
+                                "value": 0
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_FILE_OPEN_SYMLINK",
+                                "name": "OC_FILE_RESOLVE_SYMLINK_OPEN_LAST",
                                 "doc": "If the file is a symlink, open the symlink itself instead of following it.",
-                                "value": 8
+                                "value": 1
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_FILE_OPEN_NO_FOLLOW",
-                                "doc": "If the file is a symlink, the call to open will fail.",
-                                "value": 16
-                            },
-                            {
-                                "kind": "enum-constant",
-                                "name": "OC_FILE_OPEN_RESTRICT",
-                                "doc": "Reserved.",
-                                "value": 32
+                                "name": "OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW",
+                                "doc": "If the path contains a symlink, the call to open will fail.",
+                                "value": 2
                             }
                         ]
                     }
@@ -9303,13 +9320,6 @@
                 {
                     "kind": "typename",
                     "name": "oc_file_access",
-                    "type": {
-                        "kind": "u16"
-                    }
-                },
-                {
-                    "kind": "typename",
-                    "name": "oc_file_access_enum",
                     "doc": "This enum describes the access permissions of a file handle.",
                     "type": {
                         "kind": "enum",
@@ -9398,7 +9408,7 @@
                         "constants": [
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_IO_OPEN_AT",
+                                "name": "OC_IO_OPEN",
                                 "doc": [
                                     "Open a file at a path relative to a given root directory.",
                                     "",
@@ -9421,7 +9431,7 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_IO_FSTAT",
+                                "name": "OC_IO_STAT",
                                 "doc": [
                                     "Get status information for a file handle.",
                                     "",
@@ -9469,13 +9479,33 @@
                             },
                             {
                                 "kind": "enum-constant",
+                                "name": "OC_IO_MAKE_TMP",
+                                "value": 6
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_IO_MAKE_DIR",
+                                "value": 7
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_IO_REMOVE",
+                                "value": 8
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_IO_COPY",
+                                "value": 9
+                            },
+                            {
+                                "kind": "enum-constant",
                                 "name": "OC_OC_IO_ERROR",
                                 "doc": [
                                     "Get the error attached to a file handle.",
                                     "",
                                     "    - `handle` is the handle of the file."
                                 ],
-                                "value": 6
+                                "value": 10
                             }
                         ]
                     }
@@ -9551,10 +9581,37 @@
                                 }
                             },
                             {
+                                "name": "resolveFlags",
+                                "type": {
+                                    "kind": "u8"
+                                }
+                            },
+                            {
                                 "name": "",
                                 "type": {
                                     "kind": "union",
                                     "fields": [
+                                        {
+                                            "name": "copy",
+                                            "type": {
+                                                "kind": "struct",
+                                                "fields": [
+                                                    {
+                                                        "name": "dst",
+                                                        "type": {
+                                                            "kind": "namedType",
+                                                            "name": "oc_file"
+                                                        }
+                                                    },
+                                                    {
+                                                        "name": "flags",
+                                                        "type": {
+                                                            "kind": "u32"
+                                                        }
+                                                    }
+                                                ]
+                                            }
+                                        },
                                         {
                                             "name": "open",
                                             "doc": "Holds options for the open operations.",
@@ -9565,16 +9622,14 @@
                                                         "name": "rights",
                                                         "doc": "The access permissions requested on the file to open.",
                                                         "type": {
-                                                            "kind": "namedType",
-                                                            "name": "oc_file_access"
+                                                            "kind": "u16"
                                                         }
                                                     },
                                                     {
                                                         "name": "flags",
                                                         "doc": "The options to use when opening the file.",
                                                         "type": {
-                                                            "kind": "namedType",
-                                                            "name": "oc_file_open_flags"
+                                                            "kind": "u16"
                                                         }
                                                     }
                                                 ]
@@ -9584,8 +9639,25 @@
                                             "name": "whence",
                                             "doc": "The base position to use in seek operations.",
                                             "type": {
-                                                "kind": "namedType",
-                                                "name": "oc_file_whence"
+                                                "kind": "u8"
+                                            }
+                                        },
+                                        {
+                                            "name": "makeTmpFlags",
+                                            "type": {
+                                                "kind": "u32"
+                                            }
+                                        },
+                                        {
+                                            "name": "makeDirFlags",
+                                            "type": {
+                                                "kind": "u32"
+                                            }
+                                        },
+                                        {
+                                            "name": "removeFlags",
+                                            "type": {
+                                                "kind": "u32"
                                             }
                                         }
                                     ]
@@ -9597,14 +9669,6 @@
                 {
                     "kind": "typename",
                     "name": "oc_io_error",
-                    "doc": "A type identifying an I/O error.",
-                    "type": {
-                        "kind": "i32"
-                    }
-                },
-                {
-                    "kind": "typename",
-                    "name": "oc_io_error_enum",
                     "doc": "This enum declares all I/O error values.",
                     "type": {
                         "kind": "enum",
@@ -9686,69 +9750,79 @@
                             },
                             {
                                 "kind": "enum-constant",
+                                "name": "OC_IO_ERR_NOT_EMPTY",
+                                "value": 12
+                            },
+                            {
+                                "kind": "enum-constant",
                                 "name": "OC_IO_ERR_MAX_FILES",
                                 "doc": "There are too many opened files.",
-                                "value": 12
+                                "value": 13
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_MAX_LINKS",
                                 "doc": "The path contains too many symbolic links (this may be indicative of a symlink loop).",
-                                "value": 13
+                                "value": 14
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_PATH_LENGTH",
                                 "doc": "The path is too long.",
-                                "value": 14
+                                "value": 15
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_FILE_SIZE",
                                 "doc": "The file is too large.",
-                                "value": 15
+                                "value": 16
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_OVERFLOW",
                                 "doc": "The file is too large to be opened.",
-                                "value": 16
+                                "value": 17
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_NOT_READY",
                                 "doc": "The file is locked or the device on which it is stored is not ready.",
-                                "value": 17
+                                "value": 18
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_MEM",
                                 "doc": "The system is out of memory.",
-                                "value": 18
+                                "value": 19
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_INTERRUPT",
                                 "doc": "The operation was interrupted by a signal.",
-                                "value": 19
+                                "value": 20
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_PHYSICAL",
                                 "doc": "A physical error happened.",
-                                "value": 20
+                                "value": 21
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_NO_DEVICE",
                                 "doc": "The device on which the file is stored was not found.",
-                                "value": 21
+                                "value": 22
                             },
                             {
                                 "kind": "enum-constant",
                                 "name": "OC_IO_ERR_WALKOUT",
                                 "doc": "One element along the path is outside the root directory subtree.",
-                                "value": 22
+                                "value": 23
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_IO_ERR_SYMLINK",
+                                "value": 24
                             }
                         ]
                     }
@@ -9869,13 +9943,66 @@
                     ]
                 },
                 {
+                    "kind": "typename",
+                    "name": "oc_file_open_options",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "root",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file"
+                                }
+                            },
+                            {
+                                "name": "flags",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_open_flags"
+                                }
+                            },
+                            {
+                                "name": "resolve",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_resolve_flags"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_result",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "error",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_io_error"
+                                }
+                            },
+                            {
+                                "name": "value",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
                     "kind": "proc",
                     "name": "oc_file_open",
                     "doc": "Open a file in the applications' default directory subtree.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_file",
-                        "doc": "A handle to the opened file."
+                        "name": "oc_file_result",
+                        "doc": "A result type containing either a handle to the opened file, or an error."
                     },
                     "params": [
                         {
@@ -9895,55 +10022,14 @@
                             }
                         },
                         {
-                            "name": "flags",
-                            "doc": "Flags controlling various options for the open operation. See `oc_file_open_flags`.",
+                            "name": "options",
+                            "doc": "Additional options. See `oc_file_open_options`. Passing a null pointer is equivalent to passing a pointer to a zero-initialized struct",
                             "type": {
-                                "kind": "namedType",
-                                "name": "oc_file_open_flags"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_file_open_at",
-                    "doc": "Open a file in a given directory's subtree.",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_file",
-                        "doc": "A handle to the opened file."
-                    },
-                    "params": [
-                        {
-                            "name": "dir",
-                            "doc": "A directory handle identifying the root of the open operation.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_file"
-                            }
-                        },
-                        {
-                            "name": "path",
-                            "doc": "The path of the file to open, relative to `dir`.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_str8"
-                            }
-                        },
-                        {
-                            "name": "rights",
-                            "doc": "The request access rights for the file.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_file_access"
-                            }
-                        },
-                        {
-                            "name": "flags",
-                            "doc": "Flags controlling various options for the open operation. See `oc_file_open_flags`.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_file_open_flags"
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_open_options"
+                                }
                             }
                         }
                     ]
@@ -10359,6 +10445,444 @@
                             "type": {
                                 "kind": "namedType",
                                 "name": "oc_file"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_maketmp_flags",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "bitfields": true,
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_MAKETMP_FILE",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_MAKETMP_DIRECTORY",
+                                "value": 1
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_file_maketmp",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_file_result"
+                    },
+                    "params": [
+                        {
+                            "name": "flags",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_file_maketmp_flags"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_makedir_flags",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "bitfields": true,
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_MAKEDIR_DEFAULT",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_MAKEDIR_CREATE_PARENTS",
+                                "value": 1
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_MAKEDIR_IGNORE_EXISTING",
+                                "value": 2
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_makedir_options",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "root",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file"
+                                }
+                            },
+                            {
+                                "name": "flags",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_makedir_flags"
+                                }
+                            },
+                            {
+                                "name": "resolve",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_resolve_flags"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_file_makedir",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_io_error"
+                    },
+                    "params": [
+                        {
+                            "name": "path",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        },
+                        {
+                            "name": "options",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_makedir_options"
+                                }
+                            }
+                        }
+                    ]
+
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_remove_flags",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_REMOVE_DEFAULT",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_REMOVE_DIR",
+                                "value": 1
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_REMOVE_RECURSIVE",
+                                "value": 2
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_remove_options",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "root",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file"
+                                }
+                            },
+                            {
+                                "name": "flags",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_remove_flags"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_file_remove",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_io_error"
+                    },
+                    "params": [
+                        {
+                            "name": "path",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        },
+                        {
+                            "name": "options",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_remove_options"
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_copy_flags",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "bitfields": true,
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_COPY_DEFAULT",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_COPY_CREATE_PARENTS",
+                                "value": 4
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_COPY_OVERWRITE_EXISTING",
+                                "value": 8
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_COPY_REPLACE_EXISTING",
+                                "value": 16
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_copy_ignore_proc",
+                    "type": {
+                        "kind": "proc",
+                        "return": {
+                            "kind": "bool"
+                        },
+                        "params": [
+                            {
+                                "name": "path",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_str8"
+                                }
+                            },
+                            {
+                                "name": "data",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                        "kind": "void"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_listdir_elt",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "listElt",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list_elt"
+                                }
+                            },
+                            {
+                                "name": "basename",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_str8"
+                                }
+                            },
+                            {
+                                "name": "type",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_type"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_list",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "list",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_list"
+                                }
+                            },
+                            {
+                                "name": "eltCount",
+                                "type": {
+                                    "kind": "u64"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_file_listdir",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_file_list"
+                    },
+                    "params": [
+                        {
+                            "name": "arena",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_arena"
+                                }
+                            }
+                        },
+                        {
+                            "name": "directory",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_file"
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_file_copy_options",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "srcRoot",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file"
+                                }
+                            },
+                            {
+                                "name": "srcResolve",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_resolve_flags"
+                                }
+                            },
+                            {
+                                "name": "dstRoot",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file"
+                                }
+                            },
+                            {
+                                "name": "dstResolve",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_resolve_flags"
+                                }
+                            },
+                            {
+                                "name": "flags",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_copy_flags"
+                                }
+                            },
+                            {
+                                "name": "ignore",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_copy_ignore_proc"
+                                }
+                            },
+                            {
+                                "name": "ignoreData",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                    "kind": "void"
+                                    }
+                                }
+                            }
+                        ]
+                    }
+
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_file_copy",
+                    "return": {
+                        "kind": "namedType",
+                        "name": "oc_io_error"
+                    },
+                    "params": [
+                        {
+                            "name": "src",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        },
+                        {
+                            "name": "dst",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_str8"
+                            }
+                        },
+                        {
+                            "name": "options",
+                            "type": {
+                                "kind": "pointer",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_copy_options"
+                                }
                             }
                         }
                     ]
@@ -13919,6 +14443,11 @@
                                 "kind": "enum-constant",
                                 "name": "OC_UI_ALIGN_CENTER",
                                 "value": 2
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_ALIGN_JUSTIFY",
+                                "value": 3
                             }
                         ]
                     }
@@ -13986,7 +14515,13 @@
                                 }
                             },
                             {
-                                "name": "minSize",
+                                "name": "min",
+                                "type": {
+                                    "kind": "f32"
+                                }
+                            },
+                            {
+                                "name": "max",
                                 "type": {
                                     "kind": "f32"
                                 }
@@ -14072,22 +14607,22 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FLOATING_X",
+                                "name": "OC_UI_POSITION",
                                 "value": 8
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FLOATING_Y",
+                                "name": "OC_UI_FOOTPRINT",
                                 "value": 9
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FLOAT_TARGET_X",
+                                "name": "OC_UI_OFFSET_X",
                                 "value": 10
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FLOAT_TARGET_Y",
+                                "name": "OC_UI_OFFSET_Y",
                                 "value": 11
                             },
                             {
@@ -14102,73 +14637,68 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_CONSTRAIN_X",
+                                "name": "OC_UI_WRAP",
                                 "value": 14
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_CONSTRAIN_Y",
+                                "name": "OC_UI_COLOR",
                                 "value": 15
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_COLOR",
+                                "name": "OC_UI_BG_COLOR",
                                 "value": 16
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_BG_COLOR",
+                                "name": "OC_UI_BORDER_COLOR",
                                 "value": 17
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_BORDER_COLOR",
+                                "name": "OC_UI_FONT",
                                 "value": 18
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FONT",
+                                "name": "OC_UI_TEXT_SIZE",
                                 "value": 19
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_TEXT_SIZE",
+                                "name": "OC_UI_BORDER_SIZE",
                                 "value": 20
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_BORDER_SIZE",
+                                "name": "OC_UI_ROUNDNESS",
                                 "value": 21
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ROUNDNESS",
+                                "name": "OC_UI_DRAW_MASK",
                                 "value": 22
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_DRAW_MASK",
+                                "name": "OC_UI_ANIMATION_TIME",
                                 "value": 23
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ANIMATION_TIME",
+                                "name": "OC_UI_ANIMATION_MASK",
                                 "value": 24
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ANIMATION_MASK",
+                                "name": "OC_UI_CLICK_THROUGH",
                                 "value": 25
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_CLICK_THROUGH",
-                                "value": 26
-                            },
-                            {
-                                "kind": "enum-constant",
                                 "name": "OC_UI_ATTRIBUTE_COUNT",
-                                "value": 27
+                                "value": 26
                             }
                         ]
                     }
@@ -14230,22 +14760,22 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FLOATING_X",
+                                "name": "OC_UI_MASK_POSITION",
                                 "value": 256
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FLOATING_Y",
+                                "name": "OC_UI_MASK_FOOTPRINT",
                                 "value": 512
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FLOAT_TARGET_X",
+                                "name": "OC_UI_MASK_OFFSET_X",
                                 "value": 1024
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FLOAT_TARGET_Y",
+                                "name": "OC_UI_MASK_OFFSET_Y",
                                 "value": 2048
                             },
                             {
@@ -14257,16 +14787,6 @@
                                 "kind": "enum-constant",
                                 "name": "OC_UI_MASK_OVERFLOW_Y",
                                 "value": 8192
-                            },
-                            {
-                                "kind": "enum-constant",
-                                "name": "OC_UI_MASK_CONSTRAIN_X",
-                                "value": 16384
-                            },
-                            {
-                                "kind": "enum-constant",
-                                "name": "OC_UI_MASK_CONSTRAIN_Y",
-                                "value": 32768
                             },
                             {
                                 "kind": "enum-constant",
@@ -14382,6 +14902,12 @@
                                 }
                             },
                             {
+                                "name": "wrap",
+                                "type": {
+                                    "kind": "bool"
+                                }
+                            },
+                            {
                                 "name": "spacing",
                                 "type": {
                                     "kind": "f32"
@@ -14472,44 +14998,6 @@
                                         }
                                     ]
                                 }
-                            },
-                            {
-                                "name": "constrain",
-                                "type": {
-                                    "kind": "union",
-                                    "fields": [
-                                        {
-                                            "name": "",
-                                            "type": {
-                                                "kind": "struct",
-                                                "fields": [
-                                                    {
-                                                        "name": "x",
-                                                        "type": {
-                                                            "kind": "bool"
-                                                        }
-                                                    },
-                                                    {
-                                                        "name": "y",
-                                                        "type": {
-                                                            "kind": "bool"
-                                                        }
-                                                    }
-                                                ]
-                                            }
-                                        },
-                                        {
-                                            "name": "c",
-                                            "type": {
-                                                "kind": "array",
-                                                "type": {
-                                                    "kind": "bool"
-                                                },
-                                                "count": 2
-                                            }
-                                        }
-                                    ]
-                                }
                             }
                         ]
                     }
@@ -14558,45 +15046,6 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_ui_box_floating",
-                    "type": {
-                        "kind": "union",
-                        "fields": [
-                            {
-                                "name": "",
-                                "type": {
-                                    "kind": "struct",
-                                    "fields": [
-                                        {
-                                            "name": "x",
-                                            "type": {
-                                                "kind": "bool"
-                                            }
-                                        },
-                                        {
-                                            "name": "y",
-                                            "type": {
-                                                "kind": "bool"
-                                            }
-                                        }
-                                    ]
-                                }
-                            },
-                            {
-                                "name": "c",
-                                "type": {
-                                    "kind": "array",
-                                    "type": {
-                                        "kind": "bool"
-                                    },
-                                    "count": 2
-                                }
-                            }
-                        ]
-                    }
-                },
-                {
-                    "kind": "typename",
                     "name": "oc_ui_draw_mask",
                     "doc": "These bits *disable* the corresponding element when they're set.",
                     "type": {
@@ -14631,6 +15080,55 @@
                 },
                 {
                     "kind": "typename",
+                    "name": "oc_ui_box_position",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_POSITION_FLOW",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_POSITION_PARENT",
+                                "value": 1
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_POSITION_FRAME",
+                                "value": 2
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_ui_box_footprint",
+                    "type": {
+                        "kind": "enum",
+                        "type": {
+                            "kind": "u32"
+                        },
+                        "constants": [
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_FOOTPRINT_SOLID",
+                                "value": 0
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_FOOTPRINT_UNSIZED",
+                                "value": 1
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
                     "name": "oc_ui_style",
                     "type": {
                         "kind": "struct",
@@ -14650,14 +15148,21 @@
                                 }
                             },
                             {
-                                "name": "floating",
+                                "name": "position",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_ui_box_floating"
+                                    "name": "oc_ui_box_position"
                                 }
                             },
                             {
-                                "name": "floatTarget",
+                                "name": "footprint",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_ui_box_footprint"
+                                }
+                            },
+                            {
+                                "name": "offset",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_vec2"

@@ -54,7 +54,6 @@ enum oc_window_style_enum
 typedef enum
 {
     OC_EVENT_NONE,
-    OC_EVENT_FINISH_LAUNCHING,
     OC_EVENT_KEYBOARD_MODS, //TODO: remove, keep only key?
     OC_EVENT_KEYBOARD_KEY,
     OC_EVENT_KEYBOARD_CHAR,
@@ -73,6 +72,7 @@ typedef enum
     OC_EVENT_WINDOW_CLOSE,
     OC_EVENT_PATHDROP,
     OC_EVENT_FRAME,
+    OC_EVENT_FINISH_LAUNCHING,
     OC_EVENT_QUIT
 } oc_event_type;
 
