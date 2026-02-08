@@ -542,10 +542,10 @@ i32 launcher_runloop(void* data)
                         oc_str8 idStr = oc_str8_pushf(scratch.arena, "item-%i", it.index);
                         oc_ui_box_str8(idStr)
                         {
-                            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-                            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, pos.x);
-                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, pos.y);
+                            oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+                            oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+                            oc_ui_style_set_f32(OC_UI_OFFSET_X, pos.x);
+                            oc_ui_style_set_f32(OC_UI_OFFSET_Y, pos.y);
                             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
                             oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
@@ -557,16 +557,16 @@ i32 launcher_runloop(void* data)
                             oc_ui_style_set_i32(OC_UI_ANIMATION_MASK,
                                                 OC_UI_MASK_SIZE_WIDTH
                                                     | OC_UI_MASK_SIZE_HEIGHT
-                                                    | OC_UI_MASK_FLOAT_TARGET_X
-                                                    | OC_UI_MASK_FLOAT_TARGET_Y);
+                                                    | OC_UI_MASK_OFFSET_X
+                                                    | OC_UI_MASK_OFFSET_Y);
 
                             oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, 0.4);
 
                             oc_ui_tag("item");
                             oc_ui_style_rule(".item.hover")
                             {
-                                oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, pos.x - 5);
-                                oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, pos.y - 5);
+                                oc_ui_style_set_f32(OC_UI_OFFSET_X, pos.x - 5);
+                                oc_ui_style_set_f32(OC_UI_OFFSET_Y, pos.y - 5);
                             }
                             oc_ui_style_rule(".hover thumbnail-frame")
                             {
@@ -584,8 +584,8 @@ i32 launcher_runloop(void* data)
                                 oc_ui_style_set_i32(OC_UI_ANIMATION_MASK,
                                                     OC_UI_MASK_SIZE_WIDTH
                                                         | OC_UI_MASK_SIZE_HEIGHT
-                                                        | OC_UI_MASK_FLOAT_TARGET_X
-                                                        | OC_UI_MASK_FLOAT_TARGET_Y);
+                                                        | OC_UI_MASK_OFFSET_X
+                                                        | OC_UI_MASK_OFFSET_Y);
 
                                 oc_ui_style_set_f32(OC_UI_ANIMATION_TIME, 0.4);
 

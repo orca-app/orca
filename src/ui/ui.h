@@ -28,6 +28,7 @@ typedef enum
     OC_UI_ALIGN_START,
     OC_UI_ALIGN_END,
     OC_UI_ALIGN_CENTER,
+    OC_UI_ALIGN_JUSTIFY,
 } oc_ui_align;
 
 typedef enum oc_ui_size_kind
@@ -45,7 +46,8 @@ typedef struct oc_ui_size
     oc_ui_size_kind kind;
     f32 value;
     f32 relax;
-    f32 minSize;
+    f32 min;
+    f32 max;
 } oc_ui_size;
 
 typedef enum oc_ui_overflow
@@ -68,14 +70,13 @@ typedef enum oc_ui_attribute
     OC_UI_SPACING,
     OC_UI_ALIGN_X,
     OC_UI_ALIGN_Y,
-    OC_UI_FLOATING_X,
-    OC_UI_FLOATING_Y,
-    OC_UI_FLOAT_TARGET_X,
-    OC_UI_FLOAT_TARGET_Y,
+    OC_UI_POSITION,
+    OC_UI_FOOTPRINT,
+    OC_UI_OFFSET_X,
+    OC_UI_OFFSET_Y,
     OC_UI_OVERFLOW_X,
     OC_UI_OVERFLOW_Y,
-    OC_UI_CONSTRAIN_X,
-    OC_UI_CONSTRAIN_Y,
+    OC_UI_WRAP,
     OC_UI_COLOR,
     OC_UI_BG_COLOR,
     OC_UI_BORDER_COLOR,
@@ -102,14 +103,12 @@ typedef enum oc_ui_attribute_mask
     OC_UI_MASK_LAYOUT_SPACING = 1 << OC_UI_SPACING,
     OC_UI_MASK_LAYOUT_ALIGN_X = 1 << OC_UI_ALIGN_X,
     OC_UI_MASK_LAYOUT_ALIGN_Y = 1 << OC_UI_ALIGN_Y,
-    OC_UI_MASK_FLOATING_X = 1 << OC_UI_FLOATING_X,
-    OC_UI_MASK_FLOATING_Y = 1 << OC_UI_FLOATING_Y,
-    OC_UI_MASK_FLOAT_TARGET_X = 1 << OC_UI_FLOAT_TARGET_X,
-    OC_UI_MASK_FLOAT_TARGET_Y = 1 << OC_UI_FLOAT_TARGET_Y,
+    OC_UI_MASK_POSITION = 1 << OC_UI_POSITION,
+    OC_UI_MASK_FOOTPRINT = 1 << OC_UI_FOOTPRINT,
+    OC_UI_MASK_OFFSET_X = 1 << OC_UI_OFFSET_X,
+    OC_UI_MASK_OFFSET_Y = 1 << OC_UI_OFFSET_Y,
     OC_UI_MASK_OVERFLOW_X = 1 << OC_UI_OVERFLOW_X,
     OC_UI_MASK_OVERFLOW_Y = 1 << OC_UI_OVERFLOW_Y,
-    OC_UI_MASK_CONSTRAIN_X = 1 << OC_UI_CONSTRAIN_X,
-    OC_UI_MASK_CONSTRAIN_Y = 1 << OC_UI_CONSTRAIN_Y,
     OC_UI_MASK_COLOR = 1 << OC_UI_COLOR,
     OC_UI_MASK_BG_COLOR = 1 << OC_UI_BG_COLOR,
     OC_UI_MASK_BORDER_COLOR = 1 << OC_UI_BORDER_COLOR,
@@ -138,6 +137,7 @@ typedef union oc_ui_layout_align
 typedef struct oc_ui_layout
 {
     oc_ui_axis axis;
+    bool wrap;
     f32 spacing;
 
     union
@@ -164,17 +164,6 @@ typedef struct oc_ui_layout
         oc_ui_overflow c[OC_UI_AXIS_COUNT];
     } overflow;
 
-    union
-    {
-        struct
-        {
-            bool x;
-            bool y;
-        };
-
-        bool c[OC_UI_AXIS_COUNT];
-    } constrain;
-
 } oc_ui_layout;
 
 typedef union oc_ui_box_size
@@ -188,17 +177,6 @@ typedef union oc_ui_box_size
     oc_ui_size c[OC_UI_AXIS_COUNT];
 } oc_ui_box_size;
 
-typedef union oc_ui_box_floating
-{
-    struct
-    {
-        bool x;
-        bool y;
-    };
-
-    bool c[OC_UI_AXIS_COUNT];
-} oc_ui_box_floating;
-
 typedef enum oc_ui_draw_mask
 {
     //NOTE: these bits _disable_ the corresponding element when they're set.
@@ -208,12 +186,26 @@ typedef enum oc_ui_draw_mask
     OC_UI_DRAW_MASK_PROC = 1 << 3,
 } oc_ui_draw_mask;
 
+typedef enum oc_ui_box_position
+{
+    OC_UI_POSITION_FLOW,
+    OC_UI_POSITION_PARENT,
+    OC_UI_POSITION_FRAME,
+} oc_ui_box_position;
+
+typedef enum oc_ui_box_footprint
+{
+    OC_UI_FOOTPRINT_SOLID,
+    OC_UI_FOOTPRINT_UNSIZED,
+} oc_ui_box_footprint;
+
 typedef struct oc_ui_style
 {
     oc_ui_box_size size;
     oc_ui_layout layout;
-    oc_ui_box_floating floating;
-    oc_vec2 floatTarget;
+    oc_ui_box_position position;
+    oc_ui_box_footprint footprint;
+    oc_vec2 offset;
     oc_color color;
     oc_color bgColor;
     oc_color borderColor;
@@ -265,6 +257,8 @@ struct oc_ui_box
     // hierarchy
     oc_list_elt listElt;
     oc_list children;
+    u32 childCount;
+
     oc_ui_box* parent;
 
     oc_list_elt overlayElt;
@@ -290,10 +284,9 @@ struct oc_ui_box
     oc_ui_style style;
     u32 z;
 
+    //TODO: review
     oc_vec2 floatPos;
-    f32 childrenSum[2];
-    f32 spacing[2];
-    f32 minSize[2];
+    oc_vec2 contentSize;
     oc_rect rect;
 
     oc_list styleVariables;

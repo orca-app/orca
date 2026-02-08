@@ -212,16 +212,16 @@ oc_ui_box* oc_ui_slider_str8(oc_str8 name, f32* value)
 
         oc_ui_box* track = oc_ui_box("track")
         {
-            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + trackAxis, 2);
+            oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+            oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+            oc_ui_style_set_f32(OC_UI_OFFSET_X + trackAxis, 2);
 
             f32 frameThickness = frameRect.c[2 + secondAxis];
             if(!frameThickness)
             {
                 frameThickness = thumbSize;
             }
-            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X + secondAxis, 0.5 * (frameThickness - trackThickness));
+            oc_ui_style_set_f32(OC_UI_OFFSET_X + secondAxis, 0.5 * (frameThickness - trackThickness));
 
             oc_ui_style_set_size(OC_UI_WIDTH + trackAxis, (oc_ui_size){ OC_UI_SIZE_PARENT_MINUS_PIXELS, 2 });
             oc_ui_style_set_size(OC_UI_WIDTH + secondAxis, (oc_ui_size){ OC_UI_SIZE_PIXELS, trackThickness });
@@ -446,10 +446,10 @@ void oc_ui_tooltip_str8(oc_str8 key, oc_str8 text)
 
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, true);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, true);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, p.x);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, p.y - 10); //TODO: quick fix for aliging single line tooltips arrow to mouse, fix that!
+        oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_FLOW);
+        oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+        oc_ui_style_set_f32(OC_UI_OFFSET_X, p.x);
+        oc_ui_style_set_f32(OC_UI_OFFSET_Y, p.y - 10); //TODO: quick fix for aliging single line tooltips arrow to mouse, fix that!
 
         oc_ui_box* arrow = oc_ui_box("arrow")
         {
@@ -590,12 +590,12 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
 
     oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
     oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
-    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-    oc_ui_style_set_i32(OC_UI_FLOATING_Y, true);
+    oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+    oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
 
     oc_rect buttonRect = button->rect;
-    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, buttonRect.x);
-    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, buttonRect.y + buttonRect.h);
+    oc_ui_style_set_f32(OC_UI_OFFSET_X, buttonRect.x);
+    oc_ui_style_set_f32(OC_UI_OFFSET_Y, buttonRect.y + buttonRect.h);
 
     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 4);
@@ -813,9 +813,9 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, button->rect.h });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, button->rect.h });
-                oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-                oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-                oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, button->rect.w - button->rect.h);
+                oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+                oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+                oc_ui_style_set_f32(OC_UI_OFFSET_X, button->rect.w - button->rect.h);
                 oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
                 oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
@@ -837,10 +837,11 @@ oc_ui_select_popup_info oc_ui_select_popup_str8(oc_str8 key, oc_ui_select_popup_
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, containerWidth });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
 
-            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, button->rect.x);
-            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, button->rect.y + button->rect.h + 4);
+            oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+            oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+
+            oc_ui_style_set_f32(OC_UI_OFFSET_X, button->rect.x);
+            oc_ui_style_set_f32(OC_UI_OFFSET_Y, button->rect.y + button->rect.h + 4);
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
             oc_ui_style_set_f32(OC_UI_MARGIN_Y, 5);
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_3);

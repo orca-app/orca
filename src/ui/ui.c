@@ -624,6 +624,7 @@ void oc_ui_style_set_i32(oc_ui_attribute attr, i32 i)
         style = box->targetStyle;
     }
 
+    //TODO: check enum validity
     switch(attr)
     {
         case OC_UI_AXIS:
@@ -638,12 +639,12 @@ void oc_ui_style_set_i32(oc_ui_attribute attr, i32 i)
             style->layout.align.y = i;
             break;
 
-        case OC_UI_FLOATING_X:
-            style->floating.x = i;
+        case OC_UI_POSITION:
+            style->position = i;
             break;
 
-        case OC_UI_FLOATING_Y:
-            style->floating.y = i;
+        case OC_UI_FOOTPRINT:
+            style->footprint = i;
             break;
 
         case OC_UI_OVERFLOW_X:
@@ -654,12 +655,8 @@ void oc_ui_style_set_i32(oc_ui_attribute attr, i32 i)
             style->layout.overflow.y = i;
             break;
 
-        case OC_UI_CONSTRAIN_X:
-            style->layout.constrain.x = i;
-            break;
-
-        case OC_UI_CONSTRAIN_Y:
-            style->layout.constrain.y = i;
+        case OC_UI_WRAP:
+            style->layout.wrap = (bool)i;
             break;
 
         case OC_UI_DRAW_MASK:
@@ -720,12 +717,12 @@ void oc_ui_style_set_f32(oc_ui_attribute attr, f32 f)
             style->layout.spacing = f;
             break;
 
-        case OC_UI_FLOAT_TARGET_X:
-            style->floatTarget.x = f;
+        case OC_UI_OFFSET_X:
+            style->offset.x = f;
             break;
 
-        case OC_UI_FLOAT_TARGET_Y:
-            style->floatTarget.y = f;
+        case OC_UI_OFFSET_Y:
+            style->offset.y = f;
             break;
 
         case OC_UI_TEXT_SIZE:
@@ -1281,12 +1278,11 @@ void oc_ui_style_set_var_str8(oc_ui_attribute attr, oc_str8 name)
             case OC_UI_AXIS:
             case OC_UI_ALIGN_X:
             case OC_UI_ALIGN_Y:
-            case OC_UI_FLOATING_X:
-            case OC_UI_FLOATING_Y:
+            case OC_UI_POSITION:
+            case OC_UI_FOOTPRINT:
             case OC_UI_OVERFLOW_X:
             case OC_UI_OVERFLOW_Y:
-            case OC_UI_CONSTRAIN_X:
-            case OC_UI_CONSTRAIN_Y:
+            case OC_UI_WRAP:
             case OC_UI_DRAW_MASK:
             case OC_UI_ANIMATION_MASK:
             case OC_UI_CLICK_THROUGH:
@@ -1296,8 +1292,8 @@ void oc_ui_style_set_var_str8(oc_ui_attribute attr, oc_str8 name)
             case OC_UI_MARGIN_X:
             case OC_UI_MARGIN_Y:
             case OC_UI_SPACING:
-            case OC_UI_FLOAT_TARGET_X:
-            case OC_UI_FLOAT_TARGET_Y:
+            case OC_UI_OFFSET_X:
+            case OC_UI_OFFSET_Y:
             case OC_UI_TEXT_SIZE:
             case OC_UI_BORDER_SIZE:
             case OC_UI_ROUNDNESS:
@@ -1420,8 +1416,10 @@ void oc_ui_theme_dark()
     oc_ui_var_set_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+    //    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.251, 0.251, 0.259, 1, OC_COLOR_SPACE_SRGB });
+    //    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.294, 0.294, 0.302, 1, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_set_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
 
@@ -1637,10 +1635,12 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     if(box->frameCounter != ui->frameCounter)
     {
         oc_list_init(&box->children);
+        box->childCount = 0;
         box->parent = oc_ui_box_top();
         if(box->parent)
         {
             oc_list_push_back(&box->parent->children, &box->listElt);
+            box->parent->childCount++;
             box->parentClosed = box->parent->closed || box->parent->parentClosed;
         }
     }
@@ -1715,10 +1715,10 @@ oc_ui_box* oc_ui_scrollbar_str8(oc_str8 name, oc_rect rect, f32 thumbRatio, f32*
 {
     oc_ui_box* track = oc_ui_box_str8(name)
     {
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, rect.x);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, rect.y);
+        oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_FRAME);
+        oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+        oc_ui_style_set_f32(OC_UI_OFFSET_X, rect.x);
+        oc_ui_style_set_f32(OC_UI_OFFSET_Y, rect.y);
         oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.w });
         oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, rect.h });
 
@@ -1797,11 +1797,11 @@ oc_ui_box* oc_ui_box_end(void)
 
     oc_ui_sig sig = oc_ui_box_get_sig(box);
 
-    f32 contentsW = oc_clamp_low(box->childrenSum[0] + box->spacing[0] + 2 * box->style.layout.margin.x, box->rect.w);
+    f32 contentsW = oc_clamp_low(box->contentSize.x, box->rect.w);
     contentsW = oc_clamp_low(contentsW, 1);
     bool needsScrollX = contentsW > box->rect.w;
 
-    f32 contentsH = oc_clamp_low(box->childrenSum[1] + box->spacing[1] + 2 * box->style.layout.margin.y, box->rect.h);
+    f32 contentsH = oc_clamp_low(box->contentSize.y, box->rect.h);
     contentsH = oc_clamp_low(contentsH, 1);
     bool needsScrollY = contentsH > box->rect.h;
 
@@ -2117,22 +2117,22 @@ void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
             box->style.roundness = targetStyle->roundness;
         }
 
-        if(mask & OC_UI_MASK_FLOAT_TARGET_X)
+        if(mask & OC_UI_MASK_OFFSET_X)
         {
-            oc_ui_animate_f32(ui, &box->style.floatTarget.x, targetStyle->floatTarget.x, animationTime);
+            oc_ui_animate_f32(ui, &box->style.offset.x, targetStyle->offset.x, animationTime);
         }
         else
         {
-            box->style.floatTarget.x = targetStyle->floatTarget.x;
+            box->style.offset.x = targetStyle->offset.x;
         }
 
-        if(mask & OC_UI_MASK_FLOAT_TARGET_Y)
+        if(mask & OC_UI_MASK_OFFSET_Y)
         {
-            oc_ui_animate_f32(ui, &box->style.floatTarget.y, targetStyle->floatTarget.y, animationTime);
+            oc_ui_animate_f32(ui, &box->style.offset.y, targetStyle->offset.y, animationTime);
         }
         else
         {
-            box->style.floatTarget.y = targetStyle->floatTarget.y;
+            box->style.offset.y = targetStyle->offset.y;
         }
 
         //TODO: non animatable attributes. use mask
@@ -2194,21 +2194,21 @@ void oc_ui_style_apply(oc_ui_style* dst,
     {
         dst->layout.margin.y = src->layout.margin.y;
     }
-    if(oc_ui_style_apply_check(OC_UI_FLOATING_X, mask, specificity, specArray))
+    if(oc_ui_style_apply_check(OC_UI_POSITION, mask, specificity, specArray))
     {
-        dst->floating.c[OC_UI_AXIS_X] = src->floating.c[OC_UI_AXIS_X];
+        dst->position = src->position;
     }
-    if(oc_ui_style_apply_check(OC_UI_FLOATING_Y, mask, specificity, specArray))
+    if(oc_ui_style_apply_check(OC_UI_FOOTPRINT, mask, specificity, specArray))
     {
-        dst->floating.c[OC_UI_AXIS_Y] = src->floating.c[OC_UI_AXIS_Y];
+        dst->footprint = src->footprint;
     }
-    if(oc_ui_style_apply_check(OC_UI_FLOAT_TARGET_X, mask, specificity, specArray))
+    if(oc_ui_style_apply_check(OC_UI_OFFSET_X, mask, specificity, specArray))
     {
-        dst->floatTarget.x = src->floatTarget.x;
+        dst->offset.x = src->offset.x;
     }
-    if(oc_ui_style_apply_check(OC_UI_FLOAT_TARGET_Y, mask, specificity, specArray))
+    if(oc_ui_style_apply_check(OC_UI_OFFSET_Y, mask, specificity, specArray))
     {
-        dst->floatTarget.y = src->floatTarget.y;
+        dst->offset.y = src->offset.y;
     }
 
     if(oc_ui_style_apply_check(OC_UI_COLOR, mask, specificity, specArray))
@@ -2398,399 +2398,6 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
     }
 }
 
-bool oc_ui_layout_downward_dependency(oc_ui_box* child, int axis)
-{
-    return (!oc_ui_box_hidden(child)
-            && !child->style.floating.c[axis]
-            && child->style.size.c[axis].kind != OC_UI_SIZE_PARENT
-            && child->style.size.c[axis].kind != OC_UI_SIZE_PARENT_MINUS_PIXELS);
-}
-
-void oc_ui_layout_downward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int axis)
-{
-    //NOTE: layout children and compute spacing and minimum size
-    i32 count = 0;
-    f32 minSum = 0;
-
-    oc_list_for(box->children, child, oc_ui_box, listElt)
-    {
-        if(!oc_ui_box_hidden(child))
-        {
-            oc_ui_layout_downward_dependent_size(ui, child, axis);
-
-            if(!child->style.floating.c[axis])
-            {
-                if(box->style.layout.axis == axis)
-                {
-                    count++;
-                    minSum += child->minSize[axis] + 2 * child->style.borderSize;
-                }
-                else
-                {
-                    minSum = oc_max(minSum, child->minSize[axis] + 2 * child->style.borderSize);
-                }
-            }
-        }
-    }
-    box->spacing[axis] = oc_max(0, count - 1) * box->style.layout.spacing;
-
-    switch(box->style.size.c[axis].kind)
-    {
-        case OC_UI_SIZE_TEXT:
-        case OC_UI_SIZE_PIXELS:
-            box->minSize[axis] = box->rect.c[2 + axis];
-            break;
-
-        case OC_UI_SIZE_CHILDREN:
-        case OC_UI_SIZE_PARENT:
-        case OC_UI_SIZE_PARENT_MINUS_PIXELS:
-        {
-            bool constrain = box->style.layout.constrain.c[axis];
-            if(constrain)
-            {
-                box->minSize[axis] = minSum + box->spacing[axis] + 2 * box->style.layout.margin.c[axis];
-            }
-        }
-        break;
-    }
-    box->minSize[axis] = oc_max(box->minSize[axis], box->style.size.c[axis].minSize);
-
-    oc_ui_size* size = &box->style.size.c[axis];
-    if(size->kind == OC_UI_SIZE_CHILDREN)
-    {
-        //NOTE: if box is dependent on children, compute children's size. If we're in the layout
-        //      axis this is the sum of each child size, otherwise it is the maximum child size
-        f32 sum = 0;
-
-        if(box->style.layout.axis == axis)
-        {
-            oc_list_for(box->children, child, oc_ui_box, listElt)
-            {
-                if(oc_ui_layout_downward_dependency(child, axis))
-                {
-                    sum += child->rect.c[2 + axis] + 2 * child->style.borderSize;
-                }
-            }
-        }
-        else
-        {
-            oc_list_for(box->children, child, oc_ui_box, listElt)
-            {
-                if(oc_ui_layout_downward_dependency(child, axis))
-                {
-                    sum = oc_max(sum, child->rect.c[2 + axis] + 2 * child->style.borderSize);
-                }
-            }
-        }
-        box->rect.c[2 + axis] = sum + box->spacing[axis] + 2 * box->style.layout.margin.c[axis];
-    }
-}
-
-void oc_ui_layout_upward_dependent_size(oc_ui_context* ui, oc_ui_box* box, int axis)
-{
-    //NOTE: re-compute/set size of children that depend on box's size
-
-    f32 margin = box->style.layout.margin.c[axis];
-    f32 availableSize = oc_max(0, box->rect.c[2 + axis] - box->spacing[axis] - 2 * margin);
-
-    oc_list_for(box->children, child, oc_ui_box, listElt)
-    {
-        oc_ui_size* size = &child->style.size.c[axis];
-        if(size->kind == OC_UI_SIZE_PARENT)
-        {
-            child->rect.c[2 + axis] = oc_max(child->minSize[axis], availableSize * size->value) - 2 * child->style.borderSize;
-        }
-        else if(size->kind == OC_UI_SIZE_PARENT_MINUS_PIXELS)
-        {
-            child->rect.c[2 + axis] = oc_max(child->minSize[axis], oc_max(0, availableSize - size->value)) - 2 * child->style.borderSize;
-        }
-    }
-
-    //NOTE: solve downward conflicts
-    bool constrain = box->style.layout.constrain.c[axis];
-    if(constrain)
-    {
-        if(box->style.layout.axis == axis)
-        {
-            f32 prevSum = FLT_MAX;
-            int count = 0;
-
-            //NOTE: take into account the _original size_ minus the _original slack_ in minimum size. This way the widget
-            //      never gives up more than wantedSize * relax.
-            oc_list_for(box->children, child, oc_ui_box, listElt)
-            {
-                if(!oc_ui_box_hidden(child)
-                   && !child->style.floating.c[axis])
-                {
-                    child->minSize[axis] = oc_max(child->minSize[axis], child->rect.c[2 + axis] * (1 - child->style.size.c[axis].relax));
-                }
-            }
-
-            //NOTE: Loop while we can remove excess. Each iterations reaffects excess to boxes that still have some slack.
-            while(1)
-            {
-                //NOTE: if we're solving in the layout axis, first compute total sum of children and
-                //      total slack available
-                f32 sum = 0;
-                f32 slack = 0;
-
-                oc_list_for(box->children, child, oc_ui_box, listElt)
-                {
-                    if(!oc_ui_box_hidden(child)
-                       && !child->style.floating.c[axis])
-                    {
-                        sum += child->rect.c[2 + axis] + 2 * child->style.borderSize;
-                        slack += oc_min(child->rect.c[2 + axis] * child->style.size.c[axis].relax,
-                                        child->rect.c[2 + axis] - child->minSize[axis]);
-                    }
-                }
-                if(prevSum - sum < 1)
-                {
-                    break;
-                }
-                count++;
-                prevSum = sum;
-
-                //NOTE: then remove excess proportionally to each box slack
-                f32 totalContents = sum + box->spacing[axis] + 2 * box->style.layout.margin.c[axis];
-                f32 excess = oc_clamp_low(totalContents - box->rect.c[2 + axis], 0);
-                f32 alpha = oc_clamp(excess / slack, 0, 1);
-
-                oc_list_for(box->children, child, oc_ui_box, listElt)
-                {
-                    if(!oc_ui_box_hidden(child) && !child->style.floating.c[axis])
-                    {
-                        f32 relax = child->style.size.c[axis].relax;
-                        f32 minSize = child->minSize[axis];
-                        f32 remove = alpha * oc_clamp(child->rect.c[2 + axis] * relax, 0, child->rect.c[2 + axis] - child->minSize[axis]);
-
-                        child->rect.c[2 + axis] = oc_max(minSize, child->rect.c[2 + axis] - remove);
-                    }
-                }
-            }
-        }
-        else
-        {
-            //NOTE: if we're solving on the secondary axis, we remove excess to each box individually
-            //      according to its own slack.
-            oc_list_for(box->children, child, oc_ui_box, listElt)
-            {
-                if(!oc_ui_box_hidden(child) && !child->style.floating.c[axis])
-                {
-                    f32 totalContents = child->rect.c[2 + axis] + 2 * box->style.layout.margin.c[axis];
-                    f32 excess = oc_clamp_low(totalContents - box->rect.c[2 + axis], 0);
-                    f32 relax = child->style.size.c[axis].relax;
-                    f32 minSize = child->minSize[axis];
-                    f32 remove = oc_min(excess, child->rect.c[2 + axis] * relax);
-
-                    child->rect.c[2 + axis] = oc_max(minSize, child->rect.c[2 + axis] - remove);
-                }
-            }
-        }
-    }
-    box->rect.c[2 + axis] = oc_max(box->minSize[axis], box->rect.c[2 + axis]);
-
-    f32 sum = 0;
-
-    //NOTE: recurse in children and recompute children sum
-    oc_list_for(box->children, child, oc_ui_box, listElt)
-    {
-        oc_ui_layout_upward_dependent_size(ui, child, axis);
-
-        if(!oc_ui_box_hidden(child)
-           && !child->style.floating.c[axis])
-        {
-            if(box->style.layout.axis == axis)
-            {
-                sum += child->rect.c[2 + axis] + 2 * child->style.borderSize;
-            }
-            else
-            {
-                sum = oc_max(sum, child->rect.c[2 + axis] + 2 * child->style.borderSize);
-            }
-        }
-    }
-    box->childrenSum[axis] = sum;
-
-    OC_ASSERT(box->rect.c[2 + axis] >= box->minSize[axis], "parent->keyString = %.*s, box->keyStrig = %.*s, axis = %i, box->size[axis].kind = %i, box->rect.c[2+axis] = %f, box->minSize[axis] = %f",
-              oc_str8_ip(box->parent->keyString),
-              oc_str8_ip(box->keyString),
-              axis,
-              box->style.size.c[axis].kind,
-              box->rect.c[2 + axis],
-              box->minSize[axis]);
-}
-
-/*
-void oc_ui_layout_upward_dependent_fixup(oc_ui_context* ui, oc_ui_box* box, int axis)
-{
-    f32 margin = box->style.layout.margin.c[axis];
-    f32 availableSize = oc_max(0, box->rect.c[2 + axis] - box->spacing[axis] - 2 * margin);
-
-    if(axis == box->style.layout.axis)
-    {
-        f32 availableToParentSized = availableSize;
-        f32 relaxSum = 0;
-
-        oc_list_for(box->children, child, oc_ui_box, listElt)
-        {
-            oc_ui_size* size = &child->style.size.c[axis];
-            if(size->kind == OC_UI_SIZE_PARENT || size->kind == OC_UI_SIZE_PARENT_MINUS_PIXELS)
-            {
-                f32 wantedSize = 0;
-                if(size->kind == OC_UI_SIZE_PARENT)
-                {
-                    wantedSize = availableSize * size->value;
-                }
-                else
-                {
-                    wantedSize = availableSize - size->value;
-                }
-                if(wantedSize > child->rect.c[2 + axis])
-                {
-                    relaxSum += size->relax;
-                }
-            }
-            availableToParentSized -= child->rect.c[2 + axis];
-        }
-        availableToParentSized = oc_max(0, availableToParentSized);
-
-        if(availableToParentSized && relaxSum)
-        {
-            oc_list_for(box->children, child, oc_ui_box, listElt)
-            {
-                oc_ui_size* size = &child->style.size.c[axis];
-                if(size->kind == OC_UI_SIZE_PARENT || size->kind == OC_UI_SIZE_PARENT_MINUS_PIXELS)
-                {
-                    f32 wantedSize = 0;
-                    if(size->kind == OC_UI_SIZE_PARENT)
-                    {
-                        wantedSize = availableSize * size->value;
-                    }
-                    else
-                    {
-                        wantedSize = availableSize - size->value;
-                    }
-
-                    if(wantedSize > child->rect.c[2 + axis])
-                    {
-                        child->rect.c[2 + axis] += availableToParentSized * (size->relax / relaxSum);
-                    }
-                }
-            }
-        }
-    }
-
-    oc_list_for(box->children, child, oc_ui_box, listElt)
-    {
-        if(axis != box->style.layout.axis)
-        {
-            oc_ui_size* size = &child->style.size.c[axis];
-            if(size->kind == OC_UI_SIZE_PARENT)
-            {
-                child->rect.c[2 + axis] = oc_max(child->rect.c[2 + axis], availableSize * size->value);
-            }
-            else if(size->kind == OC_UI_SIZE_PARENT_MINUS_PIXELS)
-            {
-                child->rect.c[2 + axis] = oc_max(child->rect.c[2 + axis], oc_max(0, availableSize - size->value));
-            }
-        }
-        oc_ui_layout_upward_dependent_fixup(ui, child, axis);
-    }
-}
-*/
-
-void oc_ui_layout_compute_rect(oc_ui_context* ui, oc_ui_box* box, oc_vec2 pos)
-{
-    if(oc_ui_box_hidden(box))
-    {
-        return;
-    }
-
-    box->rect.x = pos.x + box->style.borderSize;
-    box->rect.y = pos.y + box->style.borderSize;
-    box->z = ui->z;
-    ui->z++;
-
-    oc_ui_axis layoutAxis = box->style.layout.axis;
-    oc_ui_axis secondAxis = (layoutAxis == OC_UI_AXIS_X) ? OC_UI_AXIS_Y : OC_UI_AXIS_X;
-    f32 spacing = box->style.layout.spacing;
-
-    oc_ui_align* align = box->style.layout.align.c;
-
-    oc_vec2 origin = {
-        box->rect.x,
-        box->rect.y,
-    };
-    oc_vec2 currentPos = origin;
-
-    oc_vec2 margin = {
-        box->style.layout.margin.x,
-        box->style.layout.margin.y,
-    };
-
-    currentPos.x += margin.x;
-    currentPos.y += margin.y;
-
-    for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
-    {
-        if(align[i] == OC_UI_ALIGN_END)
-        {
-            currentPos.c[i] = origin.c[i] + box->rect.c[2 + i] - (box->childrenSum[i] + box->spacing[i] + margin.c[i]);
-        }
-    }
-    if(align[layoutAxis] == OC_UI_ALIGN_CENTER)
-    {
-        currentPos.c[layoutAxis] = origin.c[layoutAxis]
-                                 + 0.5 * (box->rect.c[2 + layoutAxis] - (box->childrenSum[layoutAxis] + box->spacing[layoutAxis]));
-    }
-
-    //NOTE: clamp scroll to max contents and offset current position by it
-    box->scroll.x = oc_clamp(box->scroll.x, 0, box->childrenSum[0] + box->spacing[0] + 2 * margin.x - box->rect.w);
-    box->scroll.y = oc_clamp(box->scroll.y, 0, box->childrenSum[1] + box->spacing[1] + 2 * margin.y - box->rect.h);
-    currentPos.x -= box->scroll.x;
-    currentPos.y -= box->scroll.y;
-
-    oc_list_for(box->children, child, oc_ui_box, listElt)
-    {
-        if(align[secondAxis] == OC_UI_ALIGN_CENTER)
-        {
-            currentPos.c[secondAxis] = origin.c[secondAxis] + 0.5 * (box->rect.c[2 + secondAxis] - child->rect.c[2 + secondAxis] - 2 * child->style.borderSize);
-        }
-
-        oc_vec2 childPos = currentPos;
-        for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
-        {
-            if(child->style.floating.c[i])
-            {
-                oc_ui_style* style = child->targetStyle;
-                if((child->targetStyle->animationMask & (OC_UI_MASK_FLOATING_X << i))
-                   && !child->fresh)
-                {
-                    oc_ui_animate_f32(ui, &child->floatPos.c[i], child->style.floatTarget.c[i], style->animationTime);
-                }
-                else
-                {
-                    child->floatPos.c[i] = child->style.floatTarget.c[i];
-                }
-                childPos.c[i] = origin.c[i] + child->floatPos.c[i];
-            }
-        }
-
-        oc_ui_layout_compute_rect(ui, child, childPos);
-
-        if(!child->style.floating.c[layoutAxis])
-        {
-            currentPos.c[layoutAxis] += child->rect.c[2 + layoutAxis] + 2 * child->style.borderSize + spacing;
-        }
-    }
-    if(isnan(box->rect.w) || isnan(box->rect.h))
-    {
-        oc_log_error("error in box %.*s\n", oc_str8_ip(box->keyString));
-        OC_ASSERT(0);
-    }
-}
-
 void oc_ui_layout_find_next_hovered_recursive(oc_ui_context* ui, oc_ui_box* box, oc_vec2 p)
 {
     if(oc_ui_box_hidden(box))
@@ -2819,6 +2426,245 @@ void oc_ui_layout_find_next_hovered(oc_ui_context* ui, oc_vec2 p)
     oc_ui_layout_find_next_hovered_recursive(ui, ui->root, p);
 }
 
+///////////////////////////////////////////////////////////////////////////////
+
+f32 oc_ui_box_total_size(oc_ui_box* box, oc_ui_axis axis)
+{
+    return box->rect.c[2 + axis] + 2 * box->style.borderSize;
+}
+
+oc_rect oc_rect_union(oc_rect r1, oc_rect r2)
+{
+    if(r1.w < 0 || r1.h < 0)
+    {
+        return r2;
+    }
+    if(r2.w < 0 || r2.h < 0)
+    {
+        return r1;
+    }
+    f32 x0 = oc_min(r1.x, r2.x);
+    f32 y0 = oc_min(r1.y, r2.y);
+    f32 x1 = oc_max(r1.x + r1.w, r2.x + r2.w);
+    f32 y1 = oc_max(r1.y + r1.h, r2.y + r2.h);
+
+    oc_rect res = { x0, y0, x1 - x0, y1 - y0 };
+    return res;
+}
+
+typedef struct oc_ui_layout_item
+{
+    oc_list_elt listElt;
+    oc_ui_box* box;
+
+    //    oc_list lines;
+} oc_ui_layout_item;
+
+typedef struct oc_ui_layout_line_elt
+{
+    oc_list_elt listElt;
+    oc_ui_box* box;
+} oc_ui_layout_line_elt;
+
+typedef struct oc_ui_layout_line
+{
+    oc_list_elt listElt;
+    oc_vec2 size;
+    u32 itemCount;
+    oc_list items;
+} oc_ui_layout_line;
+
+void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
+{
+    oc_ui_axis mainAxis = box->style.layout.axis;
+    oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
+
+    // main axis alignment
+    f32 availableSpaceMainAxis = box->rect.c[2 + mainAxis] - 2 * box->style.layout.margin.c[mainAxis];
+
+    if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_JUSTIFY)
+    {
+        if(line->itemCount > 1)
+        {
+            f32 spacing = (availableSpaceMainAxis - line->size.c[mainAxis]) / (line->itemCount - 1);
+            if(spacing > 0)
+            {
+                oc_list_for_indexed(line->items, it, oc_ui_layout_line_elt, listElt)
+                {
+                    //NOTE: re-spacing calc can overshoot just enough to create spurious scrollbars, so
+                    // we clamp the new position to the max acceptable one
+                    f32 maxX = floor(box->rect.c[2 + mainAxis]
+                                     - box->style.layout.margin.c[mainAxis]
+                                     - oc_ui_box_total_size(it.elt->box, mainAxis));
+
+                    it.elt->box->rect.x = oc_clamp_high(it.elt->box->rect.x + spacing * it.index,
+                                                        maxX);
+                }
+            }
+        }
+    }
+    else
+    {
+        f32 offsetMainAxis = 0;
+
+        if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_END)
+        {
+            offsetMainAxis = oc_clamp_low(availableSpaceMainAxis - line->size.c[mainAxis], 0);
+        }
+        else if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_CENTER)
+        {
+            offsetMainAxis = oc_clamp_low((availableSpaceMainAxis - line->size.c[mainAxis]) / 2.0, 0);
+        }
+
+        oc_list_for(line->items, item, oc_ui_layout_line_elt, listElt)
+        {
+            item->box->rect.c[mainAxis] += offsetMainAxis;
+        }
+    }
+
+    // cross axis alignment
+    oc_list_for(line->items, item, oc_ui_layout_line_elt, listElt)
+    {
+        if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_END)
+        {
+            item->box->rect.c[crossAxis] += oc_clamp_low(line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis), 0);
+        }
+        else if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_CENTER)
+        {
+            item->box->rect.c[crossAxis] += oc_clamp_low((line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis)) / 2.0, 0);
+        }
+    }
+}
+
+void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
+{
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_ui_axis mainAxis = box->style.layout.axis;
+    oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
+
+    u32 colIndex = 0;
+    f32 wrapThreshold = box->rect.c[2 + mainAxis] - box->style.layout.margin.c[mainAxis];
+    oc_vec2 start = {
+        box->style.layout.margin.x,
+        box->style.layout.margin.y,
+    };
+    oc_vec2 pos = start;
+    oc_ui_layout_line line = { 0 };
+
+    oc_list_for(box->children, child, oc_ui_box, listElt)
+    {
+        if(!oc_ui_box_hidden(child))
+        {
+            switch(child->style.position)
+            {
+                case OC_UI_POSITION_PARENT:
+                case OC_UI_POSITION_FRAME:
+                {
+                    child->rect.xy = child->style.offset;
+                }
+                break;
+
+                case OC_UI_POSITION_FLOW:
+                {
+                    f32 childSize = oc_ui_box_total_size(child, mainAxis);
+
+                    if(wrap
+                       && colIndex
+                       && child->style.footprint == OC_UI_FOOTPRINT_SOLID
+                       && pos.c[mainAxis] + childSize > wrapThreshold)
+                    {
+                        //NOTE: new line
+                        pos.c[mainAxis] = start.c[mainAxis];
+                        pos.c[crossAxis] += line.size.c[crossAxis] + box->style.layout.spacing;
+                        colIndex = 0;
+
+                        oc_ui_layout_line_alignment(box, &line);
+                        line = (oc_ui_layout_line){ 0 };
+                    }
+                    //NOTE: set child position and add it to current line
+                    child->rect.xy = (oc_vec2){
+                        pos.x + child->style.borderSize,
+                        pos.y + child->style.borderSize,
+                    };
+
+                    oc_ui_layout_line_elt* lineElt = oc_arena_push_type(scratch.arena, oc_ui_layout_line_elt);
+                    lineElt->box = child;
+                    oc_list_push_back(&line.items, &lineElt->listElt);
+                    line.itemCount++;
+
+                    if(child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+                    {
+                        line.size.c[mainAxis] = pos.c[mainAxis] - start.c[mainAxis] + childSize;
+                        line.size.c[crossAxis] = oc_max(line.size.c[crossAxis], oc_ui_box_total_size(child, crossAxis));
+                        pos.c[mainAxis] += childSize + box->style.layout.spacing;
+                    }
+                    colIndex++;
+                }
+                break;
+            }
+        }
+    }
+    //NOTE: align last line
+    oc_ui_layout_line_alignment(box, &line);
+    oc_scratch_end(scratch);
+}
+
+oc_rect oc_ui_layout_contents_rect(oc_ui_box* box)
+{
+    oc_rect flowRect = { 0, 0, -1, -1 };
+    oc_rect fixedRect = { 0, 0, -1, -1 };
+
+    oc_list_for(box->children, child, oc_ui_box, listElt)
+    {
+        if(!oc_ui_box_hidden(child) && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+        {
+            if(child->style.position == OC_UI_POSITION_FLOW)
+            {
+                flowRect = oc_rect_union(flowRect, child->rect);
+            }
+            else
+            {
+                fixedRect = oc_rect_union(fixedRect, child->rect);
+            }
+        }
+    }
+    flowRect.x -= box->style.layout.margin.x;
+    flowRect.y -= box->style.layout.margin.y;
+    flowRect.w += 2 * box->style.layout.margin.x;
+    flowRect.h += 2 * box->style.layout.margin.y;
+
+    oc_rect contentRect = oc_rect_union(flowRect, fixedRect);
+    return contentRect;
+}
+
+oc_vec2 oc_ui_layout_flow_size(oc_ui_box* box)
+{
+    oc_rect contentRect = { 0, 0, -1, -1 };
+
+    oc_list_for(box->children, child, oc_ui_box, listElt)
+    {
+        if(!oc_ui_box_hidden(child)
+           && child->style.position == OC_UI_POSITION_FLOW
+           && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+        {
+            contentRect = oc_rect_union(contentRect, child->rect);
+        }
+    }
+    return contentRect.wh;
+}
+
+oc_vec2 oc_ui_layout_contents_size_positive(oc_ui_box* box)
+{
+    oc_rect rect = oc_ui_layout_contents_rect(box);
+    f32 x0 = oc_clamp_low(rect.x, 0);
+    f32 y0 = oc_clamp_low(rect.y, 0);
+    f32 x1 = oc_clamp_low(rect.x + rect.w, 0);
+    f32 y1 = oc_clamp_low(rect.y + rect.h, 0);
+
+    return (oc_vec2){ x1 - x0, y1 - y0 };
+}
+
 void oc_ui_solve_layout(oc_ui_context* ui)
 {
     //NOTE: style and compute static sizes
@@ -2831,23 +2677,245 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         if(box->parent)
         {
             oc_list_remove(&box->parent->children, &box->listElt);
+            OC_ASSERT(box->parent->childCount);
+            box->parent->childCount--;
             oc_list_push_back(&ui->overlay->children, &box->listElt);
+            ui->overlay->childCount++;
         }
     }
 
-    //NOTE: compute layout
-    for(int axis = 0; axis < OC_UI_AXIS_COUNT; axis++)
-    {
-        oc_ui_layout_downward_dependent_size(ui, ui->root, axis);
-        oc_ui_layout_upward_dependent_size(ui, ui->root, axis);
+    //NOTE: collect boxes into a breadth-first-order list
+    oc_arena_scope scratch = oc_scratch_begin();
 
-        //        oc_ui_layout_upward_dependent_fixup(ui, ui->root, axis);
+    oc_list boxes = { 0 };
+    oc_ui_layout_item* rootElt = oc_arena_push_type(scratch.arena, oc_ui_layout_item);
+    rootElt->box = ui->root;
+    oc_list_push_back(&boxes, &rootElt->listElt);
+
+    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
+    {
+        //NOTE: push children to the end of the list
+        oc_list_for(elt->box->children, child, oc_ui_box, listElt)
+        {
+            oc_ui_layout_item* childElt = oc_arena_push_type(scratch.arena, oc_ui_layout_item);
+            childElt->box = child;
+            oc_list_push_back(&boxes, &childElt->listElt);
+        }
+
+        //NOTE: set max size default value if needed while we're at it
+        for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
+        {
+            if(elt->box->style.size.c[i].max == 0)
+            {
+                elt->box->style.size.c[i].max = FLT_MAX;
+            }
+        }
     }
-    oc_ui_layout_compute_rect(ui, ui->root, (oc_vec2){ 0, 0 });
+
+    //NOTE: compute children sum and desired size, bottom-up
+    oc_list_for_reverse(boxes, elt, oc_ui_layout_item, listElt)
+    {
+        oc_ui_box* box = elt->box;
+        oc_ui_axis mainAxis = box->style.layout.axis;
+        oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
+
+        //NOTE: layout children into a single line
+        oc_ui_layout_contents(box, false);
+
+        //NOTE: Compute children-dependent sizes.
+        // (Text and pixels size have already been computed in styling pass)
+        oc_vec2 positiveContentSize = oc_ui_layout_contents_size_positive(box);
+
+        if(box->style.size.c[mainAxis].kind == OC_UI_SIZE_CHILDREN)
+        {
+            box->rect.c[2 + mainAxis] = positiveContentSize.c[mainAxis];
+        }
+        if(box->style.size.c[crossAxis].kind == OC_UI_SIZE_CHILDREN)
+        {
+            box->rect.c[2 + crossAxis] = positiveContentSize.c[crossAxis];
+        }
+
+        //NOTE: clamp to min/max size
+        for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
+        {
+            box->rect.c[2 + i] = oc_clamp(box->rect.c[2 + i],
+                                          box->style.size.c[i].min,
+                                          box->style.size.c[i].max);
+        }
+    }
+    //NOTE: compute parent-dependent desired size, top-down
+    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
+    {
+        oc_ui_box* box = elt->box;
+        if(!box->parent)
+        {
+            continue;
+        }
+
+        for(int axis = 0; axis < OC_UI_AXIS_COUNT; axis++)
+        {
+            switch(box->style.size.c[axis].kind)
+            {
+                case OC_UI_SIZE_PARENT:
+                {
+                    box->rect.c[2 + axis] = box->parent->rect.c[2 + axis] * box->style.size.c[axis].value;
+                }
+                break;
+
+                case OC_UI_SIZE_PARENT_MINUS_PIXELS:
+                {
+                    box->rect.c[2 + axis] = box->parent->rect.c[2 + axis] - box->style.size.c[axis].value;
+                }
+                break;
+
+                default:
+                    break;
+            }
+            box->rect.c[2 + axis] = oc_clamp(box->rect.c[2 + axis],
+                                             box->style.size.c[axis].min,
+                                             box->style.size.c[axis].max);
+        }
+    }
+
+    //NOTE: shrink/grow/wrap, top-down
+    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
+    {
+        oc_ui_box* box = elt->box;
+        oc_ui_axis mainAxis = box->style.layout.axis;
+        oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
+
+        //NOTE: we need to relayout & compute contents size here, because boxes with only parent-dependent children will have a wrong content size...
+        oc_ui_layout_contents(box, false);
+        oc_vec2 flowSize = oc_ui_layout_flow_size(box);
+
+        //NOTE: grow/shrink in main axis
+        {
+            //NOTE: compute remaining space
+            f32 remainingSpace = box->rect.c[2 + mainAxis]
+                               - 2 * box->style.layout.margin.c[mainAxis]
+                               - flowSize.c[mainAxis];
+
+            //NOTE: distribute remaining space among children, proportionally to their relax weight
+            while(fabs(remainingSpace) > 0.5)
+            {
+                f32 newRemainingSpace = remainingSpace;
+
+                //NOTE: compute total weight of children that can still grow/shrink
+                f32 totalWeight = 0;
+                oc_list_for(box->children, child, oc_ui_box, listElt)
+                {
+                    if(child->style.position == OC_UI_POSITION_FLOW
+                       && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+                    {
+                        if((remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
+                           || (remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min))
+                        {
+                            totalWeight += child->style.size.c[mainAxis].relax;
+                        }
+                    }
+                }
+                if(totalWeight)
+                {
+                    //NOTE: distribute space among children that can still grow/shrink, up to their min/max size
+                    oc_list_for(box->children, child, oc_ui_box, listElt)
+                    {
+                        if(child->style.position == OC_UI_POSITION_FLOW
+                           && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+                        {
+                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max
+                               || remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                            {
+                                //TODO: should remove child borders from computation?
+                                f32 addSpace = remainingSpace * child->style.size.c[mainAxis].relax / totalWeight;
+
+                                f32 newSize = oc_clamp(child->rect.c[2 + mainAxis] + addSpace,
+                                                       child->style.size.c[mainAxis].min,
+                                                       child->style.size.c[mainAxis].max);
+
+                                newRemainingSpace -= newSize - child->rect.c[2 + mainAxis];
+                                child->rect.c[2 + mainAxis] = newSize;
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    break;
+                }
+                remainingSpace = newRemainingSpace;
+            }
+
+            //NOTE: if we still overflow, wrap if possible
+            if(remainingSpace < 0
+               && box->style.layout.wrap
+               && box->style.size.c[crossAxis].kind == OC_UI_SIZE_CHILDREN)
+            {
+                //TODO: could we avoid this relayout?
+                oc_ui_layout_contents(box, box->style.layout.wrap);
+                oc_vec2 wrappedSize = oc_ui_layout_flow_size(box);
+                box->rect.c[2 + crossAxis] = oc_max(box->rect.c[2 + crossAxis],
+                                                    wrappedSize.c[crossAxis] + 2 * box->style.layout.margin.c[crossAxis]);
+            }
+        }
+
+        //NOTE: grow/shrink in cross axis
+        {
+            //NOTE: compute remaining space in cross axis
+            f32 remainingSpace = box->rect.c[2 + crossAxis]
+                               - 2 * box->style.layout.margin.c[crossAxis]
+                               - flowSize.c[crossAxis];
+
+            //NOTE: give remaining space to each indidual child according to its relax weight, up to its min/max size
+            oc_list_for(box->children, child, oc_ui_box, listElt)
+            {
+                //NOTE: should remove child borders?
+                child->rect.c[2 + crossAxis] = oc_clamp(child->rect.c[2 + crossAxis] + remainingSpace * child->style.size.c[crossAxis].relax,
+                                                        child->style.size.c[crossAxis].min,
+                                                        child->style.size.c[crossAxis].max);
+            }
+        }
+
+        //NOTE: relayout with shrinked sizes
+        oc_ui_layout_contents(box, box->style.layout.wrap);
+    }
+
+    //NOTE: compute rects, top down
+    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
+    {
+        oc_ui_box* box = elt->box;
+
+        oc_list_for(box->children, child, oc_ui_box, listElt)
+        {
+            child->rect.x += box->rect.x;
+            child->rect.y += box->rect.y;
+        }
+
+        //TODO: align whole (multi-line) contents inside box
+
+        //NOTE: clamp scroll to max contents and offset children by it. We take into account all content here, not
+        // just the positive quadrant.
+        box->contentSize = oc_ui_layout_contents_size_positive(box);
+
+        box->scroll.x = oc_clamp(box->scroll.x, 0, box->contentSize.x - box->rect.w);
+        box->scroll.y = oc_clamp(box->scroll.y, 0, box->contentSize.y - box->rect.h);
+
+        oc_list_for(box->children, child, oc_ui_box, listElt)
+        {
+            if(child->style.position != OC_UI_POSITION_FRAME)
+            {
+                child->rect.x -= box->scroll.x;
+                child->rect.y -= box->scroll.y;
+            }
+        }
+    }
+
+    oc_scratch_end(scratch);
 
     oc_vec2 p = oc_ui_mouse_position();
     oc_ui_layout_find_next_hovered(ui, p);
 }
+
+///////////////////////////////////////////////////////////////////////////////
 
 //-----------------------------------------------------------------------------
 // Drawing
@@ -2963,6 +3031,7 @@ void oc_ui_draw_box(oc_ui_box* box)
         f32 y = 0;
         switch(style->layout.align.x)
         {
+            case OC_UI_ALIGN_JUSTIFY: // not implemented for now, fallback on start
             case OC_UI_ALIGN_START:
                 x = box->rect.x + style->layout.margin.x;
                 break;
@@ -2978,6 +3047,7 @@ void oc_ui_draw_box(oc_ui_box* box)
 
         switch(style->layout.align.y)
         {
+            case OC_UI_ALIGN_JUSTIFY: // for cross axis alignment, justify fallback on start
             case OC_UI_ALIGN_START:
                 y = box->rect.y + style->layout.margin.y - textBox.y;
                 break;
@@ -3096,9 +3166,11 @@ void oc_ui_frame_begin(oc_vec2 size)
     oc_ui_var_default_color_str8(OC_UI_THEME_BG_3, (oc_color){ 0.263, 0.267, 0.29, 1, OC_COLOR_SPACE_SRGB });
     oc_ui_var_default_color_str8(OC_UI_THEME_BG_4, (oc_color){ 0.31, 0.318, 0.349, 1, OC_COLOR_SPACE_SRGB });
 
-    oc_ui_var_default_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_default_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
-    oc_ui_var_default_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_0, (oc_color){ 1, 1, 1, .033, OC_COLOR_SPACE_SRGB });
+    //    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 1, 1, 1, .045, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_1, (oc_color){ 0.251, 0.251, 0.259, 1, OC_COLOR_SPACE_SRGB });
+    //    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 1, 1, 1, 0.063, OC_COLOR_SPACE_SRGB });
+    oc_ui_var_set_color_str8(OC_UI_THEME_FILL_2, (oc_color){ 0.294, 0.294, 0.302, 1, OC_COLOR_SPACE_SRGB });
 
     oc_ui_var_default_color_str8(OC_UI_THEME_BORDER, (oc_color){ 1, 1, 1, 0.018, OC_COLOR_SPACE_SRGB });
 
@@ -3133,10 +3205,7 @@ void oc_ui_frame_begin(oc_vec2 size)
     oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
     oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
     oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-    oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-    oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
-    oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+
     oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
 }
 
@@ -3155,10 +3224,10 @@ void oc_ui_frame_end(void)
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
         oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
         oc_ui_style_set_i32(OC_UI_ALIGN_Y, OC_UI_ALIGN_START);
-        oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-        oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, 0);
-        oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+        oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+        oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+        oc_ui_style_set_f32(OC_UI_OFFSET_X, 0);
+        oc_ui_style_set_f32(OC_UI_OFFSET_Y, 0);
     }
 
     oc_ui_box* box = oc_ui_box_end(); // root
