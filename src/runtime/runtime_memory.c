@@ -53,7 +53,7 @@ void oc_runtime_wasm_memory_free_callback(void* p, void* userData)
     memset(memory, 0, sizeof(wa_memory));
 }
 
-extern u32 oc_mem_grow(u64 size)
+extern u32 oc_mem_grow(u32 size)
 {
     oc_wasm_env* env = oc_runtime_get_env();
 

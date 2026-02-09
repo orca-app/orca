@@ -16,9 +16,21 @@
 
 #include "platform/platform.h"
 #include "util/typedefs.h"
-void* ORCA_IMPORT(oc_hostcall_mem_grow)(u64 size);
 
-#define MORECORE oc_hostcall_mem_grow
+void* ORCA_IMPORT(oc_hostcall_mem_grow)(u32 size);
+void* orca_dlmalloc_morecore(i32 size)
+{
+    if(size < 0)
+    {
+        return (void*)-1;
+    }
+    else
+    {
+        return oc_hostcall_mem_grow(size);
+    }
+}
+
+#define MORECORE orca_dlmalloc_morecore
 #define MORECORE_CONTIGUOUS 0
 /*
   This is a version (aka dlmalloc) of malloc/free/realloc written by

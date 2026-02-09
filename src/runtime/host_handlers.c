@@ -199,7 +199,7 @@ void oc_hostapi_abort_ext(char* file, char* function, i32 line, char* note)
 // mem grow
 //------------------------------------------------------------------------
 
-i32 oc_hostapi_mem_grow(u64 size)
+i32 oc_hostapi_mem_grow(u32 size)
 {
     return oc_mem_grow(size);
 }

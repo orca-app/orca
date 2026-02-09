@@ -112,13 +112,13 @@
 	"name": "oc_hostcall_mem_grow",
 	"handler": "oc_hostapi_mem_grow",
 	"return": {
-        "kind": "i32"
+        "kind": "u32"
     },
 	"params": [
         {
             "name": "size",
             "type": {
-                "kind": "u64"
+                "kind": "u32"
             }
         }
     ]
