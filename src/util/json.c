@@ -264,7 +264,7 @@ json_lex json_lex_bool_or_null(json_parser* parser)
 
 bool json_is_blank(char c)
 {
-    return (c == ' ' || c == '\t' || c == '\n');
+    return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
 }
 
 json_lex json_lex_next(json_parser* parser)

@@ -25,7 +25,6 @@
 
 #include <sys/stat.h>
 #include <unistd.h>
-#include <copyfile.h>
 #include "ext/libzip/lib/zip.h"
 
 //------------------------------------------------------------------------
@@ -383,7 +382,6 @@ oc_str8 standalone_app_name(oc_arena* arena)
 
 oc_str8 standalone_app_name(oc_arena* arena)
 {
-    oc_str8 result = { 0 };
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
     oc_str8 exec = oc_path_executable(scratch.arena);
     oc_str8 result = oc_str8_push_copy(arena, oc_path_slice_stem(exec));
@@ -442,7 +440,11 @@ int load_app(oc_runtime* app)
 
         dataDirDest = oc_path_join(scratch.arena, list);
     }
-    copyfile(dataDirSrc.ptr, dataDirDest.ptr, NULL, COPYFILE_DATA | COPYFILE_RECURSIVE);
+    oc_file_copy(dataDirSrc,
+                 dataDirDest,
+                 &(oc_file_copy_options){
+                     .flags = OC_FILE_COPY_REPLACE_EXISTING,
+                 });
 
     //NOTE: loads wasm module
     {

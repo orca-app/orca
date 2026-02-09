@@ -940,6 +940,7 @@ pub fn build(b: *Build) !void {
         .root_module = b.createModule(.{
             .target = b.graph.host,
             .optimize = .Debug,
+            .link_libc = true,
         }),
     });
 
@@ -952,13 +953,17 @@ pub fn build(b: *Build) !void {
     try gen_host_interface_compile_flags.append(b.allocator, "-Werror");
     try gen_host_interface_compile_flags.append(b.allocator, "-g");
     try gen_host_interface_compile_flags.append(b.allocator, "-O0");
-    try gen_host_interface_compile_flags.append(b.allocator, "-fno-sanitize=undefined");
 
     gen_host_interface_exe.addIncludePath(b.path("src"));
     gen_host_interface_exe.addCSourceFiles(.{
         .files = gen_host_interface_sources,
         .flags = gen_host_interface_compile_flags.items,
     });
+
+    if (target.result.os.tag == .windows) {
+        gen_host_interface_exe.linkSystemLibrary("user32");
+        gen_host_interface_exe.linkSystemLibrary("shlwapi");
+    }
 
     const gen_host_interface_install = b.addInstallArtifact(gen_host_interface_exe, .{});
 
@@ -1220,7 +1225,7 @@ pub fn build(b: *Build) !void {
         }),
     });
     orca_launcher_exe.addIncludePath(b.path("src"));
-    orca_launcher_exe.addIncludePath(b.path("src/ext"));
+    orca_launcher_exe.addIncludePath(b.path("src/ext/curl/include"));
     orca_launcher_exe.addIncludePath(angle_include_path);
 
     orca_launcher_exe.root_module.addRPathSpecial("@executable_path/");
