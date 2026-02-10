@@ -13,3 +13,4 @@
 #include "platform/win32_io.c"
 #include "platform/win32_thread.c"
 #include "platform/win32_platform.c"
+#include "platform/win32_subprocess.c"

@@ -256,7 +256,17 @@ int make_app_macos(void)
     return 0;
 }
 
+int make_app_win32(void)
+{
+    //TODO
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
+#ifdef OC_PLATFORM_MACOS
     return make_app_macos();
+#elif OC_PLATFORM_WINDOWS
+    return make_app_win32();
+#endif
 }
