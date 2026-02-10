@@ -1,6 +1,7 @@
 #include "util/typedefs.h"
 #include "util/memory.h"
 #include "util/strings.h"
+#include "platform/io.h"
 #include "ext/libzip/lib/zip.h"
 #include <sys/stat.h>
 #include <unistd.h>
@@ -229,12 +230,24 @@ int oc_tool_bundle(oc_tool_options* options)
 
     oc_str8 template = oc_str8_pushf(scratch.arena, "/tmp/%.*s.XXXXXX", oc_str8_ip(options->name));
     //TODO: check error
-    oc_str8 tmpDir = OC_STR8(mkdtemp(template.ptr));
 
-    oc_str8 modDir = oc_path_append(scratch.arena, tmpDir, OC_STR8("modules/"));
-    oc_file_makedir(modDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-    oc_str8 resDir = oc_path_append(scratch.arena, tmpDir, OC_STR8("data/"));
-    oc_file_makedir(resDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
+    {
+        oc_log_error("Couldn't create tmp directory.\n");
+        return -1;
+    }
+    oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
+    {
+        oc_log_error("Couldn't get name of tmp directory.\n");
+        return -1;
+    }
+    oc_str8 tmpPath = oc_str8_pushf(scratch.arena, "/tmp/%.*s", oc_str8_ip(tmpName));
+    oc_file_close(tmpDir);
+
+    oc_str8 modPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("modules/"));
+    oc_file_makedir(modPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_str8 resPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("data/"));
+    oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
 
     //NOTE: copy modules
     bool foundMain = false;
@@ -244,7 +257,7 @@ int oc_tool_bundle(oc_tool_options* options)
         {
             foundMain = true;
         }
-        oc_file_copy(options->modules[i], modDir, 0);
+        oc_file_copy(options->modules[i], modPath, 0);
     }
     if(!foundMain)
     {
@@ -260,12 +273,12 @@ int oc_tool_bundle(oc_tool_options* options)
         {
             dir = oc_str8_pushf(scratch.arena, "%.*s/", oc_str8_ip(dir));
         }
-        oc_file_copy(dir, resDir, 0);
+        oc_file_copy(dir, resPath, 0);
     }
 
     for(int i = 0; i < options->resFileCount; i++)
     {
-        oc_file_copy(options->resFiles[i], resDir, 0);
+        oc_file_copy(options->resFiles[i], resPath, 0);
     }
 
     //NOTE: copy icon
@@ -273,13 +286,13 @@ int oc_tool_bundle(oc_tool_options* options)
     {
         oc_str8 ext = oc_path_slice_extension(options->icon);
         oc_str8 name = oc_str8_pushf(scratch.arena, "thumbnail%.*s", oc_str8_ip(ext));
-        oc_str8 path = oc_path_append(scratch.arena, resDir, name);
+        oc_str8 path = oc_path_append(scratch.arena, resPath, name);
         oc_file_copy(options->icon, path, 0);
     }
 
     //NOTE: zip folder to out directory
     int status = 0;
-    oc_str8 outDir = options->standalone ? tmpDir : options->outDir;
+    oc_str8 outDir = options->standalone ? tmpPath : options->outDir;
     oc_str8 outFile = oc_str8_pushf(scratch.arena,
                                     "%.*s/%.*s.orca",
                                     oc_str8_ip(outDir),
@@ -293,8 +306,8 @@ int oc_tool_bundle(oc_tool_options* options)
     }
     else
     {
-        add_to_archive(zip, modDir, OC_STR8("modules"));
-        add_to_archive(zip, resDir, OC_STR8("data"));
+        add_to_archive(zip, modPath, OC_STR8("modules"));
+        add_to_archive(zip, resPath, OC_STR8("data"));
 
         zip_close(zip);
     }

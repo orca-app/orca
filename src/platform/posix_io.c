@@ -463,7 +463,7 @@ oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer)
     }
 }
 
-oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
+oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
 {
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8 template = oc_str8_push_cstring(scratch.arena, "/tmp/orca.XXXXXX");
@@ -472,6 +472,7 @@ oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
 
     if(flags & OC_FILE_MAKETMP_DIRECTORY)
     {
+        //TODO: there's a race here
         char* path = mkdtemp(template.ptr);
         if(path)
         {
@@ -490,6 +491,11 @@ oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
     }
     else
     {
+        oc_str8 name = oc_path_slice_filename(template);
+        slot->name.len = name.len;
+        slot->name.ptr = malloc(name.len);
+        memcpy(slot->name.ptr, name.ptr, name.len);
+
         return oc_result_value(oc_fd_result, fd);
     }
 }

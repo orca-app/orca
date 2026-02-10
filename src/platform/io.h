@@ -70,6 +70,7 @@ enum oc_io_op_enum
     OC_IO_MAKE_DIR,
     OC_IO_REMOVE,
     OC_IO_COPY,
+    OC_IO_GETNAME,
     OC_OC_IO_ERROR,
     //...
 };
@@ -248,6 +249,9 @@ typedef struct oc_file_status
 
 ORCA_API oc_file_status oc_file_get_status(oc_file file);
 ORCA_API u64 oc_file_size(oc_file file);
+
+typedef oc_result_type(oc_str8, oc_io_error) oc_file_name_result;
+ORCA_API oc_file_name_result oc_file_name(oc_arena* arena, oc_file file);
 
 typedef enum oc_file_maketmp_flags
 {
