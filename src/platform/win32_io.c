@@ -427,7 +427,7 @@ oc_io_error oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
     return err;
 }
 
-oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
+oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
 {
     oc_io_error err = OC_IO_OK;
     HANDLE tmpFile = INVALID_HANDLE_VALUE;
@@ -517,6 +517,15 @@ oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags)
             if(tmpFile == INVALID_HANDLE_VALUE)
             {
                 err = oc_fd_last_error();
+            }
+            else
+            {
+                oc_str8 tmpFileName = oc_win32_wide_to_utf8(scratch.arena,
+                                                            oc_str16_from_buffer(lstrlenW(tmpFileNameW),
+                                                                                 tmpFileNameW));
+                slot->name.len = tmpFileName.len;
+                slot->name.ptr = malloc(slot->name.len);
+                memcpy(slot->name.ptr, tmpFileName.ptr, slot->name.len);
             }
         }
     }
