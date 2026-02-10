@@ -40,6 +40,10 @@ oc_file_slot* oc_file_slot_alloc(oc_file_table* table)
 
 void oc_file_slot_recycle(oc_file_table* table, oc_file_slot* slot)
 {
+    if(slot->name.ptr)
+    {
+        free(slot->name.ptr);
+    }
     slot->generation++;
     oc_list_push_front(&table->freeList, &slot->freeListElt);
 }
@@ -512,8 +516,25 @@ oc_io_cmp oc_io_write(oc_io_req* req, oc_file_table* table)
     return (cmp);
 }
 
-//TODO: remove
-static oc_io_error oc_fd_convert_errno();
+oc_io_cmp oc_io_getname(oc_io_req* req, oc_file_table* table)
+{
+    oc_io_cmp cmp = { 0 };
+    oc_file_slot* slot = oc_catch(oc_file_slot_with_access(table, req->handle, OC_FILE_ACCESS_READ))
+    {
+        cmp.error = oc_last_error();
+        return cmp;
+    }
+    else if(req->size < slot->name.len)
+    {
+        cmp.error = OC_IO_ERR_ARG;
+    }
+    else
+    {
+        cmp.size = slot->name.len;
+        memcpy(req->buffer, slot->name.ptr, slot->name.len);
+    }
+    return cmp;
+}
 
 oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
 {
@@ -527,7 +548,7 @@ oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
     else
     {
         slot->rights = OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE;
-        slot->fd = oc_catch(oc_fd_maketmp(req->makeTmpFlags))
+        slot->fd = oc_catch(oc_fd_maketmp(slot, req->makeTmpFlags))
         {
             cmp.error = oc_last_error();
         }
@@ -813,6 +834,10 @@ oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table)
 
         case OC_IO_SEEK:
             cmp = oc_io_seek(req, table);
+            break;
+
+        case OC_IO_GETNAME:
+            cmp = oc_io_getname(req, table);
             break;
 
         case OC_IO_MAKE_TMP:

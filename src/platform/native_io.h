@@ -39,6 +39,7 @@ typedef struct oc_file_slot
     oc_file_access rights;
     oc_file_desc fd;
 
+    oc_str8 name;
 } oc_file_slot;
 
 enum
@@ -123,7 +124,7 @@ typedef oc_result_type(u64, oc_io_error) oc_fd_readwrite_result;
 oc_fd_readwrite_result oc_fd_read(oc_file_desc fd, u64 size, char* buffer);
 oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer);
 
-oc_fd_result oc_fd_maketmp(oc_file_maketmp_flags flags);
+oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags);
 oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path);
 oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags flags);
 

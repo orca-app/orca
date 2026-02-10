@@ -123,6 +123,35 @@ u64 oc_file_size(oc_file file)
     return (status.size);
 }
 
+oc_file_name_result oc_file_name(oc_arena* arena, oc_file file)
+{
+    oc_file_name_result result = { 0 };
+
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    u64 size = 4096;
+    char* buffer = oc_arena_push_array_uninitialized(scratch.arena, char, size);
+    oc_io_req req = {
+        .op = OC_IO_GETNAME,
+        .handle = file,
+        .size = size,
+        .buffer = buffer,
+    };
+
+    oc_io_cmp cmp = oc_io_wait_single_req(&req);
+    if(cmp.error)
+    {
+        result = oc_result_error(oc_file_name_result, cmp.error);
+    }
+    else
+    {
+        oc_str8 string = oc_str8_push_copy(arena, oc_str8_from_buffer(cmp.size, req.buffer));
+        result = oc_result_value(oc_file_name_result, string);
+    }
+
+    oc_scratch_end(scratch);
+    return result;
+}
+
 oc_file_result oc_file_maketmp(oc_file_maketmp_flags flags)
 {
     oc_io_req req = {

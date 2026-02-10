@@ -412,9 +412,18 @@ int load_app(oc_runtime* app)
 
     oc_str8 appDir = { 0 };
     {
-        oc_str8 template = oc_str8_pushf(scratch.arena, "/tmp/%.*s.XXXXXX", oc_str8_ip(appName));
-        //TODO check errors
-        appDir = OC_STR8(mkdtemp(template.ptr));
+        oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
+        {
+            oc_log_error("Couldn't create temporary directory\n");
+            return -1;
+        }
+        appDir = oc_catch(oc_file_name(scratch.arena, tmpDir))
+        {
+            oc_log_error("Couldn't get temporary directory name\n");
+            return -1;
+        }
+        appDir = oc_str8_pushf(scratch.arena, "/tmp/%.*s", oc_str8_ip(appDir));
+        oc_file_close(tmpDir);
     }
 
     int err = oc_zip_extract(app->path, appDir);
