@@ -2039,4 +2039,5 @@ pub fn build(b: *Build) !void {
 
         test_subprocess.dependOn(&run_test.step);
     }
+    tests.dependOn(test_subprocess);
 }
