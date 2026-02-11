@@ -304,25 +304,3 @@ end:
     free(subprocess);
     return result;
 }
-
-oc_subprocess_result oc_subprocess_wait(oc_subprocess subprocess)
-{
-    return oc_subprocess_read_and_wait(0, subprocess);
-}
-
-oc_subprocess_result oc_subprocess_run(int argc, char** argv, oc_subprocess_run_options* options)
-{
-    oc_subprocess_run_options runOption = options ? *options : (oc_subprocess_run_options){ 0 };
-
-    oc_subprocess_spawn_options spawnOptions = {
-        .stdIn = runOption.stdIn,
-        .stdOut = runOption.stdOut,
-        .stdErr = runOption.stdErr,
-    };
-    oc_subprocess subprocess = oc_catch(oc_subprocess_spawn(argc, argv, &spawnOptions))
-    {
-        return oc_result_error(oc_subprocess_result, oc_last_error());
-    }
-
-    return oc_subprocess_read_and_wait(runOption.captureArena, subprocess);
-}

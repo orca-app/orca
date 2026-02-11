@@ -184,7 +184,7 @@ typedef struct test_subprocess_options
 
 } test_subprocess_options;
 
-oc_str8 CHILD_TEST_STRING = OC_STR8_LIT("Hello world\n");
+oc_str8 CHILD_TEST_STRING = OC_STR8_LIT("Hello world");
 
 int run_child(test_subprocess_options* options)
 {
@@ -287,7 +287,7 @@ int run_tests(test_subprocess_options* options)
                     oc_test_fail(&info,
                                  "captured output does not match test string. Received \"%.*s\" (expected \"%.*s\")",
                                  oc_str8_ip(comp.capturedStdout),
-                                 CHILD_TEST_STRING);
+                                 oc_str8_ip(CHILD_TEST_STRING));
                 }
                 else
                 {
@@ -363,7 +363,7 @@ int run_tests(test_subprocess_options* options)
                 oc_test_fail(&info,
                              "captured output does not match test string. Received \"%.*s\" (expected \"%.*s\")",
                              oc_str8_ip(comp.capturedStdout),
-                             CHILD_TEST_STRING);
+                             oc_str8_ip(CHILD_TEST_STRING));
             }
             else
             {
@@ -373,7 +373,6 @@ int run_tests(test_subprocess_options* options)
             oc_scratch_end(scratch);
         }
     }
-
     oc_test_summary(&info);
     return info.totalFailed ? -1 : 0;
 }
