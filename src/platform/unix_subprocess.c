@@ -1,7 +1,7 @@
 #include <unistd.h>
 #include <errno.h>
 
-#include "subprocess.h"
+#include "subprocess.c"
 
 typedef struct oc_subprocess_info
 {
@@ -45,7 +45,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
     int childStdOut[2] = { 0 };
     int childStdErr[2] = { 0 };
 
-    if(options.stdOut == OC_SUBPROCESS_STDIO_PIPE)
+    if(options.stdIn == OC_SUBPROCESS_STDIO_PIPE)
     {
         oc_subprocess_error error = oc_subprocess_create_pipes(childStdIn);
         if(error != OC_SUBPROCESS_OK)
@@ -54,7 +54,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         }
     }
 
-    if(options.stdErr == OC_SUBPROCESS_STDIO_PIPE)
+    if(options.stdOut == OC_SUBPROCESS_STDIO_PIPE)
     {
         oc_subprocess_error error = oc_subprocess_create_pipes(childStdOut);
         if(error != OC_SUBPROCESS_OK)
@@ -314,12 +314,14 @@ oc_subprocess_result oc_subprocess_run(int argc, char** argv, oc_subprocess_run_
 {
     oc_subprocess_run_options runOption = options ? *options : (oc_subprocess_run_options){ 0 };
 
-    oc_subprocess_spawn_options spawnOptions = {};
-    oc_subprocess_spawn_result spawn = oc_subprocess_spawn(argc, argv, &spawnOptions);
-
-    oc_subprocess subprocess = oc_catch(spawn)
+    oc_subprocess_spawn_options spawnOptions = {
+        .stdIn = runOption.stdIn,
+        .stdOut = runOption.stdOut,
+        .stdErr = runOption.stdErr,
+    };
+    oc_subprocess subprocess = oc_catch(oc_subprocess_spawn(argc, argv, &spawnOptions))
     {
-        return oc_result_error(oc_subprocess_result, spawn.error);
+        return oc_result_error(oc_subprocess_result, oc_last_error());
     }
 
     return oc_subprocess_read_and_wait(runOption.captureArena, subprocess);

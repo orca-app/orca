@@ -1022,6 +1022,7 @@ int oc_arg_parser_parse(oc_arg_parser* parser, int argc, char** argv)
                 }
                 argIndex++;
             }
+            argIndex -= 1; // cancel next loop increment
             if(!count)
             {
                 oc_arg_parser_error(parser, "option -%c requires an argument.\n", arg->options.shortName);

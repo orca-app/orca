@@ -69,3 +69,5 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
 oc_subprocess_result oc_subprocess_wait(oc_subprocess subprocess);
 oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess subprocess);
 oc_subprocess_result oc_subprocess_kill(oc_subprocess subprocess);
+
+oc_str8 oc_subprocess_error_string(oc_subprocess_error error);
