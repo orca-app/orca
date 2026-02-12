@@ -241,61 +241,6 @@ fn buildOrcaApp(
     }
 }
 
-fn installOrcaSdk(
-    b: *Build,
-    target: ResolvedTarget,
-    build_orca: *Step,
-    package_sdk_exe: *Step.Compile,
-    sdk_install_path_opt: ?[]const u8,
-    git_version_opt: ?[]const u8,
-    opt_sdk_version: ?[]const u8,
-) !*Step.Run {
-    const SdkHelpers = struct {
-        fn addAbsolutePathArg(b_: *Build, target_: ResolvedTarget, run: *Build.Step.Run, prefix: []const u8, path: []const u8) void {
-            if (path.len == 0) {
-                return;
-            }
-
-            var path_absolute: []const u8 = path;
-
-            if (std.fs.path.isAbsolute(path_absolute) == false) {
-                if (path_absolute[0] == '~') {
-                    const home: []const u8 = homePath(target_, b_);
-                    path_absolute = std.fs.path.join(b_.allocator, &.{ home, path_absolute[1..] }) catch @panic("OOM");
-                } else {
-                    path_absolute = b_.pathFromRoot(path);
-                }
-            }
-
-            const sdk_path = std.mem.join(b_.allocator, "", &.{ prefix, path_absolute }) catch @panic("OOM");
-            run.addArg(sdk_path);
-        }
-    };
-
-    const orca_install: *Build.Step.Run = b.addRunArtifact(package_sdk_exe);
-    orca_install.addPrefixedDirectoryArg("--artifacts-path=", LazyPath{ .cwd_relative = b.install_path });
-    orca_install.addPrefixedDirectoryArg("--resources-path=", b.path("resources"));
-    orca_install.addPrefixedDirectoryArg("--src-path=", b.path("src"));
-    orca_install.addArg(b.fmt("--target-os={s}", .{@tagName(target.result.os.tag)}));
-
-    if (sdk_install_path_opt) |sdk_install_path| {
-        SdkHelpers.addAbsolutePathArg(b, target, orca_install, "--sdk-path=", sdk_install_path);
-    }
-
-    if (git_version_opt) |git_version| {
-        orca_install.addArg(b.fmt("--version={s}", .{git_version}));
-    }
-
-    if (opt_sdk_version) |sdk_version| {
-        const version: []const u8 = try std.mem.join(b.allocator, "", &.{ "--version=", sdk_version });
-        orca_install.addArg(version);
-    }
-
-    orca_install.step.dependOn(build_orca);
-
-    return orca_install;
-}
-
 pub fn build_libzip(b: *Build, zlib: *Build.Step.Compile, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *Build.Step.Compile {
     const lib_mod = b.createModule(.{
         .target = target,
@@ -910,30 +855,34 @@ pub fn build(b: *Build) !void {
     }
 
     /////////////////////////////////////////////////////////
-    // binding generator
+    // Orca runtime and dependencies
 
-    const bindgen_exe: *Build.Step.Compile = b.addExecutable(.{
-        .name = "bindgen",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/build/bindgen.zig"),
-            .target = b.graph.host,
-            .optimize = .Debug,
-        }),
-    });
+    const stage_angle_dawn_src = b.addUpdateSourceFiles();
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/egl.h"), "src/ext/angle/include/EGL/egl.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglext.h"), "src/ext/angle/include/EGL/eglext.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglext_angle.h"), "src/ext/angle/include/EGL/eglext_angle.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglplatform.h"), "src/ext/angle/include/EGL/eglplatform.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/egl.h"), "src/ext/angle/include/GLES/egl.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/gl.h"), "src/ext/angle/include/GLES/gl.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/glext.h"), "src/ext/angle/include/GLES/glext.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/glplatform.h"), "src/ext/angle/include/GLES/glplatform.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2.h"), "src/ext/angle/include/GLES2/gl2.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2ext.h"), "src/ext/angle/include/GLES2/gl2ext.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2ext_angle.h"), "src/ext/angle/include/GLES2/gl2ext_angle.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2platform.h"), "src/ext/angle/include/GLES2/gl2platform.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl3.h"), "src/ext/angle/include/GLES3/gl3.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl31.h"), "src/ext/angle/include/GLES3/gl31.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl32.h"), "src/ext/angle/include/GLES3/gl32.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl3platform.h"), "src/ext/angle/include/GLES3/gl3platform.h");
+    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "KHR/khrplatform.h"), "src/ext/angle/include/KHR/khrplatform.h");
+    stage_angle_dawn_src.addCopyFileToSource(try dawn_include_path.join(b.allocator, "webgpu.h"), "src/ext/dawn/include/webgpu.h");
 
-    const bindgen_install = b.addInstallArtifact(bindgen_exe, .{});
-
-    const bindgen_run: *Build.Step.Run = b.addRunArtifact(bindgen_exe);
-    if (b.args) |args| {
-        bindgen_run.addArgs(args);
-    }
-    bindgen_run.step.dependOn(&bindgen_install.step);
-
-    const bindgen_step = b.step("run-bindgen", "Generate wasm bindings from a json spec file");
-    bindgen_step.dependOn(&bindgen_run.step);
+    // copy angle + dawn libs to output directory
+    const install_angle_libs = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = .bin, .install_subdir = "" });
+    const install_dawn_libs = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = .bin, .install_subdir = "" });
 
     /////////////////////////////////////////////////////////
-    // binding generator (wip)
+    // binding generator
 
     const gen_host_interface_exe: *Build.Step.Compile = b.addExecutable(.{
         .name = "gen_host_interface",
@@ -975,33 +924,6 @@ pub fn build(b: *Build) !void {
 
     const gen_host_interface_step = b.step("gen-host-interface", "Generate wasm bindings from a json spec file");
     gen_host_interface_step.dependOn(&gen_host_interface_run.step);
-
-    /////////////////////////////////////////////////////////
-    // Orca runtime and dependencies
-
-    const stage_angle_dawn_src = b.addUpdateSourceFiles();
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/egl.h"), "src/ext/angle/include/EGL/egl.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglext.h"), "src/ext/angle/include/EGL/eglext.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglext_angle.h"), "src/ext/angle/include/EGL/eglext_angle.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "EGL/eglplatform.h"), "src/ext/angle/include/EGL/eglplatform.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/egl.h"), "src/ext/angle/include/GLES/egl.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/gl.h"), "src/ext/angle/include/GLES/gl.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/glext.h"), "src/ext/angle/include/GLES/glext.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES/glplatform.h"), "src/ext/angle/include/GLES/glplatform.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2.h"), "src/ext/angle/include/GLES2/gl2.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2ext.h"), "src/ext/angle/include/GLES2/gl2ext.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2ext_angle.h"), "src/ext/angle/include/GLES2/gl2ext_angle.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES2/gl2platform.h"), "src/ext/angle/include/GLES2/gl2platform.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl3.h"), "src/ext/angle/include/GLES3/gl3.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl31.h"), "src/ext/angle/include/GLES3/gl31.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl32.h"), "src/ext/angle/include/GLES3/gl32.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "GLES3/gl3platform.h"), "src/ext/angle/include/GLES3/gl3platform.h");
-    stage_angle_dawn_src.addCopyFileToSource(try angle_include_path.join(b.allocator, "KHR/khrplatform.h"), "src/ext/angle/include/KHR/khrplatform.h");
-    stage_angle_dawn_src.addCopyFileToSource(try dawn_include_path.join(b.allocator, "webgpu.h"), "src/ext/dawn/include/webgpu.h");
-
-    // copy angle + dawn libs to output directory
-    const install_angle_libs = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = .bin, .install_subdir = "" });
-    const install_dawn_libs = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = .bin, .install_subdir = "" });
 
     // generate wasm bindings
 
@@ -1229,6 +1151,7 @@ pub fn build(b: *Build) !void {
     orca_launcher_exe.addIncludePath(angle_include_path);
 
     orca_launcher_exe.root_module.addRPathSpecial("@executable_path/");
+    orca_launcher_exe.root_module.addCMacro("CURL_STATICLIB", "1");
 
     orca_launcher_exe.addCSourceFiles(.{
         .files = &.{"src/launcher/main.c"},
@@ -1518,6 +1441,7 @@ pub fn build(b: *Build) !void {
             .target = b.graph.host,
             .optimize = .Debug,
             .link_libc = true,
+            .sanitize_c = .off,
         }),
     });
     makeapp_exe.addIncludePath(b.path("src"));
@@ -1540,11 +1464,6 @@ pub fn build(b: *Build) !void {
     makeapp.step.dependOn(&libc_header_install.step);
     makeapp.step.dependOn(&dummy_crt_install.step);
     makeapp.step.dependOn(&wasm_sdk_install.step);
-
-    ///////////////////////////////////////////////////////////////
-    // build only platform layer
-    const build_platform = b.step("orca-platform-layer", "Build orca platform layer");
-    build_platform.dependOn(&orca_platform_install.step);
 
     ///////////////////////////////////////////////////////////////
     // zig build - default install step builds and installs a dev build of orca

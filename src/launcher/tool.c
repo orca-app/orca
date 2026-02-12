@@ -308,7 +308,6 @@ int oc_tool_bundle(oc_tool_options* options)
     {
         add_to_archive(zip, modPath, OC_STR8("modules"));
         add_to_archive(zip, resPath, OC_STR8("data"));
-
         zip_close(zip);
     }
 

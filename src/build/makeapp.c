@@ -256,9 +256,119 @@ int make_app_macos(void)
     return 0;
 }
 
+#include "win32_icon.c"
+
 int make_app_win32(void)
 {
-    //TODO
+    oc_arena_scope scratch = oc_scratch_begin();
+
+    oc_str8 name = OC_STR8("Orca");
+    oc_str8 exec = OC_STR8("orca.exe");
+    oc_str8 icon = OC_STR8("resources/orca_icon.png");
+    oc_str8 outDir = OC_STR8("zig-out");
+
+    //-----------------------------------------------------------
+    //NOTE: make directory structure
+    //-----------------------------------------------------------
+    oc_str8 appDir = oc_path_append(scratch.arena, outDir, name);
+    oc_str8 exeDir = oc_path_append(scratch.arena, appDir, OC_STR8("bin"));
+    oc_str8 resDir = oc_path_append(scratch.arena, appDir, OC_STR8("resources"));
+    oc_str8 sdkDir = oc_path_append(scratch.arena, appDir, OC_STR8("SDK"));
+    oc_str8 sdkSrcDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("src"));
+    oc_str8 sdkLibCDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("orca-libc"));
+    oc_str8 sdkLibDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("lib"));
+
+    oc_io_error error = oc_file_remove(appDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+    if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
+    {
+        printf("Could not remove existing app directory\n");
+        return -1;
+    }
+    oc_file_makedir(appDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_makedir(exeDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_makedir(resDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+
+    //-----------------------------------------------------------
+    //NOTE: copy binaries
+    //-----------------------------------------------------------
+    //TODO errors
+    oc_file_copy(OC_STR8("./zig-out/bin/orca.exe"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/orca_runtime.exe"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/orca_platform.dll"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/libEGL.dll"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/libGLESv2.dll"), exeDir, 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/webgpu.dll"), exeDir, 0);
+
+    //copy manifest
+    oc_file_copy(OC_STR8("./src/app/win32_manifest.manifest"), exeDir, 0);
+    //-----------------------------------------------------------
+    //NOTE: copy data
+    //-----------------------------------------------------------
+    oc_file_copy(OC_STR8("resources/Menlo.ttf"), resDir, 0);
+    oc_file_copy(OC_STR8("resources/Menlo Bold.ttf"), resDir, 0);
+
+    //-----------------------------------------------------------
+    //NOTE copy SDK
+    //-----------------------------------------------------------
+    oc_str8_list ignore = { 0 };
+
+    copy_headers(OC_STR8("./src/app"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("app")), ignore);
+    copy_headers(OC_STR8("./src/graphics"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("graphics")), ignore);
+    copy_headers(OC_STR8("./src/platform"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("platform")), ignore);
+    copy_headers(OC_STR8("./src/ui"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ui")), ignore);
+    copy_headers(OC_STR8("./src/util"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("util")), ignore);
+
+    copy_headers(OC_STR8("./src/ext/angle"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/angle")), ignore);
+    copy_headers(OC_STR8("./src/ext/dawn"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/dawn")), ignore);
+    copy_headers(OC_STR8("./src/ext/GL"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/GL")), ignore);
+    copy_headers(OC_STR8("./src/ext/KHR"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/KHR")), ignore);
+    copy_headers(OC_STR8("./src/ext/stb"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/stb")), ignore);
+
+    oc_file_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("orca.h")), 0);
+    oc_file_copy(OC_STR8("./zig-out/orca-libc"), sdkLibCDir, 0);
+
+    oc_file_makedir(sdkLibDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_file_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a")), 0);
+
+    //-----------------------------------------------------------
+    //NOTE make icon
+    //-----------------------------------------------------------
+    {
+        oc_str8 tmpDir = oc_path_append(scratch.arena, appDir, OC_STR8("tmp"));
+
+        oc_io_error error = oc_file_remove(tmpDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+        if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
+        {
+            printf("Could not remove existing tmp directory\n");
+            return -1;
+        }
+
+        oc_file_makedir(tmpDir, 0);
+
+        oc_str8 icoPath = oc_path_append(scratch.arena, tmpDir, OC_STR8("icon.ico"));
+        if(!icon_from_image(scratch.arena, icon, icoPath))
+        {
+            fprintf(stderr, "failed to create windows icon for \"%.*s\"\n", oc_str8_ip(icon));
+            return -1;
+        }
+
+        oc_str8 execPath = oc_path_append(scratch.arena, exeDir, exec);
+        if(!embed_icon_into_exe(scratch.arena,
+                                execPath,
+                                icoPath))
+        {
+            fprintf(stderr, "failed to embed icon into exe file %.*s", oc_str8_ip(execPath));
+            return -1;
+        }
+
+        error = oc_file_remove(tmpDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+        if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
+        {
+            printf("Could not remove tmp directory\n");
+            return -1;
+        }
+    }
+
     return 0;
 }
 
