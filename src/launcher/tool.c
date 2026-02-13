@@ -224,25 +224,30 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 int oc_tool_bundle(oc_tool_options* options)
 {
     //NOTE: bundle orca app file
-    //TODO: make temp directory structure, then copy resources/binaries into it/compress
-
     oc_arena_scope scratch = oc_scratch_begin();
 
-    oc_str8 template = oc_str8_pushf(scratch.arena, "/tmp/%.*s.XXXXXX", oc_str8_ip(options->name));
-    //TODO: check error
+    oc_str8 tmpPath = { 0 };
+    {
+        //TODO: this is a bit of an involved way to get a _path_ to a temp dir, because
+        // orca apis are explicitly designed to not give a full path to a tmp file (and
+        // instead give an anonymous _handle_ to the newly created tmp file/dir), whereas
+        // libzip needs a _path_ to work with (unless we implement zip_source_t for oc_file
+        // handles, which we could do later...)
 
-    oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
-    {
-        oc_log_error("Couldn't create tmp directory.\n");
-        return -1;
+        oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
+        {
+            oc_log_error("Couldn't create tmp directory.\n");
+            return -1;
+        }
+        oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
+        {
+            oc_log_error("Couldn't get name of tmp directory.\n");
+            return -1;
+        }
+        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.arena);
+        tmpPath = oc_path_append(scratch.arena, tmpFilesPath, tmpName);
+        oc_file_close(tmpDir);
     }
-    oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
-    {
-        oc_log_error("Couldn't get name of tmp directory.\n");
-        return -1;
-    }
-    oc_str8 tmpPath = oc_str8_pushf(scratch.arena, "/tmp/%.*s", oc_str8_ip(tmpName));
-    oc_file_close(tmpDir);
 
     oc_str8 modPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("modules/"));
     oc_file_makedir(modPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });

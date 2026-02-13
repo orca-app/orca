@@ -709,3 +709,9 @@ oc_io_error oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
     }
     return err;
 }
+
+oc_str8 oc_file_tmp_directory_path(oc_arena* arena)
+{
+    oc_str8 path = oc_str8_push_copy(arena, OC_STR8("/tmp"));
+    return path;
+}

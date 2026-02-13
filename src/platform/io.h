@@ -250,9 +250,6 @@ typedef struct oc_file_status
 ORCA_API oc_file_status oc_file_get_status(oc_file file);
 ORCA_API u64 oc_file_size(oc_file file);
 
-typedef oc_result_type(oc_str8, oc_io_error) oc_file_name_result;
-ORCA_API oc_file_name_result oc_file_name(oc_arena* arena, oc_file file);
-
 typedef enum oc_file_maketmp_flags
 {
     OC_FILE_MAKETMP_FILE = 0,
@@ -344,6 +341,20 @@ ORCA_API oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory);
 //----------------------------------------------------------------
 
 ORCA_API oc_file oc_file_open_with_request(oc_str8 path, oc_file_access rights, oc_file_open_flags flags);
+
+//----------------------------------------------------------------
+// Temporary. For now this is only used to get name of temp files
+//----------------------------------------------------------------
+
+typedef oc_result_type(oc_str8, oc_io_error) oc_file_name_result;
+ORCA_API oc_file_name_result oc_file_name(oc_arena* arena, oc_file file);
+
+//----------------------------------------------------------------
+// Temporary. Get path of temp files directory
+//----------------------------------------------------------------
+#ifndef OC_PLATFORM_ORCA
+ORCA_API oc_str8 oc_file_tmp_directory_path(oc_arena* arena);
+#endif
 
 #ifdef __cplusplus
 }

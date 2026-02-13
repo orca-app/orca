@@ -410,17 +410,19 @@ int load_app(oc_runtime* app)
 
     oc_str8 appDir = { 0 };
     {
+        //NOTE: create a temp dir to uncompress the image and get its full path
         oc_file tmpDir = oc_catch(oc_file_maketmp(OC_FILE_MAKETMP_DIRECTORY))
         {
             oc_log_error("Couldn't create temporary directory\n");
             return -1;
         }
-        appDir = oc_catch(oc_file_name(scratch.arena, tmpDir))
+        oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
         {
             oc_log_error("Couldn't get temporary directory name\n");
             return -1;
         }
-        appDir = oc_str8_pushf(scratch.arena, "/tmp/%.*s", oc_str8_ip(appDir));
+        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.arena);
+        appDir = oc_path_append(scratch.arena, tmpFilesPath, tmpName);
         oc_file_close(tmpDir);
     }
 

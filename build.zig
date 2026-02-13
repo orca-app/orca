@@ -1456,6 +1456,7 @@ pub fn build(b: *Build) !void {
         makeapp_exe.linkSystemLibrary("shlwapi");
     }
     const makeapp = b.addRunArtifact(makeapp_exe);
+    makeapp.setCwd(b.path(".")); // currently makeapp needs to be run at the root of the repo
 
     makeapp.step.dependOn(&orca_platform_install.step);
     makeapp.step.dependOn(&orca_runtime_exe_install.step);
