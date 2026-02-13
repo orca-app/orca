@@ -249,6 +249,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 }
 
 #elif OC_PLATFORM_WINDOWS
+    #include "platform/win32_string_helpers.h"
 
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
@@ -261,6 +262,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.arena, &list, OC_STR8("AppData/orca"));
 
     oc_str8 path = oc_path_join(arena, list);
+    oc_win32_path_normalize_slash_in_place(path);
 
     oc_scratch_end(scratch);
 
@@ -318,7 +320,7 @@ int oc_zip_extract(oc_str8 src, oc_str8 dst)
                 {
                     goto error;
                 }
-                FILE* dstFile = fopen(dstPath.ptr, "w");
+                FILE* dstFile = fopen(dstPath.ptr, "wb");
                 if(!dstFile)
                 {
                     goto error;
@@ -388,7 +390,6 @@ oc_str8 standalone_app_name(oc_arena* arena)
     oc_scratch_end(scratch);
     return result;
 }
-
 #endif
 
 int load_app(oc_runtime* app)
@@ -398,7 +399,11 @@ int load_app(oc_runtime* app)
     oc_str8 orcaDir = get_orca_home_dir(scratch.arena);
 
     //TODO: path could be URL/installed app/app file. For now, only handle app files
-    //TODO: unzip the app in orca home directory, and call orca_run with path to app directory
+
+    //TODO: remove this once we've decided how to handle windows path in a better way
+#if OC_PLATFORM_WINDOWS
+    oc_win32_path_normalize_slash_in_place(app->path);
+#endif
 
     oc_str8 appName = { 0 };
     {
@@ -451,6 +456,10 @@ int load_app(oc_runtime* app)
 
         dataDirDest = oc_path_join(scratch.arena, list);
     }
+    oc_file_makedir(dataDirDest,
+                    &(oc_file_makedir_options){
+                        .flags = OC_FILE_MAKEDIR_CREATE_PARENTS | OC_FILE_MAKEDIR_IGNORE_EXISTING,
+                    });
     oc_file_copy(dataDirSrc,
                  dataDirDest,
                  &(oc_file_copy_options){

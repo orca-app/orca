@@ -565,8 +565,6 @@ oc_io_cmp oc_io_maketmp(oc_io_req* req, oc_file_table* table)
     return cmp;
 }
 
-#include <sys/stat.h>
-
 oc_io_cmp oc_io_makedir(oc_io_req* req, oc_file_table* table)
 {
     oc_io_cmp cmp = { 0 };

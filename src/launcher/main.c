@@ -149,9 +149,11 @@ int oc_tool_run(oc_tool_options* options)
     oc_arena_scope scratch = oc_scratch_begin();
 
     //TODO: if options->app is a URL, download it here
-
+#if OC_PLATFORM_WINDOWS
+    oc_str8 runtimeExe = oc_path_executable_relative(scratch.arena, OC_STR8("./orca_runtime.exe"));
+#else
     oc_str8 runtimeExe = oc_path_executable_relative(scratch.arena, OC_STR8("./orca_runtime"));
-
+#endif
     //TODO: we don't want to capture ouput from that process...
     char* appCStr = oc_str8_to_cstring(scratch.arena, options->app);
     oc_subprocess_spawn_result result = oc_subprocess_spawn(2, (char*[]){ runtimeExe.ptr, appCStr }, 0);
