@@ -47,6 +47,8 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
     oc_scratch_end(scratch);
 }
 
+#if OC_PLATFORM_MACOS
+
 int make_app_macos(void)
 {
     oc_arena_scope scratch = oc_scratch_begin();
@@ -256,7 +258,8 @@ int make_app_macos(void)
     return 0;
 }
 
-#include "win32_icon.c"
+#elif OC_PLATFORM_WINDOWS
+    #include "win32_icon.c"
 
 int make_app_win32(void)
 {
@@ -371,6 +374,7 @@ int make_app_win32(void)
 
     return 0;
 }
+#endif
 
 int main(int argc, char** argv)
 {
