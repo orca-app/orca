@@ -22,7 +22,7 @@
 #include "platform/platform.h"
 #include "platform/platform_clock.h"
 #include "platform/io.h"
-#include "platform/platform_path.h"
+#include "platform/path.h"
 
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
     #include "platform/platform_thread.h"

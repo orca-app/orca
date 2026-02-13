@@ -45,8 +45,7 @@ ORCA_EXPORT void oc_on_init(void)
     {
         oc_arena_scope scratch = oc_scratch_begin();
 
-        oc_file file = oc_file_open(OC_STR8(fontNames[i]), OC_FILE_ACCESS_READ, 0);
-        if(oc_file_last_error(file) != OC_IO_OK)
+        oc_file file = oc_catch(oc_file_open(OC_STR8(fontNames[i]), OC_FILE_ACCESS_READ, 0))
         {
             oc_log_error("Couldn't open file %s\n", fontNames[i]);
         }
@@ -110,7 +109,6 @@ void column_begin(const char* header, f32 widthFraction)
     oc_ui_style_set_var_str8(OC_UI_BORDER_COLOR, OC_UI_THEME_BORDER);
     oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
     oc_ui_style_set_var_str8(OC_UI_ROUNDNESS, OC_UI_THEME_ROUNDNESS_SMALL);
-    oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
     oc_ui_box("header")
     {
@@ -132,7 +130,6 @@ void column_begin(const char* header, f32 widthFraction)
     oc_ui_style_set_i32(OC_UI_ALIGN_X, OC_UI_ALIGN_START);
     oc_ui_style_set_f32(OC_UI_MARGIN_X, 16);
     oc_ui_style_set_f32(OC_UI_SPACING, 24);
-    oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 }
 
 void column_end()
@@ -194,7 +191,6 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         }
 
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_0);
-        oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
         //--------------------------------------------------------------------------------------------
         // Menu bar

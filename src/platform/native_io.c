@@ -6,7 +6,7 @@
 *
 **************************************************************************/
 
-#include "platform/platform_path.h"
+#include "platform/path.h"
 #include "io.c"
 #include "native_io.h"
 

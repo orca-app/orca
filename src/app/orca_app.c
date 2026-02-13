@@ -21,6 +21,11 @@ void oc_window_set_title(oc_str8 title)
     oc_hostcall_window_set_title(&title);
 }
 
+void oc_window_set_size(oc_vec2 size)
+{
+    oc_hostcall_window_set_size(&size);
+}
+
 oc_str8 oc_clipboard_get_string(oc_arena* arena)
 {
     oc_str8 ret = { 0 };

@@ -18,6 +18,7 @@
     #include "platform/native_debug.c"
     #include "platform/unix_memory.c"
     #include "platform/osx_clock.c"
+    #include "platform/posix_path.c"
     #include "platform/osx_path.c"
     #include "platform/posix_io.c"
     #include "platform/posix_thread.c"
@@ -46,7 +47,7 @@
     #include "platform/io.c"
     #include "platform/orca_io.c"
     #include "platform/orca_platform.c"
-    #include "platform/platform_path.c"
+    #include "platform/posix_path.c"
 #else
     #error "Unsupported platform"
 #endif

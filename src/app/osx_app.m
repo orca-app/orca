@@ -17,7 +17,7 @@
 #include "util/ringbuffer.h"
 #include "platform/platform_clock.h"
 #include "platform/platform_debug.h"
-#include "platform/platform_path.h"
+#include "platform/path.h"
 #include "graphics/surface.h"
 #include "app.c"
 

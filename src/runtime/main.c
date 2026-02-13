@@ -460,6 +460,7 @@ int load_app(oc_runtime* app)
                     &(oc_file_makedir_options){
                         .flags = OC_FILE_MAKEDIR_CREATE_PARENTS | OC_FILE_MAKEDIR_IGNORE_EXISTING,
                     });
+
     oc_file_copy(dataDirSrc,
                  dataDirDest,
                  &(oc_file_copy_options){
