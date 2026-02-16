@@ -42,16 +42,16 @@ oc_str8 oc_path_slice_directory(oc_str8 fullPath)
         //NOTE: we didn't find a separator
         if(oc_path_starts_with_volume_letter(fullPath))
         {
-            directory = fullPath;
+            directory = oc_str8_slice(fullPath, 0, 2);
         }
         else
         {
-            directory = OC_STR8(".");
+            directory = oc_str8_slice(fullPath, 0, 0);
         }
     }
     else if(lastSlashIndex == 0)
     {
-        directory = oc_path_slice(fullPath, 0, 1);
+        directory = oc_str8_slice(fullPath, 0, 1);
     }
     else
     {
@@ -74,37 +74,50 @@ oc_str8 oc_path_slice_filename(oc_str8 fullPath)
         }
     }
 
+    oc_str8 filename = { 0 };
     if(lastSlashIndex == -1 && oc_path_starts_with_volume_letter(fullPath))
     {
-        // trim the drive letter
-        lastSlashIndex += 1;
+        filename = oc_str8_slice(fullPath, 2, fullPath.len);
     }
-
-    oc_str8 basename = oc_str8_slice(fullPath, lastSlashIndex + 1, fullPath.len);
-    return (basename);
+    else
+    {
+        filename = oc_str8_slice(fullPath, lastSlashIndex + 1, fullPath.len);
+    }
+    return (filename);
 }
 
 oc_str8 oc_path_slice_stem(oc_str8 path)
 {
     oc_str8 basename = oc_path_slice_filename(path);
+
     //NOTE: ignore leading dots
-    u64 i = 0;
-    for(; i < basename.len; i++)
+    u64 firstNonDot = 0;
+    for(; firstNonDot < basename.len; firstNonDot++)
     {
-        if(basename.ptr[i] != '.')
+        if(basename.ptr[firstNonDot] != '.')
         {
             break;
         }
     }
-    //NOTE: now search to the first dot
-    for(; i < basename.len; i++)
+
+    i64 lastDotIndex = -1;
+    for(i64 i = basename.len - 1; i >= 0; i--)
     {
         if(basename.ptr[i] == '.')
         {
-            return oc_str8_slice(basename, 0, i);
+            lastDotIndex = i;
+            break;
         }
     }
-    return (oc_str8){ 0 };
+
+    if(lastDotIndex > firstNonDot && lastDotIndex < basename.len)
+    {
+        return oc_str8_slice(basename, 0, lastDotIndex);
+    }
+    else
+    {
+        return basename;
+    }
 }
 
 oc_str8 oc_path_slice_extension(oc_str8 path)
@@ -138,16 +151,16 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
     {
         //NOTE: trim drive letter from first element
         oc_str8_elt* firstElt = oc_list_first_entry(res.list, oc_str8_elt, listElt);
-        firstElt->string = oc_path_slice_filename(firstElt->string);
+        firstElt->string = oc_str8_slice(firstElt->string, 2, firstElt->string.len);
 
         //NOTE: add drive letter (with or without backslash) as first element
         if(path.len > 2 && (path.ptr[2] == '\\' || path.ptr[2] == '/'))
         {
-            oc_str8_list_push_front(arena, oc_str8_slice(path, 0, 3));
+            oc_str8_list_push_front(arena, &res, oc_str8_slice(path, 0, 3));
         }
         else
         {
-            oc_str8_list_push_front(arena, oc_str8_slice(path, 0, 2));
+            oc_str8_list_push_front(arena, &res, oc_str8_slice(path, 0, 2));
         }
     }
 
@@ -169,27 +182,16 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
     //TODO: check if elements have ending/begining '/' ?
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
     oc_str8_list list = { 0 };
-    oc_str8 driveWithouthSlash = { 0 };
-
-    //NOTE: skip empty elements and eliminate redudant slashes
     oc_str8_list_for(elements, elt)
     {
-        if(elt->listElt == elements.list.first
-           && elt->string.len == 2
-           && oc_path_starts_with_volume_letter(elt->string))
-        {
-            //NOTE: if the first element is a drive letter _without_ a slash or backslash,
-            // it specifies a path relative to the current directory on that drive. We must
-            // prepend it to the rest of the path _without a slash_
-            driveWithouthSlash = elt->string;
-        }
-        else if(elt->string.len)
+        //NOTE: skip empty elements
+        if(elt->string.len)
         {
             u64 start = 0;
             u64 end = elt->string.len;
 
             //NOTE: eliminate leading slashes
-            while(start < elt->string.len && oc_path_is_separator(elt->string.ptr[start]))
+            while(start < elt->string.len && elt->string.ptr[start] == '/')
             {
                 start++;
             }
@@ -200,7 +202,7 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
             }
 
             //NOTE: eliminate trailing slashes
-            while(end > start && oc_path_is_separator(elt->string.ptr[end - 1]))
+            while(end > start && elt->string.ptr[end - 1] == '/')
             {
                 end--;
             }
@@ -209,10 +211,19 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
             {
                 end++;
             }
-            oc_str8_list_push(scratch.arena, &list, oc_str8_slice(elt->string, start, end));
+            oc_str8 slice = oc_str8_slice(elt->string, start, end);
+
+            //NOTE: skip elements that are empty once / are trimmed, _except_ the first and last
+            // (this is done so that we push _empty_ elements for a leading or trailing slash, so that
+            // oc_str8_list_collate will add them back)
+
+            if(slice.len || &elt->listElt == elements.list.first || &elt->listElt == elements.list.last)
+            {
+                oc_str8_list_push(scratch.arena, &list, slice);
+            }
         }
     }
-    oc_str8 res = oc_str8_list_collate(arena, list, driveWithouthSlash, OC_STR8("/"), OC_STR8(""));
+    oc_str8 res = oc_str8_list_collate(arena, list, OC_STR8(""), OC_STR8("/"), OC_STR8(""));
 
     oc_scratch_end(scratch);
     return (res);
@@ -315,19 +326,4 @@ oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
     oc_scratch_end(scratch);
 
     return (result);
-}
-
-oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
-{
-    oc_str8_list list = { 0 };
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
-
-    oc_str8 executablePath = oc_path_executable(scratch.arena);
-    oc_str8 dirPath = oc_path_slice_directory(executablePath);
-
-    oc_str8 path = oc_path_append(scratch.arena, dirPath, relPath);
-    path = oc_path_canonical(arena, path);
-
-    oc_scratch_end(scratch);
-    return (path);
 }

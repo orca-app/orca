@@ -1070,8 +1070,8 @@ pub fn build(b: *Build) !void {
 
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
-    orca_platform_lib.step.dependOn(&orca_bindgen_core.step);
+    //    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
+    //    orca_platform_lib.step.dependOn(&orca_bindgen_core.step);
 
     const orca_platform_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .bin },
@@ -1998,6 +1998,7 @@ pub fn build(b: *Build) !void {
 
         const run_test = b.addRunArtifact(test_path_exe);
         run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
+
         run_test.step.dependOn(&install_orca_platform_tests.step);
         run_test.step.dependOn(&install_angle_libs_tests.step);
         run_test.step.dependOn(&install_dawn_libs_tests.step);
