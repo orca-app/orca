@@ -45,7 +45,13 @@ int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
 
     if(status.type == OC_FILE_DIRECTORY)
     {
-        zip_dir_add(zip, dstPath.ptr, 0);
+        if(zip_dir_add(zip, dstPath.ptr, 0) == -1)
+        {
+            oc_log_error("zip_dir_add failed adding directory %.*s: %s\n",
+                         oc_str8_ip(dstPath),
+                         zip_error_strerror(zip_get_error(zip)));
+            return -1;
+        }
 
         oc_arena_scope scratch = oc_scratch_begin();
         oc_file_list files = oc_file_listdir(scratch.arena, srcFile);
@@ -53,14 +59,37 @@ int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
         {
             oc_str8 fileSrcPath = oc_path_append(scratch.arena, srcPath, elt->basename);
             oc_str8 fileDstPath = oc_path_append(scratch.arena, dstPath, elt->basename);
-            add_to_archive(zip, fileSrcPath, fileDstPath);
+            if(add_to_archive(zip, fileSrcPath, fileDstPath))
+            {
+                return -1;
+            }
         }
         oc_scratch_end(scratch);
     }
     else
     {
         zip_source_t* source = zip_source_file(zip, srcPath.ptr, 0, ZIP_LENGTH_TO_END);
-        zip_file_add(zip, dstPath.ptr, source, ZIP_FL_OVERWRITE);
+        if(zip_file_add(zip, dstPath.ptr, source, ZIP_FL_OVERWRITE) == -1)
+        {
+            oc_log_error("zip_file_add failed adding file %.*s: %s\n",
+                         oc_str8_ip(dstPath),
+                         zip_error_strerror(zip_get_error(zip)));
+            return -1;
+        }
+    }
+    return 0;
+}
+
+int oc_tool_bundle_copy(oc_str8 src, oc_str8 dest)
+{
+    oc_io_error error = oc_file_copy(src, dest, 0);
+    if(error)
+    {
+        oc_log_error("Could not copy %.*s to %.*s: %.*s\n",
+                     oc_str8_ip(src),
+                     oc_str8_ip(dest),
+                     oc_str8_ip(oc_io_error_string(error)));
+        return -1;
     }
     return 0;
 }
@@ -82,31 +111,49 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     }
 
     oc_str8 contentsPath = oc_path_append(scratch.arena, bundlePath, OC_STR8("Contents"));
-
     oc_str8 macosPath = oc_path_append(scratch.arena, contentsPath, OC_STR8("macOS/"));
     oc_str8 resPath = oc_path_append(scratch.arena, contentsPath, OC_STR8("resources/"));
 
-    oc_file_makedir(macosPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-    oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    error = oc_file_makedir(macosPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    if(error)
+    {
+        oc_log_error("Could not create directory %.*s: %.*s\n",
+                     oc_str8_ip(macosPath),
+                     oc_str8_ip(oc_io_error_string(error)));
+        return -1;
+    }
+    error = oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    if(error)
+    {
+        oc_log_error("Could not create directory %.*s: %.*s\n",
+                     oc_str8_ip(resPath),
+                     oc_str8_ip(oc_io_error_string(error)));
+        return -1;
+    }
 
     //NOTE: copy binaries to macOS dir
+    int status = 0;
     oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
 
-    //TODO: handle errors
-    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime")), macosPath, 0);
-    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("liborca_platform.dylib")), macosPath, 0);
-    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dylib")), macosPath, 0);
-    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dylib")), macosPath, 0);
-    oc_file_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libwebgpu.dylib")), macosPath, 0);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("liborca_platform.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libwebgpu.dylib")), macosPath);
 
     //NOTE: copy resources
     oc_str8 srcRes = oc_path_executable_relative(scratch.arena, OC_STR8("../resources"));
 
-    oc_file_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath, 0);
-    oc_file_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath, 0);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
 
     //NOTE: copy app image
-    oc_file_copy(appImage, resPath, 0);
+    status |= oc_tool_bundle_copy(appImage, resPath);
+
+    if(status)
+    {
+        return -1;
+    }
 
     //-----------------------------------------------------------
     //NOTE make icon
@@ -123,7 +170,13 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             return -1;
         }
 
-        oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+        error = oc_file_makedir(iconset, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+        if(error)
+        {
+            oc_log_error("Could not create directory %.*s: %.*s\n",
+                         oc_str8_ip(iconset),
+                         oc_str8_ip(oc_io_error_string(error)));
+        }
 
         i32 size = 16;
         for(i32 i = 0; i < 7; ++i)
@@ -134,7 +187,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             i32 result = system(cmd.ptr);
             if(result)
             {
-                fprintf(stderr, "failed to generate %dx%d icon from %.*s\n", size, size, oc_str8_ip(options->icon));
+                oc_log_error("failed to generate %dx%d icon from %.*s\n", size, size, oc_str8_ip(options->icon));
+                return -1;
             }
 
             i32 retina_size = size * 2;
@@ -144,7 +198,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             result = system(cmd.ptr);
             if(result)
             {
-                fprintf(stderr, "failed to generate %dx%d@2x retina icon from %.*s\n", size, size, oc_str8_ip(options->icon));
+                oc_log_error("failed to generate %dx%d@2x retina icon from %.*s\n", size, size, oc_str8_ip(options->icon));
+                return -1;
             }
 
             size *= 2;
@@ -155,7 +210,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
         i32 result = system(cmd.ptr);
         if(result)
         {
-            fprintf(stderr, "failed to generate app icon from %.*s", oc_str8_ip(options->icon));
+            oc_log_error("failed to generate app icon from %.*s", oc_str8_ip(options->icon));
+            return -1;
         }
 
         error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
@@ -211,10 +267,19 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     {
         fprintf(stderr, "Error: failed to create plist file \"%.*s\"\n",
                 oc_str8_ip(plist_path));
-        return 1;
+        return -1;
     }
 
     oc_file_write(plist_file, plist_contents.len, plist_contents.ptr);
+    error = oc_file_last_error(plist_file);
+    if(error)
+    {
+        oc_log_error("Couldn't write plist file %.*s: %.*s\n",
+                     oc_str8_ip(plist_path),
+                     oc_str8_ip(oc_io_error_string(error)));
+        return -1;
+    }
+
     oc_file_close(plist_file);
 
     oc_scratch_end(scratch);
@@ -250,9 +315,20 @@ int oc_tool_bundle(oc_tool_options* options)
     }
 
     oc_str8 modPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("modules/"));
-    oc_file_makedir(modPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    oc_io_error error = oc_file_makedir(modPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    if(error != OC_IO_OK)
+    {
+        oc_log_error("Couldn't create modules directory: %.*s\n",
+                     oc_str8_ip(oc_io_error_string(error)));
+    }
+
     oc_str8 resPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("data/"));
-    oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    error = oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    if(error != OC_IO_OK)
+    {
+        oc_log_error("Couldn't create data directory: %.*s\n",
+                     oc_str8_ip(oc_io_error_string(error)));
+    }
 
     //NOTE: copy modules
     bool foundMain = false;
@@ -262,11 +338,18 @@ int oc_tool_bundle(oc_tool_options* options)
         {
             foundMain = true;
         }
-        oc_file_copy(options->modules[i], modPath, 0);
+        error = oc_file_copy(options->modules[i], modPath, 0);
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Couldn't copy module %.*s: %.*s\n",
+                         oc_str8_ip(options->modules[i]),
+                         oc_str8_ip(oc_io_error_string(error)));
+            return -1;
+        }
     }
     if(!foundMain)
     {
-        printf("error: bundle must have at least one module named 'main.wasm'.\n");
+        oc_log_error("error: bundle must have at least one module named 'main.wasm'.\n");
         return -1;
     }
 
@@ -278,12 +361,24 @@ int oc_tool_bundle(oc_tool_options* options)
         {
             dir = oc_str8_pushf(scratch.arena, "%.*s/", oc_str8_ip(dir));
         }
-        oc_file_copy(dir, resPath, 0);
+        error = oc_file_copy(dir, resPath, 0);
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Couldn't copy resource dir %.*s: %.*s\n",
+                         oc_str8_ip(dir),
+                         oc_str8_ip(oc_io_error_string(error)));
+        }
     }
 
     for(int i = 0; i < options->resFileCount; i++)
     {
-        oc_file_copy(options->resFiles[i], resPath, 0);
+        error = oc_file_copy(options->resFiles[i], resPath, 0);
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Couldn't copy resource file %.*s: %.*s\n",
+                         oc_str8_ip(options->resFiles[i]),
+                         oc_str8_ip(oc_io_error_string(error)));
+        }
     }
 
     //NOTE: copy icon
@@ -292,7 +387,14 @@ int oc_tool_bundle(oc_tool_options* options)
         oc_str8 ext = oc_path_slice_extension(options->icon);
         oc_str8 name = oc_str8_pushf(scratch.arena, "thumbnail%.*s", oc_str8_ip(ext));
         oc_str8 path = oc_path_append(scratch.arena, resPath, name);
-        oc_file_copy(options->icon, path, 0);
+        error = oc_file_copy(options->icon, path, 0);
+
+        if(error != OC_IO_OK)
+        {
+            oc_log_error("Couldn't copy thumbnail %*s: %.*s\n",
+                         oc_str8_ip(options->icon),
+                         oc_str8_ip(oc_io_error_string(error)));
+        }
     }
 
     //NOTE: zip folder to out directory
@@ -307,18 +409,30 @@ int oc_tool_bundle(oc_tool_options* options)
     zip_t* zip = zip_open(outFile.ptr, ZIP_CREATE | ZIP_TRUNCATE, 0);
     if(!zip)
     {
-        status = -1;
+        oc_log_error("Couldn't create zip file %.*s\n", oc_str8_ip(outFile));
+        return -1;
     }
     else
     {
-        add_to_archive(zip, modPath, OC_STR8("modules"));
-        add_to_archive(zip, resPath, OC_STR8("data"));
+        if(add_to_archive(zip, modPath, OC_STR8("modules")))
+        {
+            return -1;
+        }
+        if(add_to_archive(zip, resPath, OC_STR8("data")))
+        {
+            return -1;
+        }
         zip_close(zip);
     }
 
-    if(options->standalone)
+    if(!status && options->standalone)
     {
+#if OC_PLATFORM_MACOS
         status = oc_tool_bundle_standalone_macos(options, outFile);
+#elif OC_PLATFORM_WINDOWS
+        //TODO
+        status = oc_tool_bundle_standalone_windows(options, outFile);
+#endif
     }
 
     oc_scratch_end(scratch);

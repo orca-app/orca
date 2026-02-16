@@ -9,6 +9,63 @@
 #include "io.h"
 #include "path.h"
 
+oc_str8 oc_io_error_string(oc_io_error error)
+{
+    switch(error)
+    {
+        case OC_IO_OK:
+            return OC_STR8("no errors");
+        case OC_IO_ERR_UNKNOWN:
+            return OC_STR8("unknown IO error");
+        case OC_IO_ERR_OP:
+            return OC_STR8("unsupported operation");
+        case OC_IO_ERR_HANDLE:
+            return OC_STR8("invalid handle");
+        case OC_IO_ERR_PREV:
+            return OC_STR8("previously had a fatal error (last error stored on handle)");
+        case OC_IO_ERR_ARG:
+            return OC_STR8("invalid argument or argument combination");
+        case OC_IO_ERR_PERM:
+            return OC_STR8("access denied");
+        case OC_IO_ERR_SPACE:
+            return OC_STR8("no space left");
+        case OC_IO_ERR_NO_ENTRY:
+            return OC_STR8("file or directory does not exist");
+        case OC_IO_ERR_EXISTS:
+            return OC_STR8("file already exists");
+        case OC_IO_ERR_NOT_DIR:
+            return OC_STR8("path element is not a directory");
+        case OC_IO_ERR_DIR:
+            return OC_STR8("attempted to write directory");
+        case OC_IO_ERR_NOT_EMPTY:
+            return OC_STR8("attempted to remove a non-empty directory");
+        case OC_IO_ERR_MAX_FILES:
+            return OC_STR8("max open files reached");
+        case OC_IO_ERR_MAX_LINKS:
+            return OC_STR8("too many symbolic links in path");
+        case OC_IO_ERR_PATH_LENGTH:
+            return OC_STR8("path too long");
+        case OC_IO_ERR_FILE_SIZE:
+            return OC_STR8("file too big");
+        case OC_IO_ERR_OVERFLOW:
+            return OC_STR8("offset too big");
+        case OC_IO_ERR_NOT_READY:
+            return OC_STR8("no data ready to be read/written");
+        case OC_IO_ERR_MEM:
+            return OC_STR8("failed to allocate memory");
+        case OC_IO_ERR_INTERRUPT:
+            return OC_STR8("operation interrupted by a signal");
+        case OC_IO_ERR_PHYSICAL:
+            return OC_STR8("physical IO error");
+        case OC_IO_ERR_NO_DEVICE:
+            return OC_STR8("device not found");
+        case OC_IO_ERR_WALKOUT:
+            return OC_STR8("attempted to walk out of root directory");
+        case OC_IO_ERR_SYMLINK:
+            return OC_STR8("encountered a symlink while following symlinks was disabled");
+    }
+}
+
 //------------------------------------------------------------------------------
 // File stream read/write API
 //------------------------------------------------------------------------------

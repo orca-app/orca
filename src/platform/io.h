@@ -160,6 +160,7 @@ typedef struct oc_io_cmp
     };
 } oc_io_cmp;
 
+ORCA_API oc_str8 oc_io_error_string(oc_io_error error);
 //----------------------------------------------------------------
 //TODO: complete io queue api
 //----------------------------------------------------------------
