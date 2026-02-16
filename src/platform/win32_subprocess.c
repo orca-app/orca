@@ -16,8 +16,23 @@ typedef struct oc_subprocess_info
 
 oc_subprocess_error oc_win32_subprocess_last_error()
 {
-    //TODO
-    return OC_SUBPROCESS_UNKNOWN;
+    DWORD lastErr = GetLastError();
+    switch(lastErr)
+    {
+            //TODO: expand this
+
+        case ERROR_SUCCESS:
+            return OC_SUBPROCESS_OK;
+        case ERROR_FILE_NOT_FOUND:
+            return OC_SUBPROCESS_NOT_FOUND;
+        case ERROR_ACCESS_DENIED:
+            return OC_SUBPROCESS_NOT_EXECUTABLE;
+        case ERROR_BROKEN_PIPE:
+            return OC_SUBPROCESS_PIPE;
+
+        default:
+            return OC_SUBPROCESS_UNKNOWN;
+    }
 }
 
 oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subprocess_spawn_options* optionsPtr)
