@@ -1159,6 +1159,7 @@ int main(int argc, char** argv)
     {
         oc_pump_events(-1);
     }
+    app->quit = true;
 
     //NOTE: collect threads and wind down
     i64 exitCode = 0;
