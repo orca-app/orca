@@ -86,14 +86,19 @@ void oc_init(void)
     {
         #define DEF_ATOM(name)  \
             { .s = OC_STR8_LIT(#name), .cookie = 0, .atom = &x11->atoms. name }
+        DEF_ATOM(OC_X11_CLIENT_MESSAGE),
         DEF_ATOM(UTF8_STRING),
         DEF_ATOM(WM_CHANGE_STATE),
         DEF_ATOM(WM_STATE),
+        DEF_ATOM(_NET_ACTIVE_WINDOW),
         DEF_ATOM(_NET_WM_ICON_NAME),
         DEF_ATOM(_NET_WM_NAME),
         DEF_ATOM(_NET_WM_STATE),
+        DEF_ATOM(_NET_WM_STATE_FOCUSED),
         DEF_ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
         DEF_ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
+        DEF_ATOM(_NET_WM_USER_TIME),
+        DEF_ATOM(_NET_WM_USER_TIME_WINDOW),
         #undef DEF_ATOM
     };
     for(u64 i = 0; i < oc_array_size(atoms); i++)
@@ -174,14 +179,35 @@ static oc_window window_handle_from_x11_id(u32 winId)
             window = entry->handle;
         }
     }
-    return window;
+    return (window);
+}
+
+static void window_update_last_user_activity(xcb_connection_t* conn, oc_window window, xcb_timestamp_t ts)
+{
+    oc_linux_x11* x11 = &oc_appData.linux.x11;
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    if(windowData)
+    {
+        xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+            windowData->linux.x11Id, x11->atoms._NET_WM_USER_TIME,
+            XCB_ATOM_CARDINAL, 32, 1, &ts);
+        windowData->linux.netWmUserTime = ts;
+    }
 }
 
 static void log_generic_event(const char* name, xcb_generic_event_t* ev)
 {
-    oc_log_info(
-        "EVENT:\n"
-        "  response_type: %s (%u)\n"
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8_list s;
+    oc_str8_list_init(&s);
+    oc_str8_list_pushf(scratch.arena, &s, "EVENT:\n");
+    oc_str8_list_pushf(scratch.arena, &s, "response_type: %s (%u", name, ev->response_type & 0x7f);
+    if(ev->response_type & 0x80)
+    {
+        oc_str8_list_pushf(scratch.arena, &s, ", synthetic");
+    }
+    oc_str8_list_pushf(scratch.arena, &s, ")\n");
+    oc_str8_list_pushf(scratch.arena, &s,
         "  pad0: %u\n"
         "  sequence: %u\n"
         "  pad[0]: %u\n"
@@ -192,7 +218,6 @@ static void log_generic_event(const char* name, xcb_generic_event_t* ev)
         "  pad[5]: %u\n"
         "  pad[6]: %u\n"
         "  full_sequence: %u\n",
-        name, ev->response_type,
         (u32)ev->pad0,
         (u32)ev->sequence,
         (u32)ev->pad[0],
@@ -203,8 +228,10 @@ static void log_generic_event(const char* name, xcb_generic_event_t* ev)
         (u32)ev->pad[4],
         (u32)ev->pad[5],
         (u32)ev->pad[6],
-        (u32)ev->full_sequence
-    );
+        (u32)ev->full_sequence);
+    oc_str8 msg = oc_str8_list_join(scratch.arena, s);
+    oc_log_info("%.*s", oc_str8_lp(msg));
+    oc_arena_scope_end(scratch);
 }
 void oc_pump_events(f64 timeout)
 {
@@ -262,23 +289,36 @@ void oc_pump_events(f64 timeout)
     while(ev)
     {
         const char* type = "(unk)";
-        switch(ev->response_type)
+        bool synthetic = ev->response_type & 0x80;
+        switch(ev->response_type & 0x7f)
         {
         case XCB_KEY_PRESS:
+        {
             type = "KeyPress";
-            break;
+            xcb_key_press_event_t* noti = (xcb_key_press_event_t*)ev;
+            oc_window window = window_handle_from_x11_id(noti->event);
+            window_update_last_user_activity(conn, window, noti->time);
+        } break;
         case XCB_KEY_RELEASE:
             type = "KeyRelease";
             break;
         case XCB_BUTTON_PRESS:
+        {
             type = "ButtonPress";
-            break;
+            xcb_button_press_event_t* noti = (xcb_button_press_event_t*)ev;
+            oc_window window = window_handle_from_x11_id(noti->event);
+            window_update_last_user_activity(conn, window, noti->time);
+        } break;
         case XCB_BUTTON_RELEASE:
             type = "ButtonRelease";
             break;
         case XCB_MOTION_NOTIFY:
+        {
             type = "MotionNotify";
-            break;
+            xcb_motion_notify_event_t* noti = (xcb_motion_notify_event_t*)ev;
+            oc_window window = window_handle_from_x11_id(noti->event);
+            window_update_last_user_activity(conn, window, noti->time);
+        } break;
         case XCB_ENTER_NOTIFY:
             type = "EnterNotify";
             break;
@@ -286,11 +326,31 @@ void oc_pump_events(f64 timeout)
             type = "LeaveNotify";
             break;
         case XCB_FOCUS_IN:
+        {
             type = "FocusIn";
-            break;
+            xcb_focus_in_event_t* noti = (xcb_focus_in_event_t*)ev;
+            OC_ASSERT(noti->detail == XCB_NOTIFY_DETAIL_NONLINEAR || noti->detail == XCB_NOTIFY_DETAIL_POINTER);
+            OC_ASSERT(noti->mode == XCB_NOTIFY_MODE_NORMAL);
+            oc_window window = window_handle_from_x11_id(noti->event);
+            oc_window_data* windowData = oc_window_ptr_from_handle(window);
+            if(windowData)
+            {
+                windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED;
+            }
+        } break;
         case XCB_FOCUS_OUT:
+        {
             type = "FocusOut";
-            break;
+            xcb_focus_out_event_t* noti = (xcb_focus_out_event_t*)ev;
+            OC_ASSERT(noti->detail == XCB_NOTIFY_DETAIL_NONLINEAR);
+            OC_ASSERT(noti->mode == XCB_NOTIFY_MODE_NORMAL);
+            oc_window window = window_handle_from_x11_id(noti->event);
+            oc_window_data* windowData = oc_window_ptr_from_handle(window);
+            if(windowData)
+            {
+                windowData->linux.focus = OC_LINUX_WINDOW_UNFOCUSED;
+            }
+        } break;
         case XCB_KEYMAP_NOTIFY:
             type = "KeymapNotify";
             break;
@@ -424,6 +484,7 @@ void oc_pump_events(f64 timeout)
             type = "CirculateRequest";
             break;
         case XCB_PROPERTY_NOTIFY:
+        {
             type = "PropertyNotify";
             // TODO(pld): use timestamp?
             xcb_property_notify_event_t* noti = (xcb_property_notify_event_t*)ev;
@@ -536,7 +597,33 @@ void oc_pump_events(f64 timeout)
                     oc_unreachable();
                 }
             }
-            break;
+            else if(noti->atom == linux->x11.atoms._NET_WM_USER_TIME)
+            {
+                /* We listen for changes on _NET_WM_USER_TIME to set an initial
+                 * value for it when the window is shown. This allows to call
+                 * oc_window_focus, which requires a recent enough timestamp,
+                 * without needing any keyboard/pointer input beforehand.
+                 * Keyboard and pointer input being the only ways this
+                 * timestamp updates otherwise. */
+                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                {
+                    type = "PropertyNotify:_NET_WM_USER_TIME:NewValue";
+                    if(windowData->linux.netWmUserTime == 0)
+                    {
+                        window_update_last_user_activity(conn, window, noti->time);
+                    }
+                }
+                else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
+                {
+                    type = "PropertyNotify:_NET_WM_USER_TIME:Withdrawn";
+                    windowData->linux.netWmUserTime = 0;
+                }
+                else
+                {
+                    oc_unreachable();
+                }
+            }
+        } break;
         case XCB_SELECTION_CLEAR:
             type = "SelectionClear";
             break;
@@ -550,8 +637,28 @@ void oc_pump_events(f64 timeout)
             type = "ColormapNotify";
             break;
         case XCB_CLIENT_MESSAGE:
+        {
             type = "ClientMessage";
-            break;
+            xcb_client_message_event_t* noti = (xcb_client_message_event_t*)ev;
+            if(noti->type == linux->x11.atoms.OC_X11_CLIENT_MESSAGE)
+            {
+                oc_window window = window_handle_from_x11_id(noti->window);
+                oc_window_data* windowData = oc_window_ptr_from_handle(window);
+                if(!windowData)  break;
+                oc_x11_client_message t = noti->data.data32[0];
+                if(t == OC_X11_CLIENT_MESSAGE_UNFOCUS)
+                {
+                    if(windowData->linux.focus == OC_LINUX_WINDOW_FOCUSED)
+                    {
+                        windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED_IGNORE_INPUTS;
+                    }
+                }
+                else
+                {
+                    oc_notpossible();
+                }
+            }
+        } break;
         case XCB_MAPPING_NOTIFY:
             type = "MappingNotify";
             break;
@@ -609,13 +716,13 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         .override_redirect = false,
         .save_under = false,
         .event_mask =
-            //XCB_EVENT_MASK_KEY_PRESS |
+            XCB_EVENT_MASK_KEY_PRESS |
             //XCB_EVENT_MASK_KEY_RELEASE |
-            //XCB_EVENT_MASK_BUTTON_PRESS |
+            XCB_EVENT_MASK_BUTTON_PRESS |
             //XCB_EVENT_MASK_BUTTON_RELEASE |
             //XCB_EVENT_MASK_ENTER_WINDOW |
             //XCB_EVENT_MASK_LEAVE_WINDOW |
-            //XCB_EVENT_MASK_POINTER_MOTION |
+            XCB_EVENT_MASK_POINTER_MOTION |
             //XCB_EVENT_MASK_POINTER_MOTION_HINT |
             //XCB_EVENT_MASK_BUTTON_1_MOTION |
             //XCB_EVENT_MASK_BUTTON_2_MOTION |
@@ -630,7 +737,7 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
             //XCB_EVENT_MASK_RESIZE_REDIRECT |
             //XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
             //XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT |
-            //XCB_EVENT_MASK_FOCUS_CHANGE |
+            XCB_EVENT_MASK_FOCUS_CHANGE |
             XCB_EVENT_MASK_PROPERTY_CHANGE |
             //XCB_EVENT_MASK_COLOR_MAP_CHANGE |
             //XCB_EVENT_MASK_OWNER_GRAB_BUTTON |
@@ -677,6 +784,7 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     // TODO(pld): WM_CLASS?
     // TODO(pld): WM_PROTOCOLS?
     // TODO(pld): CLIENT_MACHINE?
+    // TODO(pld): _NET_WM_SUPPORTED_CHECK?
 
     oc_window_data* windowData = oc_window_alloc();
     windowData->linux.x11Id = winId;
@@ -711,7 +819,7 @@ void* oc_window_native_pointer(oc_window window)
     {
         ptr = (void*)(uptr)windowData->linux.x11Id;
     }
-    return ptr;
+    return (ptr);
 }
 
 bool oc_window_should_close(oc_window window)
@@ -788,7 +896,7 @@ void oc_window_show(oc_window window)
                 XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
             windowData->linux.flags &= ~OC_LINUX_WINDOW_X11_MAP_IS_ICONIC;
         }
-        if(windowData->linux.flags & OC_LINUX_WINDOW_X11_MAPPED)
+        if(0 && windowData->linux.flags & OC_LINUX_WINDOW_X11_MAPPED)
         {
             /* WM (e.g. Mutter) does not unmap the window when Iconic, we need
              * to send an explicit MapRequest event to the root. */
@@ -805,7 +913,12 @@ void oc_window_show(oc_window window)
         }
         else
         {
+            xcb_delete_property(conn, windowData->linux.x11Id,
+                linux->x11.atoms._NET_WM_USER_TIME);
             xcb_map_window(conn, windowData->linux.x11Id);
+            xcb_change_property(conn, XCB_PROP_MODE_APPEND,
+                windowData->linux.x11Id, linux->x11.atoms._NET_WM_USER_TIME,
+                XCB_ATOM_CARDINAL, 32, 0, NULL);
         }
     }
     return;
@@ -869,7 +982,12 @@ void oc_window_minimize(oc_window window)
             xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
                 windowData->linux.x11Id, XCB_ATOM_WM_HINTS,
                 XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
+            xcb_delete_property(conn, windowData->linux.x11Id,
+                linux->x11.atoms._NET_WM_USER_TIME);
             xcb_map_window(conn, windowData->linux.x11Id);
+            xcb_change_property(conn, XCB_PROP_MODE_APPEND,
+                windowData->linux.x11Id, linux->x11.atoms._NET_WM_USER_TIME,
+                XCB_ATOM_CARDINAL, 32, 0, NULL);
             windowData->linux.flags |= OC_LINUX_WINDOW_X11_MAP_IS_ICONIC;
         }
         else if(windowData->linux.state == X11_WINDOW_STATE_NORMAL)
@@ -913,7 +1031,7 @@ bool oc_window_is_maximized(oc_window window)
                 vert = true;
             }
         }
-        return horz && vert;
+        return (horz && vert);
     }
     else
     {
@@ -985,21 +1103,12 @@ bool oc_window_has_focus(oc_window window)
     bool focused = false;
     if(windowData)
     {
-        xcb_get_input_focus_cookie_t cookie = xcb_get_input_focus(conn);
-        xcb_flush(conn);
-        xcb_get_input_focus_reply_t* reply = NULL;
-        reply = xcb_get_input_focus_reply(conn, cookie, NULL);
-        u32 focused_win_id = XCB_NONE;
-        if(reply)
-        {
-            focused_win_id = reply->focus;
-            free(reply);
-        }
-        focused = focused_win_id == windowData->linux.x11Id;
+        focused = windowData->linux.focus == OC_LINUX_WINDOW_FOCUSED;
     }
     return (focused);
 }
 
+//TODO(pld): test assumed _NET_SUPPORTED features in init
 void oc_window_focus(oc_window window)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
@@ -1007,8 +1116,20 @@ void oc_window_focus(oc_window window)
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
     {
-        xcb_set_input_focus(conn, XCB_NONE, windowData->linux.x11Id, XCB_CURRENT_TIME);
-        xcb_flush(conn);
+        xcb_client_message_event_t msg =
+        {
+            .response_type = XCB_CLIENT_MESSAGE,
+            .format = 32,
+            .window = windowData->linux.x11Id,
+            .type = linux->x11.atoms._NET_ACTIVE_WINDOW,
+            .data.data32[0] = X11_EWMH_SOURCE_INDICATION_NORMAL,
+            .data.data32[1] = windowData->linux.netWmUserTime,
+            .data.data32[2] = 0,
+        };
+        xcb_send_event(conn, false, linux->x11.rootWinId,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            (const char*)&msg);
     }
     return;
 }
@@ -1020,8 +1141,19 @@ void oc_window_unfocus(oc_window window)
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
     {
-        xcb_set_input_focus(conn, XCB_NONE, XCB_NONE, XCB_CURRENT_TIME);
-        xcb_flush(conn);
+        xcb_client_message_event_t msg =
+        {
+            .response_type = XCB_CLIENT_MESSAGE,
+            .format = 32,
+            .window = windowData->linux.x11Id,
+            .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
+            .data.data32[0] = OC_X11_CLIENT_MESSAGE_UNFOCUS,
+        };
+        xcb_void_cookie_t cookie =
+        xcb_send_event(conn, false, windowData->linux.x11Id,
+            XCB_EVENT_MASK_FOCUS_CHANGE,
+            (const char*)&msg);
+        oc_log_info("cookie=%d\n", cookie.sequence);
     }
     return;
 }

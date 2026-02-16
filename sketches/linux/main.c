@@ -768,23 +768,58 @@ int main(void)
     OC_ASSERT(tries < max_tries);
     stack_pos0 = stack_pos;
 
+    rect.x += rect.w;
+    oc_window win2 = {0};
+    win2 = oc_window_create(rect, OC_STR8("Orca on Linux (2)"), 0);
+    OC_ASSERT(!oc_window_is_nil(win2));
+    OC_ASSERT(oc_window_is_hidden(win2));
+    //TODO(pld): do we require a window to be shown to be focusable?
+    oc_window_show(win2);
+
+    // ? -> 1st focused
+    oc_window_focus(win);
+    tries = 0;
+    while(!(oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // 1st focused -> unfocused
+    oc_window_unfocus(win);
+    tries = 0;
+    while(!(!oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // unfocused -> 2nd focused
+    oc_window_focus(win2);
+    tries = 0;
+    while(!(!oc_window_has_focus(win) && oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // 2nd focused -> 1st focused
+    oc_window_focus(win);
+    tries = 0;
+    while(!(oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // 1st focused -> 2nd focused
+    oc_window_focus(win2);
+    tries = 0;
+    while(!(!oc_window_has_focus(win) && oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    // 2nd focused -> unfocused
+    oc_window_unfocus(win2);
+    tries = 0;
+    while(!(!oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
+    OC_ASSERT(tries < max_tries);
+
+    oc_window_destroy(win2);
+
     oc_window_destroy(win);
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - oc_window_has_focus
-    // - oc_window_focus
-    // - oc_window_unfocus
-    //
-    // - oc_should_quit
-    // - oc_request_quit
-    // - oc_set_cursor
-    // - oc_pump_events
-    // - oc_next_event
-    // - oc_scancode_to_keycode
-    // - oc_window_should_close
-    // - oc_window_request_close
-    // - oc_window_cancel_close
+    // end of february:
+    // - check wm_supported values
     // - oc_window_get_frame_rect
     // - oc_window_set_frame_rect
     // - oc_window_set_frame_position
@@ -797,9 +832,6 @@ int main(void)
     // - oc_window_content_rect_for_frame_rect
     // - oc_window_frame_rect_for_content_rect
     // - oc_window_set_size
-    // - oc_vsync_init
-    // - oc_vsync_wait
-    // - oc_dispatch_on_main_thread_sync
     // - oc_clipboard_clear
     // - oc_clipboard_set_string
     // - oc_clipboard_get_string
@@ -807,15 +839,48 @@ int main(void)
     // - oc_clipboard_has_tag
     // - oc_clipboard_set_data_for_tag
     // - oc_clipboard_get_data_for_tag
-    // - oc_file_dialog
-    // - oc_file_dialog_for_table
-    // - oc_alert_popup
-    // - oc_file_move
-    // - oc_file_remove
-    // - oc_directory_create
+    // - oc_window_create flags
+    // - oc_should_quit
+    // - oc_request_quit: set shouldQuit global flag, wakeup event thread
+    // - oc_window_should_close
+    // - oc_window_request_close: set shouldClose flag on window, send close
+    // window event so main thread deals with it
+    // - oc_window_cancel_close
+    // - oc_pump_events
+    // - oc_next_event
+    // - oc_dispatch_on_main_thread_sync
+    // - client-server request/reply sync (investigate in glfw and sdl)
+    //
+    // later:
+    // - oc_scancode_to_keycode
+    //   - fill table with x11 values
+    //   - char events?
+    //   - qwerty
+    //   - other layouts
+    //   - (later) virtual keyboards
+    //   - (later) input methods
+    // - oc_set_cursor
+    // - oc_file_dialog (os native)
+    // - oc_file_dialog_for_table (os native)
+    // - oc_alert_popup (os native)
+    // - oc_vsync_init
+    //   - do all surfaces vsync themselves if one syncs?
+    // - oc_vsync_wait
+    // TODO(pld): _NET_WM_SYNC_REQUEST?
     // TODO(pld): graphics
-    // TODO(pld): text
-    // TODO(pld): ui
+    // - x11 surface base
+    // - x11 webgpu surface create/destroy/get/present
+    // - x11 egl / gles surface
+    // TODO(pld): text: just test, should work out of the box
+    // TODO(pld): ui: just test, should work out of the box
+    // TODO(pld): io
+    // TODO(pld): clock
+    // TODO(pld): _NET_WM_PING
+    //
+    // - do not implement, part of io:
+    //   - oc_file_move
+    //   - oc_file_remove
+    //   - oc_directory_create
 
     return 0;
 }

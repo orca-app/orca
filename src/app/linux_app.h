@@ -28,14 +28,19 @@ typedef struct oc_linux_x11
 {
     Display* display;
     struct {
+        xcb_atom_t OC_X11_CLIENT_MESSAGE;
         xcb_atom_t UTF8_STRING;
         xcb_atom_t WM_CHANGE_STATE;
         xcb_atom_t WM_STATE;
+        xcb_atom_t _NET_ACTIVE_WINDOW;
         xcb_atom_t _NET_WM_ICON_NAME;
         xcb_atom_t _NET_WM_NAME;
         xcb_atom_t _NET_WM_STATE;
+        xcb_atom_t _NET_WM_STATE_FOCUSED;
         xcb_atom_t _NET_WM_STATE_MAXIMIZED_HORZ;
         xcb_atom_t _NET_WM_STATE_MAXIMIZED_VERT;
+        xcb_atom_t _NET_WM_USER_TIME;
+        xcb_atom_t _NET_WM_USER_TIME_WINDOW;
     } atoms;
     u32 rootWinId;
     u32 winIdToHandleLen;
@@ -74,13 +79,22 @@ typedef enum oc_linux_window_flags
     OC_LINUX_WINDOW_X11_MAP_IS_ICONIC = (1 << 1),
 } oc_linux_window_flags;
 
+typedef enum oc_linux_window_focus
+{
+    OC_LINUX_WINDOW_UNFOCUSED,
+    OC_LINUX_WINDOW_FOCUSED_IGNORE_INPUTS,
+    OC_LINUX_WINDOW_FOCUSED,
+} oc_linux_window_focus;
+
 typedef struct oc_linux_window_data
 {
     u32 x11Id;
     x11_window_state state;
     xcb_atom_t netState[32];
     u32 netStateLen;
+    xcb_timestamp_t netWmUserTime;
     oc_linux_window_flags flags;
+    oc_linux_window_focus focus;
     /* Left-outer corner from the parent's origin. */
     oc_vec2 posFromParent;
 } oc_linux_window_data;
@@ -92,6 +106,11 @@ typedef struct oc_layer
 {
     u32 x11WinId;
 } oc_layer;
+
+typedef enum oc_x11_client_message
+{
+    OC_X11_CLIENT_MESSAGE_UNFOCUS,
+} oc_x11_client_message;
 
 #endif // __LINUX_APP_H_
 
