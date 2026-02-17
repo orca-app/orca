@@ -94,6 +94,130 @@ int oc_tool_bundle_copy(oc_str8 src, oc_str8 dest)
     return 0;
 }
 
+#if OC_PLATFORM_WINDOWS
+
+    #define WIN32_LEAN_AND_MEAN
+    #include <windows.h>
+    #include "build/win32_icon.c"
+
+int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage)
+{
+    //NOTE: bundle the app image into a windows app dir
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 appPath = oc_str8_pushf(scratch.arena,
+                                    "%.*s/%.*s",
+                                    oc_str8_ip(options->outDir),
+                                    oc_str8_ip(options->name));
+
+    oc_io_error error = oc_file_remove(appPath, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+    if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
+    {
+        oc_log_error("Could not remove existing app directory...\n");
+        return -1;
+    }
+
+    oc_str8 binPath = oc_path_append(scratch.arena, appPath, OC_STR8("bin"));
+    oc_str8 resPath = oc_path_append(scratch.arena, appPath, OC_STR8("resources"));
+
+    error = oc_file_makedir(binPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    if(error)
+    {
+        oc_log_error("Could not create directory %.*s: %.*s",
+                     oc_str8_ip(binPath),
+                     oc_str8_ip(oc_io_error_string(error)));
+        return -1;
+    }
+
+    error = oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
+    if(error)
+    {
+        oc_log_error("Could not create directory %.*s: %.*s",
+                     oc_str8_ip(resPath),
+                     oc_str8_ip(oc_io_error_string(error)));
+        return -1;
+    }
+
+    //NOTE: copy binaries to bin dir
+    int status = 0;
+    oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
+    oc_str8 dstRuntimeName = oc_str8_pushf(scratch.arena, "%.*s.exe", oc_str8_ip(options->name));
+    oc_str8 dstRuntimePath = oc_path_append(scratch.arena, binPath, dstRuntimeName);
+
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime.exe")), dstRuntimePath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_platform.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("webgpu.dll")), binPath);
+
+    //NOTE: copy resources
+    oc_str8 srcRes = oc_path_executable_relative(scratch.arena, OC_STR8("../resources"));
+
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
+
+    //NOTE: copy app image
+    status |= oc_tool_bundle_copy(appImage, resPath);
+
+    if(status)
+    {
+        return -1;
+    }
+
+    //NOTE: set executable icon
+    if(options->icon.len)
+    {
+        oc_str8 tmpDir = oc_path_append(scratch.arena, appPath, OC_STR8("tmp"));
+
+        oc_io_error error = oc_file_remove(tmpDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+        if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Could not remove existing directory %.*s: %.*s\n",
+                         oc_str8_ip(tmpDir),
+                         oc_str8_ip(oc_io_error_string(error)));
+            return -1;
+        }
+
+        error = oc_file_makedir(tmpDir, 0);
+        if(error)
+        {
+            oc_log_error("Could not create directory %.*s: %.*s\n",
+                         oc_str8_ip(tmpDir),
+                         oc_str8_ip(oc_io_error_string(error)));
+            return -1;
+        }
+
+        oc_str8 icoPath = oc_path_append(scratch.arena, tmpDir, OC_STR8("icon.ico"));
+        if(!icon_from_image(scratch.arena, options->icon, icoPath))
+        {
+            oc_log_error("failed to create windows icon for \"%.*s\"\n", oc_str8_ip(options->icon));
+            return -1;
+        }
+
+        if(!embed_icon_into_exe(scratch.arena,
+                                dstRuntimePath,
+                                icoPath))
+        {
+            oc_log_error("failed to embed icon into exe file %.*s", oc_str8_ip(dstRuntimePath));
+            return -1;
+        }
+
+        error = oc_file_remove(tmpDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
+        if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
+        {
+            oc_log_error("Could not remove directory %.*s: %.*s\n",
+                         oc_str8_ip(tmpDir),
+                         oc_str8_ip(oc_io_error_string(error)));
+            return -1;
+        }
+    }
+
+    oc_scratch_end(scratch);
+
+    return 0;
+}
+
+#elif OC_PLATFORM_MACOS
+
 int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 {
     //NOTE: bundle the app image into a macos bundle
@@ -286,6 +410,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     return 0;
 }
 
+#endif
+
 int oc_tool_bundle(oc_tool_options* options)
 {
     //NOTE: bundle orca app file
@@ -430,7 +556,6 @@ int oc_tool_bundle(oc_tool_options* options)
 #if OC_PLATFORM_MACOS
         status = oc_tool_bundle_standalone_macos(options, outFile);
 #elif OC_PLATFORM_WINDOWS
-        //TODO
         status = oc_tool_bundle_standalone_windows(options, outFile);
 #endif
     }

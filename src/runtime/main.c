@@ -407,10 +407,8 @@ int load_app(oc_runtime* app)
 
     oc_str8 appName = { 0 };
     {
-        //TODO: need a function to get extension / stem from path
-        appName = oc_path_slice_filename(app->path);
-        OC_ASSERT(appName.len > 5 && !oc_str8_cmp(oc_str8_slice(appName, appName.len - 5, appName.len), OC_STR8(".orca")));
-        appName = oc_str8_slice(appName, 0, appName.len - 5);
+        OC_ASSERT(!oc_str8_cmp(oc_path_slice_extension(app->path), OC_STR8(".orca")));
+        appName = oc_path_slice_stem(app->path);
     }
 
     oc_str8 appDir = { 0 };
@@ -1110,7 +1108,6 @@ int main(int argc, char** argv)
 
     if(!app->path.len)
     {
-        //TODO: should we get the _name_ of the app bundle and use it to find the app file?
         oc_str8 appName = standalone_app_name(scratch.arena);
         if(!appName.len)
         {

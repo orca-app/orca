@@ -517,6 +517,38 @@ int run_tests(oc_test_info* info)
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz.ext)", oc_str8_ip(path));
             }
         }
+
+#if OC_PLATFORM_WINDOWS
+        oc_test(info, "(C:\\,foo,bar,baz.ext)")
+        {
+            oc_str8_list list = { 0 };
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("C:\\"));
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+
+            oc_str8 path = oc_path_join(scratch.arena, list);
+            if(oc_str8_cmp(path, OC_STR8("C:\\foo/bar/baz.ext")))
+            {
+                oc_test_fail(info, "%.*s (expected C:\\foo/bar/baz.ext)", oc_str8_ip(path));
+            }
+        }
+
+        oc_test(info, "(C:,foo,bar,baz.ext)")
+        {
+            oc_str8_list list = { 0 };
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("C:"));
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+
+            oc_str8 path = oc_path_join(scratch.arena, list);
+            if(oc_str8_cmp(path, OC_STR8("C:foo/bar/baz.ext")))
+            {
+                oc_test_fail(info, "%.*s (expected C:foo/bar/baz.ext)", oc_str8_ip(path));
+            }
+        }
+#endif
     }
 
     oc_test_group(info, "oc_path_append")
@@ -529,6 +561,33 @@ int run_tests(oc_test_info* info)
                 oc_test_fail(info, "%.*s (expected /foo/bar)", oc_str8_ip(path));
             }
         }
+    }
+
+    oc_test_group(info, "oc_path_canonical")
+    {
+#if OC_PLATFORM_MACOS
+        oc_test(info, "/usr/bin/../local")
+        {
+            oc_str8 path = oc_path_canonical(scratch.arena, OC_STR8("/usr/bin/../local"));
+            if(oc_str8_cmp(path, OC_STR8("/usr/local")))
+            {
+                oc_test_fail(info, "%.*s (%llu) (expected /usr/local)",
+                             oc_str8_ip(path),
+                             path.len);
+            }
+        }
+#elif OC_PLATFORM_WINDOWS
+        oc_test(info, "C:\\Program Files\\..\\Users")
+        {
+            oc_str8 path = oc_path_canonical(scratch.arena, OC_STR8("C:\\Program Files\\..\\Users"));
+            if(oc_str8_cmp(path, OC_STR8("C:\\Users")))
+            {
+                oc_test_fail(info, "%.*s (%llu) (expected C:\\Users)",
+                             oc_str8_ip(path),
+                             path.len);
+            }
+        }
+#endif
     }
 
     oc_scratch_end(scratch);

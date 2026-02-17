@@ -745,7 +745,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
         oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("C:\\Users")))
         {
-            oc_test_fail(info, "Bad path resolution.");
+            oc_test_fail(info, "Bad path resolution (%.*s).", oc_str8_ip(r.path));
         }
         oc_fd_close(r.fd);
 #endif
@@ -1011,6 +1011,19 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
     oc_test(info, "create parents")
     {
         oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
+                                            &(oc_file_makedir_options){
+                                                .root = tmpDir,
+                                                .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
+                                            });
+        if(error != OC_IO_OK)
+        {
+            oc_test_fail(info, "Creating directory with OC_IO_FILE_MAKEDIR_CREATE_PARENTS failed.");
+        }
+    }
+
+    oc_test(info, "create parents with .")
+    {
+        oc_io_error error = oc_file_makedir(OC_STR8("foo/./bar/baz"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
                                                 .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,

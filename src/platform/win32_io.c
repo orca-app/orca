@@ -564,7 +564,8 @@ oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path)
     BOOL r = PathFileExistsW(pathW.ptr);
     if(r == TRUE)
     {
-        err = oc_fd_last_error();
+        err = OC_IO_ERR_EXISTS;
+        //err = oc_fd_last_error();
     }
     else
     {

@@ -181,6 +181,8 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
 {
     //TODO: check if elements have ending/begining '/' ?
     oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_str8 drive = { 0 };
     oc_str8_list list = { 0 };
     oc_str8_list_for(elements, elt)
     {
@@ -191,7 +193,7 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
             u64 end = elt->string.len;
 
             //NOTE: eliminate leading slashes
-            while(start < elt->string.len && elt->string.ptr[start] == '/')
+            while(start < elt->string.len && oc_path_is_separator(elt->string.ptr[start]))
             {
                 start++;
             }
@@ -202,28 +204,42 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
             }
 
             //NOTE: eliminate trailing slashes
-            while(end > start && elt->string.ptr[end - 1] == '/')
+            while(end > start && oc_path_is_separator(elt->string.ptr[end - 1]))
             {
                 end--;
             }
+
             //NOTE: for last element, keep at most 1 trailing slash
             if(&elt->listElt == elements.list.last && end != elt->string.len)
             {
                 end++;
             }
-            oc_str8 slice = oc_str8_slice(elt->string, start, end);
 
-            //NOTE: skip elements that are empty once / are trimmed, _except_ the first and last
-            // (this is done so that we push _empty_ elements for a leading or trailing slash, so that
-            // oc_str8_list_collate will add them back)
-
-            if(slice.len || &elt->listElt == elements.list.first || &elt->listElt == elements.list.last)
+            //NOTE: if the first element is a drive letter after removing all trailing slashes,
+            // we remove it from the list and it will be prepended to the final string, with 0
+            // or 1 separator
+            if(&elt->listElt == elements.list.first
+               && oc_path_starts_with_volume_letter(elt->string)
+               && end < 3)
             {
-                oc_str8_list_push(scratch.arena, &list, slice);
+                drive = oc_str8_slice(elt->string, start, end + 1);
+            }
+            else
+            {
+                oc_str8 slice = oc_str8_slice(elt->string, start, end);
+
+                //NOTE: skip elements that are empty once / are trimmed, _except_ the first and last
+                // (this is done so that we push _empty_ elements for a leading or trailing slash, so that
+                // oc_str8_list_collate will add them back)
+
+                if(slice.len || &elt->listElt == elements.list.first || &elt->listElt == elements.list.last)
+                {
+                    oc_str8_list_push(scratch.arena, &list, slice);
+                }
             }
         }
     }
-    oc_str8 res = oc_str8_list_collate(arena, list, OC_STR8(""), OC_STR8("/"), OC_STR8(""));
+    oc_str8 res = oc_str8_list_collate(arena, list, drive, OC_STR8("/"), OC_STR8(""));
 
     oc_scratch_end(scratch);
     return (res);
@@ -263,7 +279,6 @@ oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
 
     oc_str8 executablePath = oc_path_executable(scratch.arena);
     oc_str8 dirPath = oc_path_slice_directory(executablePath);
-
     oc_str8 path = oc_path_append(scratch.arena, dirPath, relPath);
     path = oc_path_canonical(arena, path);
 
@@ -320,7 +335,7 @@ oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
     }
 
     OC_ASSERT(retval < required_size);
-    oc_str16 full_path_str16 = { .ptr = path_buf, .len = required_size - 1 };
+    oc_str16 full_path_str16 = { .ptr = path_buf, .len = retval };
     oc_str8 result = oc_win32_wide_to_utf8(arena, full_path_str16);
 
     oc_scratch_end(scratch);

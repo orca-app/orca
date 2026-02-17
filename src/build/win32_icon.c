@@ -186,7 +186,7 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
     }
 
     u64 ico_file_size = oc_file_size(ico_file);
-    u8* ico_file_data = oc_arena_push_array(a, u8, ico_file_size);
+    u8* ico_file_data = oc_arena_push_aligned_uninitialized(a, ico_file_size, 8);
     u64 total_read = oc_file_read(ico_file, ico_file_size, (char*)ico_file_data);
     if(total_read < ico_file_size)
     {
@@ -194,11 +194,15 @@ bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
         goto cleanup;
     }
 
-    IcoHeaderDisk* ico_header_disk = (IcoHeaderDisk*)ico_file_data;
-    IcoEntryDisk* ico_entries_disk = (IcoEntryDisk*)(ico_file_data + sizeof(IcoHeaderDisk));
+    //NOTE(martin): memcpy is necessary to avoid unaligned access
+    IcoHeaderDisk* ico_header_disk = oc_arena_push_type(a, IcoHeaderDisk);
+    memcpy(ico_header_disk, ico_file_data, sizeof(IcoHeaderDisk));
+
+    IcoEntryDisk* ico_entries_disk = oc_arena_push_array(a, IcoEntryDisk, ico_header_disk->num_images);
+    memcpy(ico_entries_disk, ico_file_data + sizeof(IcoHeaderDisk), sizeof(IcoEntryDisk) * ico_header_disk->num_images);
 
     u64 ico_meta_size = sizeof(IcoHeaderRc) + sizeof(IcoEntryRc) * ico_header_disk->num_images;
-    u8* ico_meta_data = oc_arena_push_array(a, u8, ico_meta_size);
+    u8* ico_meta_data = oc_arena_push_aligned_uninitialized(a, ico_meta_size, 8);
     IcoHeaderRc* ico_header = (IcoHeaderRc*)ico_meta_data;
     IcoEntryRc* ico_entries = (IcoEntryRc*)(ico_meta_data + sizeof(IcoHeaderRc));
 
