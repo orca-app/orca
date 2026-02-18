@@ -916,6 +916,7 @@ pub fn build(b: *Build) !void {
         // TODO(pld): package deps
         orca_platform_lib.linkSystemLibrary("X11");
         orca_platform_lib.linkSystemLibrary("xcb");
+        orca_platform_lib.linkSystemLibrary("xcb-sync");
         orca_platform_lib.linkSystemLibrary("X11-xcb");
         orca_platform_lib.linkSystemLibrary("c");
         orca_platform_lib.addIncludePath(LazyPath{ .cwd_relative = "/usr/include" });

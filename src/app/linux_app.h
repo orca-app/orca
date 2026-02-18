@@ -31,6 +31,8 @@ typedef struct oc_linux_x11
         xcb_atom_t OC_X11_CLIENT_MESSAGE;
         xcb_atom_t UTF8_STRING;
         xcb_atom_t WM_CHANGE_STATE;
+        xcb_atom_t WM_DELETE_WINDOW;
+        xcb_atom_t WM_PROTOCOLS;
         xcb_atom_t WM_STATE;
         xcb_atom_t _NET_ACTIVE_WINDOW;
         xcb_atom_t _NET_SUPPORTED;
@@ -38,9 +40,12 @@ typedef struct oc_linux_x11
         xcb_atom_t _NET_WM_ICON_NAME;
         xcb_atom_t _NET_WM_NAME;
         xcb_atom_t _NET_WM_PID;
+        xcb_atom_t _NET_WM_PING;
         xcb_atom_t _NET_WM_STATE;
         xcb_atom_t _NET_WM_STATE_MAXIMIZED_HORZ;
         xcb_atom_t _NET_WM_STATE_MAXIMIZED_VERT;
+        xcb_atom_t _NET_WM_SYNC_REQUEST;
+        xcb_atom_t _NET_WM_SYNC_REQUEST_COUNTER;
         xcb_atom_t _NET_WM_USER_TIME;
         xcb_atom_t _NET_WM_USER_TIME_WINDOW;
         xcb_atom_t _NET_WM_WINDOW_TYPE;
@@ -60,6 +65,11 @@ typedef struct oc_linux_app_data
     oc_arena persistent_arena;
     oc_linux_x11 x11;
 } oc_linux_app_data;
+
+typedef enum x11_reponse_type {
+    X11_RESPONSE_TYPE_ERROR = 0,
+    X11_RESPONSE_TYPE_REPLY = 1,
+} x11_reponse_type;
 
 typedef enum x11_window_state
 {
@@ -106,6 +116,8 @@ typedef struct oc_linux_window_data
     oc_linux_window_focus focus;
     /* Left-outer corner from the parent's origin. */
     oc_vec2 posFromParent;
+    u32 netWmSyncRequestCounterId;
+    u64 netWmSyncRequestUpdateValue;
 } oc_linux_window_data;
 
 #define OC_PLATFORM_WINDOW_DATA oc_linux_window_data linux;

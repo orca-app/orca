@@ -820,7 +820,9 @@ int main(int argc, char** argv)
     // TODO(pld): test app.h
     // end of february:
     // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
-    // - wm_protocols (WM_DELETE_WINDOW, _NET_WM_PING, _NET_WM_SYNC_REQUEST)
+    // - test WM_DELETE_WINDOW
+    // - test _NET_WM_PING
+    // - test _NET_WM_SYNC_REQUEST
     // - _net_wm_user_time_window
     // - oc_window_get_frame_rect
     // - oc_window_set_frame_rect
@@ -834,6 +836,7 @@ int main(int argc, char** argv)
     // - oc_window_content_rect_for_frame_rect
     // - oc_window_frame_rect_for_content_rect
     // - oc_window_set_size
+    // - _NET_STARTUP_ID?
     // - check _net_wm_allowed_actions?
     // - set _net_wm_bypass_compositor?
     // - set _net_wm_full_placement?
@@ -871,7 +874,7 @@ int main(int argc, char** argv)
     // - oc_vsync_init
     //   - do all surfaces vsync themselves if one syncs?
     // - oc_vsync_wait
-    // TODO(pld): _NET_WM_SYNC_REQUEST?
+    // - multiple desktops?
     // TODO(pld): graphics
     // - x11 surface base
     // - x11 webgpu surface create/destroy/get/present
@@ -880,7 +883,6 @@ int main(int argc, char** argv)
     // TODO(pld): ui: just test, should work out of the box
     // TODO(pld): io
     // TODO(pld): clock
-    // TODO(pld): _NET_WM_PING
     //
     // - do not implement, part of io:
     //   - oc_file_move
