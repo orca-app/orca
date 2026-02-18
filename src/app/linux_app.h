@@ -33,22 +33,31 @@ typedef struct oc_linux_x11
         xcb_atom_t WM_CHANGE_STATE;
         xcb_atom_t WM_STATE;
         xcb_atom_t _NET_ACTIVE_WINDOW;
+        xcb_atom_t _NET_SUPPORTED;
+        xcb_atom_t _NET_SUPPORTING_WM_CHECK;
         xcb_atom_t _NET_WM_ICON_NAME;
         xcb_atom_t _NET_WM_NAME;
+        xcb_atom_t _NET_WM_PID;
         xcb_atom_t _NET_WM_STATE;
-        xcb_atom_t _NET_WM_STATE_FOCUSED;
         xcb_atom_t _NET_WM_STATE_MAXIMIZED_HORZ;
         xcb_atom_t _NET_WM_STATE_MAXIMIZED_VERT;
         xcb_atom_t _NET_WM_USER_TIME;
         xcb_atom_t _NET_WM_USER_TIME_WINDOW;
+        xcb_atom_t _NET_WM_WINDOW_TYPE;
+        xcb_atom_t _NET_WM_WINDOW_TYPE_NORMAL;
     } atoms;
     u32 rootWinId;
     u32 winIdToHandleLen;
     x11_win_id_to_handle winIdToHandle[128];
+    u8* wmClass;
+    u32 wmClassLen;
+    u8* wmClientMachine;
+    u32 wmClientMachineLen;
 } oc_linux_x11;
 
 typedef struct oc_linux_app_data
 {
+    oc_arena persistent_arena;
     oc_linux_x11 x11;
 } oc_linux_app_data;
 

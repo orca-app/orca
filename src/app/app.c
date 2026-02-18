@@ -240,3 +240,23 @@ oc_file_dialog_result oc_file_dialog(oc_arena* arena, oc_file_dialog_desc* desc)
 {
     return (oc_file_dialog_for_table(arena, desc, oc_file_table_get_global()));
 }
+
+//---------------------------------------------------------------
+// program arguments
+//---------------------------------------------------------------
+
+static int ocArgc = 0;
+static const char** ocArgv = NULL;
+void oc_set_argc_argv(int argc, const char** argv)
+{
+    ocArgc = argc;
+    ocArgv = argv;
+}
+int oc_get_argc(void)
+{
+    return ocArgc;
+}
+const char** oc_get_argv(void)
+{
+    return ocArgv;
+}

@@ -484,6 +484,10 @@ void oc_clipboard_set_string(oc_str8 string);
 
 #endif // !OC_PLATFORM_ORCA
 
+void oc_set_argc_argv(int argc, const char** argv);
+int oc_get_argc(void);
+const char** oc_get_argv(void);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

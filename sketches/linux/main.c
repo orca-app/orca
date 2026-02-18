@@ -197,7 +197,7 @@ static i32 cond_wait_inc_thread_proc(void* p)
     return 0;
 }
 
-int main(void)
+int main(int argc, char** argv)
 {
     // platform_debug
     if(1)
@@ -571,7 +571,7 @@ int main(void)
     // - oc_io_raw_fstat_at
     // - oc_io_raw_read_link_at
 
-
+    oc_set_argc_argv(argc, argv);
     oc_init();
     oc_terminate();
 
@@ -819,7 +819,9 @@ int main(void)
 
     // TODO(pld): test app.h
     // end of february:
-    // - check wm_supported values
+    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
+    // - wm_protocols (WM_DELETE_WINDOW, _NET_WM_PING, _NET_WM_SYNC_REQUEST)
+    // - _net_wm_user_time_window
     // - oc_window_get_frame_rect
     // - oc_window_set_frame_rect
     // - oc_window_set_frame_position
@@ -832,6 +834,9 @@ int main(void)
     // - oc_window_content_rect_for_frame_rect
     // - oc_window_frame_rect_for_content_rect
     // - oc_window_set_size
+    // - check _net_wm_allowed_actions?
+    // - set _net_wm_bypass_compositor?
+    // - set _net_wm_full_placement?
     // - oc_clipboard_clear
     // - oc_clipboard_set_string
     // - oc_clipboard_get_string

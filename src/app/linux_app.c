@@ -69,6 +69,7 @@ void oc_init(void)
     oc_linux_app_data* linux = &oc_appData.linux;
 
     oc_init_common();
+    oc_arena_init(&linux->persistent_arena);
 
     oc_arena_scope scratch = oc_scratch_begin();
 
@@ -91,14 +92,18 @@ void oc_init(void)
         DEF_ATOM(WM_CHANGE_STATE),
         DEF_ATOM(WM_STATE),
         DEF_ATOM(_NET_ACTIVE_WINDOW),
+        DEF_ATOM(_NET_SUPPORTED),
+        DEF_ATOM(_NET_SUPPORTING_WM_CHECK),
         DEF_ATOM(_NET_WM_ICON_NAME),
         DEF_ATOM(_NET_WM_NAME),
+        DEF_ATOM(_NET_WM_PID),
         DEF_ATOM(_NET_WM_STATE),
-        DEF_ATOM(_NET_WM_STATE_FOCUSED),
         DEF_ATOM(_NET_WM_STATE_MAXIMIZED_HORZ),
         DEF_ATOM(_NET_WM_STATE_MAXIMIZED_VERT),
         DEF_ATOM(_NET_WM_USER_TIME),
         DEF_ATOM(_NET_WM_USER_TIME_WINDOW),
+        DEF_ATOM(_NET_WM_WINDOW_TYPE),
+        DEF_ATOM(_NET_WM_WINDOW_TYPE_NORMAL),
         #undef DEF_ATOM
     };
     for(u64 i = 0; i < oc_array_size(atoms); i++)
@@ -124,6 +129,140 @@ void oc_init(void)
         x11->rootWinId = screen->root;
     }
 
+    /* Check for window manager conformance to EWMH and ICCCM via
+     * _NET_SUPPORTING_WM_CHECK. */
+    {
+        xcb_get_property_cookie_t cookie = {0};
+        cookie = xcb_get_property(conn, false, x11->rootWinId,
+            x11->atoms._NET_SUPPORTING_WM_CHECK, XCB_ATOM_WINDOW, 0, 1);
+        xcb_flush(conn);
+        xcb_get_property_reply_t* reply = NULL;
+        reply = xcb_get_property_reply(conn, cookie, NULL);
+        OC_ASSERT(reply);
+        OC_ASSERT(reply->value_len == 1);
+        OC_ASSERT(reply->bytes_after == 0);
+        xcb_window_t child = *(xcb_window_t*)xcb_get_property_value(reply);
+        OC_ASSERT(child, "Unsupported window manager");
+        free(reply);
+        cookie = xcb_get_property(conn, false, child,
+            x11->atoms._NET_SUPPORTING_WM_CHECK, XCB_ATOM_WINDOW, 0, 1);
+        xcb_flush(conn);
+        reply = xcb_get_property_reply(conn, cookie, NULL);
+        OC_ASSERT(reply);
+        OC_ASSERT(reply->value_len == 1);
+        OC_ASSERT(reply->bytes_after == 0);
+        xcb_window_t child2 = *(xcb_window_t*)xcb_get_property_value(reply);
+        OC_ASSERT(child == child2, "Unsupported window manager");
+        free(reply);
+    }
+
+    /* Check whether the hints we require are present in _NET_SUPPORTED */
+    {
+        xcb_atom_t required[] =
+        {
+            x11->atoms._NET_ACTIVE_WINDOW,
+            x11->atoms._NET_SUPPORTING_WM_CHECK,
+            x11->atoms._NET_WM_ICON_NAME,
+            x11->atoms._NET_WM_NAME,
+            x11->atoms._NET_WM_PID,
+            x11->atoms._NET_WM_STATE,
+            x11->atoms._NET_WM_STATE_MAXIMIZED_HORZ,
+            x11->atoms._NET_WM_STATE_MAXIMIZED_VERT,
+            x11->atoms._NET_WM_USER_TIME,
+            //x11->atoms._NET_WM_USER_TIME_WINDOW,
+            x11->atoms._NET_WM_WINDOW_TYPE,
+            x11->atoms._NET_WM_WINDOW_TYPE_NORMAL,
+        };
+        u32 required_len = oc_array_size(required);
+        u32 offset = 0;
+        while(true)
+        {
+            xcb_get_property_cookie_t cookie = {0};
+            cookie = xcb_get_property(conn, false, x11->rootWinId,
+                x11->atoms._NET_SUPPORTED, XCB_ATOM_ATOM, offset, 64);
+            xcb_flush(conn);
+            xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, NULL);
+            OC_ASSERT(reply);
+            xcb_atom_t* supported = xcb_get_property_value(reply);
+            OC_ASSERT(supported);
+            for(u32 i = 0; i < reply->value_len; i++, supported++)
+            {
+                for(u32 j = 0; j < required_len; j++)
+                {
+                    if(required[j] == *supported)
+                    {
+                        memmove(&required[j], &required[j + 1], (required_len - j - 1) * sizeof(*required));
+                        required_len--;
+                        required[required_len] = 0;
+                        break;
+                    }
+                }
+            }
+            u32 value_len = reply->value_len;
+            u32 bytes_after = reply->bytes_after;
+            free(reply);
+            if(bytes_after == 0)
+            {
+                break;
+            }
+            offset += value_len;
+        }
+        OC_ASSERT(required_len == 0, "Window manager is missing required hints");
+    }
+
+    int argc = oc_get_argc();
+    const char** argv = oc_get_argv();
+    OC_ASSERT(argc && argv);
+    oc_str8 instanceName = {0};
+    {
+        for(u32 i = 1; i < argc; i++)
+        {
+            if(!strcmp(argv[i], "-name") && i + 1 < argc)
+            {
+                instanceName = OC_STR8(argv[i]);
+                break;
+            }
+        }
+        if(!instanceName.ptr)
+        {
+            char* resourceName = getenv("RESOURCE_NAME");
+            instanceName = OC_STR8(resourceName);
+        }
+        if(!instanceName.ptr)
+        {
+            oc_str8 argv0 = OC_STR8(argv[0]);
+            u64 i = argv0.len;
+            for(; i != U64_MAX; i--)
+            {
+                if(argv0.ptr[i] == '/')
+                {
+                    break;
+                }
+            }
+            instanceName = oc_str8_slice(argv0, i + 1, argv0.len);
+        }
+    }
+    oc_str8 className = OC_STR8("Orca");
+    u64 wmClassLen = instanceName.len + className.len + 2;
+    OC_ASSERT(wmClassLen <= U32_MAX);
+    u8* wmClass = oc_arena_push(&linux->persistent_arena, wmClassLen);
+    {
+        u8* p = wmClass;
+        memcpy(p, instanceName.ptr, instanceName.len), p += instanceName.len;
+        *p++ = '\0';
+        memcpy(p, className.ptr, className.len), p += className.len;
+        *p++ = '\0';
+        OC_ASSERT((u64)(p - wmClass) == wmClassLen);
+    }
+    x11->wmClass = wmClass;
+    x11->wmClassLen = (u32)wmClassLen;
+
+    x11->wmClientMachine = oc_arena_push_zero(&linux->persistent_arena, 256);
+    int ok = gethostname((char*)x11->wmClientMachine, 256);
+    OC_ASSERT(ok == 0);
+    x11->wmClientMachineLen = strlen((char*)x11->wmClientMachine) + 1;
+
+    // TODO(pld): WM_PROTOCOLS?
 
     // TODO(pld): aborts instead of OC_ASSERTs, with errno for relevant cases
     // TODO(pld): after the above, create window and map window
@@ -144,6 +283,7 @@ void oc_terminate(void)
     oc_linux_x11* x11 = &linux->x11;
 
     XCloseDisplay(x11->display);
+    oc_arena_cleanup(&linux->persistent_arena);
     oc_terminate_common();
     return;
 }
@@ -781,10 +921,16 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
         winId, XCB_ATOM_WM_NORMAL_HINTS,
         XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(wmNormalHints) / 4, &wmNormalHints);
-    // TODO(pld): WM_CLASS?
-    // TODO(pld): WM_PROTOCOLS?
-    // TODO(pld): CLIENT_MACHINE?
-    // TODO(pld): _NET_WM_SUPPORTED_CHECK?
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, XCB_ATOM_WM_CLASS,
+        XCB_ATOM_STRING, 8, linux->x11.wmClassLen, linux->x11.wmClass);
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, XCB_ATOM_WM_CLIENT_MACHINE,
+        XCB_ATOM_STRING, 8, linux->x11.wmClientMachineLen, linux->x11.wmClientMachine);
+    u32 pid = (u32)getpid();
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, linux->x11.atoms._NET_WM_PID,
+        XCB_ATOM_CARDINAL, 32, 1, &pid);
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, linux->x11.atoms._NET_WM_WINDOW_TYPE,
+        XCB_ATOM_ATOM, 32, 1, &linux->x11.atoms._NET_WM_WINDOW_TYPE_NORMAL);
+    // TODO(pld): test _NET_WM_ALLOWED_ACTIONS?
 
     oc_window_data* windowData = oc_window_alloc();
     windowData->linux.x11Id = winId;
