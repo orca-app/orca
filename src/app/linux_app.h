@@ -35,6 +35,7 @@ typedef struct oc_linux_x11
         xcb_atom_t WM_PROTOCOLS;
         xcb_atom_t WM_STATE;
         xcb_atom_t _NET_ACTIVE_WINDOW;
+        xcb_atom_t _NET_CLOSE_WINDOW;
         xcb_atom_t _NET_SUPPORTED;
         xcb_atom_t _NET_SUPPORTING_WM_CHECK;
         xcb_atom_t _NET_WM_ICON_NAME;
@@ -52,6 +53,7 @@ typedef struct oc_linux_x11
         xcb_atom_t _NET_WM_WINDOW_TYPE_NORMAL;
     } atoms;
     u32 rootWinId;
+    u32 controlWinId;
     u32 winIdToHandleLen;
     x11_win_id_to_handle winIdToHandle[128];
     u8* wmClass;
@@ -131,7 +133,21 @@ typedef struct oc_layer
 typedef enum oc_x11_client_message
 {
     OC_X11_CLIENT_MESSAGE_UNFOCUS,
+    OC_X11_CLIENT_MESSAGE_CANCEL_CLOSE,
+    OC_X11_CLIENT_MESSAGE_REQUEST_QUIT,
+    OC_X11_CLIENT_MESSAGE_CANCEL_QUIT,
+    OC_X11_CLIENT_MESSAGE_ADD_WINDOW_ID_TO_HANDLE_ENTRY,
+    OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
 } oc_x11_client_message;
+
+typedef struct oc_linux_dispatch_sync_request
+{
+    oc_dispatch_proc proc;
+    void* user;
+    oc_condition* cond;
+    oc_mutex* mutex;
+    i32 retval;
+} oc_linux_dispatch_sync_request;
 
 #endif // __LINUX_APP_H_
 

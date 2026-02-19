@@ -40,6 +40,8 @@ typedef struct oc_window_data
     oc_list_elt freeListElt;
     u32 generation;
 
+    u8 end_of_internal_data[0];
+
     oc_window_style style;
 
     bool shouldClose; //TODO could be in status flags

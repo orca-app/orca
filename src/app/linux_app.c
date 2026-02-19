@@ -21,37 +21,21 @@ static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) == OC_APP_MAX
 static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) <= U32_MAX,
   "winIdToHandle's lengh must fit in winIdToHandleLen");
 
-// TODO(pld): window bring to front
-// TODO(pld): window focus
 // TODO(pld): window center
-// TODO(pld): window destroy
 // TODO(pld): window set size
-// TODO(pld): terminate
-// TODO(pld): use ICCCM's recommended way of getting server timestamp
-// TODO(pld): WM_CLASS, WM_CLIENT_MACHINE
-// (zero-length property set)
 //
 // TODO(pld): get_content_size
 // TODO(pld): set_content_size
 
-// TODO(pld): minimize
-// TODO(pld): maximize
 // TODO(pld): center
 // TODO(pld): frame rect
-// TODO(pld): restore
-// TODO(pld): destroy
-// TODO(pld): close
 // TODO(pld): surface callbacks
 // TODO(pld): kb/mouse events
 // TODO(pld): clipboard
 // TODO(pld): file move
 // TODO(pld): alert
 // TODO(pld): file dialog
-// TODO(pld): terminate
-// TODO(pld): quit
-// TODO(pld): dispatch main thread
 // TODO(pld): mouse cursor
-//
 
 // NOTE(pld): Thread safety: we assume a thread is pumping events and writing
 // into each window's windowData, but cannot delete or create new ones.
@@ -65,6 +49,11 @@ static inline void* memz(void* buf, size_t n)
 
 void oc_init(void)
 {
+    if(oc_appData.init)
+    {
+        return;
+    }
+
     memset(&oc_appData, 0, sizeof(oc_appData));
     oc_linux_app_data* linux = &oc_appData.linux;
 
@@ -94,6 +83,7 @@ void oc_init(void)
         DEF_ATOM(WM_PROTOCOLS),
         DEF_ATOM(WM_STATE),
         DEF_ATOM(_NET_ACTIVE_WINDOW),
+        DEF_ATOM(_NET_CLOSE_WINDOW),
         DEF_ATOM(_NET_SUPPORTED),
         DEF_ATOM(_NET_SUPPORTING_WM_CHECK),
         DEF_ATOM(_NET_WM_ICON_NAME),
@@ -185,6 +175,7 @@ void oc_init(void)
         xcb_atom_t required[] =
         {
             x11->atoms._NET_ACTIVE_WINDOW,
+            x11->atoms._NET_CLOSE_WINDOW,
             x11->atoms._NET_SUPPORTING_WM_CHECK,
             x11->atoms._NET_WM_ICON_NAME,
             x11->atoms._NET_WM_NAME,
@@ -236,6 +227,20 @@ void oc_init(void)
             offset += value_len;
         }
         OC_ASSERT(required_len == 0, "Window manager is missing required hints");
+    }
+
+    /* Control window. For runtime-specific events that don't target any client
+     * window in particular. */
+    {
+        u32 winId = xcb_generate_id(conn);
+        u32 parentId = x11->rootWinId;
+        xcb_void_cookie_t cookie =
+            xcb_create_window_aux_checked(conn, 0, winId, parentId, 0, 0, 1, 1, 0,
+                XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT, 0, NULL);
+        xcb_flush(conn);
+        xcb_generic_error_t* e = xcb_request_check(conn, cookie);
+        OC_ASSERT(!e);
+        x11->controlWinId = winId;
     }
 
     int argc = oc_get_argc();
@@ -300,6 +305,8 @@ void oc_init(void)
     // TODO(pld): init keys
     //
     oc_scratch_end(scratch);
+
+    oc_appData.init = true;
     return;
 }
 
@@ -311,18 +318,45 @@ void oc_terminate(void)
     XCloseDisplay(x11->display);
     oc_arena_cleanup(&linux->persistent_arena);
     oc_terminate_common();
+
+    oc_appData.init = false;
     return;
 }
 
 bool oc_should_quit(void)
 {
-    // TODO(pld)
-    return (false);
+    return (oc_appData.shouldQuit);
 }
 
 void oc_request_quit(void)
 {
-    oc_unimplemented();
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    xcb_client_message_event_t msg =
+    {
+        .response_type = XCB_CLIENT_MESSAGE,
+        .format = 32,
+        .window = linux->x11.controlWinId,
+        .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
+        .data.data32[0] = OC_X11_CLIENT_MESSAGE_REQUEST_QUIT,
+    };
+    xcb_send_event(conn, false, linux->x11.controlWinId, 0, (const char*)&msg);
+    return;
+}
+
+void oc_cancel_quit(void)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    xcb_client_message_event_t msg =
+    {
+        .response_type = XCB_CLIENT_MESSAGE,
+        .format = 32,
+        .window = linux->x11.controlWinId,
+        .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
+        .data.data32[0] = OC_X11_CLIENT_MESSAGE_CANCEL_QUIT,
+    };
+    xcb_send_event(conn, false, linux->x11.controlWinId, 0, (const char*)&msg);
     return;
 }
 
@@ -332,7 +366,9 @@ void oc_set_cursor(oc_mouse_cursor cursor)
     return;
 }
 
-// TODO(pld): Does this lack thread safety?
+/* This should only be called from pump_events, i.e. from a single thread, so
+ * that it remains thread safe. The winIdToHandle array itself should only be
+ * modified in this pump_events too. */
 static oc_window window_handle_from_x11_id(u32 winId)
 {
     oc_linux_x11* x11 = &oc_appData.linux.x11;
@@ -502,6 +538,12 @@ void oc_pump_events(f64 timeout)
             if(windowData)
             {
                 windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED;
+                oc_event event =
+                {
+                    .type = OC_EVENT_WINDOW_FOCUS,
+                    .window = window,
+                };
+                oc_queue_event(&event);
             }
         } break;
         case XCB_FOCUS_OUT:
@@ -515,6 +557,12 @@ void oc_pump_events(f64 timeout)
             if(windowData)
             {
                 windowData->linux.focus = OC_LINUX_WINDOW_UNFOCUSED;
+                oc_event event =
+                {
+                    .type = OC_EVENT_WINDOW_UNFOCUS,
+                    .window = window,
+                };
+                oc_queue_event(&event);
             }
         } break;
         case XCB_KEYMAP_NOTIFY:
@@ -542,16 +590,16 @@ void oc_pump_events(f64 timeout)
             break;
         case XCB_DESTROY_NOTIFY:
         {
-            // TODO(pld): do not do this here
             type = "DestroyNotify";
             xcb_destroy_notify_event_t* noti = (xcb_destroy_notify_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
-                // TODO(pld): clean other things before recycling
+                //TODO(pld): clean up the window's other resources
                 x11_win_id_to_handle entry = {0};
-                for(u32 i = linux->x11.winIdToHandleLen - 1; i < U32_MAX; i--)
+                linux->x11.winIdToHandleLen--;
+                for(u32 i = linux->x11.winIdToHandleLen; i != U32_MAX; i--)
                 {
                   oc_swap(linux->x11.winIdToHandle[i], entry);
                   if(entry.winId == noti->window)
@@ -561,6 +609,22 @@ void oc_pump_events(f64 timeout)
                   OC_ASSERT(i > 0);
                 }
                 oc_window_recycle_ptr(windowData);
+
+                //FIXME(pld): We currently assume that having no more window
+                //means the app should quit. We might not want it so if Orca
+                //supports at some point terminal applications or whatever that
+                //don't require windows per se. Is that a goal of Orca even?
+                if(linux->x11.winIdToHandleLen == 0)
+                {
+                    /* All windows destroyed (except for control window which
+                     * doesn't count as an application window), app should
+                     * terminate. */
+                    oc_event event =
+                    {
+                        .type = OC_EVENT_QUIT,
+                    };
+                    oc_queue_event(&event);
+                }
             }
         } break;
         case XCB_UNMAP_NOTIFY:
@@ -624,8 +688,8 @@ void oc_pump_events(f64 timeout)
                 xcb_sync_counter_t id = windowData->linux.netWmSyncRequestCounterId;
                 xcb_sync_int64_t val =
                 {
-                    .hi = (i32)((windowData->linux.netWmSyncRequestUpdateValue >> 32) & 0xFFFFFFFF),
-                    .lo = (u32)((windowData->linux.netWmSyncRequestUpdateValue >>  0) & 0xFFFFFFFF),
+                    .lo = (u32)(windowData->linux.netWmSyncRequestUpdateValue >>  0 & 0xFFFFFFFF),
+                    .hi = (i32)(windowData->linux.netWmSyncRequestUpdateValue >> 32 & 0xFFFFFFFF),
                 };
                 xcb_sync_set_counter(conn, id, val);
             }
@@ -823,16 +887,62 @@ void oc_pump_events(f64 timeout)
             if(noti->type == linux->x11.atoms.OC_X11_CLIENT_MESSAGE)
             {
                 OC_ASSERT(noti->format == 32);
-                oc_window window = window_handle_from_x11_id(noti->window);
-                oc_window_data* windowData = oc_window_ptr_from_handle(window);
-                if(!windowData)  break;
-                oc_x11_client_message t = noti->data.data32[0];
-                if(t == OC_X11_CLIENT_MESSAGE_UNFOCUS)
+                oc_window window = {0};
+                oc_window_data* windowData = NULL;
+                if(noti->window != linux->x11.controlWinId)
+                {
+                    window = window_handle_from_x11_id(noti->window);
+                    windowData = oc_window_ptr_from_handle(window);
+                    if(!windowData)  break;
+                }
+                oc_x11_client_message m = noti->data.data32[0];
+                if(m == OC_X11_CLIENT_MESSAGE_UNFOCUS)
                 {
                     if(windowData->linux.focus == OC_LINUX_WINDOW_FOCUSED)
                     {
                         windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED_IGNORE_INPUTS;
                     }
+                }
+                else if(m == OC_X11_CLIENT_MESSAGE_CANCEL_CLOSE)
+                {
+                    windowData->shouldClose = false;
+                }
+                else if(m == OC_X11_CLIENT_MESSAGE_REQUEST_QUIT)
+                {
+                    OC_ASSERT(noti->window == linux->x11.controlWinId);
+                    oc_appData.shouldQuit = true;
+                }
+                else if(m == OC_X11_CLIENT_MESSAGE_CANCEL_QUIT)
+                {
+                    OC_ASSERT(noti->window == linux->x11.controlWinId);
+                    oc_appData.shouldQuit = false;
+                }
+                else if(m == OC_X11_CLIENT_MESSAGE_ADD_WINDOW_ID_TO_HANDLE_ENTRY)
+                {
+                    OC_ASSERT(noti->window == linux->x11.controlWinId);
+                    OC_ASSERT(linux->x11.winIdToHandleLen < oc_array_size(linux->x11.winIdToHandle));
+                    u32 winId = noti->data.data32[1];
+                    u64 handleLo = (u64)noti->data.data32[2];
+                    u64 handleHi = (u64)noti->data.data32[3];
+                    oc_window handle = { .h = (handleHi << 32) + handleLo };
+                    OC_ASSERT(oc_window_ptr_from_handle(handle));
+                    linux->x11.winIdToHandle[linux->x11.winIdToHandleLen++] = (x11_win_id_to_handle){
+                      .winId = winId,
+                      .handle = handle,
+                    };
+                }
+                else if(m == OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC)
+                {
+                    OC_ASSERT(noti->window == linux->x11.controlWinId);
+                    u64 lo = (u64)noti->data.data32[1];
+                    u64 hi = (u64)noti->data.data32[2];
+                    void* p = (void*)((hi << 32) + lo);
+                    oc_linux_dispatch_sync_request* req = p;
+                    OC_ASSERT(req);
+                    oc_mutex_lock(req->mutex);
+                    req->retval = req->proc(req->user);
+                    oc_condition_signal(req->cond);
+                    oc_mutex_unlock(req->mutex);
                 }
                 else
                 {
@@ -849,15 +959,14 @@ void oc_pump_events(f64 timeout)
                 xcb_timestamp_t ts = noti->data.data32[1];
                 if(protocol == linux->x11.atoms.WM_DELETE_WINDOW)
                 {
-                    //FIXME(pld): confirm close dialog?
-                    if(1)
+                    window_update_last_user_activity(conn, window, ts);
+                    windowData->shouldClose = true;
+                    oc_event event =
                     {
-                        oc_window_destroy(window);
-                    }
-                    else
-                    {
-                        window_update_last_user_activity(conn, window, ts);
-                    }
+                        .type = OC_EVENT_WINDOW_CLOSE,
+                        .window = window,
+                    };
+                    oc_queue_event(&event);
                 }
                 else if(protocol == linux->x11.atoms._NET_WM_PING)
                 {
@@ -871,7 +980,7 @@ void oc_pump_events(f64 timeout)
                 {
                     u64 lo = (u64)noti->data.data32[2];
                     u64 hi = (u64)noti->data.data32[3];
-                    windowData->linux.netWmSyncRequestUpdateValue = (hi << 32 | lo);
+                    windowData->linux.netWmSyncRequestUpdateValue = (hi << 32) + lo;
                 }
                 else
                 {
@@ -901,10 +1010,11 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
 
-    if(linux->x11.winIdToHandleLen == oc_array_size(linux->x11.winIdToHandle))
-    {
-      return (oc_window){0};
-    }
+    oc_window_data* windowData = oc_window_alloc();
+    OC_ASSERT(windowData);
+    memz(((u8*)windowData) + offsetof(__typeof__(*windowData), end_of_internal_data),
+        sizeof(*windowData) - offsetof(__typeof__(*windowData), end_of_internal_data));
+    oc_window window = oc_window_handle_from_ptr(windowData);
 
     const xcb_setup_t* setup = xcb_get_setup(conn);
 
@@ -979,6 +1089,21 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     {
         xcb_flush(conn);
     }
+    //TODO(pld): how can we be sure this will be the first event received for
+    //this window and not have the WM send something first, resulting in the WM
+    //event to be ignored?
+    xcb_client_message_event_t msg =
+    {
+        .response_type = XCB_CLIENT_MESSAGE,
+        .format = 32,
+        .window = linux->x11.controlWinId,
+        .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
+        .data.data32[0] = OC_X11_CLIENT_MESSAGE_ADD_WINDOW_ID_TO_HANDLE_ENTRY,
+        .data.data32[1] = winId,
+        .data.data32[2] = (u32)(window.h >>  0 & 0xFFFFFFFF),
+        .data.data32[3] = (u32)(window.h >> 32 & 0xFFFFFFFF),
+    };
+    xcb_send_event(conn, false, linux->x11.controlWinId, 0, (const char*)&msg);
     static const u32 wmHints[9] =
     {
         /* flags: InputHint, StateHint */
@@ -1029,15 +1154,8 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         XCB_ATOM_CARDINAL, 32, 1, &counterId);
     // TODO(pld): test _NET_WM_ALLOWED_ACTIONS?
 
-    oc_window_data* windowData = oc_window_alloc();
     windowData->linux.x11Id = winId;
     windowData->linux.netWmSyncRequestCounterId = counterId;
-    oc_window window = oc_window_handle_from_ptr(windowData);
-
-    linux->x11.winIdToHandle[linux->x11.winIdToHandleLen++] = (x11_win_id_to_handle){
-      .winId = winId,
-      .handle = window,
-    };
 
     oc_window_set_title(window, title);
 
@@ -1049,9 +1167,10 @@ void oc_window_destroy(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-
-    xcb_destroy_window(conn, windowData->linux.x11Id);
-    oc_window_recycle_ptr(windowData);
+    if(windowData)
+    {
+        xcb_destroy_window(conn, windowData->linux.x11Id);
+    }
     return;
 }
 
@@ -1074,22 +1193,51 @@ bool oc_window_should_close(oc_window window)
 
 void oc_window_request_close(oc_window window)
 {
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData && !windowData->shouldClose)
+    if(windowData)
     {
-        windowData->shouldClose = true;
-        // TODO(pld): enqueue destroy window?
-        // TODO(pld): enqueue OC_EVENT_WINDOW_CLOSE
+        xcb_client_message_event_t msg =
+        {
+            .response_type = XCB_CLIENT_MESSAGE,
+            .format = 32,
+            .window = windowData->linux.x11Id,
+            .type = linux->x11.atoms._NET_CLOSE_WINDOW,
+            //FIXME(pld): take most recent timestamp across all window instead
+            //of only the one from the window we're attempting to close?
+            .data.data32[0] = windowData->linux.netWmUserTime,
+            .data.data32[1] = X11_EWMH_SOURCE_INDICATION_NORMAL,
+        };
+        xcb_send_event(conn, false, linux->x11.rootWinId,
+            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+            (const char*)&msg);
     }
     return;
 }
 
 void oc_window_cancel_close(oc_window window)
 {
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
     {
-        windowData->shouldClose = false;
+        //FIXME(pld): this has no guarantee to arrive *after* the app calls
+        //oc_window_request_close and the WM sends back a WM_DELETE_WINDOW
+        //call... Just setting shouldClose to false might be enough given that.
+        xcb_client_message_event_t msg =
+        {
+            .response_type = XCB_CLIENT_MESSAGE,
+            .format = 32,
+            .window = windowData->linux.x11Id,
+            .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
+            .data.data32[0] = OC_X11_CLIENT_MESSAGE_CANCEL_CLOSE,
+        };
+        xcb_send_event(conn, false, windowData->linux.x11Id,
+            XCB_EVENT_MASK_STRUCTURE_NOTIFY,
+            (const char*)&msg);
     }
     return;
 }
@@ -1356,7 +1504,6 @@ bool oc_window_has_focus(oc_window window)
     return (focused);
 }
 
-//TODO(pld): test assumed _NET_SUPPORTED features in init
 void oc_window_focus(oc_window window)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
@@ -1397,11 +1544,9 @@ void oc_window_unfocus(oc_window window)
             .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
             .data.data32[0] = OC_X11_CLIENT_MESSAGE_UNFOCUS,
         };
-        xcb_void_cookie_t cookie =
         xcb_send_event(conn, false, windowData->linux.x11Id,
-            XCB_EVENT_MASK_FOCUS_CHANGE,
+            XCB_EVENT_MASK_STRUCTURE_NOTIFY,
             (const char*)&msg);
-        oc_log_info("cookie=%d\n", cookie.sequence);
     }
     return;
 }
@@ -1533,8 +1678,43 @@ oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_sty
 }
 i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 {
-    oc_unimplemented();
-    return (-1);
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_linux_dispatch_sync_request req =
+    {
+        .proc = proc,
+        .user = user,
+        .cond = oc_condition_create(),
+        .mutex = oc_mutex_create(),
+    };
+    OC_STATIC_ASSERT(sizeof(&req) == 8);
+    OC_ASSERT(req.cond);
+    OC_ASSERT(req.mutex);
+    xcb_client_message_event_t msg =
+    {
+        .response_type = XCB_CLIENT_MESSAGE,
+        .format = 32,
+        .window = linux->x11.controlWinId,
+        .type = linux->x11.atoms.OC_X11_CLIENT_MESSAGE,
+        .data.data32[0] = OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
+        .data.data32[1] = (u32)((uintptr_t)&req >>  0 & 0xFFFFFFFF),
+        .data.data32[2] = (u32)((uintptr_t)&req >> 32 & 0xFFFFFFFF),
+    };
+    xcb_send_event(conn, false, linux->x11.controlWinId, 0, (const char*)&msg);
+
+    int ok = 0;
+    ok = oc_mutex_lock(req.mutex);
+    OC_ASSERT(ok == 0);
+    ok = oc_condition_wait(req.cond, req.mutex);
+    OC_ASSERT(ok == 0);
+    ok = oc_condition_destroy(req.cond);
+    OC_ASSERT(ok == 0);
+    ok = oc_mutex_unlock(req.mutex);
+    OC_ASSERT(ok == 0);
+    ok = oc_mutex_destroy(req.mutex);
+    OC_ASSERT(ok == 0);
+
+    return (req.retval);
 }
 void oc_clipboard_clear(void)
 {

@@ -819,11 +819,6 @@ int main(int argc, char** argv)
 
     // TODO(pld): test app.h
     // end of february:
-    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
-    // - test WM_DELETE_WINDOW
-    // - test _NET_WM_PING
-    // - test _NET_WM_SYNC_REQUEST
-    // - _net_wm_user_time_window
     // - oc_window_get_frame_rect
     // - oc_window_set_frame_rect
     // - oc_window_set_frame_position
@@ -836,10 +831,6 @@ int main(int argc, char** argv)
     // - oc_window_content_rect_for_frame_rect
     // - oc_window_frame_rect_for_content_rect
     // - oc_window_set_size
-    // - _NET_STARTUP_ID?
-    // - check _net_wm_allowed_actions?
-    // - set _net_wm_bypass_compositor?
-    // - set _net_wm_full_placement?
     // - oc_clipboard_clear
     // - oc_clipboard_set_string
     // - oc_clipboard_get_string
@@ -848,15 +839,36 @@ int main(int argc, char** argv)
     // - oc_clipboard_set_data_for_tag
     // - oc_clipboard_get_data_for_tag
     // - oc_window_create flags
-    // - oc_should_quit
-    // - oc_request_quit: set shouldQuit global flag, wakeup event thread
-    // - oc_window_should_close
-    // - oc_window_request_close: set shouldClose flag on window, send close
-    // window event so main thread deals with it
-    // - oc_window_cancel_close
-    // - oc_pump_events
-    // - oc_next_event
-    // - oc_dispatch_on_main_thread_sync
+    // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close
+    // - test oc_should_quit, oc_request_quit, oc_cancel_quit
+    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
+    // - test WM_DELETE_WINDOW
+    // - test _NET_WM_PING
+    // - test _NET_WM_SYNC_REQUEST
+    // - test oc_dispatch_on_main_thread_sync
+    // - _net_wm_user_time_window
+    // - _NET_STARTUP_ID?
+    // - check _net_wm_allowed_actions?
+    // - set _net_wm_bypass_compositor?
+    // - set _net_wm_full_placement?
+    // - send app events:
+    //   - OC_EVENT_KEYBOARD_MODS
+    //   - OC_EVENT_KEYBOARD_KEY
+    //   - OC_EVENT_KEYBOARD_CHAR
+    //   - OC_EVENT_MOUSE_BUTTON
+    //   - OC_EVENT_MOUSE_MOVE
+    //   - OC_EVENT_MOUSE_WHEEL
+    //   - OC_EVENT_MOUSE_ENTER
+    //   - OC_EVENT_MOUSE_LEAVE
+    //   - OC_EVENT_CLIPBOARD_PASTE
+    //   - OC_EVENT_WINDOW_RESIZE
+    //   - OC_EVENT_WINDOW_MOVE
+    //   - OC_EVENT_WINDOW_HIDE
+    //   - OC_EVENT_WINDOW_SHOW
+    //   - OC_EVENT_PATHDROP
+    //   - OC_EVENT_FRAME
+    // - fix reading wm_state when updated
+    // - oc_event: mark padding so it gets initialized?
     // - client-server request/reply sync (investigate in glfw and sdl)
     //
     // later:
