@@ -542,18 +542,18 @@ void oc_ui_menu_begin_str8(oc_str8 key, oc_str8 text)
 {
     oc_ui_box* container = oc_ui_box_begin_str8(key);
 
+    //    oc_ui_style_set_color(OC_UI_BORDER_COLOR, (oc_color){ 1, 0, 0, 1 });
+    //   oc_ui_style_set_f32(OC_UI_BORDER_SIZE, 1);
+
     //NOTE: container is just so we scope button/panel under a unique key,
     //      so we make it click through and don't clip its content
     oc_ui_style_set_i32(OC_UI_OVERFLOW_X, OC_UI_OVERFLOW_ALLOW);
     oc_ui_style_set_i32(OC_UI_OVERFLOW_Y, OC_UI_OVERFLOW_ALLOW);
-    oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
     oc_ui_box* button = oc_ui_box("button")
     {
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 8);
         oc_ui_style_set_f32(OC_UI_MARGIN_X, 4);
-
-        oc_ui_style_set_i32(OC_UI_CLICK_THROUGH, 1);
 
         oc_ui_style_rule("button.hover")
         {
