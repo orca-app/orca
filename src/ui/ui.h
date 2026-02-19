@@ -45,7 +45,8 @@ typedef struct oc_ui_size
 {
     oc_ui_size_kind kind;
     f32 value;
-    f32 relax;
+    f32 grow;
+    f32 shrink;
     f32 min;
     f32 max;
 } oc_ui_size;

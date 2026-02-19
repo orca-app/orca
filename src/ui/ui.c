@@ -2035,7 +2035,8 @@ void oc_ui_animate_oc_ui_size(oc_ui_context* ui, oc_ui_size* size, oc_ui_size ta
 {
     size->kind = target.kind;
     oc_ui_animate_f32(ui, &size->value, target.value, animationTime);
-    oc_ui_animate_f32(ui, &size->relax, target.relax, animationTime);
+    oc_ui_animate_f32(ui, &size->grow, target.grow, animationTime);
+    oc_ui_animate_f32(ui, &size->shrink, target.shrink, animationTime);
 }
 
 void oc_ui_box_animate_style(oc_ui_context* ui, oc_ui_box* box)
@@ -2847,22 +2848,26 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                                - 2 * box->style.layout.margin.c[mainAxis]
                                - flowSize.c[mainAxis];
 
-            //NOTE: distribute remaining space among children, proportionally to their relax weight
+            //NOTE: distribute remaining space among children, proportionally to their shrink/grow weight
             while(fabs(remainingSpace) > 0.5)
             {
                 f32 newRemainingSpace = remainingSpace;
 
                 //NOTE: compute total weight of children that can still grow/shrink
                 f32 totalWeight = 0;
+
                 oc_list_for(box->children, child, oc_ui_box, listElt)
                 {
                     if(child->style.position == OC_UI_POSITION_FLOW
                        && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
                     {
-                        if((remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
-                           || (remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min))
+                        if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
                         {
-                            totalWeight += child->style.size.c[mainAxis].relax;
+                            totalWeight += child->style.size.c[mainAxis].grow;
+                        }
+                        else if(remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                        {
+                            totalWeight += child->style.size.c[mainAxis].shrink;
                         }
                     }
                 }
@@ -2874,19 +2879,24 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                         if(child->style.position == OC_UI_POSITION_FLOW
                            && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
                         {
-                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max
-                               || remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                            f32 childWeight = 0;
+                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
                             {
-                                //TODO: should remove child borders from computation?
-                                f32 addSpace = remainingSpace * child->style.size.c[mainAxis].relax / totalWeight;
-
-                                f32 newSize = oc_clamp(child->rect.c[2 + mainAxis] + addSpace,
-                                                       child->style.size.c[mainAxis].min,
-                                                       child->style.size.c[mainAxis].max);
-
-                                newRemainingSpace -= newSize - child->rect.c[2 + mainAxis];
-                                child->rect.c[2 + mainAxis] = newSize;
+                                childWeight = child->style.size.c[mainAxis].grow;
                             }
+                            else if(remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                            {
+                                childWeight = child->style.size.c[mainAxis].shrink;
+                            }
+
+                            f32 addSpace = remainingSpace * childWeight / totalWeight;
+
+                            f32 newSize = oc_clamp(child->rect.c[2 + mainAxis] + addSpace,
+                                                   child->style.size.c[mainAxis].min,
+                                                   child->style.size.c[mainAxis].max);
+
+                            newRemainingSpace -= newSize - child->rect.c[2 + mainAxis];
+                            child->rect.c[2 + mainAxis] = newSize;
                         }
                     }
                 }
@@ -2912,7 +2922,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
 
         //NOTE: grow/shrink in cross axis
         {
-            //NOTE: give remaining space to each indidual child according to its relax weight, up to its min/max size
+            //NOTE: give remaining space to each indidual child according to its shrink/grow weight, up to its min/max size
             oc_list_for(box->children, child, oc_ui_box, listElt)
             {
                 //NOTE: compute remaining space in cross axis
@@ -2922,7 +2932,11 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                                    - child->rect.c[2 + crossAxis];
 
                 //NOTE: should remove child borders?
-                child->rect.c[2 + crossAxis] = oc_clamp(child->rect.c[2 + crossAxis] + remainingSpace * child->style.size.c[crossAxis].relax,
+                f32 weight = remainingSpace > 0
+                               ? child->style.size.c[crossAxis].grow
+                               : child->style.size.c[crossAxis].shrink;
+
+                child->rect.c[2 + crossAxis] = oc_clamp(child->rect.c[2 + crossAxis] + remainingSpace * weight,
                                                         child->style.size.c[crossAxis].min,
                                                         child->style.size.c[crossAxis].max);
             }
