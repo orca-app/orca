@@ -59,10 +59,12 @@ i32 ui_runloop(void* user)
 
         oc_ui_frame(frameSize)
         {
-            static f32 slider = 1;
+            static f32 widthSlider = 1;
+            static f32 heightSlider = 0.5;
             static oc_ui_align alignX = OC_UI_ALIGN_START;
             static oc_ui_align alignY = OC_UI_ALIGN_START;
             static bool wrap = true;
+            static oc_ui_axis mainAxis = OC_UI_AXIS_X;
             static oc_ui_overflow overflow = OC_UI_OVERFLOW_SCROLL;
 
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
@@ -80,10 +82,27 @@ i32 ui_runloop(void* user)
                 oc_ui_style_set_f32(OC_UI_SPACING, 10);
 
                 oc_ui_label("width-label", "Container Width");
-                oc_ui_slider("slider", &slider);
+                oc_ui_slider("slider-w", &widthSlider);
+
+                oc_ui_label("height-label", "Container Height");
+                oc_ui_slider("slider-h", &heightSlider);
 
                 oc_ui_label("wrap-label", "Wrap Content");
                 oc_ui_checkbox("wrap", &wrap);
+
+                {
+                    oc_ui_radio_group_info axisInfo = {
+                        .optionCount = 2,
+                        .options = (oc_str8[]){
+                            OC_STR8_LIT("X"),
+                            OC_STR8_LIT("Y"),
+                        },
+                        .selectedIndex = (i32)mainAxis,
+                    };
+                    oc_ui_label("axis-label", "Main Axis");
+                    oc_ui_radio_group_info result = oc_ui_radio_group("axis", &axisInfo);
+                    mainAxis = result.selectedIndex;
+                }
 
                 {
                     oc_ui_radio_group_info overflowInfo = {
@@ -132,12 +151,15 @@ i32 ui_runloop(void* user)
                 }
             }
 
-            f32 width = 100 + slider * 400;
+            f32 width = 100 + widthSlider * 400;
+            f32 height = 100 + heightSlider * 400;
 
             oc_ui_box("a")
             {
+                oc_ui_style_set_i32(OC_UI_AXIS, mainAxis);
+
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, width });
-                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_CHILDREN });
+                oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, height });
                 oc_ui_style_set_f32(OC_UI_MARGIN_X, 10);
                 oc_ui_style_set_f32(OC_UI_MARGIN_Y, 10);
                 oc_ui_style_set_f32(OC_UI_SPACING, 10);

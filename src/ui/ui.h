@@ -70,6 +70,8 @@ typedef enum oc_ui_attribute
     OC_UI_SPACING,
     OC_UI_ALIGN_X,
     OC_UI_ALIGN_Y,
+    OC_UI_ALIGN_LINE_X,
+    OC_UI_ALIGN_LINE_Y,
     OC_UI_POSITION,
     OC_UI_FOOTPRINT,
     OC_UI_OFFSET_X,
@@ -103,6 +105,8 @@ typedef enum oc_ui_attribute_mask
     OC_UI_MASK_LAYOUT_SPACING = 1 << OC_UI_SPACING,
     OC_UI_MASK_LAYOUT_ALIGN_X = 1 << OC_UI_ALIGN_X,
     OC_UI_MASK_LAYOUT_ALIGN_Y = 1 << OC_UI_ALIGN_Y,
+    OC_UI_MASK_LAYOUT_ALIGN_LINE_X = 1 << OC_UI_ALIGN_LINE_X,
+    OC_UI_MASK_LAYOUT_ALIGN_LINE_Y = 1 << OC_UI_ALIGN_LINE_Y,
     OC_UI_MASK_POSITION = 1 << OC_UI_POSITION,
     OC_UI_MASK_FOOTPRINT = 1 << OC_UI_FOOTPRINT,
     OC_UI_MASK_OFFSET_X = 1 << OC_UI_OFFSET_X,
@@ -152,6 +156,7 @@ typedef struct oc_ui_layout
     } margin;
 
     oc_ui_layout_align align;
+    oc_ui_layout_align alignLine;
 
     union
     {

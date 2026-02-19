@@ -638,6 +638,14 @@ void oc_ui_style_set_i32(oc_ui_attribute attr, i32 i)
             style->layout.align.y = i;
             break;
 
+        case OC_UI_ALIGN_LINE_X:
+            style->layout.alignLine.x = i;
+            break;
+
+        case OC_UI_ALIGN_LINE_Y:
+            style->layout.alignLine.y = i;
+            break;
+
         case OC_UI_POSITION:
             style->position = i;
             break;
@@ -1277,6 +1285,8 @@ void oc_ui_style_set_var_str8(oc_ui_attribute attr, oc_str8 name)
             case OC_UI_AXIS:
             case OC_UI_ALIGN_X:
             case OC_UI_ALIGN_Y:
+            case OC_UI_ALIGN_LINE_X:
+            case OC_UI_ALIGN_LINE_Y:
             case OC_UI_POSITION:
             case OC_UI_FOOTPRINT:
             case OC_UI_OVERFLOW_X:
@@ -2181,6 +2191,14 @@ void oc_ui_style_apply(oc_ui_style* dst,
     {
         dst->layout.align.y = src->layout.align.y;
     }
+    if(oc_ui_style_apply_check(OC_UI_ALIGN_LINE_X, mask, specificity, specArray))
+    {
+        dst->layout.alignLine.x = src->layout.alignLine.x;
+    }
+    if(oc_ui_style_apply_check(OC_UI_ALIGN_LINE_Y, mask, specificity, specArray))
+    {
+        dst->layout.alignLine.y = src->layout.alignLine.y;
+    }
     if(oc_ui_style_apply_check(OC_UI_SPACING, mask, specificity, specArray))
     {
         dst->layout.spacing = src->layout.spacing;
@@ -2209,7 +2227,6 @@ void oc_ui_style_apply(oc_ui_style* dst,
     {
         dst->offset.y = src->offset.y;
     }
-
     if(oc_ui_style_apply_check(OC_UI_COLOR, mask, specificity, specArray))
     {
         dst->color = src->color;
@@ -2425,24 +2442,6 @@ void oc_ui_layout_find_next_hovered(oc_ui_context* ui, oc_vec2 p)
     oc_ui_layout_find_next_hovered_recursive(ui, ui->root, p);
 }
 
-///////////////////////////////////////////////////////////////////////////////
-
-f32 oc_ui_box_total_size(oc_ui_box* box, oc_ui_axis axis)
-{
-    return box->rect.c[2 + axis] + 2 * box->style.borderSize;
-}
-
-oc_rect oc_ui_box_border_rect(oc_ui_box* box)
-{
-    oc_rect r = {
-        box->rect.x - box->style.borderSize,
-        box->rect.y - box->style.borderSize,
-        box->rect.w + 2 * box->style.borderSize,
-        box->rect.h + 2 * box->style.borderSize,
-    };
-    return r;
-}
-
 oc_rect oc_rect_union(oc_rect r1, oc_rect r2)
 {
     if(r1.w < 0 || r1.h < 0)
@@ -2492,7 +2491,7 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
     // main axis alignment
     f32 availableSpaceMainAxis = box->rect.c[2 + mainAxis] - 2 * box->style.layout.margin.c[mainAxis];
 
-    if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_JUSTIFY)
+    if(box->style.layout.alignLine.c[mainAxis] == OC_UI_ALIGN_JUSTIFY)
     {
         if(line->itemCount > 1)
         {
@@ -2505,7 +2504,7 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
                     // we clamp the new position to the max acceptable one
                     f32 maxX = floor(box->rect.c[2 + mainAxis]
                                      - box->style.layout.margin.c[mainAxis]
-                                     - oc_ui_box_total_size(it.elt->box, mainAxis));
+                                     - it.elt->box->rect.c[2 + mainAxis]);
 
                     it.elt->box->rect.x = oc_clamp_high(it.elt->box->rect.x + spacing * it.index,
                                                         maxX);
@@ -2517,11 +2516,11 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
     {
         f32 offsetMainAxis = 0;
 
-        if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_END)
+        if(box->style.layout.alignLine.c[mainAxis] == OC_UI_ALIGN_END)
         {
             offsetMainAxis = oc_clamp_low(availableSpaceMainAxis - line->size.c[mainAxis], 0);
         }
-        else if(box->style.layout.align.c[mainAxis] == OC_UI_ALIGN_CENTER)
+        else if(box->style.layout.alignLine.c[mainAxis] == OC_UI_ALIGN_CENTER)
         {
             offsetMainAxis = oc_clamp_low((availableSpaceMainAxis - line->size.c[mainAxis]) / 2.0, 0);
         }
@@ -2535,13 +2534,13 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
     // cross axis alignment
     oc_list_for(line->items, item, oc_ui_layout_line_elt, listElt)
     {
-        if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_END)
+        if(box->style.layout.alignLine.c[crossAxis] == OC_UI_ALIGN_END)
         {
-            item->box->rect.c[crossAxis] += oc_clamp_low(line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis), 0);
+            item->box->rect.c[crossAxis] += oc_clamp_low(line->size.c[crossAxis] - item->box->rect.c[2 + crossAxis], 0);
         }
-        else if(box->style.layout.align.c[crossAxis] == OC_UI_ALIGN_CENTER)
+        else if(box->style.layout.alignLine.c[crossAxis] == OC_UI_ALIGN_CENTER)
         {
-            item->box->rect.c[crossAxis] += oc_clamp_low((line->size.c[crossAxis] - oc_ui_box_total_size(item->box, crossAxis)) / 2.0, 0);
+            item->box->rect.c[crossAxis] += oc_clamp_low((line->size.c[crossAxis] - item->box->rect.c[2 + crossAxis]) / 2.0, 0);
         }
     }
 }
@@ -2562,6 +2561,8 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
     oc_vec2 pos = start;
     oc_ui_layout_line line = { 0 };
 
+    oc_vec2 flowSize = { 0 };
+
     oc_list_for(box->children, child, oc_ui_box, listElt)
     {
         if(!oc_ui_box_hidden(child))
@@ -2577,7 +2578,7 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
 
                 case OC_UI_POSITION_FLOW:
                 {
-                    f32 childSize = oc_ui_box_total_size(child, mainAxis);
+                    f32 childSize = child->rect.c[2 + mainAxis];
 
                     if(wrap
                        && colIndex
@@ -2590,13 +2591,13 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
                         colIndex = 0;
 
                         oc_ui_layout_line_alignment(box, &line);
+                        flowSize.c[mainAxis] = oc_max(flowSize.c[mainAxis], line.size.c[mainAxis]);
+                        flowSize.c[crossAxis] += line.size.c[crossAxis] + box->style.layout.spacing;
+
                         line = (oc_ui_layout_line){ 0 };
                     }
                     //NOTE: set child position and add it to current line
-                    child->rect.xy = (oc_vec2){
-                        pos.x + child->style.borderSize,
-                        pos.y + child->style.borderSize,
-                    };
+                    child->rect.xy = pos;
 
                     oc_ui_layout_line_elt* lineElt = oc_arena_push_type(scratch.arena, oc_ui_layout_line_elt);
                     lineElt->box = child;
@@ -2606,7 +2607,7 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
                     if(child->style.footprint == OC_UI_FOOTPRINT_SOLID)
                     {
                         line.size.c[mainAxis] = pos.c[mainAxis] - start.c[mainAxis] + childSize;
-                        line.size.c[crossAxis] = oc_max(line.size.c[crossAxis], oc_ui_box_total_size(child, crossAxis));
+                        line.size.c[crossAxis] = oc_max(line.size.c[crossAxis], child->rect.c[2 + crossAxis]);
                         pos.c[mainAxis] += childSize + box->style.layout.spacing;
                     }
                     colIndex++;
@@ -2617,6 +2618,38 @@ void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
     }
     //NOTE: align last line
     oc_ui_layout_line_alignment(box, &line);
+    flowSize.c[mainAxis] = oc_max(flowSize.c[mainAxis], line.size.c[mainAxis]);
+    flowSize.c[crossAxis] += line.size.c[crossAxis];
+
+    //NOTE: align whole content
+    oc_vec2 alignOffset = { 0 };
+
+    for(int axis = OC_UI_AXIS_X; axis < OC_UI_AXIS_COUNT; axis++)
+    {
+        f32 availableSpace = box->rect.c[2 + axis] - 2 * box->style.layout.margin.c[axis];
+        switch(box->style.layout.align.c[axis])
+        {
+            case OC_UI_ALIGN_END:
+                alignOffset.c[axis] = oc_clamp_low(availableSpace - flowSize.c[axis], 0);
+                break;
+            case OC_UI_ALIGN_CENTER:
+                alignOffset.c[axis] = oc_clamp_low((availableSpace - flowSize.c[axis]) / 2.0, 0);
+                break;
+            default:
+                // start and justify ignored
+                break;
+        }
+    }
+    oc_list_for(box->children, child, oc_ui_box, listElt)
+    {
+        if(!oc_ui_box_hidden(child)
+           && child->style.position == OC_UI_POSITION_FLOW)
+        {
+            child->rect.x += alignOffset.x;
+            child->rect.y += alignOffset.y;
+        }
+    }
+
     oc_scratch_end(scratch);
 }
 
@@ -2631,11 +2664,11 @@ oc_rect oc_ui_layout_contents_rect(oc_ui_box* box)
         {
             if(child->style.position == OC_UI_POSITION_FLOW)
             {
-                flowRect = oc_rect_union(flowRect, oc_ui_box_border_rect(child));
+                flowRect = oc_rect_union(flowRect, child->rect);
             }
             else
             {
-                fixedRect = oc_rect_union(fixedRect, oc_ui_box_border_rect(child));
+                fixedRect = oc_rect_union(fixedRect, child->rect);
             }
         }
     }
@@ -2658,7 +2691,7 @@ oc_vec2 oc_ui_layout_flow_size(oc_ui_box* box)
            && child->style.position == OC_UI_POSITION_FLOW
            && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
         {
-            contentRect = oc_rect_union(contentRect, oc_ui_box_border_rect(child));
+            contentRect = oc_rect_union(contentRect, child->rect);
         }
     }
     return contentRect.wh;
@@ -2753,6 +2786,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                                           box->style.size.c[i].max);
         }
     }
+
     //NOTE: compute parent-dependent desired size, top-down
     oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
     {
@@ -2764,17 +2798,25 @@ void oc_ui_solve_layout(oc_ui_context* ui)
 
         for(int axis = 0; axis < OC_UI_AXIS_COUNT; axis++)
         {
+            f32 availableParentSize = box->parent->rect.c[2 + axis]
+                                    - 2 * box->parent->style.layout.margin.c[axis];
+
+            if(axis == box->parent->style.layout.axis)
+            {
+                availableParentSize -= 2 * (box->parent->childCount - 1) * box->parent->style.layout.spacing;
+            }
+
             switch(box->style.size.c[axis].kind)
             {
                 case OC_UI_SIZE_PARENT:
                 {
-                    box->rect.c[2 + axis] = box->parent->rect.c[2 + axis] * box->style.size.c[axis].value;
+                    box->rect.c[2 + axis] = availableParentSize * box->style.size.c[axis].value;
                 }
                 break;
 
                 case OC_UI_SIZE_PARENT_MINUS_PIXELS:
                 {
-                    box->rect.c[2 + axis] = box->parent->rect.c[2 + axis] - box->style.size.c[axis].value;
+                    box->rect.c[2 + axis] = availableParentSize - box->style.size.c[axis].value;
                 }
                 break;
 
@@ -2870,14 +2912,15 @@ void oc_ui_solve_layout(oc_ui_context* ui)
 
         //NOTE: grow/shrink in cross axis
         {
-            //NOTE: compute remaining space in cross axis
-            f32 remainingSpace = box->rect.c[2 + crossAxis]
-                               - 2 * box->style.layout.margin.c[crossAxis]
-                               - flowSize.c[crossAxis];
-
             //NOTE: give remaining space to each indidual child according to its relax weight, up to its min/max size
             oc_list_for(box->children, child, oc_ui_box, listElt)
             {
+                //NOTE: compute remaining space in cross axis
+
+                f32 remainingSpace = box->rect.c[2 + crossAxis]
+                                   - 2 * box->style.layout.margin.c[crossAxis]
+                                   - child->rect.c[2 + crossAxis];
+
                 //NOTE: should remove child borders?
                 child->rect.c[2 + crossAxis] = oc_clamp(child->rect.c[2 + crossAxis] + remainingSpace * child->style.size.c[crossAxis].relax,
                                                         child->style.size.c[crossAxis].min,
@@ -2968,17 +3011,11 @@ void oc_ui_draw_box(oc_ui_box* box)
     bool draw = true;
     {
         oc_rect clipRect = oc_clip_top();
-        oc_rect expRect = {
-            box->rect.x - style->borderSize,
-            box->rect.y - style->borderSize,
-            box->rect.w + 2 * style->borderSize,
-            box->rect.h + 2 * style->borderSize
-        };
 
-        if((expRect.x + expRect.w < clipRect.x)
-           || (expRect.y + expRect.h < clipRect.y)
-           || (expRect.x > clipRect.x + clipRect.w)
-           || (expRect.y > clipRect.y + clipRect.h))
+        if((box->rect.x + box->rect.w < clipRect.x)
+           || (box->rect.y + box->rect.h < clipRect.y)
+           || (box->rect.x > clipRect.x + clipRect.w)
+           || (box->rect.y > clipRect.y + clipRect.h))
         {
             draw = false;
         }
@@ -3001,25 +3038,6 @@ void oc_ui_draw_box(oc_ui_box* box)
         {
             oc_set_color(style->bgColor);
             oc_ui_rectangle_fill(box->rect, style->roundness);
-        }
-
-        //NOTE: draw border
-        if(!(style->drawMask & OC_UI_DRAW_MASK_BORDER)
-           && style->borderSize != 0
-           && style->borderColor.a != 0)
-        {
-            oc_set_width(style->borderSize);
-            oc_set_color(style->borderColor);
-
-            oc_rect rect = {
-                box->rect.x - 0.5 * style->borderSize,
-                box->rect.y - 0.5 * style->borderSize,
-                box->rect.w + style->borderSize,
-                box->rect.h + style->borderSize,
-            };
-            f32 roundness = style->roundness ? style->roundness + style->borderSize : 0;
-
-            oc_ui_rectangle_stroke(rect, roundness);
         }
     }
 
@@ -3100,6 +3118,28 @@ void oc_ui_draw_box(oc_ui_box* box)
         oc_move_to(x, y);
         oc_text_outlines(box->text);
         oc_fill();
+    }
+
+    if(draw)
+    {
+        //NOTE: draw border
+        if(!(style->drawMask & OC_UI_DRAW_MASK_BORDER)
+           && style->borderSize != 0
+           && style->borderColor.a != 0)
+        {
+            oc_set_width(style->borderSize);
+            oc_set_color(style->borderColor);
+
+            oc_rect rect = {
+                box->rect.x + 0.5 * style->borderSize,
+                box->rect.y + 0.5 * style->borderSize,
+                box->rect.w - style->borderSize,
+                box->rect.h - style->borderSize,
+            };
+            f32 roundness = style->roundness ? style->roundness + style->borderSize : 0;
+
+            oc_ui_rectangle_stroke(rect, roundness);
+        }
     }
 
     if(box->style.layout.overflow.x != OC_UI_OVERFLOW_ALLOW
