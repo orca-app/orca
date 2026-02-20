@@ -8,7 +8,7 @@ const ModuleImport = Module.Import;
 const CrossTarget = std.zig.CrossTarget;
 const ResolvedTarget = Build.ResolvedTarget;
 
-const MACOS_VERSION_MIN = "13.0.0";
+const MACOS_VERSION_MIN = "14.4.1";
 
 const SourceFileCollector = struct {
     files: std.ArrayList([]const u8),
