@@ -1489,7 +1489,7 @@ pub fn build(b: *Build) !void {
 
     build_orca.dependOn(&makeapp.step);
 
-    const orca_local_relative_path: []const u8 = if (b.graph.host.result.os.tag == .windows) "Orca/orca.exe" else "Orca.app/Contents/macOS/orca";
+    const orca_local_relative_path: []const u8 = if (b.graph.host.result.os.tag == .windows) "Orca/bin/orca.exe" else "Orca.app/Contents/macOS/orca";
     const orca_tool_local_path: []const u8 = b.pathJoin(&.{ b.install_path, orca_local_relative_path });
 
     b.getInstallStep().dependOn(build_orca);
