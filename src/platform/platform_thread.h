@@ -80,6 +80,14 @@ ORCA_API int oc_condition_broadcast(oc_condition* cond);
 //---------------------------------------------------------------
 ORCA_API void oc_sleep_nano(u64 nanoseconds); // sleep for a given number of nanoseconds
 
+//---------------------------------------------------------------
+// Thread locals
+//---------------------------------------------------------------
+typedef void (*oc_tls_destructor_proc)(void* user);
+void oc_add_tls_destructor(oc_tls_destructor_proc proc, void* user);
+void oc_add_tls_condition_destructor(oc_condition* cond);
+void oc_add_tls_mutex_destructor(oc_mutex* mutex);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif // __cplusplus

@@ -820,6 +820,7 @@ int main(int argc, char** argv)
     // TODO(pld): test app.h
     // end of february:
     // - oc_window_center
+    // - test tls destructors
     // - test oc_window_get_frame_rect, oc_window_get_content_rect
     // - test oc_window_set_frame_rect, oc_window_set_content_rect
     // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close

@@ -1815,6 +1815,8 @@ i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
         OC_ASSERT(thread_cond);
         thread_mutex = oc_mutex_create();
         OC_ASSERT(thread_mutex);
+        oc_add_tls_condition_destructor(thread_cond);
+        oc_add_tls_mutex_destructor(thread_mutex);
         thread_init = true;
     }
     oc_linux_dispatch_sync_request req =

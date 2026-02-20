@@ -284,3 +284,63 @@ void oc_sleep_nano(u64 nanoseconds)
     rqtp.tv_nsec = nanoseconds - rqtp.tv_sec * 1000000000;
     nanosleep(&rqtp, 0);
 }
+
+typedef struct oc_tls_destructor
+{
+    oc_tls_destructor_proc proc;
+    void* user;
+} oc_tls_destructor;
+typedef struct oc_tls_destructors
+{
+    u64 len;
+    oc_tls_destructor a[63];
+} oc_tls_destructors;
+static pthread_key_t oc_tls_destructors_key;
+static void oc_call_tls_destructors(void* p)
+{
+    oc_tls_destructors* d = p;
+    OC_ASSERT(d);
+    for(u64 i = d->len - 1; i != U64_MAX; i--)
+    {
+        d->a[i].proc(d->a[i].user);
+    }
+    free(d);
+}
+static void oc_init_tls_destructors(void)
+{
+    pthread_key_create(&oc_tls_destructors_key, oc_call_tls_destructors);
+}
+void oc_add_tls_destructor(oc_tls_destructor_proc proc, void* user)
+{
+    static pthread_once_t once = PTHREAD_ONCE_INIT;
+    pthread_once(&once, oc_init_tls_destructors);
+    oc_tls_destructors* d = pthread_getspecific(oc_tls_destructors_key);
+    if(!d)
+    {
+        d = calloc(1, sizeof(*d));
+        OC_ASSERT(d);
+        pthread_setspecific(oc_tls_destructors_key, d);
+    }
+    OC_ASSERT(d->len < oc_array_size(d->a));
+    d->a[d->len++] = (oc_tls_destructor){ .proc = proc, .user = user };
+}
+static void oc_tls_condition_destructor(void* p)
+{
+    oc_condition* cond = p;
+    int ok = oc_condition_destroy(cond);
+    OC_ASSERT(ok == 0);
+}
+void oc_add_tls_condition_destructor(oc_condition* cond)
+{
+    oc_add_tls_destructor(oc_tls_condition_destructor, cond);
+}
+static void oc_tls_mutex_destructor(void* p)
+{
+    oc_mutex* mutex = p;
+    int ok = oc_mutex_destroy(mutex);
+    OC_ASSERT(ok == 0);
+}
+void oc_add_tls_mutex_destructor(oc_mutex* mutex)
+{
+    oc_add_tls_destructor(oc_tls_mutex_destructor, mutex);
+}
