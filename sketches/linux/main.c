@@ -819,10 +819,10 @@ int main(int argc, char** argv)
 
     // TODO(pld): test app.h
     // end of february:
-    // - oc_window_center
     // - test tls destructors
     // - test oc_window_get_frame_rect, oc_window_get_content_rect
     // - test oc_window_set_frame_rect, oc_window_set_content_rect
+    // - test oc_window_center
     // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close
     // - test oc_should_quit, oc_request_quit, oc_cancel_quit
     // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
@@ -862,7 +862,7 @@ int main(int argc, char** argv)
     // - oc_event: mark padding so it gets initialized?
     // - oc_window_create flags
     // - oc_window_content_rect_for_frame_rect (create dummy window with style to fetch extents)
-    // - oc_window_frame_rect_for_content_rect
+    // - oc_window_frame_rect_for_content_rect (same)
     // - client-server request/reply sync (investigate in glfw and sdl)
     // - app/main thread safety: window pool is shared, but there are no locks
     //   when reading or writing to it

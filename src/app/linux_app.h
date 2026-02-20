@@ -28,31 +28,40 @@ typedef struct oc_linux_x11
 {
     Display* display;
     struct {
-        xcb_atom_t OC_X11_CLIENT_MESSAGE;
-        xcb_atom_t UTF8_STRING;
-        xcb_atom_t WM_CHANGE_STATE;
-        xcb_atom_t WM_DELETE_WINDOW;
-        xcb_atom_t WM_PROTOCOLS;
-        xcb_atom_t WM_STATE;
-        xcb_atom_t _NET_ACTIVE_WINDOW;
-        xcb_atom_t _NET_CLOSE_WINDOW;
-        xcb_atom_t _NET_FRAME_EXTENTS;
-        xcb_atom_t _NET_REQUEST_FRAME_EXTENTS;
-        xcb_atom_t _NET_SUPPORTED;
-        xcb_atom_t _NET_SUPPORTING_WM_CHECK;
-        xcb_atom_t _NET_WM_ICON_NAME;
-        xcb_atom_t _NET_WM_NAME;
-        xcb_atom_t _NET_WM_PID;
-        xcb_atom_t _NET_WM_PING;
-        xcb_atom_t _NET_WM_STATE;
-        xcb_atom_t _NET_WM_STATE_MAXIMIZED_HORZ;
-        xcb_atom_t _NET_WM_STATE_MAXIMIZED_VERT;
-        xcb_atom_t _NET_WM_SYNC_REQUEST;
-        xcb_atom_t _NET_WM_SYNC_REQUEST_COUNTER;
-        xcb_atom_t _NET_WM_USER_TIME;
-        xcb_atom_t _NET_WM_USER_TIME_WINDOW;
-        xcb_atom_t _NET_WM_WINDOW_TYPE;
-        xcb_atom_t _NET_WM_WINDOW_TYPE_NORMAL;
+        /* name, required */
+        #define ATOM_LIST(V)  \
+            V(OC_X11_CLIENT_MESSAGE, 0)  \
+            V(UTF8_STRING, 0)  \
+            V(WM_CHANGE_STATE, 0)  \
+            V(WM_DELETE_WINDOW, 0)  \
+            V(WM_PROTOCOLS, 0)  \
+            V(WM_STATE, 0)  \
+            V(_NET_ACTIVE_WINDOW, 1)  \
+            V(_NET_CLOSE_WINDOW, 1)  \
+            V(_NET_FRAME_EXTENTS, 1)  \
+            V(_NET_NUMBER_OF_DESKTOPS, 1)  \
+            V(_NET_REQUEST_FRAME_EXTENTS, 1)  \
+            V(_NET_SUPPORTED, 0)  \
+            V(_NET_SUPPORTING_WM_CHECK, 1)  \
+            V(_NET_WM_DESKTOP, 1)  \
+            V(_NET_WM_ICON_NAME, 1)  \
+            V(_NET_WM_NAME, 1)  \
+            V(_NET_WM_PID, 1)  \
+            V(_NET_WM_PING, 1)  \
+            V(_NET_WM_STATE, 1)  \
+            V(_NET_WM_STATE_MAXIMIZED_HORZ, 1)  \
+            V(_NET_WM_STATE_MAXIMIZED_VERT, 1)  \
+            V(_NET_WM_SYNC_REQUEST, 1)  \
+            V(_NET_WM_SYNC_REQUEST_COUNTER, 1)  \
+            V(_NET_WM_USER_TIME, 1)  \
+            V(_NET_WM_USER_TIME_WINDOW, 0)  \
+            V(_NET_WM_WINDOW_TYPE, 1)  \
+            V(_NET_WM_WINDOW_TYPE_NORMAL, 1)  \
+            V(_NET_WORKAREA, 1)  \
+
+        #define DECL_ATOM(name, required)  xcb_atom_t name;
+        ATOM_LIST(DECL_ATOM)
+        #undef DECL_ATOM
     } atoms;
     u32 rootWinId;
     u32 controlWinId;
@@ -62,6 +71,9 @@ typedef struct oc_linux_x11
     u32 wmClassLen;
     u8* wmClientMachine;
     u32 wmClientMachineLen;
+    u32 netNumberOfDesktops;
+    oc_rect netWorkarea[16];
+    u64 netWorkareaLen;
 } oc_linux_x11;
 
 typedef struct oc_linux_app_data
@@ -119,14 +131,16 @@ typedef struct oc_linux_window_data
     xcb_timestamp_t netWmUserTime;
     oc_linux_window_flags flags;
     oc_linux_window_focus focus;
-    /* Left-outer corner from the parent's origin. */
+    /* Top left-outer corner from the parent's origin. */
     oc_vec2 posFromParent;
-    /* x and y are relative to the root window's origin. */
+    /* x and y are the top left-inner corner relative to the root window's
+     * origin. */
     oc_rect rect;
     /* Frame widths added by window manager. */
     f32 frameLeft, frameRight, frameTop, frameBottom;
     u32 netWmSyncRequestCounterId;
     u64 netWmSyncRequestUpdateValue;
+    u32 netWmDesktop;
 } oc_linux_window_data;
 
 #define OC_PLATFORM_WINDOW_DATA oc_linux_window_data linux;
