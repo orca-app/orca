@@ -36,6 +36,8 @@ typedef struct oc_linux_x11
         xcb_atom_t WM_STATE;
         xcb_atom_t _NET_ACTIVE_WINDOW;
         xcb_atom_t _NET_CLOSE_WINDOW;
+        xcb_atom_t _NET_FRAME_EXTENTS;
+        xcb_atom_t _NET_REQUEST_FRAME_EXTENTS;
         xcb_atom_t _NET_SUPPORTED;
         xcb_atom_t _NET_SUPPORTING_WM_CHECK;
         xcb_atom_t _NET_WM_ICON_NAME;
@@ -98,6 +100,7 @@ typedef enum oc_linux_window_flags
 {
     OC_LINUX_WINDOW_X11_MAPPED = (1 << 0),
     OC_LINUX_WINDOW_X11_MAP_IS_ICONIC = (1 << 1),
+    OC_LINUX_WINDOW_X11_REPARENTED = (1 << 2),
 } oc_linux_window_flags;
 
 typedef enum oc_linux_window_focus
@@ -118,6 +121,10 @@ typedef struct oc_linux_window_data
     oc_linux_window_focus focus;
     /* Left-outer corner from the parent's origin. */
     oc_vec2 posFromParent;
+    /* x and y are relative to the root window's origin. */
+    oc_rect rect;
+    /* Frame widths added by window manager. */
+    f32 frameLeft, frameRight, frameTop, frameBottom;
     u32 netWmSyncRequestCounterId;
     u64 netWmSyncRequestUpdateValue;
 } oc_linux_window_data;
@@ -138,6 +145,7 @@ typedef enum oc_x11_client_message
     OC_X11_CLIENT_MESSAGE_CANCEL_QUIT,
     OC_X11_CLIENT_MESSAGE_ADD_WINDOW_ID_TO_HANDLE_ENTRY,
     OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
+    OC_X11_CLIENT_MESSAGE_GET_PROPERTY,
 } oc_x11_client_message;
 
 typedef struct oc_linux_dispatch_sync_request

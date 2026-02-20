@@ -819,26 +819,9 @@ int main(int argc, char** argv)
 
     // TODO(pld): test app.h
     // end of february:
-    // - oc_window_get_frame_rect
-    // - oc_window_set_frame_rect
-    // - oc_window_set_frame_position
-    // - oc_window_set_frame_size
-    // - oc_window_get_content_rect
-    // - oc_window_set_content_rect
-    // - oc_window_set_content_position
-    // - oc_window_set_content_size
     // - oc_window_center
-    // - oc_window_content_rect_for_frame_rect
-    // - oc_window_frame_rect_for_content_rect
-    // - oc_window_set_size
-    // - oc_clipboard_clear
-    // - oc_clipboard_set_string
-    // - oc_clipboard_get_string
-    // - oc_clipboard_copy_string
-    // - oc_clipboard_has_tag
-    // - oc_clipboard_set_data_for_tag
-    // - oc_clipboard_get_data_for_tag
-    // - oc_window_create flags
+    // - test oc_window_get_frame_rect, oc_window_get_content_rect
+    // - test oc_window_set_frame_rect, oc_window_set_content_rect
     // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close
     // - test oc_should_quit, oc_request_quit, oc_cancel_quit
     // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
@@ -846,6 +829,14 @@ int main(int argc, char** argv)
     // - test _NET_WM_PING
     // - test _NET_WM_SYNC_REQUEST
     // - test oc_dispatch_on_main_thread_sync
+    // - oc_clipboard_clear
+    // - oc_clipboard_set_string
+    // - oc_clipboard_get_string
+    // - oc_clipboard_copy_string
+    // - oc_clipboard_has_tag
+    // - oc_clipboard_set_data_for_tag
+    // - oc_clipboard_get_data_for_tag
+    // - fix reading wm_state when updated, clean up mutter-specific code
     // - _net_wm_user_time_window
     // - _NET_STARTUP_ID?
     // - check _net_wm_allowed_actions?
@@ -867,9 +858,14 @@ int main(int argc, char** argv)
     //   - OC_EVENT_WINDOW_SHOW
     //   - OC_EVENT_PATHDROP
     //   - OC_EVENT_FRAME
-    // - fix reading wm_state when updated
     // - oc_event: mark padding so it gets initialized?
+    // - oc_window_create flags
+    // - oc_window_content_rect_for_frame_rect (create dummy window with style to fetch extents)
+    // - oc_window_frame_rect_for_content_rect
     // - client-server request/reply sync (investigate in glfw and sdl)
+    // - app/main thread safety: window pool is shared, but there are no locks
+    //   when reading or writing to it
+    // - handle when conigurenotify is in parent space?
     //
     // later:
     // - oc_scancode_to_keycode
