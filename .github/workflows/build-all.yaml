@@ -69,7 +69,7 @@ jobs:
       - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -cvzf orca-windows-x64.tar.gz zig-out/Orca
+          tar --format=ustar -cvzf orca-windows-x64.tar.gz -C zig-out Orca
 
       - uses: actions/upload-artifact@v4
         with:
@@ -101,7 +101,7 @@ jobs:
       - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -czf orca-mac-x64.tar.gz zig-out/Orca.app
+          tar --format=ustar -czf orca-mac-x64.tar.gz -C zig-out Orca.app
 
       - uses: actions/upload-artifact@v4
         with:
@@ -133,7 +133,7 @@ jobs:
       - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -czf orca-mac-arm64.tar.gz zig-out/Orca.app
+          tar --format=ustar -czf orca-mac-arm64.tar.gz -C zig-out Orca.app
 
       - uses: actions/upload-artifact@v4
         with:
