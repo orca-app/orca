@@ -1139,6 +1139,10 @@ pub fn build(b: *Build) !void {
     try orca_launcher_compile_flags.append(b.allocator, "-Werror");
     try orca_launcher_compile_flags.append(b.allocator, b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
+    if (target.result.os.tag.isDarwin()) {
+        try orca_launcher_compile_flags.append(b.allocator, compile_flag_min_macos_version);
+    }
+
     const orca_launcher_exe = b.addExecutable(.{
         .name = "orca",
         .root_module = b.createModule(.{
@@ -1183,6 +1187,10 @@ pub fn build(b: *Build) !void {
         "-std=c11",
         "-Werror",
     });
+
+    if (target.result.os.tag.isDarwin()) {
+        try orca_runtime_compile_flags.append(b.allocator, compile_flag_min_macos_version);
+    }
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
