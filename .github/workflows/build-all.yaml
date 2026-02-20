@@ -133,7 +133,7 @@ jobs:
       - name: Build and Package
         run: |
           zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -czf orca-mac-arm64.tar.gz zig-out/Orca
+          tar --format=ustar -czf orca-mac-arm64.tar.gz zig-out/Orca.app
 
       - uses: actions/upload-artifact@v4
         with:
