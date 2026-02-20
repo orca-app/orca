@@ -2467,6 +2467,7 @@ typedef struct oc_ui_layout_item
     oc_list_elt listElt;
     oc_ui_box* box;
 
+    bool wrapped;
     //    oc_list lines;
 } oc_ui_layout_item;
 
@@ -2756,172 +2757,92 @@ void oc_ui_solve_layout(oc_ui_context* ui)
         }
     }
 
-    //NOTE: compute children sum and desired size, bottom-up
-    oc_list_for_reverse(boxes, elt, oc_ui_layout_item, listElt)
+    bool wrapped = false;
+
+    do
     {
-        oc_ui_box* box = elt->box;
-        oc_ui_axis mainAxis = box->style.layout.axis;
-        oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
-
-        //NOTE: layout children into a single line
-        oc_ui_layout_contents(box, false);
-
-        //NOTE: Compute children-dependent sizes.
-        // (Text and pixels size have already been computed in styling pass)
-        oc_vec2 positiveContentSize = oc_ui_layout_contents_size_positive(box);
-
-        if(box->style.size.c[mainAxis].kind == OC_UI_SIZE_CHILDREN)
+        wrapped = false;
+        //NOTE: compute children sum and desired size, bottom-up
+        oc_list_for_reverse(boxes, elt, oc_ui_layout_item, listElt)
         {
-            box->rect.c[2 + mainAxis] = positiveContentSize.c[mainAxis];
-        }
-        if(box->style.size.c[crossAxis].kind == OC_UI_SIZE_CHILDREN)
-        {
-            box->rect.c[2 + crossAxis] = positiveContentSize.c[crossAxis];
-        }
+            oc_ui_box* box = elt->box;
+            oc_ui_axis mainAxis = box->style.layout.axis;
+            oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
 
-        //NOTE: clamp to min/max size
-        for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
-        {
-            box->rect.c[2 + i] = oc_clamp(box->rect.c[2 + i],
-                                          box->style.size.c[i].min,
-                                          box->style.size.c[i].max);
-        }
-    }
+            //NOTE: layout children into a single line
+            oc_ui_layout_contents(box, elt->wrapped);
 
-    //NOTE: compute parent-dependent desired size, top-down
-    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
-    {
-        oc_ui_box* box = elt->box;
-        if(!box->parent)
-        {
-            continue;
-        }
+            //NOTE: Compute children-dependent sizes.
+            // (Text and pixels size have already been computed in styling pass)
+            oc_vec2 positiveContentSize = oc_ui_layout_contents_size_positive(box);
 
-        for(int axis = 0; axis < OC_UI_AXIS_COUNT; axis++)
-        {
-            f32 availableParentSize = box->parent->rect.c[2 + axis]
-                                    - 2 * box->parent->style.layout.margin.c[axis];
-
-            if(axis == box->parent->style.layout.axis)
+            if(box->style.size.c[mainAxis].kind == OC_UI_SIZE_CHILDREN)
             {
-                availableParentSize -= 2 * (box->parent->childCount - 1) * box->parent->style.layout.spacing;
+                box->rect.c[2 + mainAxis] = positiveContentSize.c[mainAxis];
+            }
+            if(box->style.size.c[crossAxis].kind == OC_UI_SIZE_CHILDREN)
+            {
+                box->rect.c[2 + crossAxis] = positiveContentSize.c[crossAxis];
             }
 
-            switch(box->style.size.c[axis].kind)
+            //NOTE: clamp to min/max size
+            for(int i = 0; i < OC_UI_AXIS_COUNT; i++)
             {
-                case OC_UI_SIZE_PARENT:
-                {
-                    box->rect.c[2 + axis] = availableParentSize * box->style.size.c[axis].value;
-                }
-                break;
-
-                case OC_UI_SIZE_PARENT_MINUS_PIXELS:
-                {
-                    box->rect.c[2 + axis] = availableParentSize - box->style.size.c[axis].value;
-                }
-                break;
-
-                default:
-                    break;
+                box->rect.c[2 + i] = oc_clamp(box->rect.c[2 + i],
+                                              box->style.size.c[i].min,
+                                              box->style.size.c[i].max);
             }
-            box->rect.c[2 + axis] = oc_clamp(box->rect.c[2 + axis],
-                                             box->style.size.c[axis].min,
-                                             box->style.size.c[axis].max);
         }
-    }
 
-    //NOTE: shrink/grow/wrap, top-down
-    oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
-    {
-        oc_ui_box* box = elt->box;
-        oc_ui_axis mainAxis = box->style.layout.axis;
-        oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
-
-        //NOTE: we need to relayout & compute contents size here, because boxes with only parent-dependent children will have a wrong content size...
-        oc_ui_layout_contents(box, false);
-        oc_vec2 flowSize = oc_ui_layout_flow_size(box);
-
-        //NOTE: grow/shrink in main axis
+        //NOTE: shrink/grow/wrap, top-down
+        oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
         {
-            //NOTE: compute remaining space
-            f32 remainingSpace = box->rect.c[2 + mainAxis]
-                               - 2 * box->style.layout.margin.c[mainAxis]
-                               - flowSize.c[mainAxis];
+            oc_ui_box* box = elt->box;
+            oc_ui_axis mainAxis = box->style.layout.axis;
+            oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
 
-            //NOTE: distribute remaining space among children, proportionally to their shrink/grow weight
-            while(fabs(remainingSpace) > 0.5)
+            //NOTE: compute size of parent-dependent children
+            for(int axis = 0; axis < OC_UI_AXIS_COUNT; axis++)
             {
-                f32 newRemainingSpace = remainingSpace;
+                f32 availableParentSize = box->rect.c[2 + axis]
+                                        - 2 * box->style.layout.margin.c[axis];
 
-                //NOTE: compute total weight of children that can still grow/shrink
-                f32 totalWeight = 0;
+                if(axis == box->style.layout.axis)
+                {
+                    availableParentSize -= 2 * (box->childCount - 1) * box->style.layout.spacing;
+                }
 
                 oc_list_for(box->children, child, oc_ui_box, listElt)
                 {
-                    if(child->style.position == OC_UI_POSITION_FLOW
-                       && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+
+                    switch(child->style.size.c[axis].kind)
                     {
-                        if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
+                        case OC_UI_SIZE_PARENT:
                         {
-                            totalWeight += child->style.size.c[mainAxis].grow;
+                            child->rect.c[2 + axis] = availableParentSize * child->style.size.c[axis].value;
                         }
-                        else if(remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                        break;
+
+                        case OC_UI_SIZE_PARENT_MINUS_PIXELS:
                         {
-                            totalWeight += child->style.size.c[mainAxis].shrink;
+                            child->rect.c[2 + axis] = availableParentSize - child->style.size.c[axis].value;
                         }
+                        break;
+
+                        default:
+                            break;
                     }
+                    child->rect.c[2 + axis] = oc_clamp(child->rect.c[2 + axis],
+                                                       child->style.size.c[axis].min,
+                                                       child->style.size.c[axis].max);
                 }
-                if(totalWeight)
-                {
-                    //NOTE: distribute space among children that can still grow/shrink, up to their min/max size
-                    oc_list_for(box->children, child, oc_ui_box, listElt)
-                    {
-                        if(child->style.position == OC_UI_POSITION_FLOW
-                           && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
-                        {
-                            f32 childWeight = 0;
-                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
-                            {
-                                childWeight = child->style.size.c[mainAxis].grow;
-                            }
-                            else if(remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
-                            {
-                                childWeight = child->style.size.c[mainAxis].shrink;
-                            }
-
-                            f32 addSpace = remainingSpace * childWeight / totalWeight;
-
-                            f32 newSize = oc_clamp(child->rect.c[2 + mainAxis] + addSpace,
-                                                   child->style.size.c[mainAxis].min,
-                                                   child->style.size.c[mainAxis].max);
-
-                            newRemainingSpace -= newSize - child->rect.c[2 + mainAxis];
-                            child->rect.c[2 + mainAxis] = newSize;
-                        }
-                    }
-                }
-                else
-                {
-                    break;
-                }
-                remainingSpace = newRemainingSpace;
             }
 
-            //NOTE: if we still overflow, wrap if possible
-            if(remainingSpace < 0
-               && box->style.layout.wrap
-               && box->style.size.c[crossAxis].kind == OC_UI_SIZE_CHILDREN)
-            {
-                //TODO: could we avoid this relayout?
-                oc_ui_layout_contents(box, box->style.layout.wrap);
-                oc_vec2 wrappedSize = oc_ui_layout_flow_size(box);
-                box->rect.c[2 + crossAxis] = oc_max(box->rect.c[2 + crossAxis],
-                                                    wrappedSize.c[crossAxis] + 2 * box->style.layout.margin.c[crossAxis]);
-            }
-        }
+            //NOTE: relayout & compute contents size here to take parent-dependent children into account
+            oc_ui_layout_contents(box, elt->wrapped);
+            oc_vec2 flowSize = oc_ui_layout_flow_size(box);
 
-        //NOTE: grow/shrink in cross axis
-        {
+            //NOTE: grow/shrink in cross axis
             //NOTE: give remaining space to each indidual child according to its shrink/grow weight, up to its min/max size
             oc_list_for(box->children, child, oc_ui_box, listElt)
             {
@@ -2940,11 +2861,91 @@ void oc_ui_solve_layout(oc_ui_context* ui)
                                                         child->style.size.c[crossAxis].min,
                                                         child->style.size.c[crossAxis].max);
             }
-        }
 
-        //NOTE: relayout with shrinked sizes
-        oc_ui_layout_contents(box, box->style.layout.wrap);
+            //NOTE: grow/shrink in main axis
+            {
+                //NOTE: compute remaining space
+                f32 remainingSpace = box->rect.c[2 + mainAxis]
+                                   - 2 * box->style.layout.margin.c[mainAxis]
+                                   - flowSize.c[mainAxis];
+
+                //NOTE: distribute remaining space among children, proportionally to their shrink/grow weight
+                while(fabs(remainingSpace) > 0.5)
+                {
+                    f32 newRemainingSpace = remainingSpace;
+
+                    //NOTE: compute total weight of children that can still grow/shrink
+                    f32 totalWeight = 0;
+
+                    oc_list_for(box->children, child, oc_ui_box, listElt)
+                    {
+                        if(child->style.position == OC_UI_POSITION_FLOW
+                           && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+                        {
+                            if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
+                            {
+                                totalWeight += child->style.size.c[mainAxis].grow;
+                            }
+                            else if(remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                            {
+                                totalWeight += child->style.size.c[mainAxis].shrink;
+                            }
+                        }
+                    }
+                    if(totalWeight)
+                    {
+                        //NOTE: distribute space among children that can still grow/shrink, up to their min/max size
+                        oc_list_for(box->children, child, oc_ui_box, listElt)
+                        {
+                            if(child->style.position == OC_UI_POSITION_FLOW
+                               && child->style.footprint == OC_UI_FOOTPRINT_SOLID)
+                            {
+                                f32 childWeight = 0;
+                                if(remainingSpace > 0 && child->rect.c[2 + mainAxis] < child->style.size.c[mainAxis].max)
+                                {
+                                    childWeight = child->style.size.c[mainAxis].grow;
+                                }
+                                else if(remainingSpace < 0 && child->rect.c[2 + mainAxis] > child->style.size.c[mainAxis].min)
+                                {
+                                    childWeight = child->style.size.c[mainAxis].shrink;
+                                }
+
+                                f32 addSpace = remainingSpace * childWeight / totalWeight;
+
+                                f32 newSize = oc_clamp(child->rect.c[2 + mainAxis] + addSpace,
+                                                       child->style.size.c[mainAxis].min,
+                                                       child->style.size.c[mainAxis].max);
+
+                                newRemainingSpace -= newSize - child->rect.c[2 + mainAxis];
+                                child->rect.c[2 + mainAxis] = newSize;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        break;
+                    }
+                    remainingSpace = newRemainingSpace;
+                }
+
+                //NOTE: if we still overflow, wrap if possible
+                if(remainingSpace < 0
+                   && box->style.layout.wrap
+                   && box->style.size.c[crossAxis].kind == OC_UI_SIZE_CHILDREN
+                   && !elt->wrapped)
+                {
+                    //NOTE: mark element as wrapping, and signal that we want to relayout.
+                    elt->wrapped = true;
+                    wrapped = true;
+                }
+            }
+
+            //NOTE: relayout with shrinked sizes
+            oc_ui_layout_contents(box, box->style.layout.wrap);
+        }
     }
+
+    while(wrapped);
 
     //NOTE: compute rects, top down
     oc_list_for(boxes, elt, oc_ui_layout_item, listElt)
