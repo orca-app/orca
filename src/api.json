@@ -9455,6 +9455,7 @@
                             },
                             {
                                 "kind": "enum-constant",
+                                "name": "OC_IO_READ",
                                 "doc": [
                                     "Read data from a file.",
                                     "",
@@ -9462,7 +9463,6 @@
                                     "    - `size` is the number of bytes to read.",
                                     "    - `buffer` is the result buffer. It should be big enough to hold `size` bytes."
                                 ],
-                                "name": "OC_IO_READ",
                                 "value": 4
                             },
                             {
@@ -9496,6 +9496,12 @@
                                 "kind": "enum-constant",
                                 "name": "OC_IO_COPY",
                                 "value": 9
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_IO_GETNAME",
+                                "doc": "For internal use, may not be available on all files and may be removed later.",
+                                "value": 10
                             },
                             {
                                 "kind": "enum-constant",
@@ -14509,7 +14515,13 @@
                                 }
                             },
                             {
-                                "name": "relax",
+                                "name": "grow",
+                                "type": {
+                                    "kind": "f32"
+                                }
+                            },
+                            {
+                                "name": "shrink",
                                 "type": {
                                     "kind": "f32"
                                 }
@@ -14607,98 +14619,108 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_POSITION",
+                                "name": "OC_UI_ALIGN_LINE_X",
+                                "value": 7
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_ALIGN_LINE_Y",
                                 "value": 8
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FOOTPRINT",
+                                "name": "OC_UI_POSITION",
                                 "value": 9
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_OFFSET_X",
+                                "name": "OC_UI_FOOTPRINT",
                                 "value": 10
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_OFFSET_Y",
+                                "name": "OC_UI_OFFSET_X",
                                 "value": 11
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_OVERFLOW_X",
+                                "name": "OC_UI_OFFSET_Y",
                                 "value": 12
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_OVERFLOW_Y",
+                                "name": "OC_UI_OVERFLOW_X",
                                 "value": 13
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_WRAP",
+                                "name": "OC_UI_OVERFLOW_Y",
                                 "value": 14
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_COLOR",
+                                "name": "OC_UI_WRAP",
                                 "value": 15
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_BG_COLOR",
+                                "name": "OC_UI_COLOR",
                                 "value": 16
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_BORDER_COLOR",
+                                "name": "OC_UI_BG_COLOR",
                                 "value": 17
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_FONT",
+                                "name": "OC_UI_BORDER_COLOR",
                                 "value": 18
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_TEXT_SIZE",
+                                "name": "OC_UI_FONT",
                                 "value": 19
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_BORDER_SIZE",
+                                "name": "OC_UI_TEXT_SIZE",
                                 "value": 20
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ROUNDNESS",
+                                "name": "OC_UI_BORDER_SIZE",
                                 "value": 21
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_DRAW_MASK",
+                                "name": "OC_UI_ROUNDNESS",
                                 "value": 22
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ANIMATION_TIME",
+                                "name": "OC_UI_DRAW_MASK",
                                 "value": 23
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ANIMATION_MASK",
+                                "name": "OC_UI_ANIMATION_TIME",
                                 "value": 24
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_CLICK_THROUGH",
+                                "name": "OC_UI_ANIMATION_MASK",
                                 "value": 25
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_ATTRIBUTE_COUNT",
+                                "name": "OC_UI_CLICK_THROUGH",
                                 "value": 26
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_ATTRIBUTE_COUNT",
+                                "value": 27
                             }
                         ]
                     }
@@ -14760,88 +14782,98 @@
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_POSITION",
+                                "name": "OC_UI_MASK_LAYOUT_ALIGN_LINE_X",
                                 "value": 256
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FOOTPRINT",
+                                "name": "OC_UI_MASK_LAYOUT_ALIGN_LINE_Y",
                                 "value": 512
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_OFFSET_X",
+                                "name": "OC_UI_MASK_POSITION",
                                 "value": 1024
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_OFFSET_Y",
+                                "name": "OC_UI_MASK_FOOTPRINT",
                                 "value": 2048
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_OVERFLOW_X",
+                                "name": "OC_UI_MASK_OFFSET_X",
                                 "value": 4096
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_OVERFLOW_Y",
+                                "name": "OC_UI_MASK_OFFSET_Y",
                                 "value": 8192
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_COLOR",
+                                "name": "OC_UI_MASK_OVERFLOW_X",
                                 "value": 65536
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_BG_COLOR",
+                                "name": "OC_UI_MASK_OVERFLOW_Y",
                                 "value": 131072
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_BORDER_COLOR",
+                                "name": "OC_UI_MASK_COLOR",
                                 "value": 262144
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FONT",
+                                "name": "OC_UI_MASK_BG_COLOR",
                                 "value": 524288
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_FONT_SIZE",
+                                "name": "OC_UI_MASK_BORDER_COLOR",
                                 "value": 1048576
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_BORDER_SIZE",
+                                "name": "OC_UI_MASK_FONT",
                                 "value": 2097152
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_ROUNDNESS",
+                                "name": "OC_UI_MASK_FONT_SIZE",
                                 "value": 4194304
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_DRAW_MASK",
+                                "name": "OC_UI_MASK_BORDER_SIZE",
                                 "value": 8388608
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_ANIMATION_TIME",
+                                "name": "OC_UI_MASK_ROUNDNESS",
                                 "value": 16777216
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_ANIMATION_MASK",
+                                "name": "OC_UI_MASK_DRAW_MASK",
                                 "value": 33554432
                             },
                             {
                                 "kind": "enum-constant",
-                                "name": "OC_UI_MASK_CLICK_THROUGH",
+                                "name": "OC_UI_MASK_ANIMATION_TIME",
                                 "value": 67108864
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_MASK_ANIMATION_MASK",
+                                "value": 134217728
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_UI_MASK_CLICK_THROUGH",
+                                "value": 268435456
                             }
                         ]
                     }
@@ -14953,6 +14985,13 @@
                             },
                             {
                                 "name": "align",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_ui_layout_align"
+                                }
+                            },
+                            {
+                                "name": "alignLine",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_ui_layout_align"
