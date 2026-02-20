@@ -1813,6 +1813,8 @@ pub fn build(b: *Build) !void {
                 },
             );
 
+            steps.build_or_bundle.dependOn(build_orca);
+
             if (config.run) {
                 if (steps.run) |run| {
                     run.addArg("--test");
