@@ -8,7 +8,7 @@ const ModuleImport = Module.Import;
 const CrossTarget = std.zig.CrossTarget;
 const ResolvedTarget = Build.ResolvedTarget;
 
-const MACOS_VERSION_MIN = "14.4.1";
+const MACOS_VERSION_MIN = "14.2.1";
 
 const SourceFileCollector = struct {
     files: std.ArrayList([]const u8),
@@ -527,10 +527,16 @@ pub fn build(b: *Build) !void {
 
     const cwd = b.build_root.handle;
 
-    const target: ResolvedTarget = b.standardTargetOptions(.{});
-    const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
+    const target: ResolvedTarget = tgt: {
+        var query = b.standardTargetOptionsQueryOnly(.{});
+        const tmp: ResolvedTarget = b.resolveTargetQuery(query);
 
-    const compile_flag_min_macos_version: []const u8 = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
+        if (tmp.result.os.tag == .macos) {
+            query.os_version_min = .{ .semver = try .parse(MACOS_VERSION_MIN) };
+        }
+        break :tgt b.resolveTargetQuery(query);
+    };
+    const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
 
     /////////////////////////////////////////////////////////
     // zlib
@@ -993,9 +999,6 @@ pub fn build(b: *Build) !void {
             "-DOC_LOG_COMPILE_DEBUG",
         });
     }
-    if (target.result.os.tag.isDarwin()) {
-        try orca_platform_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
     // if (target.result.os.tag == .windows) {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libEGL.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
@@ -1139,10 +1142,6 @@ pub fn build(b: *Build) !void {
     try orca_launcher_compile_flags.append(b.allocator, "-Werror");
     try orca_launcher_compile_flags.append(b.allocator, b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
-    if (target.result.os.tag.isDarwin()) {
-        try orca_launcher_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
-
     const orca_launcher_exe = b.addExecutable(.{
         .name = "orca",
         .root_module = b.createModule(.{
@@ -1187,10 +1186,6 @@ pub fn build(b: *Build) !void {
         "-std=c11",
         "-Werror",
     });
-
-    if (target.result.os.tag.isDarwin()) {
-        try orca_runtime_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
 
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
