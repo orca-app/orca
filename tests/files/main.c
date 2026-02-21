@@ -66,12 +66,17 @@ int check_string(oc_test_info* info, oc_file f, oc_str8 test_string)
     i64 n = oc_file_read(f, 256, buffer);
     if(oc_file_last_error(f))
     {
-        oc_test_fail(info, "Error while reading test string");
+        oc_test_fail(info,
+                     "Error while reading test string: %.*s",
+                     oc_str8_ip(oc_io_error_string(oc_file_last_error(f))));
         return -1;
     }
     else if(oc_str8_cmp(test_string, oc_str8_from_buffer(n, buffer)))
     {
-        oc_test_fail(info, "read string doesn't match");
+        oc_test_fail(info,
+                     "read string doesn't match: expected '%.*s', got '%.*s'",
+                     oc_str8_ip(test_string),
+                     oc_str8_ip(oc_str8_from_buffer(n, buffer)));
         return (-1);
     }
     else
@@ -91,9 +96,68 @@ void test_read(oc_test_info* info, oc_arena* arena)
         {
             oc_test_fail(info, "Can't open file %.*s for reading", oc_str8_ip(path));
         }
-        else if(check_string(info, f, test_string))
+        else
         {
-            oc_test_fail(info, "Check string failed");
+            check_string(info, f, test_string);
+        }
+        oc_file_close(f);
+    }
+}
+
+void test_seek(oc_test_info* info, oc_arena* arena)
+{
+    oc_test(info, "seek set")
+    {
+        oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
+        oc_str8 test_string = OC_STR8("regular.txt");
+
+        oc_file f = oc_catch(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
+        {
+            oc_test_fail(info, "Can't open file %.*s for reading", oc_str8_ip(path));
+        }
+        else
+        {
+            char buffer[256];
+            oc_file_seek(f, 11, OC_FILE_SEEK_SET);
+
+            if(oc_file_last_error(f) != OC_IO_OK)
+            {
+                oc_test_fail(info,
+                             "Seek failed: %.*s",
+                             oc_str8_ip(oc_io_error_string(oc_file_last_error(f))));
+            }
+            else
+            {
+                check_string(info, f, test_string);
+            }
+        }
+        oc_file_close(f);
+    }
+
+    oc_test(info, "seek end")
+    {
+        oc_str8 path = oc_path_append(arena, TEST_DIR, OC_STR8("data/regular.txt"));
+        oc_str8 test_string = OC_STR8("regular.txt");
+
+        oc_file f = oc_catch(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
+        {
+            oc_test_fail(info, "Can't open file %.*s for reading", oc_str8_ip(path));
+        }
+        else
+        {
+            char buffer[256];
+            oc_file_seek(f, -11, OC_FILE_SEEK_END);
+
+            if(oc_file_last_error(f) != OC_IO_OK)
+            {
+                oc_test_fail(info,
+                             "Seek failed: %.*s",
+                             oc_str8_ip(oc_io_error_string(oc_file_last_error(f))));
+            }
+            else
+            {
+                check_string(info, f, test_string);
+            }
         }
         oc_file_close(f);
     }
@@ -1436,6 +1500,10 @@ int main(int argc, const char** argv)
     oc_test_group(&info, "read")
     {
         test_read(&info, scratch.arena);
+    }
+    oc_test_group(&info, "seek")
+    {
+        test_seek(&info, scratch.arena);
     }
     oc_test_group(&info, "stat")
     {

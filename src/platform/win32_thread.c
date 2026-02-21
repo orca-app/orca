@@ -234,3 +234,27 @@ int oc_condition_broadcast(oc_condition* cond)
     WakeAllConditionVariable(&cond->cond);
     return (0);
 }
+
+void oc_sleep_nano(u64 nanoseconds)
+{
+    //TODO: handle possible errors in win32 API
+    HANDLE timer = CreateWaitableTimer(NULL, TRUE, NULL);
+
+    // SetWaitableTimer() defines interval in 100ns units.
+    // negative is to indicate relative time.
+    time_t sec = nanoseconds / 1000000000LL;
+    long nsec = nanoseconds - sec * 1000000000LL;
+
+    LARGE_INTEGER delay;
+    delay.QuadPart = -((LONGLONG)sec * 10000000LL + (LONGLONG)nsec / 100LL);
+    BOOL ok = SetWaitableTimer(timer,
+                               &delay,
+                               0,
+                               NULL,
+                               NULL,
+                               FALSE);
+
+    WaitForSingleObject(timer, INFINITE);
+
+    CloseHandle(timer);
+}

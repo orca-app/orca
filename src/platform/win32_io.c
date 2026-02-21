@@ -386,8 +386,31 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc rootFd, oc_str8 path)
 
 oc_fd_seek_result oc_fd_seek(oc_file_desc fd, u64 offset, oc_file_whence whence)
 {
-    //TODO
-    return (oc_fd_seek_result){ 0 };
+    LONG sizeLow = (LONG)(offset & 0xffffffff);
+    LONG sizeHigh = (LONG)(offset >> 32);
+    DWORD method = 0;
+    switch(whence)
+    {
+        case OC_FILE_SEEK_SET:
+            method = FILE_BEGIN;
+            break;
+        case OC_FILE_SEEK_CURRENT:
+            method = FILE_CURRENT;
+            break;
+        case OC_FILE_SEEK_END:
+            method = FILE_END;
+            break;
+    }
+    DWORD r = SetFilePointer(fd, sizeLow, &sizeHigh, method);
+    if(r == INVALID_SET_FILE_POINTER)
+    {
+        return oc_result_error(oc_fd_seek_result, oc_fd_last_error());
+    }
+    else
+    {
+        u64 newValue = ((u64)sizeHigh) << 32 | r;
+        return oc_result_value(oc_fd_seek_result, newValue);
+    }
 }
 
 oc_fd_readwrite_result oc_fd_read(oc_file_desc fd, u64 size, char* buffer)
