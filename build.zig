@@ -527,10 +527,26 @@ pub fn build(b: *Build) !void {
 
     const cwd = b.build_root.handle;
 
-    const target: ResolvedTarget = b.standardTargetOptions(.{});
+    const target: ResolvedTarget = tgt: {
+        var query = b.standardTargetOptionsQueryOnly(.{});
+        const tmp: ResolvedTarget = b.resolveTargetQuery(query);
+
+        if (tmp.result.os.tag == .macos) {
+            query.os_version_min = .{ .semver = try .parse(MACOS_VERSION_MIN) };
+        }
+        break :tgt b.resolveTargetQuery(query);
+    };
     const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
 
-    const compile_flag_min_macos_version: []const u8 = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
+    const macosFrameworkPath: LazyPath = .{
+        .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks",
+    };
+    const macosIncludePath: LazyPath = .{
+        .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include",
+    };
+    const macosLibPath: LazyPath = .{
+        .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib",
+    };
 
     /////////////////////////////////////////////////////////
     // zlib
@@ -993,9 +1009,6 @@ pub fn build(b: *Build) !void {
             "-DOC_LOG_COMPILE_DEBUG",
         });
     }
-    if (target.result.os.tag.isDarwin()) {
-        try orca_platform_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
     // if (target.result.os.tag == .windows) {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libEGL.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
@@ -1010,6 +1023,12 @@ pub fn build(b: *Build) !void {
             .optimize = optimize,
         }),
     });
+
+    if (target.result.os.tag.isDarwin()) {
+        orca_platform_lib.addSystemFrameworkPath(macosFrameworkPath);
+        orca_platform_lib.addSystemIncludePath(macosIncludePath);
+        orca_platform_lib.addLibraryPath(macosLibPath);
+    }
 
     orca_platform_lib.install_name = "@executable_path/liborca_platform.dylib";
 
@@ -1139,10 +1158,6 @@ pub fn build(b: *Build) !void {
     try orca_launcher_compile_flags.append(b.allocator, "-Werror");
     try orca_launcher_compile_flags.append(b.allocator, b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
-    if (target.result.os.tag.isDarwin()) {
-        try orca_launcher_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
-
     const orca_launcher_exe = b.addExecutable(.{
         .name = "orca",
         .root_module = b.createModule(.{
@@ -1167,6 +1182,12 @@ pub fn build(b: *Build) !void {
     orca_launcher_exe.linkLibrary(curl_lib);
     orca_launcher_exe.linkLibC();
 
+    if (target.result.os.tag.isDarwin()) {
+        orca_launcher_exe.addSystemFrameworkPath(macosFrameworkPath);
+        orca_launcher_exe.addSystemIncludePath(macosIncludePath);
+        orca_launcher_exe.addLibraryPath(macosLibPath);
+    }
+
     orca_launcher_exe.step.dependOn(&install_angle_libs.step);
     orca_launcher_exe.step.dependOn(&install_dawn_libs.step);
 
@@ -1188,10 +1209,6 @@ pub fn build(b: *Build) !void {
         "-Werror",
     });
 
-    if (target.result.os.tag.isDarwin()) {
-        try orca_runtime_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
-
     const orca_runtime_exe = b.addExecutable(.{
         .name = "orca_runtime",
         .root_module = b.createModule(.{
@@ -1203,7 +1220,6 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.addIncludePath(b.path("src"));
     orca_runtime_exe.addIncludePath(b.path("src/ext"));
     orca_runtime_exe.addIncludePath(angle_include_path);
-
     orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
 
     orca_runtime_exe.addCSourceFiles(.{
@@ -1215,6 +1231,12 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.linkLibrary(orca_platform_lib);
     orca_runtime_exe.linkLibrary(libzip);
     orca_runtime_exe.linkLibC();
+
+    if (target.result.os.tag.isDarwin()) {
+        orca_runtime_exe.addSystemFrameworkPath(macosFrameworkPath);
+        orca_runtime_exe.addSystemIncludePath(macosIncludePath);
+        orca_runtime_exe.addLibraryPath(macosLibPath);
+    }
 
     orca_runtime_exe.step.dependOn(&install_angle_libs.step);
     orca_runtime_exe.step.dependOn(&install_dawn_libs.step);
