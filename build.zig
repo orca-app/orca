@@ -527,26 +527,39 @@ pub fn build(b: *Build) !void {
 
     const cwd = b.build_root.handle;
 
+    var macosFrameworkPath: LazyPath = .{ .cwd_relative = "" };
+    var macosIncludePath: LazyPath = .{ .cwd_relative = "" };
+    var macosLibPath: LazyPath = .{ .cwd_relative = "" };
+
     const target: ResolvedTarget = tgt: {
         var query = b.standardTargetOptionsQueryOnly(.{});
         const tmp: ResolvedTarget = b.resolveTargetQuery(query);
 
         if (tmp.result.os.tag == .macos) {
             query.os_version_min = .{ .semver = try .parse(MACOS_VERSION_MIN) };
+
+            const res = try std.process.Child.run(.{
+                .allocator = b.allocator,
+                .argv = &.{
+                    "xcrun",
+                    "--show-sdk-path",
+                },
+            });
+            const sdkPath = res.stdout[0..(res.stdout.len - 1)];
+
+            macosFrameworkPath = .{
+                .cwd_relative = try std.fs.path.join(b.allocator, &[_][]const u8{ sdkPath, "System/Library/Frameworks" }),
+            };
+            macosIncludePath = .{
+                .cwd_relative = try std.fs.path.join(b.allocator, &[_][]const u8{ sdkPath, "usr/include" }),
+            };
+            macosLibPath = .{
+                .cwd_relative = try std.fs.path.join(b.allocator, &[_][]const u8{ sdkPath, "usr/lib" }),
+            };
         }
         break :tgt b.resolveTargetQuery(query);
     };
     const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
-
-    const macosFrameworkPath: LazyPath = .{
-        .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks",
-    };
-    const macosIncludePath: LazyPath = .{
-        .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/include",
-    };
-    const macosLibPath: LazyPath = .{
-        .cwd_relative = "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/usr/lib",
-    };
 
     /////////////////////////////////////////////////////////
     // zlib
