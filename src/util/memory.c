@@ -269,6 +269,10 @@ ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used)
         {
             arena = oc_scratch_at_index(index + 1);
         }
+        else
+        {
+            OC_ABORT("no arenas left in scratch pool");
+        }
     }
     else
     {
