@@ -11,7 +11,7 @@
 	"name": "oc_hostcall_clock_time",
 	"handler": "oc_hostapi_clock_time",
 	"return": {
-        "kind": "f32"
+        "kind": "f64"
     },
 	"params": [
         {

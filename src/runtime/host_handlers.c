@@ -97,7 +97,7 @@ void oc_abort_ext_dialog(const char* file, const char* function, int line, const
 // clock handlers
 //------------------------------------------------------------------------
 
-f32 oc_hostapi_clock_time(oc_clock_kind clock)
+f64 oc_hostapi_clock_time(oc_clock_kind clock)
 {
     return oc_clock_time(clock);
 }
