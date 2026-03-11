@@ -1576,7 +1576,7 @@ pub fn build(b: *Build) !void {
                 wasm_sdk_lib,
                 wasm_libc_lib,
                 gen_header_exe,
-                &orca_launcher_exe_install.step,
+                b.getInstallStep(),
                 orca_tool_local_path,
                 .{
                     .name = config.name,
@@ -1844,7 +1844,7 @@ pub fn build(b: *Build) !void {
                 wasm_sdk_lib,
                 wasm_libc_lib,
                 gen_header_exe,
-                &orca_launcher_exe_install.step,
+                b.getInstallStep(),
                 orca_tool_local_path,
                 .{
                     .name = config.name,
