@@ -172,6 +172,38 @@ typedef enum x11_ewmh_source_indication
     X11_EWMH_SOURCE_INDICATION_OTHER = 2,
 } x11_ewmh_source_indication;
 
+typedef enum x11_wm_hints_flags
+{
+    X11_WM_HINTS_INPUT_HINT = (1 << 0),
+    X11_WM_HINTS_STATE_HINT = (1 << 1),
+    X11_WM_HINTS_ICON_PIXMAP_HINT = (1 << 2),
+    X11_WM_HINTS_ICON_WINDOW_HINT = (1 << 3),
+    X11_WM_HINTS_ICON_POSITION_HINT = (1 << 4),
+    X11_WM_HINTS_ICON_MASK_HINT = (1 << 5),
+    X11_WM_HINTS_WINDOW_GROUP_HINT = (1 << 6),
+    //X11_WM_HINTS_MESSAGE_HINT = (1 << 7),
+    X11_WM_HINTS_URGENCY_HINT = (1 << 8),
+} x11_wm_hints_flags;
+
+typedef struct x11_wm_hints
+{
+    x11_wm_hints_flags flags;
+    u32 input;
+    x11_window_state initialState;
+    xcb_pixmap_t iconPixmap;
+    xcb_window_t iconWindow;
+    u32 icon_x;
+    u32 icon_y;
+    xcb_pixmap_t iconMask;
+    xcb_window_t windowGroup;
+} x11_wm_hints;
+
+typedef struct x11_wm_state
+{
+    x11_window_state state;
+    xcb_window_t icon;
+} x11_wm_state;
+
 typedef enum oc_linux_window_flags
 {
     OC_LINUX_WINDOW_X11_REPARENTED = (1 << 0),
