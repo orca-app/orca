@@ -18,6 +18,22 @@
 #include <X11/Xlib.h>
 #include <xcb/xproto.h>
 
+typedef struct oc_linux_dispatch_sync_result
+{
+    bool didRun;
+    i32 retVal;
+} oc_linux_dispatch_sync_result;
+typedef struct oc_linux_dispatch_sync_request
+{
+    oc_dispatch_proc proc;
+    void* user;
+    oc_condition* cond;
+    oc_mutex* mutex;
+    u64 refcount;
+    u64 reqId;
+    oc_linux_dispatch_sync_result result;
+} oc_linux_dispatch_sync_request;
+
 typedef struct x11_win_id_to_handle
 {
   u32 winId;
@@ -76,10 +92,58 @@ typedef struct oc_linux_x11
     u64 netWorkareaLen;
 } oc_linux_x11;
 
+typedef enum oc_x11_client_message
+{
+  OC_X11_CLIENT_MESSAGE_REQUEST_QUIT,
+  OC_X11_CLIENT_MESSAGE_CANCEL_QUIT,
+  OC_X11_CLIENT_MESSAGE_WINDOW_DESTROY,
+  OC_X11_CLIENT_MESSAGE_WINDOW_REQUEST_CLOSE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_CANCEL_CLOSE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_SET_TITLE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_SHOW,
+  OC_X11_CLIENT_MESSAGE_WINDOW_HIDE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_MINIMIZE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_MAXIMIZE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_RESTORE,
+  OC_X11_CLIENT_MESSAGE_WINDOW_FOCUS,
+  OC_X11_CLIENT_MESSAGE_WINDOW_UNFOCUS,
+  OC_X11_CLIENT_MESSAGE_WINDOW_SEND_TO_BACK,
+  OC_X11_CLIENT_MESSAGE_WINDOW_BRING_TO_FRONT,
+  OC_X11_CLIENT_MESSAGE_WINDOW_SET_FRAME_RECT,
+  OC_X11_CLIENT_MESSAGE_WINDOW_SET_CONTENT_RECT,
+  OC_X11_CLIENT_MESSAGE_WINDOW_CENTER,
+  OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
+  OC_X11_CLIENT_MESSAGE_GET_PROPERTY,
+
+  OC_X11_CLIENT_MESSAGE_MAX,
+} oc_x11_client_message;
+
+typedef struct oc_linux_app_cmd_user
+{
+    oc_list_elt listElt;
+    union {
+        struct { oc_str8 title; } setTitle;
+        struct { oc_rect rect; } setFrameRect;
+        struct { oc_rect rect; } setContentRect;
+        struct { oc_linux_dispatch_sync_request* req; u64 reqId; } dispatchOnMainThreadSync;
+        struct { xcb_atom_t prop; xcb_get_property_cookie_t cookie; } getProperty;
+    };
+} oc_linux_app_cmd_user;
+typedef struct oc_linux_app_cmd
+{
+    oc_x11_client_message cmd;
+    oc_window window;
+    oc_linux_app_cmd_user user;
+} oc_linux_app_cmd;
+
 typedef struct oc_linux_app_data
 {
-    oc_arena persistent_arena;
+    oc_arena persistentArena;
+    u64 mainThreadId;
+    oc_mutex* windowPoolMutex;
     oc_linux_x11 x11;
+    oc_pool appCmdUserPool;
+    oc_mutex* appCmdUserPoolMutex;
 } oc_linux_app_data;
 
 typedef enum x11_reponse_type {
@@ -110,9 +174,7 @@ typedef enum x11_ewmh_source_indication
 
 typedef enum oc_linux_window_flags
 {
-    OC_LINUX_WINDOW_X11_MAPPED = (1 << 0),
-    OC_LINUX_WINDOW_X11_MAP_IS_ICONIC = (1 << 1),
-    OC_LINUX_WINDOW_X11_REPARENTED = (1 << 2),
+    OC_LINUX_WINDOW_X11_REPARENTED = (1 << 0),
 } oc_linux_window_flags;
 
 typedef enum oc_linux_window_focus
@@ -150,26 +212,6 @@ typedef struct oc_layer
 {
     u32 x11WinId;
 } oc_layer;
-
-typedef enum oc_x11_client_message
-{
-    OC_X11_CLIENT_MESSAGE_UNFOCUS,
-    OC_X11_CLIENT_MESSAGE_CANCEL_CLOSE,
-    OC_X11_CLIENT_MESSAGE_REQUEST_QUIT,
-    OC_X11_CLIENT_MESSAGE_CANCEL_QUIT,
-    OC_X11_CLIENT_MESSAGE_ADD_WINDOW_ID_TO_HANDLE_ENTRY,
-    OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
-    OC_X11_CLIENT_MESSAGE_GET_PROPERTY,
-} oc_x11_client_message;
-
-typedef struct oc_linux_dispatch_sync_request
-{
-    oc_dispatch_proc proc;
-    void* user;
-    oc_condition* cond;
-    oc_mutex* mutex;
-    i32 retval;
-} oc_linux_dispatch_sync_request;
 
 #endif // __LINUX_APP_H_
 

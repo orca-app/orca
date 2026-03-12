@@ -11,7 +11,7 @@
 #include <string.h>
 #include <sys/time.h>
 #include <unistd.h> // nanosleep()
-#include <assert.h>
+#include <errno.h>
 
 #include "platform_thread.h"
 

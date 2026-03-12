@@ -83,7 +83,7 @@ static i32 set_flag_thread_proc(void* p)
     return 1;
 }
 
-pid_t gettid(void)
+static pid_t gettid(void)
 {
     return (pid_t)syscall(SYS_gettid);
 }
@@ -818,8 +818,12 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
-    // end of february:
-    // - test tls destructors
+    // - oc_pump_events only callable on main thread
+    // - OC_EVENT_WINDOW_RESIZE
+    // - OC_EVENT_WINDOW_MOVE
+    // - OC_EVENT_WINDOW_HIDE
+    // - OC_EVENT_WINDOW_SHOW
+    // - test oc_dispatch_on_main_thread_sync
     // - test oc_window_get_frame_rect, oc_window_get_content_rect
     // - test oc_window_set_frame_rect, oc_window_set_content_rect
     // - test oc_window_center
@@ -829,7 +833,7 @@ int main(int argc, char** argv)
     // - test WM_DELETE_WINDOW
     // - test _NET_WM_PING
     // - test _NET_WM_SYNC_REQUEST
-    // - test oc_dispatch_on_main_thread_sync
+    // - test tls destructors
     // - oc_clipboard_clear
     // - oc_clipboard_set_string
     // - oc_clipboard_get_string
@@ -839,7 +843,7 @@ int main(int argc, char** argv)
     // - oc_clipboard_get_data_for_tag
     // - fix reading wm_state when updated, clean up mutter-specific code
     // - _net_wm_user_time_window
-    // - _NET_STARTUP_ID?
+    // - read DESKTOP_STARTUP_ID env var into user_time timestamp, and then unset env var
     // - check _net_wm_allowed_actions?
     // - set _net_wm_bypass_compositor?
     // - set _net_wm_full_placement?
@@ -853,10 +857,6 @@ int main(int argc, char** argv)
     //   - OC_EVENT_MOUSE_ENTER
     //   - OC_EVENT_MOUSE_LEAVE
     //   - OC_EVENT_CLIPBOARD_PASTE
-    //   - OC_EVENT_WINDOW_RESIZE
-    //   - OC_EVENT_WINDOW_MOVE
-    //   - OC_EVENT_WINDOW_HIDE
-    //   - OC_EVENT_WINDOW_SHOW
     //   - OC_EVENT_PATHDROP
     //   - OC_EVENT_FRAME
     // - oc_event: mark padding so it gets initialized?
