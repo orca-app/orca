@@ -10,7 +10,8 @@
 
 bool oc_vec2_equal(oc_vec2 v0, oc_vec2 v1)
 {
-    return (v0.x == v1.x && v0.y == v1.y);
+    return (fabsf(v0.x - v1.x) < FLT_EPSILON &&
+        fabsf(v0.y - v1.y) < FLT_EPSILON);
 }
 
 oc_vec2 oc_vec2_mul(f32 f, oc_vec2 v)
@@ -21,6 +22,12 @@ oc_vec2 oc_vec2_mul(f32 f, oc_vec2 v)
 oc_vec2 oc_vec2_add(oc_vec2 v0, oc_vec2 v1)
 {
     return ((oc_vec2){ v0.x + v1.x, v0.y + v1.y });
+}
+
+bool oc_rect_equal(oc_rect rect0, oc_rect rect1)
+{
+    return (oc_vec2_equal(rect0.xy, rect1.xy) &&
+        oc_vec2_equal(rect0.wh, rect1.wh));
 }
 
 oc_mat2x3 oc_mat2x3_mul_m(oc_mat2x3 lhs, oc_mat2x3 rhs)

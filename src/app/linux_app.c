@@ -51,8 +51,10 @@ void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
     if(cmd->cmd == OC_X11_CLIENT_MESSAGE_WINDOW_SET_TITLE ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_WINDOW_SET_FRAME_RECT ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_WINDOW_SET_CONTENT_RECT ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_WINDOW_CENTER ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC ||
-        cmd->cmd == OC_X11_CLIENT_MESSAGE_GET_PROPERTY)
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_GET_PROPERTY ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT)
     {
         int ok = oc_mutex_lock(linux->appCmdUserPoolMutex);
         OC_ASSERT(ok == 0);
@@ -626,13 +628,17 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
+                oc_linux_window_focus oldFocus = windowData->linux.focus;
                 windowData->linux.focus = OC_LINUX_WINDOW_UNFOCUSED;
-                oc_event event =
+                if(oldFocus == OC_LINUX_WINDOW_FOCUSED)
                 {
-                    .type = OC_EVENT_WINDOW_UNFOCUS,
-                    .window = window,
-                };
-                oc_queue_event(&event);
+                    oc_event event =
+                    {
+                        .type = OC_EVENT_WINDOW_UNFOCUS,
+                        .window = window,
+                    };
+                    oc_queue_event(&event);
+                }
             }
         } break;
         case XCB_KEYMAP_NOTIFY:
@@ -730,25 +736,61 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(!windowData)  break;
+            oc_rect oldRect = windowData->linux.rect;
 
-            //FIXME(pld): Openbox seems to always send a synthetic event when
-            //moving the window, regardless whether we're resizing it or not.
-            //The ICCCM tells us that this may not apply to all window
-            //managers, where both moving and resizing a window may provide us
-            //only with a real event (hence in parent instead of root space).
             if(synthetic || !(windowData->linux.flags & OC_LINUX_WINDOW_X11_REPARENTED))
             {
                 windowData->linux.rect.x = noti->x;
                 windowData->linux.rect.y = noti->y;
+                windowData->linux.flags |= OC_LINUX_WINDOW_X11_POS_KNOWN;
             }
             else
             {
-               windowData->linux.posFromParent.x = noti->x;
-               windowData->linux.posFromParent.y = noti->y;
+                windowData->linux.posFromParent.x = noti->x;
+                windowData->linux.posFromParent.y = noti->y;
+                windowData->linux.flags &= ~OC_LINUX_WINDOW_X11_POS_KNOWN;
+                xcb_translate_coordinates_cookie_t cookie =
+                    xcb_translate_coordinates(conn, windowData->linux.x11Id, linux->x11.rootWinId, 0, 0);
+                oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                    .cmd = OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT,
+                    .window = window,
+                    .user.translateCoordinatesToRoot.cookie = cookie,
+                    .user.translateCoordinatesToRoot.since = ev->sequence,
+                });
+                OC_STATIC_ASSERT(sizeof(ev->sequence) == sizeof(u16));
             }
             windowData->linux.rect.w = noti->width;
             windowData->linux.rect.h = noti->height;
+            windowData->linux.rectSince = ev->sequence;
             OC_ASSERT(noti->border_width == 0);
+
+            if(windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN)
+            {
+                bool didMove = !oc_vec2_equal(oldRect.xy, windowData->linux.rect.xy);
+                bool didResize = !oc_vec2_equal(oldRect.wh, windowData->linux.rect.wh);
+                oc_event event;
+                if(didMove || didResize)
+                {
+                    memz(&event, sizeof(event));
+                    event.window = window;
+                    event.move.content = windowData->linux.rect;
+                    event.move.frame = event.move.content;
+                    event.move.frame.x -= windowData->linux.frameLeft;
+                    event.move.frame.y -= windowData->linux.frameTop;
+                    event.move.frame.w += windowData->linux.frameLeft + windowData->linux.frameRight;
+                    event.move.frame.h += windowData->linux.frameTop + windowData->linux.frameBottom;
+                }
+                if(didResize)
+                {
+                    event.type = OC_EVENT_WINDOW_RESIZE;
+                    oc_queue_event(&event);
+                }
+                else if(didMove)
+                {
+                    event.type = OC_EVENT_WINDOW_MOVE;
+                    oc_queue_event(&event);
+                }
+            }
 
             //FIXME(pld): after repainting only
             if(windowData->linux.netWmSyncRequestUpdateValue)
@@ -768,24 +810,8 @@ static void oc_pump_events_main_thread(f64 timeout)
         case XCB_GRAVITY_NOTIFY:
             break;
         case XCB_RESIZE_REQUEST:
-        {
-            xcb_resize_request_event_t* rr = (xcb_resize_request_event_t*)ev;
-            oc_log_info(
-                "EVENT:\n"
-                "  response_type: ResizeRequest (%u)\n"
-                "  pad0: %u\n"
-                "  sequence: %u\n"
-                "  window: %u\n"
-                "  width: %u\n"
-                "  height: %u\n",
-                (u32)rr->response_type,
-                (u32)rr->pad0,
-                (u32)rr->sequence,
-                (u32)rr->window,
-                (u32)rr->width,
-                (u32)rr->height
-            );
-        } break;
+            oc_notpossible();
+            break;
         case XCB_CIRCULATE_NOTIFY:
             break;
         case XCB_CIRCULATE_REQUEST:
@@ -823,7 +849,17 @@ static void oc_pump_events_main_thread(f64 timeout)
                 }
                 else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
                 {
-                    OC_ASSERT(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN);
+                    x11_window_state oldState = windowData->linux.state;
+                    windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
+                    if(oldState == X11_WINDOW_STATE_NORMAL)
+                    {
+                        oc_event event =
+                        {
+                            .type = OC_EVENT_WINDOW_HIDE,
+                            .window = window,
+                        };
+                        oc_queue_event(&event);
+                    }
                 }
                 else
                 {
@@ -847,7 +883,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                 }
                 else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
                 {
-                    windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
+                    /* ignored */
                 }
                 else
                 {
@@ -1182,6 +1218,12 @@ static void oc_pump_events_main_thread(f64 timeout)
                     if(windowData->linux.focus == OC_LINUX_WINDOW_FOCUSED)
                     {
                         windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED_IGNORE_INPUTS;
+                        oc_event event =
+                        {
+                            .type = OC_EVENT_WINDOW_UNFOCUS,
+                            .window = window,
+                        };
+                        oc_queue_event(&event);
                     }
                 } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_SEND_TO_BACK:
@@ -1208,8 +1250,6 @@ static void oc_pump_events_main_thread(f64 timeout)
                 {
                     OC_ASSERT(windowData);
                     oc_rect rect = u->setFrameRect.rect;
-                    rect.x += windowData->linux.frameLeft;
-                    rect.y += windowData->linux.frameTop;
                     rect.w -= windowData->linux.frameLeft + windowData->linux.frameRight;
                     rect.h -= windowData->linux.frameTop + windowData->linux.frameBottom;
                     xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
@@ -1224,12 +1264,16 @@ static void oc_pump_events_main_thread(f64 timeout)
                         .width = (u32)rect.w,
                         .height = (u32)rect.h,
                     };
-                    xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                    xcb_void_cookie_t cookie =
+                        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                    windowData->linux.rectNext = (u16)cookie.sequence;
                 } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_SET_CONTENT_RECT:
                 {
                     OC_ASSERT(windowData);
                     oc_rect rect = u->setContentRect.rect;
+                    rect.x -= windowData->linux.frameLeft;
+                    rect.y -= windowData->linux.frameTop;
                     xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
                         XCB_CONFIG_WINDOW_Y |
                         XCB_CONFIG_WINDOW_WIDTH |
@@ -1242,19 +1286,25 @@ static void oc_pump_events_main_thread(f64 timeout)
                         .width = (u32)rect.w,
                         .height = (u32)rect.h,
                     };
-                    xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                    xcb_void_cookie_t cookie =
+                        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                    windowData->linux.rectNext = (u16)cookie.sequence;
                 } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_CENTER:
                 {
+                    OC_ASSERT(windowData);
                     OC_ASSERT(windowData->linux.netWmDesktop < linux->x11.netNumberOfDesktops);
                     OC_ASSERT(linux->x11.netWorkareaLen == linux->x11.netNumberOfDesktops);
                     u32 desktop = windowData->linux.netWmDesktop;
                     oc_rect workarea = linux->x11.netWorkarea[desktop];
-                    oc_rect rect = windowData->linux.rect;
+                    oc_rect rect = {0};
+                    rect.wh = u->center.contentWh;
                     rect.xy = oc_vec2_add(workarea.xy, oc_vec2_mul(0.5, workarea.wh));
                     rect.xy = oc_vec2_add(rect.xy, oc_vec2_mul(-0.5, rect.wh));
                     /* Similar to MacOS, "somewhat above center vertically". */
-                    rect.y -= workarea.y * 0.1;
+                    //rect.y -= workarea.y * 0.1;
+                    rect.x -= windowData->linux.frameLeft;
+                    rect.y -= windowData->linux.frameTop;
                     xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
                         XCB_CONFIG_WINDOW_Y |
                         XCB_CONFIG_WINDOW_WIDTH |
@@ -1267,7 +1317,9 @@ static void oc_pump_events_main_thread(f64 timeout)
                         .width = (u32)rect.w,
                         .height = (u32)rect.h,
                     };
-                    xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                    xcb_void_cookie_t cookie =
+                        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                    windowData->linux.rectNext = (u16)cookie.sequence;
                 } break;
                 case OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC:
                 {
@@ -1367,7 +1419,23 @@ static void oc_pump_events_main_thread(f64 timeout)
                         OC_ASSERT(reply->bytes_after == 0);
                         OC_ASSERT(reply->value_len == sizeof(x11_wm_state) / 4);
                         x11_wm_state* wmState = p;
+                        x11_window_state oldState = windowData->linux.state;
                         windowData->linux.state = wmState->state;
+                        if(oldState != wmState->state)
+                        {
+                            if(wmState->state == X11_WINDOW_STATE_NORMAL)
+                            {
+                                oc_event event = { .window = window };
+                                event.type = OC_EVENT_WINDOW_SHOW;
+                                oc_queue_event(&event);
+                            }
+                            else if(oldState == X11_WINDOW_STATE_NORMAL)
+                            {
+                                oc_event event = { .window = window };
+                                event.type = OC_EVENT_WINDOW_HIDE;
+                                oc_queue_event(&event);
+                            }
+                        }
                     }
                     else if(prop == linux->x11.atoms._NET_WM_STATE)
                     {
@@ -1385,6 +1453,37 @@ static void oc_pump_events_main_thread(f64 timeout)
                     else
                     {
                         oc_notpossible();
+                    }
+                    free(reply);
+                } break;
+                case OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT:
+                {
+                    OC_ASSERT(windowData);
+                    xcb_translate_coordinates_cookie_t cookie = u->translateCoordinatesToRoot.cookie;
+                    u16 since = u->translateCoordinatesToRoot.since;
+                    xcb_translate_coordinates_reply_t* reply = NULL;
+                    reply = xcb_translate_coordinates_reply(conn, cookie, NULL);
+                    OC_ASSERT(reply);
+                    OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+                    OC_ASSERT(reply->same_screen);
+                    OC_ASSERT(reply->child != XCB_NONE);
+                    if(since == windowData->linux.rectSince)
+                    {
+                        windowData->linux.rect.x = (f32)reply->dst_x;
+                        windowData->linux.rect.y = (f32)reply->dst_y;
+                        windowData->linux.flags |= OC_LINUX_WINDOW_X11_POS_KNOWN;
+
+                        oc_event event;
+                        memz(&event, sizeof(event));
+                        event.type = OC_EVENT_WINDOW_RESIZE;
+                        event.window = window;
+                        event.move.content = windowData->linux.rect;
+                        event.move.frame = event.move.content;
+                        event.move.frame.x -= windowData->linux.frameLeft;
+                        event.move.frame.y -= windowData->linux.frameTop;
+                        event.move.frame.w += windowData->linux.frameLeft + windowData->linux.frameRight;
+                        event.move.frame.h += windowData->linux.frameTop + windowData->linux.frameBottom;
+                        oc_queue_event(&event);
                     }
                     free(reply);
                 } break;
@@ -1780,7 +1879,7 @@ bool oc_window_is_maximized(oc_window window)
 {
     oc_window_is_maximized_dispatched_user u = { .window = window };
     oc_dispatch_on_main_thread_sync(oc_window_is_maximized_dispatched, &u);
-    return u.isMaximized;
+    return (u.isMaximized);
 }
 
 void oc_window_maximize(oc_window window)
@@ -1825,7 +1924,7 @@ bool oc_window_has_focus(oc_window window)
 {
     oc_window_has_focus_dispatched_user u = { .window = window };
     oc_dispatch_on_main_thread_sync(oc_window_has_focus_dispatched, &u);
-    return u.hasFocus;
+    return (u.hasFocus);
 }
 
 void oc_window_focus(oc_window window)
@@ -1865,6 +1964,7 @@ u64 oc_window_debug_stack_pos(oc_window window)
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    OC_ASSERT(windowData);
 
     xcb_query_tree_cookie_t cookie = xcb_query_tree(conn, windowData->linux.x11Id);
     xcb_flush(conn);
@@ -1896,6 +1996,18 @@ u64 oc_window_debug_stack_pos(oc_window window)
     return (i);
 }
 
+oc_rect oc_window_debug_workarea(oc_window window)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    oc_window_data* windowData = oc_window_ptr_from_handle(window);
+    OC_ASSERT(windowData);
+    OC_ASSERT(windowData->linux.netWmDesktop < linux->x11.netNumberOfDesktops);
+    OC_ASSERT(windowData->linux.netWmDesktop < linux->x11.netWorkareaLen);
+
+    return (linux->x11.netWorkarea[windowData->linux.netWmDesktop]);
+}
+
 typedef struct oc_window_get_frame_rect_dispatched_user
 {
     oc_window window;
@@ -1907,19 +2019,28 @@ static i32 oc_window_get_frame_rect_dispatched(void* user)
     oc_window_data* windowData = oc_window_ptr_from_handle(u->window);
     if(windowData)
     {
-        oc_rect rect = windowData->linux.rect;
-        rect.x -= windowData->linux.frameLeft;
-        rect.y -= windowData->linux.frameTop;
-        rect.w += windowData->linux.frameLeft + windowData->linux.frameRight;
-        rect.h += windowData->linux.frameTop + windowData->linux.frameBottom;
-        u->rect = rect;
+        if(windowData->linux.rectSince >= windowData->linux.rectNext &&
+            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN)
+        {
+            oc_rect rect = windowData->linux.rect;
+            rect.x -= windowData->linux.frameLeft;
+            rect.y -= windowData->linux.frameTop;
+            rect.w += windowData->linux.frameLeft + windowData->linux.frameRight;
+            rect.h += windowData->linux.frameTop + windowData->linux.frameBottom;
+            u->rect = rect;
+            return (1);
+        }
+        else
+        {
+            return (0);
+        }
     }
-    return (0);
+    return (1);
 }
 oc_rect oc_window_get_frame_rect(oc_window window)
 {
     oc_window_get_frame_rect_dispatched_user u = { .window = window };
-    oc_dispatch_on_main_thread_sync(oc_window_get_frame_rect_dispatched, &u);
+    while(!oc_dispatch_on_main_thread_sync(oc_window_get_frame_rect_dispatched, &u));
     return (u.rect);
 }
 
@@ -1943,15 +2064,24 @@ static i32 oc_window_get_content_rect_dispatched(void* user)
     oc_window_data* windowData = oc_window_ptr_from_handle(u->window);
     if(windowData)
     {
-        u->rect = windowData->linux.rect;
+        if(windowData->linux.rectSince >= windowData->linux.rectNext &&
+            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN)
+        {
+            u->rect = windowData->linux.rect;
+            return (1);
+        }
+        else
+        {
+            return (0);
+        }
     }
-    return (0);
+    return (1);
 }
 oc_rect oc_window_get_content_rect(oc_window window)
 {
     oc_window_get_content_rect_dispatched_user u = { .window = window };
-    oc_dispatch_on_main_thread_sync(oc_window_get_content_rect_dispatched, &u);
-    return u.rect;
+    while(!oc_dispatch_on_main_thread_sync(oc_window_get_content_rect_dispatched, &u));
+    return (u.rect);
 }
 
 void oc_window_set_content_rect(oc_window window, oc_rect rect)
@@ -1965,9 +2095,11 @@ void oc_window_set_content_rect(oc_window window, oc_rect rect)
 
 void oc_window_center(oc_window window)
 {
+    oc_rect rect = oc_window_get_content_rect(window);
     oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
         .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_CENTER,
         .window = window,
+        .user.center.contentWh = rect.wh,
     });
 }
 

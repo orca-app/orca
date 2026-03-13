@@ -372,6 +372,7 @@ ORCA_API oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_w
 
 //FIXME(pld): Debug for tests
 u64 oc_window_debug_stack_pos(oc_window window);
+oc_rect oc_window_debug_workarea(oc_window window);
 
 //------------------------------------------------------------------------------------------
 //SECTION: vsync

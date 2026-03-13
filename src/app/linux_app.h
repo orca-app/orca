@@ -114,6 +114,7 @@ typedef enum oc_x11_client_message
   OC_X11_CLIENT_MESSAGE_WINDOW_CENTER,
   OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
   OC_X11_CLIENT_MESSAGE_GET_PROPERTY,
+  OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT,
 
   OC_X11_CLIENT_MESSAGE_MAX,
 } oc_x11_client_message;
@@ -125,8 +126,10 @@ typedef struct oc_linux_app_cmd_user
         struct { oc_str8 title; } setTitle;
         struct { oc_rect rect; } setFrameRect;
         struct { oc_rect rect; } setContentRect;
+        struct { oc_vec2 contentWh; } center;
         struct { oc_linux_dispatch_sync_request* req; u64 reqId; } dispatchOnMainThreadSync;
         struct { xcb_atom_t prop; xcb_get_property_cookie_t cookie; } getProperty;
+        struct { xcb_translate_coordinates_cookie_t cookie; u16 since; } translateCoordinatesToRoot;
     };
 } oc_linux_app_cmd_user;
 typedef struct oc_linux_app_cmd
@@ -207,6 +210,7 @@ typedef struct x11_wm_state
 typedef enum oc_linux_window_flags
 {
     OC_LINUX_WINDOW_X11_REPARENTED = (1 << 0),
+    OC_LINUX_WINDOW_X11_POS_KNOWN = (1 << 1),
 } oc_linux_window_flags;
 
 typedef enum oc_linux_window_focus
@@ -230,6 +234,8 @@ typedef struct oc_linux_window_data
     /* x and y are the top left-inner corner relative to the root window's
      * origin. */
     oc_rect rect;
+    u16 rectSince;
+    u16 rectNext;
     /* Frame widths added by window manager. */
     f32 frameLeft, frameRight, frameTop, frameBottom;
     u32 netWmSyncRequestCounterId;

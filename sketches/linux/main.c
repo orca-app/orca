@@ -11,6 +11,7 @@
 #include <sys/random.h>
 #include <sched.h>
 #include <errno.h>
+#include <math.h>
 typedef ssize_t isize;
 typedef size_t usize;
 
@@ -59,7 +60,7 @@ static oc_str8 read_file(oc_arena* arena, oc_str8 pathname)
     close(fd);
     oc_str8 result = oc_str8_list_join(arena, l);
     oc_scratch_end(scratch);
-    return result;
+    return (result);
 }
 
 static bool pathname_exists(oc_arena* arena, oc_str8 pathname)
@@ -68,19 +69,19 @@ static bool pathname_exists(oc_arena* arena, oc_str8 pathname)
     UNUSED struct stat statbuf;
     int err = stat(oc_str8_to_cstring(scratch.arena, pathname), &statbuf);
     oc_scratch_end(scratch);
-    return !err;
+    return (!err);
 }
 
 UNUSED static i32 nop_thread_proc(void* p UNUSED)
 {
-    return 0;
+    return (0);
 }
 
 static i32 set_flag_thread_proc(void* p)
 {
     bool* flag = p;
     *flag = true;
-    return 1;
+    return (1);
 }
 
 static pid_t gettid(void)
@@ -93,7 +94,7 @@ static i32 gettid_thread_proc(void* p)
     i64* tid = p;
     __atomic_store_n(tid, (i64)gettid(), __ATOMIC_SEQ_CST);
     while(__atomic_load_n(tid, __ATOMIC_SEQ_CST));
-    return 0;
+    return (0);
 }
 
 static void nop_signal_handler(int signum UNUSED)
@@ -111,7 +112,7 @@ static i32 sleep_until_signaled_thread_proc(void* p)
     pause();
     __atomic_store_n(signaled, (i64)gettid(), __ATOMIC_SEQ_CST);
     pause();
-    return 0;
+    return (0);
 }
 
 // https://en.wikipedia.org/wiki/Xorshift
@@ -136,11 +137,11 @@ static u64 xoshiro256pp(struct xoshiro256pp_state* state)
     a[0] ^= a[3];
     a[2] ^= t;
     a[3] = xoshiro256pp_rol(a[3], 45);
-    return n;
+    return (n);
 }
 static u64 random_u64(struct xoshiro256pp_state* state)
 {
-    return xoshiro256pp(state);
+    return (xoshiro256pp(state));
 }
 
 #define compiler_barrier()  asm volatile("" ::: "memory")
@@ -163,7 +164,7 @@ static i32 lock_inc_unlock_sleep_thread_proc(void* p)
         oc_mutex_unlock(m);
         oc_sleep_nano(random_u64(&seed) % SLEEP_RANGE_PER_ITERATION);
     }
-    return 0;
+    return (0);
 }
 
 static oc_ticket ticket_mutex = {0};
@@ -182,7 +183,7 @@ static i32 ticket_lock_cmp_inc_unlock_repeat_thread_proc(void* p)
         oc_ticket_unlock(&ticket_mutex);
         oc_sleep_nano(random_u64(&seed) % SLEEP_RANGE_PER_ITERATION);
     }
-    return 0;
+    return (0);
 }
 
 static oc_condition* cond = NULL;
@@ -194,7 +195,7 @@ static i32 cond_wait_inc_thread_proc(void* p)
     OC_ASSERT(oc_condition_wait(cond, m) == 0);
     *n += 1;
     OC_ASSERT(oc_mutex_unlock(m) == 0);
-    return 0;
+    return (0);
 }
 
 int main(int argc, char** argv)
@@ -576,196 +577,240 @@ int main(int argc, char** argv)
     oc_terminate();
 
     oc_init();
+    oc_arena_scope scratch = oc_scratch_begin();
     oc_rect rect = { 100.0f, 100.0f, 400.0f, 200.0f };
     oc_window win = {0};
     win = oc_window_create(rect, OC_STR8("Orca on Linux"), 0);
     OC_ASSERT(!oc_window_is_nil(win));
     {
-        void *p = oc_window_native_pointer(win);
+        void* p = oc_window_native_pointer(win);
         OC_ASSERT(p);
         p = oc_window_native_pointer(oc_window_nil());
         OC_ASSERT(!p);
     }
     oc_window_set_title(win, OC_STR8("Orca on Linux edited"));
 
-    int tries = 0, max_tries = 100;
-
     OC_ASSERT(oc_window_is_hidden(win));
 
-    enum
-    {
-        LINUX_WINDOW_HIDE,
-        LINUX_WINDOW_SHOW,
-        LINUX_WINDOW_MINIMIZE,
-        LINUX_WINDOW_MAXIMIZE,
-        LINUX_WINDOW_RESTORE,
+    #define CHECK3(expr, stat, kill)  \
+        do  \
+        { \
+            f64 timeout = 1.0;  \
+            bool ok = false;  \
+            while(!ok && timeout > 0.0)  \
+            {  \
+                f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);  \
+                oc_pump_events(timeout);  \
+                f64 elapsed = oc_clock_time(OC_CLOCK_MONOTONIC) - start;  \
+                timeout -= elapsed;  \
+                (stat);  \
+                ok = (expr);  \
+            }  \
+            if(kill)  OC_ASSERT(ok);  \
+        }  \
+        while(0)
+    #define CHECK2(expr, stat)  CHECK3((expr), (stat), true)
+    #define CHECK(expr)  CHECK2((expr), (void)0)
 
-        LINUX_WINDOW_MAX,
-    };
-    enum
-    {
-        LINUX_HIDDEN = 01,
-        LINUX_MINIMIZED = 02,
-        LINUX_MAXIMIZED = 04,
-    };
-    static u8 matrix[LINUX_WINDOW_MAX][LINUX_WINDOW_MAX] = {
-                               /* HIDE, SHOW, MIN,  MAX, REST */
-        [LINUX_WINDOW_HIDE] = {   01,   00,   },
-    };
+    #define CHECK_EV(exp_type, exp_win)  \
+        __extension__({  \
+            oc_event* _ev = NULL;  \
+            while(!(_ev && _ev->type == (exp_type) && _ev->window.h == (exp_win).h) && (_ev = oc_next_event(scratch.arena)))  \
+            {  \
+                oc_log_info("CHECK_EV: got ev: type=%d, win=%llx\n", _ev->type, _ev->window.h);  \
+            }  \
+            OC_ASSERT(_ev);  \
+            _ev;  \
+        })
 
     // Withdrawn -> Normal
     oc_window_show(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Normal -> Iconic
     oc_window_minimize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && oc_window_is_minimized(win));
+    CHECK_EV(OC_EVENT_WINDOW_HIDE, win);
 
     // Iconic -> Normal
     oc_window_show(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Normal -> Withdrawn
     oc_window_hide(win);
-    tries = 0;
-    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(oc_window_is_hidden(win) && !oc_window_is_minimized(win));
+    CHECK_EV(OC_EVENT_WINDOW_HIDE, win);
 
     // Withdrawn -> Iconic
     oc_window_minimize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && oc_window_is_minimized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Iconic -> Withdrawn
     oc_window_hide(win);
-    tries = 0;
-    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(oc_window_is_hidden(win) && !oc_window_is_minimized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Withdrawn -> Normal, again
     oc_window_show(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Normal -> Maximized
     oc_window_maximize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Maximized -> Iconic
     oc_window_minimize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_HIDE, win);
 
     // Iconic -> Maximized
     oc_window_maximize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Maximized -> Withdrawn
     oc_window_hide(win);
-    tries = 0;
-    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_HIDE, win);
 
     // Withdrawn -> Maximized
     oc_window_maximize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Maximized -> Normal
     oc_window_show(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Normal -> Restored
     oc_window_restore(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Restored -> Maximized
     oc_window_maximize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && oc_window_is_maximized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Maximized -> Restored
     oc_window_restore(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     // Restored -> Iconic
     oc_window_minimize(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_HIDE, win);
 
     // Iconic -> Restored
     oc_window_restore(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Restored -> Withdrawn
     oc_window_hide(win);
-    tries = 0;
-    while(!(oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_HIDE, win);
 
     // Withdrawn -> Restored
     oc_window_restore(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    CHECK_EV(OC_EVENT_WINDOW_SHOW, win);
 
     // Restored -> Normal
     oc_window_show(win);
-    tries = 0;
-    while(!(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_is_hidden(win) && !oc_window_is_minimized(win) && !oc_window_is_maximized(win));
+    {
+        oc_event* ev = NULL;
+        bool got = false;
+        while(!got && (ev = oc_next_event(scratch.arena)))
+        {
+            got = (ev->type == OC_EVENT_WINDOW_SHOW || ev->type == OC_EVENT_WINDOW_HIDE) && ev->window.h == win.h;
+        }
+        OC_ASSERT(!got);
+    }
 
     u64 stack_pos0 = oc_window_debug_stack_pos(win), stack_pos = U64_MAX;
     // ? -> back
     oc_window_send_to_back(win);
-    tries = 0;
-    while(!(stack_pos < stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
-    OC_ASSERT(tries < max_tries);
+    CHECK2(stack_pos < stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
     stack_pos0 = stack_pos;
 
     // back -> front
     oc_window_bring_to_front(win);
-    tries = 0;
-    while(!(stack_pos > stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
-    OC_ASSERT(tries < max_tries);
+    CHECK2(stack_pos > stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
     stack_pos0 = stack_pos;
 
     // front -> back
     oc_window_send_to_back(win);
-    tries = 0;
-    while(!(stack_pos < stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
-    OC_ASSERT(tries < max_tries);
+    CHECK2(stack_pos < stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
     stack_pos0 = stack_pos;
 
     // back -> front, again
     oc_window_bring_to_front(win);
-    tries = 0;
-    while(!(stack_pos > stack_pos0) && tries < max_tries)  oc_pump_events(0.1), tries++, stack_pos = oc_window_debug_stack_pos(win);
-    OC_ASSERT(tries < max_tries);
+    CHECK2(stack_pos > stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
     stack_pos0 = stack_pos;
 
     rect.x += rect.w;
@@ -774,63 +819,232 @@ int main(int argc, char** argv)
     OC_ASSERT(!oc_window_is_nil(win2));
     OC_ASSERT(oc_window_is_hidden(win2));
     //TODO(pld): do we require a window to be shown to be focusable?
+
     oc_window_show(win2);
+    oc_window_unfocus(win2);
+    {
+        oc_event* ev = NULL;
+        CHECK3(ev, ev = oc_next_event(scratch.arena), false);
+    }
 
     // ? -> 1st focused
     oc_window_focus(win);
-    tries = 0;
-    while(!(oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(oc_window_has_focus(win) && !oc_window_has_focus(win2));
+    //FIXME(pld): sometimes fails
+    if(0) CHECK_EV(OC_EVENT_WINDOW_FOCUS, win);
 
     // 1st focused -> unfocused
     oc_window_unfocus(win);
-    tries = 0;
-    while(!(!oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_has_focus(win) && !oc_window_has_focus(win2));
+    CHECK_EV(OC_EVENT_WINDOW_UNFOCUS, win);
 
     // unfocused -> 2nd focused
     oc_window_focus(win2);
-    tries = 0;
-    while(!(!oc_window_has_focus(win) && oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_has_focus(win) && oc_window_has_focus(win2));
+    CHECK_EV(OC_EVENT_WINDOW_FOCUS, win2);
 
     // 2nd focused -> 1st focused
     oc_window_focus(win);
-    tries = 0;
-    while(!(oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(oc_window_has_focus(win) && !oc_window_has_focus(win2));
+    CHECK_EV(OC_EVENT_WINDOW_UNFOCUS, win2);
+    CHECK_EV(OC_EVENT_WINDOW_FOCUS, win);
 
     // 1st focused -> 2nd focused
     oc_window_focus(win2);
-    tries = 0;
-    while(!(!oc_window_has_focus(win) && oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_has_focus(win) && oc_window_has_focus(win2));
+    CHECK_EV(OC_EVENT_WINDOW_UNFOCUS, win);
+    CHECK_EV(OC_EVENT_WINDOW_FOCUS, win2);
 
     // 2nd focused -> unfocused
     oc_window_unfocus(win2);
-    tries = 0;
-    while(!(!oc_window_has_focus(win) && !oc_window_has_focus(win2)) && tries < max_tries)  oc_pump_events(0.1), tries++;
-    OC_ASSERT(tries < max_tries);
+    CHECK(!oc_window_has_focus(win) && !oc_window_has_focus(win2));
+    CHECK_EV(OC_EVENT_WINDOW_UNFOCUS, win2);
 
     oc_window_destroy(win2);
+
+    OC_ASSERT(!oc_window_is_hidden(win) && !oc_window_is_minimized(win));
+
+    rect = (oc_rect){100, 100, 100, 100};
+    oc_rect rect2 = {0};
+    oc_event* ev = NULL;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.x += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.y += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.x += 100;
+    rect.y += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.w += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.h += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.w += 100;
+    rect.h += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.x -= 100;
+    rect.w -= 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.y -= 100;
+    rect.h -= 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.x += 100;
+    rect.y += 100;
+    rect.w += 100;
+    rect.h += 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect.x -= 100;
+    rect.y -= 100;
+    rect.w -= 100;
+    rect.h -= 100;
+    oc_window_set_content_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_content_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.content));
+
+    rect = (oc_rect){100, 100, 100, 100};
+    rect2 = (oc_rect){0};
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.x += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.y += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.x += 100;
+    rect.y += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.w += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.h += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.w += 100;
+    rect.h += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.x -= 100;
+    rect.w -= 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.y -= 100;
+    rect.h -= 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.x += 100;
+    rect.y += 100;
+    rect.w += 100;
+    rect.h += 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect.x -= 100;
+    rect.y -= 100;
+    rect.w -= 100;
+    rect.h -= 100;
+    oc_window_set_frame_rect(win, rect);
+    CHECK2(oc_rect_equal(rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+
+    rect = (oc_rect){100, 100, 100, 100};
+    oc_window_set_frame_rect(win, rect);
+    oc_window_center(win);
+    oc_rect workarea = oc_window_debug_workarea(win);
+    oc_rect centered_rect = rect;
+    centered_rect.x = workarea.x + (workarea.w - rect.w) / 2;
+    centered_rect.y = workarea.y + (workarea.h - rect.h) / 2;
+    rect2 = (oc_rect){0};
+    CHECK2(oc_rect_equal(centered_rect, rect2), rect2 = oc_window_get_frame_rect(win));
+    ev = CHECK_EV(OC_EVENT_WINDOW_RESIZE, win);
+    OC_ASSERT(oc_rect_equal(rect, ev->move.frame));
+    ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
+    OC_ASSERT(oc_rect_equal(centered_rect, ev->move.frame));
 
     oc_window_destroy(win);
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - oc_pump_events only callable on main thread
-    // - OC_EVENT_WINDOW_RESIZE
-    // - OC_EVENT_WINDOW_MOVE
-    // - OC_EVENT_WINDOW_HIDE
-    // - OC_EVENT_WINDOW_SHOW
-    // - test oc_dispatch_on_main_thread_sync
-    // - test oc_window_get_frame_rect, oc_window_get_content_rect
-    // - test oc_window_set_frame_rect, oc_window_set_content_rect
-    // - test oc_window_center
-    // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close
-    // - test oc_should_quit, oc_request_quit, oc_cancel_quit
-    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
+    // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close, OC_EVENT_WINDOW_CLOSE
     // - test WM_DELETE_WINDOW
+    // - test oc_should_quit, oc_request_quit, oc_cancel_quit, OC_EVENT_QUIT
+    // - oc_window_create flags
+    // - oc_window_content_rect_for_frame_rect (create dummy window with style to fetch extents)
+    // - oc_window_frame_rect_for_content_rect (same)
+    // - test oc_dispatch_on_main_thread_sync
+    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
     // - test _NET_WM_PING
     // - test _NET_WM_SYNC_REQUEST
     // - test tls destructors
@@ -841,7 +1055,6 @@ int main(int argc, char** argv)
     // - oc_clipboard_has_tag
     // - oc_clipboard_set_data_for_tag
     // - oc_clipboard_get_data_for_tag
-    // - fix reading wm_state when updated, clean up mutter-specific code
     // - _net_wm_user_time_window
     // - read DESKTOP_STARTUP_ID env var into user_time timestamp, and then unset env var
     // - check _net_wm_allowed_actions?
@@ -860,12 +1073,6 @@ int main(int argc, char** argv)
     //   - OC_EVENT_PATHDROP
     //   - OC_EVENT_FRAME
     // - oc_event: mark padding so it gets initialized?
-    // - oc_window_create flags
-    // - oc_window_content_rect_for_frame_rect (create dummy window with style to fetch extents)
-    // - oc_window_frame_rect_for_content_rect (same)
-    // - client-server request/reply sync (investigate in glfw and sdl)
-    // - app/main thread safety: window pool is shared, but there are no locks
-    //   when reading or writing to it
     // - handle when conigurenotify is in parent space?
     //
     // later:
@@ -898,5 +1105,6 @@ int main(int argc, char** argv)
     //   - oc_file_remove
     //   - oc_directory_create
 
-    return 0;
+    oc_scratch_end(scratch);
+    return (0);
 }
