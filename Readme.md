@@ -37,7 +37,7 @@ To learn more about the project and its goals, read the [announcement post](http
 - Windows 10 or later, or Mac 14 or later (Linux is not yet supported)
 
 - Clang version 11.0 or newer
-	- **Windows users:** `clang` can be installed via the Visual Studio installer. Search for "C++ Clang Compiler".
+	- **Windows users:** The version of `clang` installed via the Visual Studio installer may not support WebAssembly. It is advised to install clang from the LLVM [release page](https://github.com/llvm/llvm-project/releases/) instead.
 	- **Mac users:** Apple's built-in `clang` does not support WebAssembly. We recommend installing `clang` via [Homebrew](https://brew.sh/) with `brew install llvm`.
 - **Clang runtime builtins.** When targeting WebAssembly, `clang` relies on builtins found in `libclang_rt.builtins-wasm32`, but most distributions of `clang` don't yet ship with this file. To know where `clang` expects to find this file, you can run `clang --target=wasm32 -print-libgcc-file-name`. If this file doesn't exist you will need to download it from [https://github.com/WebAssembly/wasi-sdk/releases](https://github.com/WebAssembly/wasi-sdk/releases). 
 
