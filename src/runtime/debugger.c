@@ -118,7 +118,6 @@ void overlay_ui(oc_debug_overlay* overlay)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 0.4 });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
                 oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 0, 0, 0.5 });
 
                 oc_ui_box("log toolbar")
@@ -169,14 +168,14 @@ void overlay_ui(oc_debug_overlay* overlay)
                 {
                     if(panel->scroll.y >= scrollY)
                     {
-                        panel->scroll.y = oc_clamp_low(panel->childrenSum[1] - panel->rect.h, 0);
+                        panel->scroll.y = oc_clamp_low(panel->contentSize.y - panel->rect.h, 0);
                     }
                     else
                     {
                         overlay->logScrollToLast = false;
                     }
                 }
-                else if(panel->scroll.y >= (panel->childrenSum[1] - panel->rect.h) - 1)
+                else if(panel->scroll.y >= (panel->contentSize.y - panel->rect.h) - 1)
                 {
                     overlay->logScrollToLast = true;
                 }
@@ -360,12 +359,12 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
 {
     oc_list list = { 0 };
 
-    wa_debug_function* funcInfo = oc_catch(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
+    wa_debug_function* funcInfo = oc_option_orelse(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
     {
         return list;
     }
 
-    wa_debug_scope* scope = oc_catch(wa_debug_get_scope_for_warm_loc(interpreter, warmLoc))
+    wa_debug_scope* scope = oc_option_orelse(wa_debug_get_scope_for_warm_loc(interpreter, warmLoc))
     {
         return list;
     }
@@ -1034,9 +1033,9 @@ void oc_debugger_update(oc_debugger* debugger, wa_interpreter* interpreter)
     };
 
     wa_debug_unit_ptr_option unitOption = wa_debug_get_unit_for_warm_loc(interpreter, warmLoc);
-    if(oc_check(unitOption))
+    if(oc_option_check(unitOption))
     {
-        wa_debug_unit* unit = oc_unwrap(unitOption);
+        wa_debug_unit* unit = oc_option_unwrap(unitOption);
         debugger->globals = debugger_build_globals_tree(&debugger->debugArena, unit, interpreter);
     }
 }
@@ -1160,7 +1159,7 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
                     oc_ui_style_set_f32(OC_UI_MARGIN_Y, 2.5);
 
                     //TODO: this is a hack because we don't have another option to grow labels to the parent for now
-                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, .minSize = callstackContents->rect.w });
+                    oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_TEXT, .min = callstackContents->rect.w });
                 }
 
                 if(frameIndex == debugger->selectedFrame)
@@ -1665,15 +1664,20 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
     {
         wa_source_info* sourceInfo = &interpreter->instance->module->debugInfo->sourceInfo;
         oc_str8 path = sourceInfo->files[node->index].fullPath;
-        oc_file file = oc_file_open(path, OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+
+        oc_file file = oc_catch(oc_file_open(path, OC_FILE_ACCESS_READ, 0))
+        {
+            //TODO: error message the first time we get here
+            return;
+        }
 
         if(!oc_file_is_nil(file))
         {
             node->contents.len = oc_file_size(file);
             node->contents.ptr = oc_malloc_array(char, node->contents.len);
             oc_file_read(file, node->contents.len, node->contents.ptr);
+            oc_file_close(file);
         }
-        oc_file_close(file);
     }
 
     if(node->contents.len)
@@ -1819,10 +1823,10 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
                         {
                             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, xWidth });
                             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, lineH });
-                            oc_ui_style_set_i32(OC_UI_FLOATING_X, 1);
-                            oc_ui_style_set_i32(OC_UI_FLOATING_Y, 1);
-                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_X, xWidth * (execMarkerColumn - 1));
-                            oc_ui_style_set_f32(OC_UI_FLOAT_TARGET_Y, 0);
+                            oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
+                            oc_ui_style_set_i32(OC_UI_FOOTPRINT, OC_UI_FOOTPRINT_UNSIZED);
+                            oc_ui_style_set_f32(OC_UI_OFFSET_X, xWidth * (execMarkerColumn - 1));
+                            oc_ui_style_set_f32(OC_UI_OFFSET_Y, 0);
                             oc_ui_style_set_color(OC_UI_BG_COLOR, (oc_color){ 0, 1, 0, 1 });
                         }
                     }
@@ -1864,7 +1868,6 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 
         oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_X);
         oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
-        oc_ui_style_set_i32(OC_UI_CONSTRAIN_X, 1);
         oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
 
         //NOTE: if paused == true here, vm thread can not unpause until next frame.
@@ -1892,7 +1895,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PIXELS, procPanelSize });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
             oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_4);
@@ -1902,7 +1905,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
                 oc_ui_box("browser-tabs")
@@ -1991,7 +1994,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_f32(OC_UI_SPACING, 5);
                 oc_ui_style_set_var_str8(OC_UI_BG_COLOR, OC_UI_THEME_BG_1);
 
@@ -2018,7 +2021,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
         {
             oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
             oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
-            oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
             oc_ui_style_set_f32(OC_UI_SPACING, panelSpacing);
 
@@ -2048,7 +2051,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
             {
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PARENT, 1, 1 });
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
+
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
                 oc_ui_box("tabs")
@@ -2220,7 +2223,6 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                 oc_ui_style_set_size(OC_UI_WIDTH, (oc_ui_size){ OC_UI_SIZE_PARENT, 1 });
                 oc_ui_style_set_size(OC_UI_HEIGHT, (oc_ui_size){ OC_UI_SIZE_PIXELS, bottomPanelHeight });
                 oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
-                oc_ui_style_set_i32(OC_UI_CONSTRAIN_Y, 1);
 
                 oc_ui_box("tabs")
                 {

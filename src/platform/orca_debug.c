@@ -9,7 +9,7 @@
 
 #include "platform_debug.c"
 #include "util/strings.h"
-
+#include "wasmbind/hostcalls.h"
 //----------------------------------------------------------------
 // stb sprintf callback and user struct
 //----------------------------------------------------------------
@@ -52,15 +52,6 @@ typedef struct oc_log_output
 static oc_log_output oc_logDefaultOutput = { .kind = ORCA_LOG_OUTPUT_CONSOLE };
 oc_log_output* OC_LOG_DEFAULT_OUTPUT = &oc_logDefaultOutput;
 
-void ORCA_IMPORT(oc_bridge_log)(oc_log_level level,
-                                int functionLen,
-                                const char* function,
-                                int fileLen,
-                                const char* file,
-                                int line,
-                                int msgLen,
-                                const char* msg);
-
 void platform_log_push(oc_log_output* output,
                        oc_log_level level,
                        const char* function,
@@ -79,7 +70,7 @@ void platform_log_push(oc_log_output* output,
 
     oc_str8 string = oc_str8_list_join(scratch.arena, ctx.list);
 
-    oc_bridge_log(level, strlen(function), function, strlen(file), file, line, oc_str8_ip(string));
+    oc_hostcall_log(level, strlen(function), (char*)function, strlen(file), (char*)file, line, oc_str8_ip(string));
 
     oc_scratch_end(scratch);
 }
@@ -87,9 +78,6 @@ void platform_log_push(oc_log_output* output,
 //----------------------------------------------------------------
 // Assert/Abort
 //----------------------------------------------------------------
-
-_Noreturn void ORCA_IMPORT(oc_bridge_abort_ext)(const char* file, const char* function, int line, const char* msg);
-_Noreturn void ORCA_IMPORT(oc_bridge_assert_fail)(const char* file, const char* function, int line, const char* src, const char* msg);
 
 _Noreturn void oc_abort_ext(const char* file, const char* function, int line, const char* fmt, ...)
 {
@@ -110,7 +98,7 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
 
     oc_str8 msg = oc_str8_list_join(scratch.arena, ctx.list);
 
-    oc_bridge_abort_ext(file, function, line, msg.ptr);
+    oc_hostcall_abort_ext((char*)file, (char*)function, line, (char*)msg.ptr);
 
     oc_scratch_end(scratch);
 }
@@ -134,7 +122,7 @@ _Noreturn void oc_assert_fail(const char* file, const char* function, int line, 
 
     oc_str8 msg = oc_str8_list_join(scratch.arena, ctx.list);
 
-    oc_bridge_assert_fail(file, function, line, src, msg.ptr);
+    oc_hostcall_assert_fail((char*)file, (char*)function, line, (char*)src, (char*)msg.ptr);
 
     oc_scratch_end(scratch);
 }

@@ -86,7 +86,7 @@
 (assert_return (invoke "print64" (i64.const 24)))
 
 (assert_invalid
-  (module 
+  (module
     (type (func (result i32)))
     (import "test" "func" (func (type 1)))
   )
@@ -479,19 +479,6 @@
 (assert_return (invoke "load" (i32.const 8)) (i32.const 0x100000))
 (assert_trap (invoke "load" (i32.const 1000000)) "out of bounds memory access")
 
-(assert_invalid
-  (module (import "" "" (memory 1)) (import "" "" (memory 1)))
-  "multiple memories"
-)
-(assert_invalid
-  (module (import "" "" (memory 1)) (memory 0))
-  "multiple memories"
-)
-(assert_invalid
-  (module (memory 0) (memory 0))
-  "multiple memories"
-)
-
 (module (import "test" "memory-2-inf" (memory 2)))
 (module (import "test" "memory-2-inf" (memory 1)))
 (module (import "test" "memory-2-inf" (memory 0)))
@@ -580,7 +567,7 @@
 (assert_return (invoke $Mgm "grow") (i32.const 1)) ;; now size is 2
 (module $Mgim1
   ;; imported memory limits should match, because external memory size is 2 now
-  (memory (export "memory") (import "grown-memory" "memory") 2) 
+  (memory (export "memory") (import "grown-memory" "memory") 2)
   (func (export "grow") (result i32) (memory.grow (i32.const 1)))
 )
 (register "grown-imported-memory" $Mgim1)

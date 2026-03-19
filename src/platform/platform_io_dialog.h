@@ -7,7 +7,7 @@
 **************************************************************************/
 #pragma once
 
-#include "platform_io.h"
+#include "io.h"
 #include "app/app.h"
 
 #ifdef __cplusplus

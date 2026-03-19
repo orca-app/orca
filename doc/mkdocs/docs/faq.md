@@ -10,11 +10,6 @@ In principle, you can use any language and toolchain that can produce a WebAssem
 
 We're currently working with contributors to add support for Odin and Zig, and we look forward to expanding the number of officially-supported languages in the future.
 
-**Which WebAssembly features does Orca support?**
-
-We currently use [wasm3](https://github.com/wasm3/wasm3) for our interpreter. We therefore support whatever features wasm3 supports. In practice this means all WebAssembly 1.0 features, bulk memory operations, and a couple other small features.
-
-
 **I am getting errors saying that `orca` is not found.**
 
 Please ensure that you have installed Orca to your system per the installation instructions above. Please also ensure that the Orca install directory is on your PATH.

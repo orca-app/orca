@@ -8,7 +8,7 @@ const ModuleImport = Module.Import;
 const CrossTarget = std.zig.CrossTarget;
 const ResolvedTarget = Build.ResolvedTarget;
 
-const MACOS_VERSION_MIN = "13.0.0";
+const MACOS_VERSION_MIN = "14.4.1";
 
 const SourceFileCollector = struct {
     files: std.ArrayList([]const u8),
@@ -80,26 +80,28 @@ const GenerateWasmBindingsParams = struct {
     exe: *Build.Step.Compile,
     api: []const u8,
     spec_path: []const u8,
-    host_bindings_path: []const u8,
-    guest_bindings_path: ?[]const u8 = null,
-    guest_include_path: ?[]const u8 = null,
+    hostcalls_path: ?[]const u8 = null,
+    stubs_path: []const u8,
 };
 
 fn generateWasmBindings(b: *Build, params: GenerateWasmBindingsParams) *Build.Step.UpdateSourceFiles {
     const copy_outputs_to_src: *Build.Step.UpdateSourceFiles = b.addUpdateSourceFiles();
 
     const run = b.addRunArtifact(params.exe);
-    run.addArg(std.mem.join(b.allocator, "", &.{ "--api-name=", params.api }) catch @panic("OOM"));
-    run.addPrefixedFileArg("--spec-path=", b.path(params.spec_path));
-    const host_bindings_path = run.addPrefixedOutputFileArg("--bindings-path=", params.host_bindings_path);
-    copy_outputs_to_src.addCopyFileToSource(host_bindings_path, params.host_bindings_path);
-    if (params.guest_bindings_path) |path| {
-        const guest_bindings_path = run.addPrefixedOutputFileArg("--guest-stubs-path=", path);
-        copy_outputs_to_src.addCopyFileToSource(guest_bindings_path, path);
+    run.addArg("--api");
+    run.addArg(params.api);
+    run.addArg("--in");
+    run.addFileArg(b.path(params.spec_path));
+
+    if (params.hostcalls_path) |path| {
+        run.addArg("--hostcalls");
+        const hostcalls_path = run.addOutputFileArg(path);
+        copy_outputs_to_src.addCopyFileToSource(hostcalls_path, path);
     }
-    if (params.guest_include_path) |path| {
-        run.addArg(std.mem.join(b.allocator, "", &.{ "--guest-include-path=", path }) catch @panic("OOM"));
-    }
+
+    run.addArg("--binding");
+    const stubs_path = run.addOutputFileArg(params.stubs_path);
+    copy_outputs_to_src.addCopyFileToSource(stubs_path, params.stubs_path);
 
     copy_outputs_to_src.step.dependOn(&run.step);
 
@@ -144,7 +146,7 @@ fn buildOrcaApp(
     const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
 
     const wasm_module = b.addExecutable(.{
-        .name = "module",
+        .name = "main",
         .linkage = .static,
         .root_module = b.createModule(.{
             .target = wasm_target,
@@ -197,6 +199,7 @@ fn buildOrcaApp(
             bundle.addArg("--resource-dir");
             bundle.addDirectoryArg(b.path(resource_path));
         }
+        bundle.addArg("--standalone");
 
         const output_path = b.getInstallPath(.{ .custom = params.install }, "");
         bundle.addArgs(&.{ "--out-dir", output_path });
@@ -238,59 +241,285 @@ fn buildOrcaApp(
     }
 }
 
-fn installOrcaSdk(
-    b: *Build,
-    target: ResolvedTarget,
-    build_orca: *Step,
-    package_sdk_exe: *Step.Compile,
-    sdk_install_path_opt: ?[]const u8,
-    git_version_opt: ?[]const u8,
-    opt_sdk_version: ?[]const u8,
-) !*Step.Run {
-    const SdkHelpers = struct {
-        fn addAbsolutePathArg(b_: *Build, target_: ResolvedTarget, run: *Build.Step.Run, prefix: []const u8, path: []const u8) void {
-            if (path.len == 0) {
-                return;
-            }
+pub fn build_libzip(b: *Build, zlib: *Build.Step.Compile, target: Build.ResolvedTarget, optimize: std.builtin.OptimizeMode) *Build.Step.Compile {
+    const lib_mod = b.createModule(.{
+        .target = target,
+        .optimize = optimize,
+    });
+    lib_mod.link_libc = true;
+    lib_mod.linkLibrary(zlib);
 
-            var path_absolute: []const u8 = path;
+    lib_mod.addCSourceFiles(.{
+        .root = b.path("src/ext/libzip/lib"),
+        .files = &.{
+            "zip_add.c",
+            "zip_add_dir.c",
+            "zip_add_entry.c",
+            //"zip_algorithm_bzip2.c",
+            "zip_algorithm_deflate.c",
+            // "zip_algorithm_xz.c", // TODO
+            //"zip_algorithm_zstd.c",
+            "zip_buffer.c",
+            "zip_close.c",
+            // "zip_crypto_commoncrypto.c", // TODO
+            // "zip_crypto_gnutls.c", // TODO
+            // "zip_crypto_mbedtls.c", // TODO
+            // "zip_crypto_openssl.c", // TODO
+            // "zip_crypto_win.c", // TODO
+            "zip_delete.c",
+            "zip_dir_add.c",
+            "zip_dirent.c",
+            "zip_discard.c",
+            "zip_entry.c",
+            "zip_error.c",
+            "zip_error_clear.c",
+            "zip_error_get.c",
+            "zip_error_get_sys_type.c",
+            "zip_error_strerror.c",
+            "zip_error_to_str.c",
+            "zip_extra_field.c",
+            "zip_extra_field_api.c",
+            "zip_fclose.c",
+            "zip_fdopen.c",
+            "zip_file_add.c",
+            "zip_file_error_clear.c",
+            "zip_file_error_get.c",
+            "zip_file_get_comment.c",
+            "zip_file_get_external_attributes.c",
+            "zip_file_get_offset.c",
+            "zip_file_rename.c",
+            "zip_file_replace.c",
+            "zip_file_set_comment.c",
+            "zip_file_set_encryption.c",
+            "zip_file_set_external_attributes.c",
+            "zip_file_set_mtime.c",
+            "zip_file_strerror.c",
+            "zip_fopen.c",
+            "zip_fopen_encrypted.c",
+            "zip_fopen_index.c",
+            "zip_fopen_index_encrypted.c",
+            "zip_fread.c",
+            "zip_fseek.c",
+            "zip_ftell.c",
+            "zip_get_archive_comment.c",
+            "zip_get_archive_flag.c",
+            "zip_get_encryption_implementation.c",
+            "zip_get_file_comment.c",
+            "zip_get_name.c",
+            "zip_get_num_entries.c",
+            "zip_get_num_files.c",
+            "zip_hash.c",
+            "zip_io_util.c",
+            "zip_libzip_version.c",
+            "zip_memdup.c",
+            "zip_name_locate.c",
+            "zip_new.c",
+            "zip_open.c",
+            "zip_pkware.c",
+            "zip_progress.c",
+            "zip_realloc.c",
+            "zip_rename.c",
+            "zip_replace.c",
+            "zip_set_archive_comment.c",
+            "zip_set_archive_flag.c",
+            "zip_set_default_password.c",
+            "zip_set_file_comment.c",
+            "zip_set_file_compression.c",
+            "zip_set_name.c",
+            "zip_source_accept_empty.c",
+            "zip_source_begin_write.c",
+            "zip_source_begin_write_cloning.c",
+            "zip_source_buffer.c",
+            "zip_source_call.c",
+            "zip_source_close.c",
+            "zip_source_commit_write.c",
+            "zip_source_compress.c",
+            "zip_source_crc.c",
+            "zip_source_error.c",
+            "zip_source_file_common.c",
+            "zip_source_file_stdio.c",
+            "zip_source_free.c",
+            "zip_source_function.c",
+            "zip_source_get_dostime.c",
+            "zip_source_get_file_attributes.c",
+            "zip_source_is_deleted.c",
+            "zip_source_layered.c",
+            "zip_source_open.c",
+            "zip_source_pass_to_lower_layer.c",
+            "zip_source_pkware_decode.c",
+            "zip_source_pkware_encode.c",
+            "zip_source_read.c",
+            "zip_source_remove.c",
+            "zip_source_rollback_write.c",
+            "zip_source_seek.c",
+            "zip_source_seek_write.c",
+            "zip_source_stat.c",
+            "zip_source_supports.c",
+            "zip_source_tell.c",
+            "zip_source_tell_write.c",
+            "zip_source_window.c",
+            "zip_source_write.c",
+            "zip_source_zip.c",
+            "zip_source_zip_new.c",
+            "zip_stat.c",
+            "zip_stat_index.c",
+            "zip_stat_init.c",
+            "zip_strerror.c",
+            "zip_string.c",
+            "zip_unchange.c",
+            "zip_unchange_all.c",
+            "zip_unchange_archive.c",
+            "zip_unchange_data.c",
+            "zip_utf-8.c",
+        },
+        .flags = &.{
+            "-DZIP_STATIC",
+        },
+    });
 
-            if (std.fs.path.isAbsolute(path_absolute) == false) {
-                if (path_absolute[0] == '~') {
-                    const home: []const u8 = homePath(target_, b_);
-                    path_absolute = std.fs.path.join(b_.allocator, &.{ home, path_absolute[1..] }) catch @panic("OOM");
-                } else {
-                    path_absolute = b_.pathFromRoot(path);
-                }
-            }
+    // "zip_winzip_aes.c",
+    // "zip_source_winzip_aes_decode.c",
+    // "zip_source_winzip_aes_encode.c",
 
-            const sdk_path = std.mem.join(b_.allocator, "", &.{ prefix, path_absolute }) catch @panic("OOM");
-            run.addArg(sdk_path);
-        }
-    };
-
-    const orca_install: *Build.Step.Run = b.addRunArtifact(package_sdk_exe);
-    orca_install.addPrefixedDirectoryArg("--artifacts-path=", LazyPath{ .cwd_relative = b.install_path });
-    orca_install.addPrefixedDirectoryArg("--resources-path=", b.path("resources"));
-    orca_install.addPrefixedDirectoryArg("--src-path=", b.path("src"));
-    orca_install.addArg(b.fmt("--target-os={s}", .{@tagName(target.result.os.tag)}));
-
-    if (sdk_install_path_opt) |sdk_install_path| {
-        SdkHelpers.addAbsolutePathArg(b, target, orca_install, "--sdk-path=", sdk_install_path);
+    if (target.result.os.tag == .windows) {
+        lib_mod.addCSourceFiles(.{
+            .root = b.path("src/ext/libzip/lib"),
+            .files = &.{
+                "zip_random_win32.c",
+                "zip_source_file_win32.c",
+                "zip_source_file_win32_ansi.c",
+                "zip_source_file_win32_named.c",
+                "zip_source_file_win32_utf8.c",
+                "zip_source_file_win32_utf16.c",
+                // "zip_random_uwp.c", // TODO
+            },
+        });
+    } else {
+        lib_mod.addCSourceFiles(.{
+            .root = b.path("src/ext/libzip/lib"),
+            .files = &.{
+                "zip_random_unix.c",
+                "zip_source_file_stdio_named.c",
+            },
+        });
     }
+    lib_mod.addIncludePath(b.path("src/ext/libzip/lib"));
+    lib_mod.addIncludePath(b.path("src/ext/zlib"));
 
-    if (git_version_opt) |git_version| {
-        orca_install.addArg(b.fmt("--version={s}", .{git_version}));
-    }
+    // TODO: generate this at build time
+    lib_mod.addCSourceFile(.{
+        .file = b.path("src/ext/libzip/zip_err_str.c"),
+    });
 
-    if (opt_sdk_version) |sdk_version| {
-        const version: []const u8 = try std.mem.join(b.allocator, "", &.{ "--version=", sdk_version });
-        orca_install.addArg(version);
-    }
+    const config_header = b.addConfigHeader(
+        .{ .style = .{ .cmake = b.path("src/ext/libzip/config.h.in") } },
+        .{
+            .ENABLE_FDOPEN = true,
+            .HAVE___PROGNAME = true,
+            .HAVE__CLOSE = true,
+            .HAVE__DUP = true,
+            .HAVE__FDOPEN = true,
+            .HAVE__FILENO = true,
+            .HAVE__FSEEKI64 = true,
+            .HAVE__FSTAT64 = true,
+            .HAVE__SETMODE = true,
+            .HAVE__SNPRINTF = true,
+            .HAVE__SNPRINTF_S = target.result.os.tag == .windows,
+            .HAVE__SNWPRINTF_S = target.result.os.tag == .windows,
+            .HAVE__STAT64 = true,
+            .HAVE__STRDUP = true,
+            .HAVE__STRICMP = true,
+            .HAVE__STRTOI64 = true,
+            .HAVE__STRTOUI64 = true,
+            .HAVE__UNLINK = true,
+            .HAVE_ARC4RANDOM = target.result.abi == .gnu,
+            .HAVE_CLONEFILE = false,
+            .HAVE_COMMONCRYPTO = true,
+            .HAVE_CRYPTO = false, // TODO
+            .HAVE_FICLONERANGE = target.result.os.tag == .linux,
+            .HAVE_FILENO = true,
+            .HAVE_FCHMOD = true,
+            .HAVE_FSEEKO = true,
+            .HAVE_FTELLO = true,
+            .HAVE_GETPROGNAME = true,
+            .HAVE_GNUTLS = true,
+            .HAVE_LIBBZ2 = false, // TODO
+            .HAVE_LIBLZMA = false, // TODO
+            .HAVE_LIBZSTD = false, // TODO
+            .HAVE_LOCALTIME_R = true,
+            .HAVE_LOCALTIME_S = target.result.os.tag == .windows,
+            .HAVE_MEMCPY_S = target.result.os.tag == .windows,
+            .HAVE_MBEDTLS = true,
+            .HAVE_MKSTEMP = true,
+            .HAVE_NULLABLE = true,
+            .HAVE_OPENSSL = true,
+            .HAVE_SETMODE = false,
+            .HAVE_SNPRINTF = true,
+            .HAVE_SNPRINTF_S = false,
+            .HAVE_STRCASECMP = true,
+            .HAVE_STRDUP = true,
+            .HAVE_STRERROR_S = false, //target.result.os.tag == .windows,
+            .HAVE_STRERRORLEN_S = target.result.os.tag == .windows,
+            .HAVE_STRICMP = true,
+            .HAVE_STRNCPY_S = target.result.os.tag == .windows,
+            .HAVE_STRTOLL = true,
+            .HAVE_STRTOULL = true,
+            .HAVE_STRUCT_TM_TM_ZONE = true,
+            .HAVE_STDBOOL_H = true,
+            .HAVE_STRINGS_H = true,
+            .HAVE_UNISTD_H = target.result.os.tag != .windows,
+            .HAVE_WINDOWS_CRYPTO = false,
+            .SIZEOF_OFF_T = 8, // TODO
+            .SIZEOF_SIZE_T = 8, // TODO
+            .HAVE_DIRENT_H = true,
+            .HAVE_FTS_H = true,
+            .HAVE_NDIR_H = true,
+            .HAVE_SYS_DIR_H = target.result.os.tag != .windows,
+            .HAVE_SYS_NDIR_H = target.result.os.tag != .windows,
+            .WORDS_BIGENDIAN = false,
+            .HAVE_SHARED = false,
+            .CMAKE_PROJECT_NAME = "libzip",
+            .CMAKE_PROJECT_VERSION = "1.11.2",
+        },
+    );
+    lib_mod.addConfigHeader(config_header);
 
-    orca_install.step.dependOn(build_orca);
+    const zipconf_header = b.addConfigHeader(
+        .{ .style = .{ .cmake = b.path("src/ext/libzip/zipconf.h.in") } },
+        .{
+            .ZIP_STATIC = true,
+            .libzip_VERSION = "0.11.2",
+            .libzip_VERSION_MAJOR = 0,
+            .libzip_VERSION_MINOR = 11,
+            .libzip_VERSION_PATCH = 2,
 
-    return orca_install;
+            .ZIP_NULLABLE_DEFINES = null,
+
+            .LIBZIP_TYPES_INCLUDE = .@"#include <stdint.h>",
+
+            .ZIP_INT8_T = .int8_t,
+            .ZIP_UINT8_T = .uint8_t,
+            .ZIP_INT16_T = .int16_t,
+            .ZIP_UINT16_T = .uint16_t,
+            .ZIP_INT32_T = .int32_t,
+            .ZIP_UINT32_T = .uint32_t,
+            .ZIP_INT64_T = .int64_t,
+            .ZIP_UINT64_T = .uint64_t,
+        },
+    );
+    lib_mod.addConfigHeader(zipconf_header);
+
+    const lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "zip",
+        .root_module = lib_mod,
+    });
+
+    //    lib.installHeader(b.path("src/ext/libzip/lib/zip.h"), "zip.h");
+    lib.installConfigHeader(zipconf_header);
+    //    b.installArtifact(lib);
+
+    return lib;
 }
 
 pub fn build(b: *Build) !void {
@@ -298,10 +527,39 @@ pub fn build(b: *Build) !void {
 
     const cwd = b.build_root.handle;
 
-    const target: ResolvedTarget = b.standardTargetOptions(.{});
-    const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
+    var macosFrameworkPath: LazyPath = .{ .cwd_relative = "" };
+    var macosIncludePath: LazyPath = .{ .cwd_relative = "" };
+    var macosLibPath: LazyPath = .{ .cwd_relative = "" };
 
-    const compile_flag_min_macos_version: []const u8 = b.fmt("-mmacos-version-min={s}", .{MACOS_VERSION_MIN});
+    const target: ResolvedTarget = tgt: {
+        var query = b.standardTargetOptionsQueryOnly(.{});
+        const tmp: ResolvedTarget = b.resolveTargetQuery(query);
+
+        if (tmp.result.os.tag == .macos) {
+            query.os_version_min = .{ .semver = try .parse(MACOS_VERSION_MIN) };
+
+            const res = try std.process.Child.run(.{
+                .allocator = b.allocator,
+                .argv = &.{
+                    "xcrun",
+                    "--show-sdk-path",
+                },
+            });
+            const sdkPath = res.stdout[0..(res.stdout.len - 1)];
+
+            macosFrameworkPath = .{
+                .cwd_relative = try std.fs.path.join(b.allocator, &[_][]const u8{ sdkPath, "System/Library/Frameworks" }),
+            };
+            macosIncludePath = .{
+                .cwd_relative = try std.fs.path.join(b.allocator, &[_][]const u8{ sdkPath, "usr/include" }),
+            };
+            macosLibPath = .{
+                .cwd_relative = try std.fs.path.join(b.allocator, &[_][]const u8{ sdkPath, "usr/lib" }),
+            };
+        }
+        break :tgt b.resolveTargetQuery(query);
+    };
+    const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
 
     /////////////////////////////////////////////////////////
     // zlib
@@ -332,8 +590,11 @@ pub fn build(b: *Build) !void {
     });
 
     /////////////////////////////////////////////////////////
-    // curl - used in orca cli tool
+    // libzip
+    const libzip = build_libzip(b, z_lib, target, optimize);
 
+    /////////////////////////////////////////////////////////
+    // curl - used in orca cli tool
     // Original zig build code MIT licensed from: https://github.com/jiacai2050/zig-curl/blob/main/libs/curl.zig
     const curl_mod = b.createModule(.{
         .target = target,
@@ -558,75 +819,6 @@ pub fn build(b: *Build) !void {
         }
     };
 
-    var orca_tool_compile_flags: std.ArrayList([]const u8) = .empty;
-    defer orca_tool_compile_flags.deinit(b.allocator);
-    try orca_tool_compile_flags.appendSlice(b.allocator, &.{
-        "-Werror",
-        "-DFLAG_IMPLEMENTATION",
-        "-DOC_NO_APP_LAYER",
-        "-DOC_BUILD_DLL",
-        "-DCURL_STATICLIB",
-        b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}),
-    });
-
-    if (optimize == .Debug) {
-        try orca_tool_compile_flags.appendSlice(b.allocator, &.{
-            "-DOC_DEBUG",
-            "-DOC_LOG_COMPILE_DEBUG",
-        });
-    }
-
-    const orca_tool_exe = b.addExecutable(.{
-        .name = "orca_tool",
-        .root_module = b.createModule(.{
-            .target = target,
-            .optimize = optimize,
-            .sanitize_c = .off, // seems to be some UB in stb_image when resizing icons :(
-        }),
-    });
-    orca_tool_exe.addIncludePath(b.path("src/"));
-    orca_tool_exe.addIncludePath(b.path("src/tool"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/stb"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/curl/include"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/zlib"));
-    orca_tool_exe.addIncludePath(b.path("src/ext/microtar"));
-
-    orca_tool_exe.addCSourceFiles(.{
-        .files = &.{"src/tool/main.c"},
-        .flags = orca_tool_compile_flags.items,
-    });
-
-    orca_tool_exe.linkLibrary(curl_lib);
-    orca_tool_exe.linkLibrary(z_lib);
-    if (target.result.os.tag == .windows) {
-        orca_tool_exe.linkSystemLibrary("shlwapi");
-        orca_tool_exe.linkSystemLibrary("shell32");
-        orca_tool_exe.linkSystemLibrary("ole32");
-        orca_tool_exe.linkSystemLibrary("kernel32");
-    } else if (target.result.os.tag.isDarwin()) {
-        orca_tool_exe.linkFramework("Cocoa");
-        orca_tool_exe.linkFramework("SystemConfiguration");
-        orca_tool_exe.linkFramework("CoreFoundation");
-        orca_tool_exe.linkFramework("CoreServices");
-        orca_tool_exe.linkFramework("SystemConfiguration");
-        orca_tool_exe.linkFramework("Security");
-    }
-
-    orca_tool_exe.step.dependOn(&curl_lib.step);
-    orca_tool_exe.step.dependOn(&z_lib.step);
-    orca_tool_exe.linkLibC();
-
-    const build_orca_tool: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_tool_exe, .{});
-
-    const run_orca_tool: *Build.Step.Run = b.addRunArtifact(orca_tool_exe);
-    run_orca_tool.step.dependOn(&build_orca_tool.step);
-    if (b.args) |args| {
-        run_orca_tool.addArgs(args); // forwards args afer -- to orca cli, ex: zig build orca-tool -- update
-    }
-
-    const run_tool_step = b.step("orca-tool", "Run the Orca CLI tool");
-    run_tool_step.dependOn(&run_orca_tool.step);
-
     /////////////////////////////////////////////////////////
     // angle build dependencies
 
@@ -692,29 +884,6 @@ pub fn build(b: *Build) !void {
     }
 
     /////////////////////////////////////////////////////////
-    // binding generator
-
-    const bindgen_exe: *Build.Step.Compile = b.addExecutable(.{
-        .name = "bindgen",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/build/bindgen.zig"),
-            .target = b.graph.host,
-            .optimize = .Debug,
-        }),
-    });
-
-    const bindgen_install = b.addInstallArtifact(bindgen_exe, .{});
-
-    const bindgen_run: *Build.Step.Run = b.addRunArtifact(bindgen_exe);
-    if (b.args) |args| {
-        bindgen_run.addArgs(args);
-    }
-    bindgen_run.step.dependOn(&bindgen_install.step);
-
-    const bindgen_step = b.step("run-bindgen", "Generate wasm bindings from a json spec file");
-    bindgen_step.dependOn(&bindgen_run.step);
-
-    /////////////////////////////////////////////////////////
     // Orca runtime and dependencies
 
     const stage_angle_dawn_src = b.addUpdateSourceFiles();
@@ -741,47 +910,65 @@ pub fn build(b: *Build) !void {
     const install_angle_libs = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = .bin, .install_subdir = "" });
     const install_dawn_libs = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = .bin, .install_subdir = "" });
 
+    /////////////////////////////////////////////////////////
+    // binding generator
+
+    const gen_host_interface_exe: *Build.Step.Compile = b.addExecutable(.{
+        .name = "gen_host_interface",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+            .link_libc = true,
+        }),
+    });
+
+    const gen_host_interface_sources: []const []const u8 = &.{
+        "src/build/gen_host_interface.c",
+    };
+
+    var gen_host_interface_compile_flags: std.ArrayList([]const u8) = .empty;
+    try gen_host_interface_compile_flags.append(b.allocator, "-std=c11");
+    try gen_host_interface_compile_flags.append(b.allocator, "-Werror");
+    try gen_host_interface_compile_flags.append(b.allocator, "-g");
+    try gen_host_interface_compile_flags.append(b.allocator, "-O0");
+
+    gen_host_interface_exe.addIncludePath(b.path("src"));
+    gen_host_interface_exe.addCSourceFiles(.{
+        .files = gen_host_interface_sources,
+        .flags = gen_host_interface_compile_flags.items,
+    });
+
+    if (target.result.os.tag == .windows) {
+        gen_host_interface_exe.linkSystemLibrary("user32");
+        gen_host_interface_exe.linkSystemLibrary("shlwapi");
+    }
+
+    const gen_host_interface_install = b.addInstallArtifact(gen_host_interface_exe, .{});
+
+    const gen_host_interface_run: *Build.Step.Run = b.addRunArtifact(gen_host_interface_exe);
+    if (b.args) |args| {
+        gen_host_interface_run.addArgs(args);
+    }
+    gen_host_interface_run.step.dependOn(&gen_host_interface_install.step);
+
+    const gen_host_interface_step = b.step("gen-host-interface", "Generate wasm bindings from a json spec file");
+    gen_host_interface_step.dependOn(&gen_host_interface_run.step);
+
     // generate wasm bindings
 
-    const orca_runtime_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
+    const orca_bindgen_core: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
+        .exe = gen_host_interface_exe,
         .api = "core",
-        .spec_path = "src/wasmbind/core_api.json",
-        .host_bindings_path = "src/wasmbind/core_api_bind_gen.c",
-        .guest_bindings_path = "src/wasmbind/core_api_stubs.c",
-    });
-
-    const orca_runtime_bindgen_surface: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
-        .api = "surface",
-        .spec_path = "src/wasmbind/surface_api.json",
-        .host_bindings_path = "src/wasmbind/surface_api_bind_gen.c",
-        .guest_bindings_path = "src/graphics/orca_surface_stubs.c",
-        .guest_include_path = "graphics/graphics.h",
-    });
-
-    const orca_runtime_bindgen_clock: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
-        .api = "clock",
-        .spec_path = "src/wasmbind/clock_api.json",
-        .host_bindings_path = "src/wasmbind/clock_api_bind_gen.c",
-        .guest_include_path = "platform/platform_clock.h",
-    });
-
-    const orca_runtime_bindgen_io: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
-        .api = "io",
-        .spec_path = "src/wasmbind/io_api.json",
-        .host_bindings_path = "src/wasmbind/io_api_bind_gen.c",
-        .guest_bindings_path = "src/platform/orca_io_stubs.c",
-        .guest_include_path = "platform/platform_io_dialog.h",
+        .spec_path = "src/wasmbind/host_interface.json",
+        .hostcalls_path = "src/wasmbind/hostcalls.h",
+        .stubs_path = "src/wasmbind/core_stubs.c",
     });
 
     const orca_runtime_bindgen_gles: *Build.Step.UpdateSourceFiles = generateWasmBindings(b, .{
-        .exe = bindgen_exe,
+        .exe = gen_host_interface_exe,
         .api = "gles",
         .spec_path = "src/wasmbind/gles_api.json",
-        .host_bindings_path = "src/wasmbind/gles_api_bind_gen.c",
+        .stubs_path = "src/wasmbind/gles_stubs.c",
     });
 
     // wgpu shaders header
@@ -835,9 +1022,6 @@ pub fn build(b: *Build) !void {
             "-DOC_LOG_COMPILE_DEBUG",
         });
     }
-    if (target.result.os.tag.isDarwin()) {
-        try orca_platform_compile_flags.append(b.allocator, compile_flag_min_macos_version);
-    }
     // if (target.result.os.tag == .windows) {
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libEGL.dll");
     //     try orca_platform_compile_flags.append("-Wl,--delayload=libGLESv2.dll");
@@ -852,6 +1036,12 @@ pub fn build(b: *Build) !void {
             .optimize = optimize,
         }),
     });
+
+    if (target.result.os.tag.isDarwin()) {
+        orca_platform_lib.addSystemFrameworkPath(macosFrameworkPath);
+        orca_platform_lib.addSystemIncludePath(macosIncludePath);
+        orca_platform_lib.addLibraryPath(macosLibPath);
+    }
 
     orca_platform_lib.install_name = "@executable_path/liborca_platform.dylib";
 
@@ -912,11 +1102,8 @@ pub fn build(b: *Build) !void {
 
     orca_platform_lib.step.dependOn(&update_wgpu_header.step);
 
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_core.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_surface.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_clock.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_io.step);
-    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
+    //    orca_platform_lib.step.dependOn(&orca_runtime_bindgen_gles.step);
+    //    orca_platform_lib.step.dependOn(&orca_bindgen_core.step);
 
     const orca_platform_install_opts: Build.Step.InstallArtifact.Options = .{
         .dest_dir = .{ .override = .bin },
@@ -924,6 +1111,8 @@ pub fn build(b: *Build) !void {
 
     const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, orca_platform_install_opts);
 
+    const orca_platform_layer = b.step("platform-layer", "Build orca platform layer library");
+    orca_platform_layer.dependOn(&orca_platform_install.step);
     // warm
 
     const warm_lib = b.addLibrary(.{
@@ -970,6 +1159,53 @@ pub fn build(b: *Build) !void {
 
     const warm_install: *Build.Step.InstallArtifact = b.addInstallArtifact(warm_lib, warm_install_opts);
 
+    // orca launcher
+    var orca_launcher_compile_flags: std.ArrayList([]const u8) = .empty;
+    defer orca_launcher_compile_flags.deinit(b.allocator);
+
+    if (optimize == .Debug) {
+        try orca_launcher_compile_flags.append(b.allocator, "-DOC_DEBUG");
+        try orca_launcher_compile_flags.append(b.allocator, "-DOC_LOG_COMPILE_DEBUG");
+    }
+    try orca_launcher_compile_flags.append(b.allocator, "-std=c11");
+    try orca_launcher_compile_flags.append(b.allocator, "-Werror");
+    try orca_launcher_compile_flags.append(b.allocator, b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
+
+    const orca_launcher_exe = b.addExecutable(.{
+        .name = "orca",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    orca_launcher_exe.addIncludePath(b.path("src"));
+    orca_launcher_exe.addIncludePath(b.path("src/ext/curl/include"));
+    orca_launcher_exe.addIncludePath(angle_include_path);
+
+    orca_launcher_exe.root_module.addRPathSpecial("@executable_path/");
+    orca_launcher_exe.root_module.addCMacro("CURL_STATICLIB", "1");
+
+    orca_launcher_exe.addCSourceFiles(.{
+        .files = &.{"src/launcher/main.c"},
+        .flags = orca_launcher_compile_flags.items,
+    });
+
+    orca_launcher_exe.linkLibrary(orca_platform_lib);
+    orca_launcher_exe.linkLibrary(libzip);
+    orca_launcher_exe.linkLibrary(curl_lib);
+    orca_launcher_exe.linkLibC();
+
+    if (target.result.os.tag.isDarwin()) {
+        orca_launcher_exe.addSystemFrameworkPath(macosFrameworkPath);
+        orca_launcher_exe.addSystemIncludePath(macosIncludePath);
+        orca_launcher_exe.addLibraryPath(macosLibPath);
+    }
+
+    orca_launcher_exe.step.dependOn(&install_angle_libs.step);
+    orca_launcher_exe.step.dependOn(&install_dawn_libs.step);
+
+    const orca_launcher_exe_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_launcher_exe, .{});
+
     // orca runtime exe
 
     var orca_runtime_compile_flags: std.ArrayList([]const u8) = .empty;
@@ -997,7 +1233,6 @@ pub fn build(b: *Build) !void {
     orca_runtime_exe.addIncludePath(b.path("src"));
     orca_runtime_exe.addIncludePath(b.path("src/ext"));
     orca_runtime_exe.addIncludePath(angle_include_path);
-
     orca_runtime_exe.root_module.addRPathSpecial("@executable_path/");
 
     orca_runtime_exe.addCSourceFiles(.{
@@ -1007,15 +1242,19 @@ pub fn build(b: *Build) !void {
 
     orca_runtime_exe.linkLibrary(warm_lib);
     orca_runtime_exe.linkLibrary(orca_platform_lib);
+    orca_runtime_exe.linkLibrary(libzip);
     orca_runtime_exe.linkLibC();
+
+    if (target.result.os.tag.isDarwin()) {
+        orca_runtime_exe.addSystemFrameworkPath(macosFrameworkPath);
+        orca_runtime_exe.addSystemIncludePath(macosIncludePath);
+        orca_runtime_exe.addLibraryPath(macosLibPath);
+    }
 
     orca_runtime_exe.step.dependOn(&install_angle_libs.step);
     orca_runtime_exe.step.dependOn(&install_dawn_libs.step);
 
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_core.step);
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_surface.step);
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_clock.step);
-    orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_io.step);
+    orca_runtime_exe.step.dependOn(&orca_bindgen_core.step);
     orca_runtime_exe.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const orca_runtime_exe_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_runtime_exe, .{});
@@ -1215,10 +1454,7 @@ pub fn build(b: *Build) !void {
 
     wasm_sdk_obj.step.dependOn(&stage_angle_dawn_src.step);
 
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_core.step);
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_surface.step);
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_clock.step);
-    wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_io.step);
+    wasm_sdk_obj.step.dependOn(&orca_bindgen_core.step);
     wasm_sdk_obj.step.dependOn(&orca_runtime_bindgen_gles.step);
 
     const wasm_sdk_lib = b.addLibrary(.{
@@ -1240,39 +1476,58 @@ pub fn build(b: *Build) !void {
     const wasm_sdk_install: *Build.Step.InstallArtifact = b.addInstallArtifact(wasm_sdk_lib, wask_sdk_install_opts);
 
     ///////////////////////////////////////////////////////////////
+    // makeapp sript
+
+    const makeapp_exe = b.addExecutable(.{
+        .name = "make-app",
+        .root_module = b.createModule(.{
+            .target = b.graph.host,
+            .optimize = .Debug,
+            .link_libc = true,
+            .sanitize_c = .off,
+        }),
+    });
+    makeapp_exe.addIncludePath(b.path("src"));
+    makeapp_exe.addCSourceFiles(.{
+        .files = &.{
+            "src/build/makeapp.c",
+        },
+        .flags = &.{},
+    });
+    if (target.result.os.tag == .windows) {
+        makeapp_exe.linkSystemLibrary("user32");
+        makeapp_exe.linkSystemLibrary("shlwapi");
+    }
+    const makeapp = b.addRunArtifact(makeapp_exe);
+    makeapp.setCwd(b.path(".")); // currently makeapp needs to be run at the root of the repo
+
+    makeapp.step.dependOn(&orca_platform_install.step);
+    makeapp.step.dependOn(&orca_runtime_exe_install.step);
+    makeapp.step.dependOn(&orca_launcher_exe_install.step);
+    makeapp.step.dependOn(&libc_install.step);
+    makeapp.step.dependOn(&libc_header_install.step);
+    makeapp.step.dependOn(&dummy_crt_install.step);
+    makeapp.step.dependOn(&wasm_sdk_install.step);
+
+    ///////////////////////////////////////////////////////////////
     // zig build - default install step builds and installs a dev build of orca
 
     const build_orca = b.step("orca", "Build all orca binaries");
     build_orca.dependOn(&warm_install.step);
     build_orca.dependOn(&orca_platform_install.step);
     build_orca.dependOn(&orca_runtime_exe_install.step);
+    build_orca.dependOn(&orca_launcher_exe_install.step);
     build_orca.dependOn(&libc_install.step);
     build_orca.dependOn(&libc_header_install.step);
     build_orca.dependOn(&dummy_crt_install.step);
     build_orca.dependOn(&wasm_sdk_install.step);
-    build_orca.dependOn(&build_orca_tool.step);
 
-    const package_sdk_exe: *Build.Step.Compile = b.addExecutable(.{
-        .name = "package-sdk",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/build/package_sdk.zig"),
-            .target = b.graph.host,
-            .optimize = .Debug,
-        }),
-    });
+    build_orca.dependOn(&makeapp.step);
 
-    const opt_sdk_version = b.option([]const u8, "sdk-version", "Override current git version for sdk packaging.");
+    const orca_local_relative_path: []const u8 = if (b.graph.host.result.os.tag == .windows) "Orca/bin/orca.exe" else "Orca.app/Contents/macOS/orca";
+    const orca_tool_local_path: []const u8 = b.pathJoin(&.{ b.install_path, orca_local_relative_path });
 
-    const sdk_install_path_opt: ?[]const u8 = b.option([]const u8, "sdk-path", "Specify absolute path for installing the Orca SDK.");
-    const orca_install: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, sdk_install_path_opt, git_version_opt, opt_sdk_version);
-
-    const local_install_path: []const u8 = b.pathJoin(&.{ b.install_path, "sdk" });
-    const orca_install_local: *Step.Run = try installOrcaSdk(b, target, build_orca, package_sdk_exe, local_install_path, git_version_opt, opt_sdk_version);
-
-    b.getInstallStep().dependOn(&orca_install.step);
-
-    const orca_tool_local_exe_name: []const u8 = if (b.graph.host.result.os.tag == .windows) "orca.exe" else "orca";
-    const orca_tool_local_path: []const u8 = b.pathJoin(&.{ local_install_path, orca_tool_local_exe_name });
+    b.getInstallStep().dependOn(build_orca);
 
     /////////////////////////////////////////////////////////////////
     // samples
@@ -1321,7 +1576,7 @@ pub fn build(b: *Build) !void {
                 wasm_sdk_lib,
                 wasm_libc_lib,
                 gen_header_exe,
-                &orca_install_local.step,
+                b.getInstallStep(),
                 orca_tool_local_path,
                 .{
                     .name = config.name,
@@ -1556,6 +1811,10 @@ pub fn build(b: *Build) !void {
             .run = true,
         },
         .{
+            .name = "wrapped_types",
+            .run = true,
+        },
+        .{
             .name = "perf",
         },
         .{
@@ -1585,7 +1844,7 @@ pub fn build(b: *Build) !void {
                 wasm_sdk_lib,
                 wasm_libc_lib,
                 gen_header_exe,
-                &orca_install_local.step,
+                b.getInstallStep(),
                 orca_tool_local_path,
                 .{
                     .name = config.name,
@@ -1596,6 +1855,8 @@ pub fn build(b: *Build) !void {
                     .create_run_step = true,
                 },
             );
+
+            steps.build_or_bundle.dependOn(build_orca);
 
             if (config.run) {
                 if (steps.run) |run| {
@@ -1653,4 +1914,142 @@ pub fn build(b: *Build) !void {
             }
         }
     }
+
+    const file_tests = b.step("test-files", "Test file I/O");
+    {
+        const file_tests_exe = b.addExecutable(.{
+            .name = "test_files",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        file_tests_exe.addIncludePath(b.path("src"));
+        file_tests_exe.addCSourceFiles(.{
+            .files = &.{"tests/files/main.c"},
+            .flags = &.{},
+        });
+        file_tests_exe.linkLibrary(orca_platform_lib);
+
+        if (target.result.os.tag == .windows) {
+            file_tests_exe.linkSystemLibrary("shlwapi");
+        }
+
+        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+            .dest_dir = .{ .override = .{ .custom = "tests" } },
+        };
+
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(file_tests_exe, tests_install_opts);
+
+        const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+
+        const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+        const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+        const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+
+        const test_dir_path = b.path("tests/files");
+
+        const run_test = b.addRunArtifact(file_tests_exe);
+        run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
+        run_test.step.dependOn(&install_orca_platform_tests.step);
+        run_test.step.dependOn(&install_angle_libs_tests.step);
+        run_test.step.dependOn(&install_dawn_libs_tests.step);
+        run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
+
+        file_tests.dependOn(&run_test.step);
+    }
+
+    const test_subprocess = b.step("test-subprocess", "Test subprocess API");
+    {
+        const test_subprocess_exe = b.addExecutable(.{
+            .name = "test_subprocess",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        test_subprocess_exe.addIncludePath(b.path("src"));
+        test_subprocess_exe.addCSourceFiles(.{
+            .files = &.{"tests/subprocess/main.c"},
+            .flags = &.{},
+        });
+        test_subprocess_exe.linkLibrary(orca_platform_lib);
+
+        if (target.result.os.tag == .windows) {
+            test_subprocess_exe.linkSystemLibrary("shlwapi");
+        }
+
+        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+            .dest_dir = .{ .override = .{ .custom = "tests" } },
+        };
+
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_subprocess_exe, tests_install_opts);
+
+        const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+
+        const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+        const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+        const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+
+        const test_dir_path = b.path("tests/subprocess");
+
+        const run_test = b.addRunArtifact(test_subprocess_exe);
+        run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
+        run_test.step.dependOn(&install_orca_platform_tests.step);
+        run_test.step.dependOn(&install_angle_libs_tests.step);
+        run_test.step.dependOn(&install_dawn_libs_tests.step);
+        run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
+
+        test_subprocess.dependOn(&run_test.step);
+    }
+    tests.dependOn(test_subprocess);
+
+    const test_path = b.step("test-path", "Test path API");
+    {
+        const test_path_exe = b.addExecutable(.{
+            .name = "test_path",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        test_path_exe.addIncludePath(b.path("src"));
+        test_path_exe.addCSourceFiles(.{
+            .files = &.{"tests/path/main.c"},
+            .flags = &.{},
+        });
+        test_path_exe.linkLibrary(orca_platform_lib);
+
+        if (target.result.os.tag == .windows) {
+            test_path_exe.linkSystemLibrary("shlwapi");
+        }
+
+        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+            .dest_dir = .{ .override = .{ .custom = "tests" } },
+        };
+
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_path_exe, tests_install_opts);
+
+        const tests_install_dir: Build.InstallDir = .{ .custom = "tests" };
+
+        const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+        const install_angle_libs_tests = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+        const install_dawn_libs_tests = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = tests_install_dir, .install_subdir = "" });
+
+        const test_dir_path = b.path("tests/path");
+
+        const run_test = b.addRunArtifact(test_path_exe);
+        run_test.addPrefixedFileArg("--test-dir=", test_dir_path); // allows tests to access their data files
+
+        run_test.step.dependOn(&install_orca_platform_tests.step);
+        run_test.step.dependOn(&install_angle_libs_tests.step);
+        run_test.step.dependOn(&install_dawn_libs_tests.step);
+        run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
+
+        test_path.dependOn(&run_test.step);
+    }
+    tests.dependOn(test_path);
 }

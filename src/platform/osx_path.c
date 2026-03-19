@@ -9,8 +9,6 @@
 #include <libgen.h>
 #include <mach-o/dyld.h>
 
-#include "platform_path.c"
-
 bool oc_path_is_absolute(oc_str8 path)
 {
     return (path.len && (path.ptr[0] == '/'));
@@ -40,4 +38,19 @@ oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
     oc_scratch_end(scratch);
 
     return (result);
+}
+
+oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
+{
+    oc_str8_list list = { 0 };
+    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+
+    oc_str8 executablePath = oc_path_executable(scratch.arena);
+    oc_str8 dirPath = oc_path_slice_directory(executablePath);
+
+    oc_str8 path = oc_path_append(scratch.arena, dirPath, relPath);
+    path = oc_path_canonical(arena, path);
+
+    oc_scratch_end(scratch);
+    return (path);
 }

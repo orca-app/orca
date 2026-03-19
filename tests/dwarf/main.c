@@ -18,7 +18,7 @@ int main(int argc, char** argv)
     oc_arena arena = { 0 };
     oc_arena_init(&arena);
 
-    oc_file file = oc_file_open(OC_STR8("./test_module.wasm"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_NONE);
+    oc_file file = oc_file_open(OC_STR8("./test_module.wasm"), OC_FILE_ACCESS_READ, OC_FILE_OPEN_DEFAULT);
     oc_str8 contents = { 0 };
     contents.len = oc_file_size(file);
     contents.ptr = oc_arena_push(&arena, contents.len);

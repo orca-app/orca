@@ -47,7 +47,8 @@ enum oc_window_style_enum
     OC_WINDOW_STYLE_NO_FOCUS = 1 << 4,
     OC_WINDOW_STYLE_FLOAT = 1 << 5,
     OC_WINDOW_STYLE_POPUPMENU = 1 << 6,
-    OC_WINDOW_STYLE_NO_BUTTONS = 1 << 7
+    OC_WINDOW_STYLE_NO_BUTTONS = 1 << 7,
+    OC_WINDOW_STYLE_TRANSPARENT = 1 << 8,
 };
 
 typedef enum
@@ -71,6 +72,7 @@ typedef enum
     OC_EVENT_WINDOW_CLOSE,
     OC_EVENT_PATHDROP,
     OC_EVENT_FRAME,
+    OC_EVENT_FINISH_LAUNCHING,
     OC_EVENT_QUIT
 } oc_event_type;
 
@@ -405,7 +407,7 @@ ORCA_API oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
 // native open/save/alert windows
 //--------------------------------------------------------------------
 
-#include "platform/platform_io.h"
+#include "platform/io.h"
 
 typedef enum
 {
@@ -465,7 +467,7 @@ ORCA_API int oc_alert_popup(oc_str8 title,
 // file system stuff... //TODO: move elsewhere
 //--------------------------------------------------------------------
 ORCA_API int oc_file_move(oc_str8 from, oc_str8 to);
-ORCA_API int oc_file_remove(oc_str8 path);
+// ORCA_API int oc_file_remove(oc_str8 path);
 
 ORCA_API int oc_directory_create(oc_str8 path);
 
@@ -473,10 +475,8 @@ ORCA_API int oc_directory_create(oc_str8 path);
 
 void oc_window_set_title(oc_str8 title);
 void oc_window_set_size(oc_vec2 size);
-
-void ORCA_IMPORT(oc_request_quit)(void);
-oc_key_code ORCA_IMPORT(oc_scancode_to_keycode)(oc_scan_code scanCode);
-
+void oc_request_quit(void);
+oc_key_code oc_scancode_to_keycode(oc_scan_code scanCode);
 void oc_clipboard_set_string(oc_str8 string);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)

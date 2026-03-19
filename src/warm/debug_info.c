@@ -157,7 +157,7 @@ typedef enum wa_debug_loc_error
     //...
 } wa_debug_loc_error;
 
-typedef oc_result(dw_stack_value, wa_debug_loc_error) dw_stack_value_result;
+typedef oc_result_type(dw_stack_value, wa_debug_loc_error) dw_stack_value_result;
 
 dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_call_frame* frame, wa_debug_function* funcInfo, dw_expr expr)
 {
@@ -190,13 +190,13 @@ dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_ca
             {
                 i64 offset = instr->operands[0].valI64;
 
-                dw_loc* frameBaseLoc = oc_catch(funcInfo->frameBase)
+                dw_loc* frameBaseLoc = oc_option_orelse(funcInfo->frameBase)
                 {
-                    return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
+                    return oc_result_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
                 }
                 if(!frameBaseLoc->single || frameBaseLoc->entryCount != 1)
                 {
-                    return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
+                    return oc_result_error(dw_stack_value_result, WA_DEBUG_LOC_NO_FRAMEBASE);
                 }
 
                 dw_stack_value_result frameBaseResult = wa_interpret_dwarf_expr(interpreter, frame, funcInfo, frameBaseLoc->entries[0].expr);
@@ -290,18 +290,18 @@ dw_stack_value_result wa_interpret_dwarf_expr(wa_interpreter* interpreter, wa_ca
 
             default:
                 oc_log_error("unsupported dwarf op %s\n", dw_op_get_string(instr->op));
-                return oc_wrap_error(dw_stack_value_result, WA_DEBUG_LOC_UNKNOWN_OP);
+                return oc_result_error(dw_stack_value_result, WA_DEBUG_LOC_UNKNOWN_OP);
         }
     }
 
 end:
     OC_ASSERT(sp > 0);
-    return oc_wrap_value(dw_stack_value_result, stack[sp - 1]);
+    return oc_result_value(dw_stack_value_result, stack[sp - 1]);
 }
 
 oc_str8 wa_debug_variable_get_value(oc_arena* arena, wa_interpreter* interpreter, wa_call_frame* frame, wa_debug_function* funcInfo, wa_debug_variable* var)
 {
-    dw_loc* loc = oc_catch(var->loc)
+    dw_loc* loc = oc_option_orelse(var->loc)
     {
         return (oc_str8){ 0 };
     }
@@ -383,9 +383,9 @@ wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interp
 {
     wa_wasm_loc loc = wa_wasm_loc_from_warm_loc(warmLoc);
 
-    wa_debug_function* funcInfo = oc_catch(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
+    wa_debug_function* funcInfo = oc_option_orelse(interpreter->instance->module->debugInfo->functions[warmLoc.funcIndex])
     {
-        return oc_wrap_nil(wa_debug_scope_ptr_option);
+        return oc_option_nil(wa_debug_scope_ptr_option);
     }
 
     wa_debug_scope* scope = &funcInfo->body;
@@ -412,7 +412,7 @@ wa_debug_scope_ptr_option wa_debug_get_scope_for_warm_loc(wa_interpreter* interp
         scope = next;
     }
     OC_DEBUG_ASSERT(scope);
-    return oc_wrap_ptr(wa_debug_scope_ptr_option, scope);
+    return oc_option_ptr(wa_debug_scope_ptr_option, scope);
 }
 
 wa_debug_unit_ptr_option wa_debug_get_unit_for_warm_loc(wa_interpreter* interpreter, wa_warm_loc warmLoc)
@@ -423,9 +423,9 @@ wa_debug_unit_ptr_option wa_debug_get_unit_for_warm_loc(wa_interpreter* interpre
     wa_debug_unit* unit = 0;
 
     wa_debug_function_ptr_option funcOption = debugInfo->functions[warmLoc.funcIndex];
-    if(oc_check(funcOption))
+    if(oc_option_check(funcOption))
     {
-        wa_debug_function* func = oc_unwrap(funcOption);
+        wa_debug_function* func = oc_option_unwrap(funcOption);
         unit = func->unit;
     }
     else
@@ -448,5 +448,5 @@ wa_debug_unit_ptr_option wa_debug_get_unit_for_warm_loc(wa_interpreter* interpre
             }
         }
     }
-    return oc_wrap_ptr(wa_debug_unit_ptr_option, unit);
+    return oc_option_ptr(wa_debug_unit_ptr_option, unit);
 }

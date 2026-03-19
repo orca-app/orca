@@ -211,7 +211,7 @@ wa_status wa_instance_link_imports(wa_instance* instance, wa_instance_options* o
         wa_func* func = &instance->functions[funcIndex];
         if(!func->proc && !func->extInstance)
         {
-            //oc_log_error("Couldn't link instance: import %.*s not satisfied.\n", oc_str8_ip(func->import->importName));
+            oc_log_error("Couldn't link instance: import %.*s not satisfied.\n", oc_str8_ip(func->import->importName));
             return WA_FAIL_MISSING_IMPORT;
         }
     }

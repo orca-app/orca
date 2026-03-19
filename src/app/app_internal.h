@@ -10,7 +10,7 @@
 #include "app.h"
 
 #include "platform/platform.h"
-#include "platform/platform_io_internal.h"
+#include "platform/native_io.h"
 #include "util/ringbuffer.h"
 
 #if OC_PLATFORM_WINDOWS

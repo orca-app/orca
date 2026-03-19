@@ -8,7 +8,7 @@
 #pragma once
 
 #include "util/macros.h"
-#include "platform/platform_io_internal.h"
+#include "platform/native_io.h"
 #include "runtime_memory.h"
 #include "runtime_clipboard.h"
 #include "warm/wasm.h"
@@ -244,6 +244,7 @@ typedef struct oc_runtime
     oc_file_table fileTable;
     oc_file rootDir;
 
+    oc_str8 path;
     oc_wasm_env env;
 
     oc_runtime_clipboard clipboard;

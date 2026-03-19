@@ -10,10 +10,10 @@
 
 ## Installation Instructions
 
-Download the orca tool and SDK from https://github.com/orca-app/orca/releases/latest, and put the orca folder where you want orca to be installed.
+The Orca command-line tools and SDK must be installed to your system in order to use them in your own projects. Download Orca from [https://github.com/orca-app/orca/releases/latest](https://github.com/orca-app/orca/releases/latest), and extract it where you want orca to be installed.
 
 - **Windows:**  
-	- Download `orca-windows.tar.gz`  
+	- Download `orca-windows.tar.gz`
 	- Extract: `tar -xzf orca-windows.tar.gz`
 
 - **ARM Mac:**  
@@ -24,10 +24,11 @@ Download the orca tool and SDK from https://github.com/orca-app/orca/releases/la
 	- Download `orca-mac-x64.tar.gz`  
 	- Extract: `tar -xzf orca-mac-x64.tar.gz`
 
-Add the orca directory to your PATH environment variable:  
+Add the orca executable directory to your PATH environment variable:  
 
-- **Windows Instructions:** [https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))  
-- **Mac Instructions:** [https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac](https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac)
+- **Windows:** add the path of the extracted `orca` folder to you PATH environment variable. See these instructions on how to do that: [https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14)](https://learn.microsoft.com/en-us/previous-versions/office/developer/sharepoint-2010/ee537574(v=office.14))
+
+- **Mac:** the orca executable is located inside the `Orca.app` bundle. To use the executable from the command line, add `(...)/Orca.app/Contents/MacOS/orca` to your PATH environment variable (replace `(...)` with the path of the directory in which you put `Orca.app`!). See these instructions on how to modify your PATH: [https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac](https://support.apple.com/guide/terminal/use-environment-variables-apd382cc5fa-4f58-4449-b20a-41c53c006f8f/mac)
 
 Finally, verify that Orca is successfully installed by running the `orca version` command.
 
@@ -45,10 +46,12 @@ The `samples` directory contains several sample apps that demonstrate various Or
 
 ```
 cd samples/breakout
+
 # Windows
 build.bat
+
 # Mac
 ./build.sh
 ```
 
-On Windows this creates a `Breakout` directory in `samples/breakout`. You can launch the app by running `Breakout/bin/Breakout.exe`. On macOS this creates a `Breakout.app` bundle in `samples/breakout` that you can double-click to run.
+On Windows this creates a `Breakout` directory in `samples/breakout`. You can launch the app by running `orca run breakout.orca`.

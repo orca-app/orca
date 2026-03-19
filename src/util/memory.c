@@ -262,12 +262,16 @@ ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used)
     oc_arena_scope scope = { 0 };
     oc_arena* arena = 0;
     if((used >= __scratchPool)
-       && (used - __scratchPool < OC_SCRATCH_POOL_SIZE))
+       && ((u64)(used - __scratchPool) < (u64)OC_SCRATCH_POOL_SIZE))
     {
-        u64 index = used - __scratchPool;
-        if(index + 1 < OC_SCRATCH_POOL_SIZE)
+        u64 index = (u64)(used - __scratchPool);
+        if(index + 1 < (u64)OC_SCRATCH_POOL_SIZE)
         {
             arena = oc_scratch_at_index(index + 1);
+        }
+        else
+        {
+            OC_ABORT("no arenas left in scratch pool, used: %p, scratchPool: %p, index: %llu\n", used, __scratchPool, index);
         }
     }
     else

@@ -60,9 +60,7 @@ jobs:
 
       - name: Build and run tests
         run: |
-          mkdir orca
-          $env:PATH += Convert-Path orca
-          zig build test -Dsdk-path=orca
+          zig build test
 
       - name: Build sketches
         run: |
@@ -70,8 +68,8 @@ jobs:
 
       - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -cvzf orca-windows-x64.tar.gz orca
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
+          tar --format=ustar -cvzf orca-windows-x64.tar.gz -C zig-out Orca
 
       - uses: actions/upload-artifact@v4
         with:
@@ -94,9 +92,7 @@ jobs:
 
       - name: Build and run tests
         run: |
-          mkdir orca
-          export PATH=$PATH:$(realpath orca)
-          zig build test -Dsdk-path=orca
+          zig build test
 
       - name: Build sketches
         run: |
@@ -104,8 +100,8 @@ jobs:
 
       - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -czf orca-mac-x64.tar.gz orca
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
+          tar --format=ustar -czf orca-mac-x64.tar.gz -C zig-out Orca.app
 
       - uses: actions/upload-artifact@v4
         with:
@@ -128,9 +124,7 @@ jobs:
 
       - name: Build and run tests
         run: |
-          mkdir orca
-          export PATH=$PATH:$(realpath orca)
-          zig build test -Dsdk-path=orca
+          zig build test
 
       - name: Build sketches
         run: |
@@ -138,8 +132,8 @@ jobs:
 
       - name: Build and Package
         run: |
-          zig build -Doptimize=ReleaseFast -Dsdk-path=orca -Dversion=${{ needs.determine-version.outputs.version }} --summary all
-          tar --format=ustar -czf orca-mac-arm64.tar.gz orca
+          zig build -Doptimize=ReleaseFast -Dversion=${{ needs.determine-version.outputs.version }} --summary all
+          tar --format=ustar -czf orca-mac-arm64.tar.gz -C zig-out Orca.app
 
       - uses: actions/upload-artifact@v4
         with:

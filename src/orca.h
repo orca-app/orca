@@ -17,14 +17,16 @@
 #include "util/typedefs.h"
 #include "util/utf8.h"
 #include "util/wrapped_types.h"
+#include "util/argparse.h"
 
 #include "platform/platform.h"
 #include "platform/platform_clock.h"
-#include "platform/platform_io.h"
-#include "platform/platform_path.h"
+#include "platform/io.h"
+#include "platform/path.h"
 
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
     #include "platform/platform_thread.h"
+    #include "platform/subprocess.h"
 #endif
 
 #if defined(OC_NO_APP_LAYER)

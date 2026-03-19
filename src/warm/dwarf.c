@@ -285,12 +285,12 @@ void wa_read_file_entries(dw_parser* parser,
             dw_unit* unit = &dwarf->units[unitIndex];
             if(unit->type == DW_UT_compile)
             {
-                if(oc_check(unit->rootDie))
+                if(oc_option_check(unit->rootDie))
                 {
-                    dw_die* die = oc_unwrap(unit->rootDie);
+                    dw_die* die = oc_option_unwrap(unit->rootDie);
                     OC_DEBUG_ASSERT(die->abbrev && die->abbrev->tag == DW_TAG_compile_unit);
 
-                    dw_attr* stmtListAttr = oc_catch(dw_die_get_attr(die, DW_AT_stmt_list))
+                    dw_attr* stmtListAttr = oc_option_orelse(dw_die_get_attr(die, DW_AT_stmt_list))
                     {
                         continue;
                     }
@@ -299,7 +299,7 @@ void wa_read_file_entries(dw_parser* parser,
                     {
                         if(directories)
                         {
-                            dw_attr* dirAttr = oc_catch(dw_die_get_attr(die, DW_AT_comp_dir))
+                            dw_attr* dirAttr = oc_option_orelse(dw_die_get_attr(die, DW_AT_comp_dir))
                             {
                                 break;
                             }
@@ -307,7 +307,7 @@ void wa_read_file_entries(dw_parser* parser,
                         }
                         else
                         {
-                            dw_attr* fileAttr = oc_catch(dw_die_get_attr(die, DW_AT_name))
+                            dw_attr* fileAttr = oc_option_orelse(dw_die_get_attr(die, DW_AT_name))
                             {
                                 break;
                             }
@@ -591,7 +591,7 @@ collect:
     oc_scratch_end(scratch);
 }
 
-typedef oc_option(dw_line_program_header) dw_line_program_header_option;
+typedef oc_option_type(dw_line_program_header) dw_line_program_header_option;
 
 dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_reader* reader, dw_sections* sections, dw_info* dwarf)
 {
@@ -605,7 +605,7 @@ dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_
     if(header.version != 5 && header.version != 4)
     {
         dw_parse_error(parser, wa_reader_absolute_loc(reader), "DWARF version %i not supported on line program header\n", header.version);
-        return oc_wrap_nil(dw_line_program_header_option);
+        return oc_option_nil(dw_line_program_header_option);
     }
 
     if(header.version == 5)
@@ -614,7 +614,7 @@ dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_
         if(header.addressSize != 4 && header.addressSize != 8)
         {
             dw_parse_error(parser, wa_reader_absolute_loc(reader), "address size should be 4 or 8, got %hhu\n", header.addressSize);
-            return oc_wrap_nil(dw_line_program_header_option);
+            return oc_option_nil(dw_line_program_header_option);
         }
 
         header.segmentSelectorSize = wa_read_u8(reader);
@@ -658,11 +658,11 @@ dw_line_program_header_option wa_read_line_program_header(dw_parser* parser, wa_
 
     if(reader->status == WA_READER_OK)
     {
-        return oc_wrap_value(dw_line_program_header_option, header);
+        return oc_option_value(dw_line_program_header_option, header);
     }
     else
     {
-        return oc_wrap_nil(dw_line_program_header_option);
+        return oc_option_nil(dw_line_program_header_option);
     }
 }
 
@@ -744,7 +744,7 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections, dw_info
 
         dw_line_program_header_option headerOption = wa_read_line_program_header(parser, &reader, sections, dwarf);
 
-        dw_line_program_header header = oc_catch(headerOption)
+        dw_line_program_header header = oc_option_orelse(headerOption)
         {
             //NOTE: if we had an error parsing header, we can't resync to subsequent tables, so bail out...
             break;
@@ -1276,7 +1276,7 @@ dw_expr dw_parse_expr(dw_parser* parser, wa_reader* reader, dw_dwarf_format form
     return expr;
 }
 
-typedef oc_option(dw_loc) dw_loc_option;
+typedef oc_option_type(dw_loc) dw_loc_option;
 
 dw_loc_option dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section section, u64 offset)
 {
@@ -1362,10 +1362,10 @@ dw_loc_option dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section sect
         dw_parse_error(parser,
                        wa_reader_absolute_loc(&reader),
                        "DWARF version 5 loclist are not supported yet...\n");
-        return oc_wrap_nil(dw_loc_option);
+        return oc_option_nil(dw_loc_option);
     }
 
-    return oc_wrap_value(dw_loc_option, loc);
+    return oc_option_value(dw_loc_option, loc);
 }
 
 dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
@@ -1386,7 +1386,7 @@ dw_attr_class dw_attr_get_class(dw_attr_name name, dw_form form)
     return 0;
 }
 
-typedef oc_option(dw_range_list) dw_range_list_option;
+typedef oc_option_type(dw_range_list) dw_range_list_option;
 
 dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* unit, dw_sections* sections, u64 offset)
 {
@@ -1465,13 +1465,13 @@ dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* u
         dw_parse_error(parser,
                        wa_reader_absolute_loc(&reader),
                        "rangelist version 5 is unsupported yet");
-        return oc_wrap_nil(dw_range_list_option);
+        return oc_option_nil(dw_range_list_option);
     }
 
-    return oc_wrap_value(dw_range_list_option, rangeList);
+    return oc_option_value(dw_range_list_option, rangeList);
 }
 
-typedef oc_option(dw_attr) dw_attr_option;
+typedef oc_option_type(dw_attr) dw_attr_option;
 
 dw_attr_option dw_parse_form_value(dw_parser* parser,
                                    wa_reader* reader,
@@ -1638,7 +1638,7 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
 
             if(exprReader.status != WA_READER_OK)
             {
-                return oc_wrap_nil(dw_attr_option);
+                return oc_option_nil(dw_attr_option);
             }
 
             wa_reader_skip(reader, len);
@@ -1799,7 +1799,7 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
 
                 if(strReader.status != WA_READER_OK)
                 {
-                    return oc_wrap_nil(dw_attr_option);
+                    return oc_option_nil(dw_attr_option);
                 }
             }
         }
@@ -1874,7 +1874,7 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
             }
             if(strOffsetReader.status != WA_READER_OK)
             {
-                return oc_wrap_nil(dw_attr_option);
+                return oc_option_nil(dw_attr_option);
             }
 
             wa_reader strReader = wa_reader_subreader(&parser->rootReader, sections->str.offset, sections->str.len);
@@ -1883,7 +1883,7 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
 
             if(strReader.status != WA_READER_OK)
             {
-                return oc_wrap_nil(dw_attr_option);
+                return oc_option_nil(dw_attr_option);
             }
         }
         break;
@@ -1908,18 +1908,18 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
             {
                 case DW_AT_location:
                 {
-                    attr.loc = oc_catch(dw_parse_loclist(parser, unit, sections->loc, addrOffset))
+                    attr.loc = oc_option_orelse(dw_parse_loclist(parser, unit, sections->loc, addrOffset))
                     {
-                        return oc_wrap_nil(dw_attr_option);
+                        return oc_option_nil(dw_attr_option);
                     }
                 }
                 break;
 
                 case DW_AT_ranges:
                 {
-                    attr.ranges = oc_catch(dw_parse_range_list_at_offset(parser, unit, sections, addrOffset))
+                    attr.ranges = oc_option_orelse(dw_parse_range_list_at_offset(parser, unit, sections, addrOffset))
                     {
-                        return oc_wrap_nil(dw_attr_option);
+                        return oc_option_nil(dw_attr_option);
                     }
                 }
                 break;
@@ -1953,7 +1953,7 @@ dw_attr_option dw_parse_form_value(dw_parser* parser,
             break;
     }
 
-    return oc_wrap_value(dw_attr_option, attr);
+    return oc_option_value(dw_attr_option, attr);
 }
 
 dw_die_option dw_parse_die(dw_parser* parser, wa_reader* reader, dw_sections* sections, dw_unit* unit)
@@ -1966,7 +1966,7 @@ dw_die_option dw_parse_die(dw_parser* parser, wa_reader* reader, dw_sections* se
     if(die->abbrevCode == 0)
     {
         //NOTE: null entry mark the end of parent
-        return oc_wrap_ptr(dw_die_option, die);
+        return oc_option_ptr(dw_die_option, die);
     }
 
     die->abbrev = 0;
@@ -1982,7 +1982,7 @@ dw_die_option dw_parse_die(dw_parser* parser, wa_reader* reader, dw_sections* se
     if(!die->abbrev)
     {
         dw_parse_error(parser, wa_reader_absolute_loc(reader), "Couldn't find abbrev code %llu\n", die->abbrevCode);
-        return oc_wrap_nil(dw_die_option);
+        return oc_option_nil(dw_die_option);
     }
 
     die->attributes = oc_arena_push_array(parser->arena, dw_attr, die->abbrev->attrCount);
@@ -1992,12 +1992,12 @@ dw_die_option dw_parse_die(dw_parser* parser, wa_reader* reader, dw_sections* se
         dw_abbrev_attr* abbrev = &die->abbrev->attributes[attrIndex];
 
         dw_attr_option res = dw_parse_form_value(parser, reader, sections, unit, abbrev, abbrev->name, abbrev->form);
-        die->attributes[attrIndex] = oc_catch(res) { return oc_wrap_nil(dw_die_option); }
+        die->attributes[attrIndex] = oc_option_orelse(res) { return oc_option_nil(dw_die_option); }
 
         //TODO: some forms need interpretation based on the attr name,
         //      review how we parse forms w/ context specific meaning
     }
-    return oc_wrap_ptr(dw_die_option, die);
+    return oc_option_ptr(dw_die_option, die);
 }
 
 void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
@@ -2082,7 +2082,7 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
             do
             {
                 dw_die_option dieOption = dw_parse_die(parser, &reader, sections, unit);
-                dw_die* die = oc_catch(dieOption)
+                dw_die* die = oc_option_orelse(dieOption)
                 {
                     //NOTE: if a DIE fails parsing, all other DIEs in the unit won't be parsed
                     // correctly, so bail out.
@@ -2174,7 +2174,7 @@ dw_die_ptr_option dw_die_next(dw_die* root, dw_die* die)
         die = 0;
     }
 
-    return oc_wrap_ptr(dw_die_ptr_option, die);
+    return oc_option_ptr(dw_die_ptr_option, die);
 }
 
 dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 count, dw_tag* tags)
@@ -2189,7 +2189,7 @@ dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 co
             {
                 if(die->abbrev->tag == tags[i])
                 {
-                    return oc_wrap_ptr(dw_die_ptr_option, die);
+                    return oc_option_ptr(dw_die_ptr_option, die);
                 }
             }
         }
@@ -2211,7 +2211,7 @@ dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 co
             break;
         }
     }
-    return oc_wrap_nil(dw_die_ptr_option);
+    return oc_option_nil(dw_die_ptr_option);
 }
 
 dw_die_ptr_option dw_die_find_next_with_tag(dw_die* root, dw_die* start, dw_tag tag)
@@ -2231,7 +2231,7 @@ dw_attr_ptr_option dw_die_get_attr(dw_die* die, dw_attr_name name)
             break;
         }
     }
-    return oc_wrap_ptr(dw_attr_ptr_option, res);
+    return oc_option_ptr(dw_attr_ptr_option, res);
 }
 
 dw_loc* dw_loc_copy(oc_arena* arena, dw_loc* src)
@@ -2440,9 +2440,9 @@ void dw_print_debug_info(dw_info* info)
         printf("    type: %s\n", dw_get_cu_type_string(unit->type));
         printf("    version: %i\n", unit->version);
 
-        if(oc_check(unit->rootDie))
+        if(oc_option_check(unit->rootDie))
         {
-            dw_print_die(unit, oc_unwrap(unit->rootDie), 0);
+            dw_print_die(unit, oc_option_unwrap(unit->rootDie), 0);
         }
     }
 }

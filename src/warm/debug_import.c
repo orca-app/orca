@@ -125,19 +125,19 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
         if(dwarfRef >= unit->start && dwarfRef < unit->start + unitSize)
         {
-            dw_die* rootDie = oc_catch(unit->rootDie)
+            dw_die* rootDie = oc_option_orelse(unit->rootDie)
             {
                 break;
             }
 
             dieOption = dw_die_next(rootDie, rootDie);
 
-            while(oc_check(dieOption) && oc_unwrap(dieOption)->start != dwarfRef)
+            while(oc_option_check(dieOption) && oc_option_unwrap(dieOption)->start != dwarfRef)
             {
-                dieOption = dw_die_next(rootDie, oc_unwrap(dieOption));
+                dieOption = dw_die_next(rootDie, oc_option_unwrap(dieOption));
             }
 
-            if(oc_check(dieOption))
+            if(oc_option_check(dieOption))
             {
                 addressSize = unit->addressSize;
                 break;
@@ -145,9 +145,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
         }
     }
 
-    if(oc_check(dieOption))
+    if(oc_option_check(dieOption))
     {
-        dw_die* die = oc_unwrap(dieOption);
+        dw_die* die = oc_option_unwrap(dieOption);
 
         //NOTE: process die
         switch(die->abbrev->tag)
@@ -158,7 +158,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
 
                 //TODO: endianity
 
-                dw_attr* encoding = oc_catch(dw_die_get_attr(die, DW_AT_encoding))
+                dw_attr* encoding = oc_option_orelse(dw_die_get_attr(die, DW_AT_encoding))
                 {
                     type->encoding = WA_TYPE_UNKNOWN_ENCODING;
                     break;
@@ -204,9 +204,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
             case DW_TAG_volatile_type:
             {
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(oc_check(typeAttr))
+                if(oc_option_check(typeAttr))
                 {
-                    type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(typeAttr)->valU64);
+                    type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(typeAttr)->valU64);
                 }
             }
             break;
@@ -217,9 +217,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 type->size = addressSize;
 
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(oc_check(typeAttr))
+                if(oc_option_check(typeAttr))
                 {
-                    type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(typeAttr)->valU64);
+                    type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(typeAttr)->valU64);
                     type->name = oc_str8_pushf(context->arena, "%.*s*", oc_str8_ip(type->type->name));
                 }
                 else
@@ -234,9 +234,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 type = wa_type_alloc(context, dwarfRef, WA_TYPE_NAMED);
 
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(oc_check(typeAttr))
+                if(oc_option_check(typeAttr))
                 {
-                    type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(typeAttr)->valU64);
+                    type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(typeAttr)->valU64);
                 }
                 else
                 {
@@ -250,9 +250,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 type = wa_type_alloc(context, dwarfRef, WA_TYPE_ARRAY);
 
                 dw_attr_ptr_option typeAttr = dw_die_get_attr(die, DW_AT_type);
-                if(oc_check(typeAttr))
+                if(oc_option_check(typeAttr))
                 {
-                    type->array.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(typeAttr)->valU64);
+                    type->array.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(typeAttr)->valU64);
                 }
                 else
                 {
@@ -273,9 +273,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         if(child->abbrev->tag == DW_TAG_subrange_type)
                         {
                             dw_attr_ptr_option count = dw_die_get_attr(child, DW_AT_count);
-                            if(oc_check(count))
+                            if(oc_option_check(count))
                             {
-                                type->array.count = oc_unwrap(count)->valU64;
+                                type->array.count = oc_option_unwrap(count)->valU64;
                                 size *= type->array.count;
                             }
                         }
@@ -312,15 +312,15 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         wa_type_field* member = oc_arena_push_type(context->arena, wa_type_field);
 
                         dw_attr_ptr_option memberName = dw_die_get_attr(child, DW_AT_name);
-                        if(oc_check(memberName))
+                        if(oc_option_check(memberName))
                         {
-                            member->name = oc_str8_push_copy(context->arena, oc_unwrap(memberName)->string);
+                            member->name = oc_str8_push_copy(context->arena, oc_option_unwrap(memberName)->string);
                         }
 
                         dw_attr_ptr_option memberType = dw_die_get_attr(child, DW_AT_type);
-                        if(oc_check(memberType))
+                        if(oc_option_check(memberType))
                         {
-                            member->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(memberType)->valU64);
+                            member->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(memberType)->valU64);
                         }
                         else
                         {
@@ -328,13 +328,13 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         }
 
                         dw_attr_ptr_option memberOffset = dw_die_get_attr(child, DW_AT_data_member_location);
-                        if(oc_check(memberOffset))
+                        if(oc_option_check(memberOffset))
                         {
                             ///////////////////////////////////////////////////////////////
                             //TODO: this could also be a location description, ensure this is not the case or bailout for now
                             ///////////////////////////////////////////////////////////////
                             //TODO: signal if we can't compute offset...
-                            member->offset = oc_unwrap(memberOffset)->valU64;
+                            member->offset = oc_option_unwrap(memberOffset)->valU64;
                         }
 
                         //TODO: bit offset
@@ -349,9 +349,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 type = wa_type_alloc(context, dwarfRef, WA_TYPE_ENUM);
 
                 dw_attr_ptr_option valType = dw_die_get_attr(die, DW_AT_type);
-                if(oc_check(valType))
+                if(oc_option_check(valType))
                 {
-                    type->enumType.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(valType)->valU64);
+                    type->enumType.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(valType)->valU64);
                 }
                 else
                 {
@@ -365,9 +365,9 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                     {
                         wa_type_enumerator* enumerator = oc_arena_push_type(context->arena, wa_type_enumerator);
                         dw_attr_ptr_option name = dw_die_get_attr(child, DW_AT_name);
-                        if(oc_check(name))
+                        if(oc_option_check(name))
                         {
-                            enumerator->name = oc_str8_push_copy(context->arena, oc_unwrap(name)->string);
+                            enumerator->name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
                         }
                         //TODO: extract const values
 
@@ -388,16 +388,16 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
         if(type)
         {
             dw_attr_ptr_option byteSize = dw_die_get_attr(die, DW_AT_byte_size);
-            if(oc_check(byteSize))
+            if(oc_option_check(byteSize))
             {
-                type->size = oc_unwrap(byteSize)->valU64;
+                type->size = oc_option_unwrap(byteSize)->valU64;
             }
             //TODO: bitSize and offset
 
             dw_attr_ptr_option name = dw_die_get_attr(die, DW_AT_name);
-            if(oc_check(name))
+            if(oc_option_check(name))
             {
-                type->name = oc_str8_push_copy(context->arena, oc_unwrap(name)->string);
+                type->name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
             }
         }
     }
@@ -418,27 +418,27 @@ wa_debug_variable wa_debug_import_variable(wa_import_context* context, dw_die* v
     wa_debug_variable var = { 0 };
 
     dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
-    if(oc_check(name))
+    if(oc_option_check(name))
     {
-        var.name = oc_str8_push_copy(context->arena, oc_unwrap(name)->string);
+        var.name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
     }
 
     //TODO: consider not creating the variable if we don't have a name for it?
 
     dw_attr_ptr_option locAttr = dw_die_get_attr(varDie, DW_AT_location);
-    if(oc_check(locAttr))
+    if(oc_option_check(locAttr))
     {
         /////////////////////////////////////////////////////////////////
         //TODO: we should import the expr to our own format.
         /////////////////////////////////////////////////////////////////
-        dw_loc* loc = dw_loc_copy(context->arena, &oc_unwrap(locAttr)->loc);
-        var.loc = oc_wrap_ptr(dw_loc_ptr_option, loc);
+        dw_loc* loc = dw_loc_copy(context->arena, &oc_option_unwrap(locAttr)->loc);
+        var.loc = oc_option_ptr(dw_loc_ptr_option, loc);
     }
 
     dw_attr_ptr_option type = dw_die_get_attr(varDie, DW_AT_type);
-    if(oc_check(type))
+    if(oc_option_check(type))
     {
-        var.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_unwrap(type)->valU64);
+        var.type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(type)->valU64);
     }
     else
     {
@@ -453,7 +453,7 @@ wa_debug_range_list wa_import_range_list(wa_import_context* context, dw_die* die
 
     //TODO: check DW_AT_ranges
     dw_attr_ptr_option rangesAttr = dw_die_get_attr(die, DW_AT_ranges);
-    if(oc_check(rangesAttr))
+    if(oc_option_check(rangesAttr))
     {
         //NOTE: get base address of unit
         u64 baseAddress = unitBaseAddress;
@@ -461,11 +461,11 @@ wa_debug_range_list wa_import_range_list(wa_import_context* context, dw_die* die
         //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
         // since some dwarf range entries are base selection entries that don't make it into the final range list
         oc_arena_scope scratch = oc_scratch_begin();
-        wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_unwrap(rangesAttr)->ranges.entryCount);
+        wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_option_unwrap(rangesAttr)->ranges.entryCount);
 
-        for(u64 i = 0; i < oc_unwrap(rangesAttr)->ranges.entryCount; i++)
+        for(u64 i = 0; i < oc_option_unwrap(rangesAttr)->ranges.entryCount; i++)
         {
-            dw_range_entry* entry = &oc_unwrap(rangesAttr)->ranges.entries[i];
+            dw_range_entry* entry = &oc_option_unwrap(rangesAttr)->ranges.entries[i];
             if(entry->start == 0xffffffffffffffff)
             {
                 // base selection entry, change base addres and skip
@@ -489,22 +489,22 @@ wa_debug_range_list wa_import_range_list(wa_import_context* context, dw_die* die
     {
         dw_attr_ptr_option lowPC = dw_die_get_attr(die, DW_AT_low_pc);
         dw_attr_ptr_option highPC = dw_die_get_attr(die, DW_AT_high_pc);
-        if(oc_check(lowPC) && oc_check(highPC))
+        if(oc_option_check(lowPC) && oc_option_check(highPC))
         {
             result.count = 1;
             result.ranges = oc_arena_push_type(context->arena, wa_debug_range);
 
-            result.ranges[0].low = oc_unwrap(lowPC)->valU64;
+            result.ranges[0].low = oc_option_unwrap(lowPC)->valU64;
 
-            dw_attr_class attrClass = dw_attr_get_class(DW_AT_high_pc, oc_unwrap(highPC)->abbrev->form);
+            dw_attr_class attrClass = dw_attr_get_class(DW_AT_high_pc, oc_option_unwrap(highPC)->abbrev->form);
 
             if(attrClass == DW_AT_CLASS_address)
             {
-                result.ranges[0].high = oc_unwrap(highPC)->valU64;
+                result.ranges[0].high = oc_option_unwrap(highPC)->valU64;
             }
             else if(attrClass == DW_AT_CLASS_constant)
             {
-                result.ranges[0].high = result.ranges[0].low + oc_unwrap(highPC)->valU64;
+                result.ranges[0].high = result.ranges[0].low + oc_option_unwrap(highPC)->valU64;
             }
             else
             {
@@ -584,7 +584,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
 
     for(u64 unitIndex = 0; unitIndex < dwarf->unitCount; unitIndex++)
     {
-        dw_die* rootDie = oc_catch(dwarf->units[unitIndex].rootDie)
+        dw_die* rootDie = oc_option_orelse(dwarf->units[unitIndex].rootDie)
         {
             continue;
         }
@@ -595,9 +595,9 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
         //NOTE: get unit base address
         u64 unitBaseAddress = 0;
         dw_attr_ptr_option lowPC = dw_die_get_attr(rootDie, DW_AT_low_pc);
-        if(oc_check(lowPC))
+        if(oc_option_check(lowPC))
         {
-            unitBaseAddress = oc_unwrap(lowPC)->valU64;
+            unitBaseAddress = oc_option_unwrap(lowPC)->valU64;
         }
 
         //NOTE: get unit range
@@ -609,7 +609,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
             if(varDie->abbrev && varDie->abbrev->tag == DW_TAG_variable)
             {
                 dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
-                if(oc_check(name))
+                if(oc_option_check(name))
                 {
                     unit->globalCount++;
                 }
@@ -625,7 +625,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
             if(varDie->abbrev && varDie->abbrev->tag == DW_TAG_variable)
             {
                 dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
-                if(oc_check(name))
+                if(oc_option_check(name))
                 {
                     unit->globals[globalIndex] = wa_debug_import_variable(&context, varDie, dwarf);
                     globalIndex++;
@@ -636,11 +636,11 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
         //NOTE: extract per-function locals
 
         for(dw_die_ptr_option funcDie = dw_die_find_next_with_tag(rootDie, rootDie, DW_TAG_subprogram);
-            oc_check(funcDie);
-            funcDie = dw_die_find_next_with_tag(rootDie, oc_unwrap(funcDie), DW_TAG_subprogram))
+            oc_option_check(funcDie);
+            funcDie = dw_die_find_next_with_tag(rootDie, oc_option_unwrap(funcDie), DW_TAG_subprogram))
         {
-            dw_attr_ptr_option funcNameAttr = dw_die_get_attr(oc_unwrap(funcDie), DW_AT_name);
-            if(oc_check(funcNameAttr))
+            dw_attr_ptr_option funcNameAttr = dw_die_get_attr(oc_option_unwrap(funcDie), DW_AT_name);
+            if(oc_option_check(funcNameAttr))
             {
                 //TODO: better way of finding function
                 bool found = false;
@@ -648,7 +648,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
                 for(; funcIndex < module->functionCount; funcIndex++)
                 {
                     oc_str8 funcName = wa_module_get_function_name(module, funcIndex);
-                    if(!oc_str8_cmp(funcName, oc_unwrap(funcNameAttr)->string))
+                    if(!oc_str8_cmp(funcName, oc_option_unwrap(funcNameAttr)->string))
                     {
                         found = true;
                         break;
@@ -661,17 +661,17 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
                     funcInfo->unit = unit;
 
                     //NOTE: get frame base expr loc
-                    dw_attr_ptr_option frameBase = dw_die_get_attr(oc_unwrap(funcDie), DW_AT_frame_base);
-                    if(oc_check(frameBase))
+                    dw_attr_ptr_option frameBase = dw_die_get_attr(oc_option_unwrap(funcDie), DW_AT_frame_base);
+                    if(oc_option_check(frameBase))
                     {
-                        OC_DEBUG_ASSERT(oc_unwrap(frameBase)->abbrev->form == DW_FORM_exprloc);
-                        dw_loc* loc = dw_loc_copy(context.arena, &oc_unwrap(frameBase)->loc);
-                        funcInfo->frameBase = oc_wrap_ptr(dw_loc_option, loc);
+                        OC_DEBUG_ASSERT(oc_option_unwrap(frameBase)->abbrev->form == DW_FORM_exprloc);
+                        dw_loc* loc = dw_loc_copy(context.arena, &oc_option_unwrap(frameBase)->loc);
+                        funcInfo->frameBase = oc_option_ptr(dw_loc_option, loc);
                     }
 
-                    wa_debug_extract_vars_from_scope(&context, funcInfo, &funcInfo->body, oc_unwrap(funcDie), unitBaseAddress, dwarf);
+                    wa_debug_extract_vars_from_scope(&context, funcInfo, &funcInfo->body, oc_option_unwrap(funcDie), unitBaseAddress, dwarf);
 
-                    info->functions[funcIndex] = oc_wrap_ptr(wa_debug_function_ptr_option, funcInfo);
+                    info->functions[funcIndex] = oc_option_ptr(wa_debug_function_ptr_option, funcInfo);
                 }
             }
         }

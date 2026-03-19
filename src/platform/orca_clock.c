@@ -7,5 +7,9 @@
 **************************************************************************/
 #include "platform_clock.h"
 #include "util/typedefs.h"
+#include "wasmbind/hostcalls.h"
 
-f64 ORCA_IMPORT(oc_clock_time)(oc_clock_kind clock);
+f64 oc_clock_time(oc_clock_kind clock)
+{
+    return oc_hostcall_clock_time(clock);
+}

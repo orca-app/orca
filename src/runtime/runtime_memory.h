@@ -20,6 +20,7 @@ typedef struct oc_wasm_list
 {
     u32 first;
     u32 last;
+    u64 count;
 } oc_wasm_list;
 
 typedef struct oc_wasm_list_elt
@@ -86,14 +87,21 @@ typedef struct oc_wasm_str8_list
     u64 len;
 } oc_wasm_str8_list;
 
-#define oc_wasm_str8_to_native(wasmString) ((oc_str8){ .ptr = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len), .len = wasmString.len })
+#define oc_wasm_str8_to_native(wasmString) ((oc_str8){ .ptr = oc_wasm_address_to_ptr((wasmString).ptr, (wasmString).len), .len = (wasmString).len })
 
-oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_addr arena, oc_str8 nativeString);
+typedef struct oc_wasm_arena oc_wasm_arena;
+oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_arena* arena, oc_str8 nativeString);
 
 //------------------------------------------------------------------------------------
 // Wasm arenas helpers
 //------------------------------------------------------------------------------------
+typedef struct oc_wasm_arena
+{
+    i32 base;
+    oc_wasm_list chunks;
+    i32 currentChunk;
+} oc_wasm_arena;
 
-oc_wasm_addr oc_wasm_arena_push(oc_wasm_addr arena, u64 size);
-oc_wasm_addr oc_wasm_arena_push_aligned(oc_wasm_addr arena, u64 size, u32 alignment);
+oc_wasm_addr oc_wasm_arena_push(oc_wasm_arena* arena, u64 size);
+oc_wasm_addr oc_wasm_arena_push_aligned(oc_wasm_arena* arena, u64 size, u32 alignment);
 #define oc_wasm_arena_push_type(arena, type) (oc_wasm_arena_push_aligned(arena, sizeof(type), _Alignof(type)))

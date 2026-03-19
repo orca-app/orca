@@ -19,6 +19,7 @@ nav:
       - Utility:
         - Overview: 'api/Utility.md'
         - Algebra: 'api/Utility/Algebra.md'
+        - Clock: 'api/Utility/Clock.md'
         - Debug: 'api/Utility/Debug.md'
         - Lists: 'api/Utility/Lists.md'
         - Memory: 'api/Utility/Memory.md'
@@ -27,18 +28,20 @@ nav:
       - Application:
         - Overview: 'api/Application.md'
         - Events: 'api/Application/Events.md'
+        - Input: 'api/Application/Input.md'
       - I/O:
         - Overview: 'api/I_O.md'
-        - File API: 'api/I_O/File API.md'
+        - Files: 'api/I_O/Files.md'
         - Dialogs: 'api/I_O/Dialogs.md'
         - Paths: 'api/I_O/Paths.md'
       - Graphics:
         - Overview: 'api/Graphics.md'
-        - Canvas API: 'api/Graphics/Canvas API.md'
+        - Canvas: 'api/Graphics/Canvas.md'
         - GLES Surface: 'api/Graphics/GLES Surface.md'
-      - UI: 'api/UI.md'
-      - UI Core: 'api/UI Core.md'
-      - UI Widgets: 'api/UI Widgets.md'
+      - UI:
+        - Overview: 'api/UI.md'
+        - Core: 'api/UI/Core.md'
+        - Widgets: 'api/UI/Widgets.md'
 
   - Developer Guide:
     - Building: 'building.md'
