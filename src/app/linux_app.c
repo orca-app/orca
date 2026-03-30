@@ -359,6 +359,7 @@ void oc_terminate(void)
 
 bool oc_should_quit(void)
 {
+    //TODO(pld): how stale can the value be given we don't use atomics?
     return (oc_appData.shouldQuit);
 }
 
@@ -378,13 +379,21 @@ void oc_cancel_quit(void)
 
 void oc_set_cursor(oc_mouse_cursor cursor)
 {
+    // TODO(pld): ARROW
+    // TODO(pld): TEXT
+    // TODO(pld): change window attributes of all windows, use cursor on new windows, xcursor compatible
+    // TODO(pld): unsupported:
+    // - OC_MOUSE_CURSOR_RESIZE_0
+    // - OC_MOUSE_CURSOR_RESIZE_90
+    // - OC_MOUSE_CURSOR_RESIZE_45
+    // - OC_MOUSE_CURSOR_RESIZE_135
     oc_unimplemented();
     return;
 }
 
-/* This should only be called from pump_events, i.e. from a single thread, so
- * that it remains thread safe. The winIdToHandle array itself should only be
- * modified in this pump_events too. */
+/* This should only be called from pump_events_main_thread, i.e. from a single
+ * thread, so that it remains thread safe. The winIdToHandle array itself
+ * should only be modified from pump_events_main_thread too. */
 static oc_window window_handle_from_x11_id(u32 winId)
 {
     oc_linux_x11* x11 = &oc_appData.linux.x11;
@@ -611,11 +620,10 @@ static void oc_pump_events_main_thread(f64 timeout)
             if(windowData)
             {
                 windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED;
-                oc_event event =
-                {
-                    .type = OC_EVENT_WINDOW_FOCUS,
-                    .window = window,
-                };
+                oc_event event;
+                memz(&event, sizeof(event));
+                event.type = OC_EVENT_WINDOW_FOCUS;
+                event.window = window;
                 oc_queue_event(&event);
             }
         } break;
@@ -632,11 +640,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                 windowData->linux.focus = OC_LINUX_WINDOW_UNFOCUSED;
                 if(oldFocus == OC_LINUX_WINDOW_FOCUSED)
                 {
-                    oc_event event =
-                    {
-                        .type = OC_EVENT_WINDOW_UNFOCUS,
-                        .window = window,
-                    };
+                    oc_event event;
+                    memz(&event, sizeof(event));
+                    event.type = OC_EVENT_WINDOW_UNFOCUS;
+                    event.window = window;
                     oc_queue_event(&event);
                 }
             }
@@ -692,10 +699,9 @@ static void oc_pump_events_main_thread(f64 timeout)
                     /* All windows destroyed (except for control window which
                      * doesn't count as an application window), app should
                      * terminate. */
-                    oc_event event =
-                    {
-                        .type = OC_EVENT_QUIT,
-                    };
+                    oc_event event;
+                    memz(&event, sizeof(event));
+                    event.type = OC_EVENT_QUIT;
                     oc_queue_event(&event);
                 }
             }
@@ -853,11 +859,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                     windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
                     if(oldState == X11_WINDOW_STATE_NORMAL)
                     {
-                        oc_event event =
-                        {
-                            .type = OC_EVENT_WINDOW_HIDE,
-                            .window = window,
-                        };
+                        oc_event event;
+                        memz(&event, sizeof(event));
+                        event.type = OC_EVENT_WINDOW_HIDE;
+                        event.window = window;
                         oc_queue_event(&event);
                     }
                 }
@@ -1029,7 +1034,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                 {
                     OC_ASSERT(!windowData);
                     oc_appData.shouldQuit = false;
-                }
+                } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_DESTROY:
                 {
                     OC_ASSERT(windowData);
@@ -1218,11 +1223,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                     if(windowData->linux.focus == OC_LINUX_WINDOW_FOCUSED)
                     {
                         windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED_IGNORE_INPUTS;
-                        oc_event event =
-                        {
-                            .type = OC_EVENT_WINDOW_UNFOCUS,
-                            .window = window,
-                        };
+                        oc_event event;
+                        memz(&event, sizeof(event));
+                        event.type = OC_EVENT_WINDOW_UNFOCUS;
+                        event.window = window;
                         oc_queue_event(&event);
                     }
                 } break;
@@ -1425,14 +1429,18 @@ static void oc_pump_events_main_thread(f64 timeout)
                         {
                             if(wmState->state == X11_WINDOW_STATE_NORMAL)
                             {
-                                oc_event event = { .window = window };
+                                oc_event event;
+                                memz(&event, sizeof(event));
                                 event.type = OC_EVENT_WINDOW_SHOW;
+                                event.window = window;
                                 oc_queue_event(&event);
                             }
                             else if(oldState == X11_WINDOW_STATE_NORMAL)
                             {
-                                oc_event event = { .window = window };
+                                oc_event event;
+                                memz(&event, sizeof(event));
                                 event.type = OC_EVENT_WINDOW_HIDE;
+                                event.window = window;
                                 oc_queue_event(&event);
                             }
                         }
@@ -1513,20 +1521,20 @@ static void oc_pump_events_main_thread(f64 timeout)
                 {
                     window_update_last_user_activity(conn, window, ts);
                     windowData->shouldClose = true;
-                    oc_event event =
-                    {
-                        .type = OC_EVENT_WINDOW_CLOSE,
-                        .window = window,
-                    };
+                    oc_event event;
+                    memz(&event, sizeof(event));
+                    event.type = OC_EVENT_WINDOW_CLOSE;
+                    event.window = window;
                     oc_queue_event(&event);
                 }
                 else if(protocol == linux->x11.atoms._NET_WM_PING)
                 {
+                    oc_log_info("_NET_WM_PING!\n");
                     noti->window = linux->x11.rootWinId;
                     xcb_send_event(conn, false, linux->x11.rootWinId,
                         XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
                         XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
-                        (const char*)&noti);
+                        (const char*)noti);
                 }
                 else if(protocol == linux->x11.atoms._NET_WM_SYNC_REQUEST)
                 {
@@ -1547,7 +1555,8 @@ static void oc_pump_events_main_thread(f64 timeout)
         case XCB_MAPPING_NOTIFY:
             break;
         }
-        log_event(ev);
+        //log_event(ev);
+        free(ev);
         ev = xcb_poll_for_event(conn);
     }
     // TODO(pld): handle I/O errors
@@ -1558,6 +1567,20 @@ static void oc_pump_events_main_thread(f64 timeout)
 oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
 {
     // TODO(pld): style
+    // to support:
+    // OC_WINDOW_STYLE_NO_TITLE
+    // - _OB_WM_ACTION_UNDECORATE, _OB_WM_STATE_UNDECORATED
+    // OC_WINDOW_STYLE_FIXED_SIZE
+    // - wm_normal_hints min_width=max_width, min_height=max_height
+    // OC_WINDOW_STYLE_FLOAT
+    // - set _NET_WM_ACTION_ABOVE
+    // unsupported:
+    // OC_WINDOW_STYLE_NO_CLOSE
+    // OC_WINDOW_STYLE_NO_MINIFY
+    // OC_WINDOW_STYLE_NO_FOCUS
+    // OC_WINDOW_STYLE_POPUPMENU
+    // - set _NET_WM_WINDOW_TYPE_POPUP_MENU, override-redirect?
+    // OC_WINDOW_STYLE_NO_BUTTONS
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
 

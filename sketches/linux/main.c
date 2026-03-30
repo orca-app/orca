@@ -11,7 +11,6 @@
 #include <sys/random.h>
 #include <sched.h>
 #include <errno.h>
-#include <math.h>
 typedef ssize_t isize;
 typedef size_t usize;
 
@@ -612,16 +611,17 @@ int main(int argc, char** argv)
     #define CHECK2(expr, stat)  CHECK3((expr), (stat), true)
     #define CHECK(expr)  CHECK2((expr), (void)0)
 
-    #define CHECK_EV(exp_type, exp_win)  \
+    #define CHECK_EV2(exp_type, exp_win, kill)  \
         __extension__({  \
             oc_event* _ev = NULL;  \
             while(!(_ev && _ev->type == (exp_type) && _ev->window.h == (exp_win).h) && (_ev = oc_next_event(scratch.arena)))  \
             {  \
                 oc_log_info("CHECK_EV: got ev: type=%d, win=%llx\n", _ev->type, _ev->window.h);  \
             }  \
-            OC_ASSERT(_ev);  \
+            if(kill)  OC_ASSERT(_ev);  \
             _ev;  \
         })
+    #define CHECK_EV(exp_type, exp_win)  CHECK_EV2(exp_type, exp_win, true)
 
     // Withdrawn -> Normal
     oc_window_show(win);
@@ -1033,21 +1033,52 @@ int main(int argc, char** argv)
     ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
     OC_ASSERT(oc_rect_equal(centered_rect, ev->move.frame));
 
+    oc_window_request_close(win);
+    CHECK(oc_window_should_close(win));
+    CHECK_EV(OC_EVENT_WINDOW_CLOSE, win);
+    CHECK(oc_window_should_close(win));
+    oc_window_cancel_close(win);
+    CHECK(!oc_window_should_close(win));
+
+    oc_window_request_close(win);
+    CHECK(oc_window_should_close(win));
+    CHECK_EV(OC_EVENT_WINDOW_CLOSE, win);
+    CHECK(oc_window_should_close(win));
+    {
+        f64 to_lapse = 10;
+        while (to_lapse > 0)
+        {
+            f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);
+            oc_pump_events(to_lapse);
+            f64 end = oc_clock_time(OC_CLOCK_MONOTONIC);
+            to_lapse -= end - start;
+        }
+    }
+    CHECK(oc_window_should_close(win));
+    oc_window_cancel_close(win);
+    CHECK(!oc_window_should_close(win));
+
+    oc_request_quit();
+    CHECK(oc_should_quit());
+    oc_cancel_quit();
+    CHECK(!oc_should_quit());
     oc_window_destroy(win);
+    CHECK(CHECK_EV2(OC_EVENT_QUIT, oc_window_nil(), false));
+    CHECK(!oc_should_quit());
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - test oc_window_request_close, oc_window_cancel_close, oc_window_should_close, OC_EVENT_WINDOW_CLOSE
-    // - test WM_DELETE_WINDOW
-    // - test oc_should_quit, oc_request_quit, oc_cancel_quit, OC_EVENT_QUIT
     // - oc_window_create flags
+    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
+    // - _net_wm_user_time_window
+    // - read DESKTOP_STARTUP_ID env var into user_time timestamp, and then unset env var
     // - oc_window_content_rect_for_frame_rect (create dummy window with style to fetch extents)
     // - oc_window_frame_rect_for_content_rect (same)
+    // - oc_set_cursor
     // - test oc_dispatch_on_main_thread_sync
-    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
-    // - test _NET_WM_PING
-    // - test _NET_WM_SYNC_REQUEST
     // - test tls destructors
+    // - test _NET_WM_SYNC_REQUEST
+    //
     // - oc_clipboard_clear
     // - oc_clipboard_set_string
     // - oc_clipboard_get_string
@@ -1055,8 +1086,7 @@ int main(int argc, char** argv)
     // - oc_clipboard_has_tag
     // - oc_clipboard_set_data_for_tag
     // - oc_clipboard_get_data_for_tag
-    // - _net_wm_user_time_window
-    // - read DESKTOP_STARTUP_ID env var into user_time timestamp, and then unset env var
+    //
     // - check _net_wm_allowed_actions?
     // - set _net_wm_bypass_compositor?
     // - set _net_wm_full_placement?
@@ -1072,8 +1102,6 @@ int main(int argc, char** argv)
     //   - OC_EVENT_CLIPBOARD_PASTE
     //   - OC_EVENT_PATHDROP
     //   - OC_EVENT_FRAME
-    // - oc_event: mark padding so it gets initialized?
-    // - handle when conigurenotify is in parent space?
     //
     // later:
     // - oc_scancode_to_keycode
@@ -1083,7 +1111,6 @@ int main(int argc, char** argv)
     //   - other layouts
     //   - (later) virtual keyboards
     //   - (later) input methods
-    // - oc_set_cursor
     // - oc_file_dialog (os native)
     // - oc_file_dialog_for_table (os native)
     // - oc_alert_popup (os native)
