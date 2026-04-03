@@ -636,7 +636,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 
     if(slot && !slot->fatal)
     {
-        DIR* dir = fdopendir(slot->fd);
+        DIR* dir = fdopendir(dup(slot->fd));
         if(dir)
         {
             struct dirent* entry = NULL;
