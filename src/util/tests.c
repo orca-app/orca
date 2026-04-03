@@ -115,11 +115,16 @@ void oc_test_mark_fmt(oc_test_info* info, oc_test_status status, const char* fmt
 #define oc_test_fail(info, ...) oc_test_mark(info, OC_TEST_FAIL, ##__VA_ARGS__)
 #define oc_test_skip(info, ...) oc_test_mark(info, OC_TEST_SKIP, ##__VA_ARGS__)
 
-void oc_test_begin(oc_test_info* info, const char* name)
+void oc_test_begin_str8(oc_test_info* info, oc_str8 name)
 {
     OC_ASSERT(info->testName.len == 0, "Test blocks should not be nested");
-    info->testName = OC_STR8(name);
+    info->testName = name;
     info->statusSet = false;
+}
+
+void oc_test_begin(oc_test_info* info, const char* name)
+{
+    oc_test_begin_str8(info, OC_STR8(name));
 }
 
 void oc_test_end(oc_test_info* info)
@@ -133,8 +138,9 @@ void oc_test_end(oc_test_info* info)
 }
 
 #define oc_test(info, name) oc_defer_loop(oc_test_begin(info, name), oc_test_end(info))
+#define oc_test_str8(info, name) oc_defer_loop(oc_test_begin_str8(info, name), oc_test_end(info))
 
-void oc_test_group_begin(oc_test_info* info, const char* name)
+void oc_test_group_begin_str8(oc_test_info* info, oc_str8 name)
 {
     OC_ASSERT(info->testName.len == 0, "Test groups should not be nested inside test blocks");
     OC_ASSERT(info->groupName.len == 0, "Test groups should not be nested");
@@ -143,12 +149,17 @@ void oc_test_group_begin(oc_test_info* info, const char* name)
     info->failed = 0;
     info->skipped = 0;
 
-    info->groupName = OC_STR8(name);
+    info->groupName = name;
 
     printf("%s", oc_test_status_color_start[OC_TEST_INFO]);
     printf("%s", oc_test_status_string[OC_TEST_INFO]);
     printf("%s", oc_test_status_color_stop);
-    printf(" testing %s...\n", name);
+    printf(" testing %.*s...\n", oc_str8_ip(name));
+}
+
+void oc_test_group_begin(oc_test_info* info, const char* name)
+{
+    oc_test_group_begin_str8(info, OC_STR8(name));
 }
 
 void oc_test_group_end(oc_test_info* info)
@@ -173,6 +184,7 @@ void oc_test_group_end(oc_test_info* info)
 }
 
 #define oc_test_group(info, name) oc_defer_loop(oc_test_group_begin(info, name), oc_test_group_end(info))
+#define oc_test_group_str8(info, name) oc_defer_loop(oc_test_group_begin_str8(info, name), oc_test_group_end(info))
 
 void oc_test_init(oc_test_info* info, const char* name, oc_test_verbosity verbosity)
 {

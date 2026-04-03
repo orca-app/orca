@@ -13,6 +13,26 @@
 #include "strings.h"
 
 //NOTE: options for arguments creation
+
+typedef enum oc_arg_parser_value_kind
+{
+    OC_ARG_PARSER_I64,
+    OC_ARG_PARSER_F64,
+    OC_ARG_PARSER_STR8,
+} oc_arg_parser_value_kind;
+
+typedef struct oc_arg_parser_value
+{
+    oc_arg_parser_value_kind kind;
+
+    union
+    {
+        i64 valI64;
+        f64 valF64;
+        oc_str8 valStr8;
+    };
+} oc_arg_parser_value;
+
 typedef struct oc_arg_parser_arg_options
 {
     oc_str8 desc;      // description of the option in help message
@@ -33,6 +53,7 @@ typedef struct oc_arg_parser_arg_options
         i64 valI64;
         f64 valF64;
         bool valBool;
+        oc_arg_parser_value value;
 
     } defaultValue; // (singe-value only) default value in case argument is not provided.
 
@@ -84,21 +105,32 @@ oc_arg_parser* oc_arg_parser_subparser(oc_arg_parser* parser, oc_str8 name, oc_s
 int oc_arg_parser_add_named_str8(oc_arg_parser* parser, oc_str8 name, oc_str8* dest, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_named_i64(oc_arg_parser* parser, oc_str8 name, i64* dest, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_named_f64(oc_arg_parser* parser, oc_str8 name, f64* dest, oc_arg_parser_arg_options* options);
+int oc_arg_parser_add_named_value(oc_arg_parser* parser, oc_str8 name, oc_arg_parser_value* dest, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_flag(oc_arg_parser* parser, oc_str8 name, bool* dest, oc_arg_parser_arg_options* options);
 
 int oc_arg_parser_add_named_str8_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, oc_str8** destArray, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_named_i64_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, i64** destArray, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_named_f64_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, f64** destArray, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_flag_count(oc_arg_parser* parser, oc_str8 name, u32* destCount, oc_arg_parser_arg_options* options);
+int oc_arg_parser_add_named_value_array(oc_arg_parser* parser,
+                                        oc_str8 name,
+                                        u32* destCount,
+                                        oc_arg_parser_value** destArray,
+                                        oc_arg_parser_arg_options* options);
 
 int oc_arg_parser_add_positional_str8(oc_arg_parser* parser, oc_str8 name, oc_str8* dest, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_positional_i64(oc_arg_parser* parser, oc_str8 name, i64* dest, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_positional_f64(oc_arg_parser* parser, oc_str8 name, f64* dest, oc_arg_parser_arg_options* options);
+int oc_arg_parser_add_positional_value(oc_arg_parser* parser, oc_str8 name, oc_arg_parser_value* dest, oc_arg_parser_arg_options* options);
 
 int oc_arg_parser_add_positional_str8_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, oc_str8** destArray, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_positional_i64_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, i64** destArray, oc_arg_parser_arg_options* options);
 int oc_arg_parser_add_positional_f64_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, f64** destArray, oc_arg_parser_arg_options* options);
-
+int oc_arg_parser_add_positional_value_array(oc_arg_parser* parser,
+                                             oc_str8 name,
+                                             u32* destCount,
+                                             oc_arg_parser_value** destArray,
+                                             oc_arg_parser_arg_options* options);
 //NOTE: help message
 void oc_arg_parser_print_help(oc_arg_parser* parser);
 

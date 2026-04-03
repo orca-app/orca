@@ -16,10 +16,11 @@
 //-----------------------------------------------------------------------
 typedef enum oc_arg_parser_type
 {
-    OC_ARG_PARSER_STR8,
-    OC_ARG_PARSER_I64,
-    OC_ARG_PARSER_F64,
-    OC_ARG_PARSER_FLAG,
+    OC_ARG_PARSER_DEST_STR8,
+    OC_ARG_PARSER_DEST_I64,
+    OC_ARG_PARSER_DEST_F64,
+    OC_ARG_PARSER_DEST_FLAG,
+    OC_ARG_PARSER_DEST_VALUE,
 } oc_arg_parser_type;
 
 typedef struct oc_arg_parser_arg
@@ -37,6 +38,7 @@ typedef struct oc_arg_parser_arg
         oc_str8* valStr8;
         i64* valI64;
         f64* valF64;
+        oc_arg_parser_value* value;
         bool* valBool;
 
         struct
@@ -57,6 +59,12 @@ typedef struct oc_arg_parser_arg
             f64** values;
         } arrayF64;
 
+        struct
+        {
+            u32* count;
+            oc_arg_parser_value** values;
+        } arrayValue;
+
         u32* flagCount;
 
     } dest;
@@ -76,6 +84,7 @@ typedef struct oc_arg_parser_value_elt
         oc_str8 valStr8;
         i64 valI64;
         f64 valF64;
+        oc_arg_parser_value value;
     };
 } oc_arg_parser_value_elt;
 
@@ -151,7 +160,7 @@ oc_arg_parser_arg* oc_arg_parser_arg_alloc(oc_arg_parser* parser, oc_str8 name, 
 int oc_arg_parser_add_named_str8(oc_arg_parser* parser, oc_str8 name, oc_str8* dest, oc_arg_parser_arg_options* options)
 {
     OC_ARG_PARSER_NAMED_ASSERTS();
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_STR8, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_STR8, options);
     arg->dest.valStr8 = dest;
 
     oc_list_push_back(&parser->namedArgs, &arg->listElt);
@@ -164,7 +173,7 @@ int oc_arg_parser_add_named_i64(oc_arg_parser* parser, oc_str8 name, i64* dest, 
 {
     OC_ARG_PARSER_NAMED_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_I64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_I64, options);
     arg->dest.valI64 = dest;
 
     oc_list_push_back(&parser->namedArgs, &arg->listElt);
@@ -177,8 +186,21 @@ int oc_arg_parser_add_named_f64(oc_arg_parser* parser, oc_str8 name, f64* dest, 
 {
     OC_ARG_PARSER_NAMED_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_F64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_F64, options);
     arg->dest.valF64 = dest;
+
+    oc_list_push_back(&parser->namedArgs, &arg->listElt);
+    parser->namedArgCount++;
+
+    return 0;
+}
+
+int oc_arg_parser_add_named_value(oc_arg_parser* parser, oc_str8 name, oc_arg_parser_value* dest, oc_arg_parser_arg_options* options)
+{
+    OC_ARG_PARSER_NAMED_ASSERTS();
+
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_VALUE, options);
+    arg->dest.value = dest;
 
     oc_list_push_back(&parser->namedArgs, &arg->listElt);
     parser->namedArgCount++;
@@ -191,7 +213,7 @@ int oc_arg_parser_add_flag(oc_arg_parser* parser, oc_str8 name, bool* dest, oc_a
     OC_ARG_PARSER_NAMED_ASSERTS();
     OC_DEBUG_ASSERT(options->valueName.len == 0, "options->valueName is ignored for flag arguments.");
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_FLAG, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_FLAG, options);
     arg->dest.valBool = dest;
 
     oc_list_push_back(&parser->namedArgs, &arg->listElt);
@@ -212,7 +234,7 @@ int oc_arg_parser_add_named_str8_array(oc_arg_parser* parser, oc_str8 name, u32*
 {
     OC_ARG_PARSER_NAMED_ARRAY_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_STR8, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_STR8, options);
     arg->isArray = true;
     arg->dest.arrayStr8.count = destCount;
     arg->dest.arrayStr8.values = destArray;
@@ -227,7 +249,7 @@ int oc_arg_parser_add_named_i64_array(oc_arg_parser* parser, oc_str8 name, u32* 
 {
     OC_ARG_PARSER_NAMED_ARRAY_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_I64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_I64, options);
     arg->isArray = true;
     arg->dest.arrayI64.count = destCount;
     arg->dest.arrayI64.values = destArray;
@@ -242,10 +264,25 @@ int oc_arg_parser_add_named_f64_array(oc_arg_parser* parser, oc_str8 name, u32* 
 {
     OC_ARG_PARSER_NAMED_ARRAY_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_F64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_F64, options);
     arg->isArray = true;
     arg->dest.arrayF64.count = destCount;
     arg->dest.arrayF64.values = destArray;
+
+    oc_list_push_back(&parser->namedArgs, &arg->listElt);
+    parser->namedArgCount++;
+
+    return 0;
+}
+
+int oc_arg_parser_add_named_value_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, oc_arg_parser_value** destArray, oc_arg_parser_arg_options* options)
+{
+    OC_ARG_PARSER_NAMED_ARRAY_ASSERTS();
+
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_VALUE, options);
+    arg->isArray = true;
+    arg->dest.arrayValue.count = destCount;
+    arg->dest.arrayValue.values = destArray;
 
     oc_list_push_back(&parser->namedArgs, &arg->listElt);
     parser->namedArgCount++;
@@ -261,7 +298,7 @@ int oc_arg_parser_add_flag_count(oc_arg_parser* parser, oc_str8 name, u32* destC
                         && options->defaultValue.valStr8.ptr == 0,
                     "options->defaultValue is ignored for array-value arguments.");
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_FLAG, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_FLAG, options);
     arg->isArray = true;
     arg->dest.flagCount = destCount;
 
@@ -284,7 +321,7 @@ int oc_arg_parser_add_positional_str8(oc_arg_parser* parser, oc_str8 name, oc_st
 {
     OC_ARG_PARSER_POSITIONAL_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_STR8, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_STR8, options);
     arg->positional = true;
     arg->dest.valStr8 = dest;
 
@@ -298,7 +335,7 @@ int oc_arg_parser_add_positional_i64(oc_arg_parser* parser, oc_str8 name, i64* d
 {
     OC_ARG_PARSER_POSITIONAL_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_I64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_I64, options);
     arg->positional = true;
     arg->dest.valI64 = dest;
 
@@ -312,9 +349,23 @@ int oc_arg_parser_add_positional_f64(oc_arg_parser* parser, oc_str8 name, f64* d
 {
     OC_ARG_PARSER_POSITIONAL_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_F64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_F64, options);
     arg->positional = true;
     arg->dest.valF64 = dest;
+
+    oc_list_push_back(&parser->posArgs, &arg->listElt);
+    parser->posArgCount++;
+
+    return 0;
+}
+
+int oc_arg_parser_add_positional_value(oc_arg_parser* parser, oc_str8 name, oc_arg_parser_value* dest, oc_arg_parser_arg_options* options)
+{
+    OC_ARG_PARSER_POSITIONAL_ASSERTS();
+
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_VALUE, options);
+    arg->positional = true;
+    arg->dest.value = dest;
 
     oc_list_push_back(&parser->posArgs, &arg->listElt);
     parser->posArgCount++;
@@ -338,7 +389,7 @@ int oc_arg_parser_add_positional_str8_array(oc_arg_parser* parser, oc_str8 name,
 {
     OC_ARG_PARSER_POSITIONAL_ARRAY_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_STR8, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_STR8, options);
     arg->isArray = true;
     arg->positional = true;
     arg->dest.arrayStr8.count = destCount;
@@ -354,7 +405,7 @@ int oc_arg_parser_add_positional_i64_array(oc_arg_parser* parser, oc_str8 name, 
 {
     OC_ARG_PARSER_POSITIONAL_ARRAY_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_I64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_I64, options);
     arg->isArray = true;
     arg->positional = true;
     arg->dest.arrayI64.count = destCount;
@@ -370,11 +421,27 @@ int oc_arg_parser_add_positional_f64_array(oc_arg_parser* parser, oc_str8 name, 
 {
     OC_ARG_PARSER_POSITIONAL_ARRAY_ASSERTS();
 
-    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_F64, options);
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_F64, options);
     arg->isArray = true;
     arg->positional = true;
     arg->dest.arrayF64.count = destCount;
     arg->dest.arrayF64.values = destArray;
+
+    oc_list_push_back(&parser->posArgs, &arg->listElt);
+    parser->posArgCount++;
+
+    return 0;
+}
+
+int oc_arg_parser_add_positional_value_array(oc_arg_parser* parser, oc_str8 name, u32* destCount, oc_arg_parser_value** destArray, oc_arg_parser_arg_options* options)
+{
+    OC_ARG_PARSER_POSITIONAL_ARRAY_ASSERTS();
+
+    oc_arg_parser_arg* arg = oc_arg_parser_arg_alloc(parser, name, OC_ARG_PARSER_DEST_VALUE, options);
+    arg->isArray = true;
+    arg->positional = true;
+    arg->dest.arrayValue.count = destCount;
+    arg->dest.arrayValue.values = destArray;
 
     oc_list_push_back(&parser->posArgs, &arg->listElt);
     parser->posArgCount++;
@@ -411,7 +478,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
         bool shortFlags = false;
         oc_list_for(parser->namedArgs, arg, oc_arg_parser_arg, listElt)
         {
-            if(arg->options.shortName != 0 && arg->type == OC_ARG_PARSER_FLAG)
+            if(arg->options.shortName != 0 && arg->type == OC_ARG_PARSER_DEST_FLAG)
             {
                 if(!shortFlags)
                 {
@@ -429,7 +496,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
         //NOTE: print short required named args
         oc_list_for(parser->namedArgs, arg, oc_arg_parser_arg, listElt)
         {
-            if(arg->options.shortName != 0 && arg->type != OC_ARG_PARSER_FLAG && arg->options.required)
+            if(arg->options.shortName != 0 && arg->type != OC_ARG_PARSER_DEST_FLAG && arg->options.required)
             {
                 oc_str8 valueName = arg->options.valueName.len ? arg->options.valueName : arg->name;
                 printf(" -%c <%.*s>", arg->options.shortName, oc_str8_ip(valueName));
@@ -440,7 +507,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
         bool shortOptionals = false;
         oc_list_for(parser->namedArgs, arg, oc_arg_parser_arg, listElt)
         {
-            if(arg->options.shortName != 0 && arg->type != OC_ARG_PARSER_FLAG && !arg->options.required)
+            if(arg->options.shortName != 0 && arg->type != OC_ARG_PARSER_DEST_FLAG && !arg->options.required)
             {
                 if(!shortOptionals)
                 {
@@ -459,7 +526,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
         //NOTE: print long flags
         oc_list_for(parser->namedArgs, arg, oc_arg_parser_arg, listElt)
         {
-            if(arg->options.shortName == 0 && arg->type == OC_ARG_PARSER_FLAG)
+            if(arg->options.shortName == 0 && arg->type == OC_ARG_PARSER_DEST_FLAG)
             {
                 printf(" [--%.*s]", oc_str8_ip(arg->name));
             }
@@ -468,7 +535,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
         //NOTE: print long required arguments
         oc_list_for(parser->namedArgs, arg, oc_arg_parser_arg, listElt)
         {
-            if(arg->options.shortName == 0 && arg->type != OC_ARG_PARSER_FLAG && arg->options.required)
+            if(arg->options.shortName == 0 && arg->type != OC_ARG_PARSER_DEST_FLAG && arg->options.required)
             {
                 oc_str8 valueName = arg->options.valueName.len ? arg->options.valueName : arg->name;
                 printf(" --%.*s <%.*s>", oc_str8_ip(arg->name), oc_str8_ip(valueName));
@@ -478,7 +545,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
         //NOTE: print long optional arguments
         oc_list_for(parser->namedArgs, arg, oc_arg_parser_arg, listElt)
         {
-            if(arg->options.shortName == 0 && arg->type != OC_ARG_PARSER_FLAG && !arg->options.required)
+            if(arg->options.shortName == 0 && arg->type != OC_ARG_PARSER_DEST_FLAG && !arg->options.required)
             {
                 oc_str8 valueName = arg->options.valueName.len ? arg->options.valueName : arg->name;
                 printf(" [--%.*s <%.*s>]", oc_str8_ip(arg->name), oc_str8_ip(valueName));
@@ -544,7 +611,7 @@ void oc_arg_parser_print_help(oc_arg_parser* parser)
                 printf("    -%c,\n", arg->options.shortName);
             }
             printf("    --%.*s", oc_str8_ip(arg->name));
-            if(arg->type != OC_ARG_PARSER_FLAG)
+            if(arg->type != OC_ARG_PARSER_DEST_FLAG)
             {
                 oc_str8 valueName = arg->options.valueName.len ? arg->options.valueName : arg->name;
                 printf(" <%.*s>", oc_str8_ip(valueName));
@@ -618,7 +685,7 @@ int oc_arg_parser_parse_arg(oc_arena* arena, oc_arg_parser* parser, oc_arg_parse
 
     switch(arg->type)
     {
-        case OC_ARG_PARSER_STR8:
+        case OC_ARG_PARSER_DEST_STR8:
         {
             if(arg->isArray)
             {
@@ -632,7 +699,7 @@ int oc_arg_parser_parse_arg(oc_arena* arena, oc_arg_parser* parser, oc_arg_parse
             }
         }
         break;
-        case OC_ARG_PARSER_I64:
+        case OC_ARG_PARSER_DEST_I64:
         {
             char* endptr = 0;
             i64 val = strtoll(valueString.ptr, &endptr, 0);
@@ -656,13 +723,13 @@ int oc_arg_parser_parse_arg(oc_arena* arena, oc_arg_parser* parser, oc_arg_parse
             }
         }
         break;
-        case OC_ARG_PARSER_F64:
+        case OC_ARG_PARSER_DEST_F64:
         {
             char* endptr = 0;
             f64 val = strtod(valueString.ptr, &endptr);
             if(*endptr != '\0')
             {
-                oc_arg_parser_error(parser, ": expected integer argument for option %s%.*s, got %.*s.\n",
+                oc_arg_parser_error(parser, ": expected float argument for option %s%.*s, got %.*s.\n",
                                     positional ? "" : "--",
                                     oc_str8_ip(arg->name),
                                     oc_str8_ip(valueString));
@@ -681,7 +748,91 @@ int oc_arg_parser_parse_arg(oc_arena* arena, oc_arg_parser* parser, oc_arg_parse
         }
         break;
 
-        case OC_ARG_PARSER_FLAG:
+        case OC_ARG_PARSER_DEST_VALUE:
+        {
+            if((valueString.ptr[0] >= '0' && valueString.ptr[0] <= '9')
+               || valueString.ptr[0] == '+'
+               || valueString.ptr[0] == '-')
+            {
+                char* endptr = 0;
+                i64 val = strtoll(valueString.ptr, &endptr, 0);
+                if(*endptr == '.')
+                {
+                    f64 val = strtod(valueString.ptr, &endptr);
+                    if(*endptr != '\0')
+                    {
+                        oc_arg_parser_error(parser, ": couldn't parse generic value argument for option %s%.*s, got %.*s.\n",
+                                            positional ? "" : "--",
+                                            oc_str8_ip(arg->name),
+                                            oc_str8_ip(valueString));
+                        return -1;
+                    }
+                    if(arg->isArray)
+                    {
+                        oc_arg_parser_value_elt* elt = oc_arena_push_type(arena, oc_arg_parser_value_elt);
+                        elt->value = (oc_arg_parser_value){
+                            .kind = OC_ARG_PARSER_F64,
+                            .valF64 = val,
+                        };
+                        oc_list_push_back(&arg->values, &elt->listElt);
+                    }
+                    else
+                    {
+                        *arg->dest.value = (oc_arg_parser_value){
+                            .kind = OC_ARG_PARSER_F64,
+                            .valF64 = val,
+                        };
+                    }
+                }
+                else if(*endptr != '\0')
+                {
+                    oc_arg_parser_error(parser, ": couldn't parse generic value argument for option %s%.*s, got %.*s.\n",
+                                        positional ? "" : "--",
+                                        oc_str8_ip(arg->name),
+                                        oc_str8_ip(valueString));
+                    return -1;
+                }
+
+                if(arg->isArray)
+                {
+                    oc_arg_parser_value_elt* elt = oc_arena_push_type(arena, oc_arg_parser_value_elt);
+                    elt->value = (oc_arg_parser_value){
+                        .kind = OC_ARG_PARSER_I64,
+                        .valI64 = val,
+                    };
+                    oc_list_push_back(&arg->values, &elt->listElt);
+                }
+                else
+                {
+                    *arg->dest.value = (oc_arg_parser_value){
+                        .kind = OC_ARG_PARSER_I64,
+                        .valI64 = val,
+                    };
+                }
+            }
+            else
+            {
+                if(arg->isArray)
+                {
+                    oc_arg_parser_value_elt* elt = oc_arena_push_type(arena, oc_arg_parser_value_elt);
+                    elt->value = (oc_arg_parser_value){
+                        .kind = OC_ARG_PARSER_STR8,
+                        .valStr8 = valueString,
+                    };
+                    oc_list_push_back(&arg->values, &elt->listElt);
+                }
+                else
+                {
+                    *arg->dest.value = (oc_arg_parser_value){
+                        .kind = OC_ARG_PARSER_STR8,
+                        .valStr8 = valueString,
+                    };
+                }
+            }
+        }
+        break;
+
+        case OC_ARG_PARSER_DEST_FLAG:
         {
             oc_arg_parser_error(parser, ": unexpected value for flag option\n");
             return -1;
@@ -700,18 +851,22 @@ void oc_arg_parser_set_result_to_default(oc_arg_parser_arg* arg)
     {
         switch(arg->type)
         {
-            case OC_ARG_PARSER_STR8:
+            case OC_ARG_PARSER_DEST_STR8:
                 *arg->dest.valStr8 = arg->options.defaultValue.valStr8;
                 break;
-            case OC_ARG_PARSER_I64:
+            case OC_ARG_PARSER_DEST_I64:
                 *arg->dest.valI64 = arg->options.defaultValue.valI64;
                 break;
 
-            case OC_ARG_PARSER_F64:
+            case OC_ARG_PARSER_DEST_F64:
                 *arg->dest.valF64 = arg->options.defaultValue.valF64;
                 break;
 
-            case OC_ARG_PARSER_FLAG:
+            case OC_ARG_PARSER_DEST_VALUE:
+                *arg->dest.value = arg->options.defaultValue.value;
+                break;
+
+            case OC_ARG_PARSER_DEST_FLAG:
                 *arg->dest.valBool = arg->options.defaultValue.valBool;
                 break;
         }
@@ -722,7 +877,7 @@ void oc_arg_parser_set_dest_array(oc_arena* arena, oc_arg_parser_arg* arg)
 {
     switch(arg->type)
     {
-        case OC_ARG_PARSER_STR8:
+        case OC_ARG_PARSER_DEST_STR8:
         {
             *arg->dest.arrayStr8.count = arg->count;
             *arg->dest.arrayStr8.values = oc_arena_push_array(arena, oc_str8, arg->count);
@@ -734,7 +889,7 @@ void oc_arg_parser_set_dest_array(oc_arena* arena, oc_arg_parser_arg* arg)
         }
         break;
 
-        case OC_ARG_PARSER_I64:
+        case OC_ARG_PARSER_DEST_I64:
         {
             *arg->dest.arrayI64.count = arg->count;
             *arg->dest.arrayI64.values = oc_arena_push_array(arena, i64, arg->count);
@@ -746,7 +901,7 @@ void oc_arg_parser_set_dest_array(oc_arena* arena, oc_arg_parser_arg* arg)
         }
         break;
 
-        case OC_ARG_PARSER_F64:
+        case OC_ARG_PARSER_DEST_F64:
         {
             *arg->dest.arrayF64.count = arg->count;
             *arg->dest.arrayF64.values = oc_arena_push_array(arena, f64, arg->count);
@@ -758,7 +913,19 @@ void oc_arg_parser_set_dest_array(oc_arena* arena, oc_arg_parser_arg* arg)
         }
         break;
 
-        case OC_ARG_PARSER_FLAG:
+        case OC_ARG_PARSER_DEST_VALUE:
+        {
+            *arg->dest.arrayValue.count = arg->count;
+            *arg->dest.arrayValue.values = oc_arena_push_array(arena, oc_arg_parser_value, arg->count);
+
+            oc_list_for_indexed(arg->values, it, oc_arg_parser_value_elt, listElt)
+            {
+                (*arg->dest.arrayValue.values)[it.index] = it.elt->value;
+            }
+        }
+        break;
+
+        case OC_ARG_PARSER_DEST_FLAG:
             OC_ASSERT("error: unexpected array-value argument for flag type.");
             break;
     }
@@ -823,7 +990,7 @@ int oc_arg_parser_parse(oc_arg_parser* parser, int argc, char** argv)
                             goto end;
                         }
 
-                        if(arg->type == OC_ARG_PARSER_FLAG)
+                        if(arg->type == OC_ARG_PARSER_DEST_FLAG)
                         {
                             if(arg->isArray)
                             {
@@ -895,7 +1062,7 @@ int oc_arg_parser_parse(oc_arg_parser* parser, int argc, char** argv)
                                 goto end;
                             }
 
-                            if(arg->type == OC_ARG_PARSER_FLAG)
+                            if(arg->type == OC_ARG_PARSER_DEST_FLAG)
                             {
                                 //TODO: coalesce with above
                                 if(arg->isArray)
