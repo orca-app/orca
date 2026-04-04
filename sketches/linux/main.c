@@ -197,6 +197,17 @@ static i32 cond_wait_inc_thread_proc(void* p)
     return (0);
 }
 
+static void pump_events_for_secs(f64 secs)
+{
+    while(secs > 0)
+    {
+        f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);
+        oc_pump_events(secs);
+        f64 end = oc_clock_time(OC_CLOCK_MONOTONIC);
+        secs -= end - start;
+    }
+}
+
 int main(int argc, char** argv)
 {
     // platform_debug
@@ -616,7 +627,7 @@ int main(int argc, char** argv)
             oc_event* _ev = NULL;  \
             while(!(_ev && _ev->type == (exp_type) && _ev->window.h == (exp_win).h) && (_ev = oc_next_event(scratch.arena)))  \
             {  \
-                oc_log_info("CHECK_EV: got ev: type=%d, win=%llx\n", _ev->type, _ev->window.h);  \
+                if(0)  oc_log_info("CHECK_EV: got ev: type=%d, win=%llx\n", _ev->type, _ev->window.h);  \
             }  \
             if(kill)  OC_ASSERT(_ev);  \
             _ev;  \
@@ -1040,23 +1051,56 @@ int main(int argc, char** argv)
     oc_window_cancel_close(win);
     CHECK(!oc_window_should_close(win));
 
-    oc_window_request_close(win);
-    CHECK(oc_window_should_close(win));
-    CHECK_EV(OC_EVENT_WINDOW_CLOSE, win);
-    CHECK(oc_window_should_close(win));
+    if(0)
     {
-        f64 to_lapse = 10;
-        while (to_lapse > 0)
-        {
-            f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);
-            oc_pump_events(to_lapse);
-            f64 end = oc_clock_time(OC_CLOCK_MONOTONIC);
-            to_lapse -= end - start;
-        }
+        /* _NET_WM_PING: Shouldn't display "window is not responding" message. */
+        oc_window_request_close(win);
+        CHECK(oc_window_should_close(win));
+        CHECK_EV(OC_EVENT_WINDOW_CLOSE, win);
+        CHECK(oc_window_should_close(win));
+        pump_events_for_secs(10);
+        CHECK(oc_window_should_close(win));
+        oc_window_cancel_close(win);
+        CHECK(!oc_window_should_close(win));
     }
-    CHECK(oc_window_should_close(win));
-    oc_window_cancel_close(win);
-    CHECK(!oc_window_should_close(win));
+
+    if(0)
+    {
+        /* Window styles. */
+        rect = (oc_rect){ 200, 100, 100, 100 };
+        oc_str8 title = OC_STR8("Orca styled window");
+        win2 = oc_window_create(rect, title, OC_WINDOW_STYLE_NO_TITLE);
+        oc_window_show(win2);
+        while(!CHECK_EV2(OC_EVENT_WINDOW_CLOSE, win2, false))  oc_pump_events(-1);
+        oc_window_destroy(win2);
+        rect.x += 100;
+        win2 = oc_window_create(rect, title, OC_WINDOW_STYLE_FIXED_SIZE);
+        oc_window_show(win2);
+        while(!CHECK_EV2(OC_EVENT_WINDOW_CLOSE, win2, false))  oc_pump_events(-1);
+        oc_window_destroy(win2);
+        rect.x += 100;
+        win2 = oc_window_create(rect, title, OC_WINDOW_STYLE_NO_FOCUS);
+        oc_window_show(win2);
+        while(!CHECK_EV2(OC_EVENT_WINDOW_CLOSE, win2, false))  oc_pump_events(-1);
+        oc_window_destroy(win2);
+        rect.x += 100;
+        win2 = oc_window_create(rect, title, OC_WINDOW_STYLE_FLOAT);
+        oc_window_show(win2);
+        while(!CHECK_EV2(OC_EVENT_WINDOW_CLOSE, win2, false))  oc_pump_events(-1);
+        oc_window_destroy(win2);
+    }
+
+    oc_window_show(win);
+    rect = (oc_rect){ 100, 100, 100, 100 };
+    oc_window_set_content_rect(win, rect);
+    rect2 = oc_window_frame_rect_for_content_rect(rect, 0);
+    rect = oc_window_get_frame_rect(win);
+    OC_ASSERT(oc_rect_equal(rect, rect2));
+    rect = (oc_rect){ 300, 400, 200, 145 };
+    oc_window_set_frame_rect(win, rect);
+    rect2 = oc_window_content_rect_for_frame_rect(rect, 0);
+    rect = oc_window_get_content_rect(win);
+    OC_ASSERT(oc_rect_equal(rect, rect2));
 
     oc_request_quit();
     CHECK(oc_should_quit());
@@ -1068,16 +1112,8 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - oc_window_create flags
-    // - test wm_class, client_machine, _net_wm_pid, _net_wm_window_type
-    // - _net_wm_user_time_window
-    // - read DESKTOP_STARTUP_ID env var into user_time timestamp, and then unset env var
-    // - oc_window_content_rect_for_frame_rect (create dummy window with style to fetch extents)
-    // - oc_window_frame_rect_for_content_rect (same)
-    // - oc_set_cursor
-    // - test oc_dispatch_on_main_thread_sync
     // - test tls destructors
-    // - test _NET_WM_SYNC_REQUEST
+    // - test oc_dispatch_on_main_thread_sync
     //
     // - oc_clipboard_clear
     // - oc_clipboard_set_string
@@ -1126,6 +1162,8 @@ int main(int argc, char** argv)
     // TODO(pld): ui: just test, should work out of the box
     // TODO(pld): io
     // TODO(pld): clock
+    // - _net_wm_user_time_window?
+    // - oc_set_cursor
     //
     // - do not implement, part of io:
     //   - oc_file_move

@@ -36,7 +36,7 @@ typedef struct oc_linux_dispatch_sync_request
 
 typedef struct x11_win_id_to_handle
 {
-  u32 winId;
+  xcb_window_t winId;
   oc_window handle;
 } x11_win_id_to_handle;
 
@@ -52,6 +52,7 @@ typedef struct oc_linux_x11
             V(WM_DELETE_WINDOW, 0)  \
             V(WM_PROTOCOLS, 0)  \
             V(WM_STATE, 0)  \
+            V(_MOTIF_WM_HINTS, 0)  \
             V(_NET_ACTIVE_WINDOW, 1)  \
             V(_NET_CLOSE_WINDOW, 1)  \
             V(_NET_FRAME_EXTENTS, 1)  \
@@ -65,6 +66,7 @@ typedef struct oc_linux_x11
             V(_NET_WM_PID, 1)  \
             V(_NET_WM_PING, 1)  \
             V(_NET_WM_STATE, 1)  \
+            V(_NET_WM_STATE_ABOVE, 1)  \
             V(_NET_WM_STATE_MAXIMIZED_HORZ, 1)  \
             V(_NET_WM_STATE_MAXIMIZED_VERT, 1)  \
             V(_NET_WM_SYNC_REQUEST, 1)  \
@@ -79,8 +81,8 @@ typedef struct oc_linux_x11
         ATOM_LIST(DECL_ATOM)
         #undef DECL_ATOM
     } atoms;
-    u32 rootWinId;
-    u32 controlWinId;
+    xcb_window_t rootWinId;
+    xcb_window_t controlWinId;
     u32 winIdToHandleLen;
     x11_win_id_to_handle winIdToHandle[128];
     u8* wmClass;
@@ -147,6 +149,8 @@ typedef struct oc_linux_app_data
     oc_linux_x11 x11;
     oc_pool appCmdUserPool;
     oc_mutex* appCmdUserPoolMutex;
+    oc_condition* pumpedEventsCond;
+    oc_mutex* pumpedEventsMutex;
 } oc_linux_app_data;
 
 typedef enum x11_reponse_type {
@@ -201,6 +205,79 @@ typedef struct x11_wm_hints
     xcb_window_t windowGroup;
 } x11_wm_hints;
 
+typedef enum x11_wm_normal_hints_flags
+{
+    X11_WM_NORMAL_HINTS_USPOSITION = (1 << 0),
+    X11_WM_NORMAL_HINTS_USSIZE = (1 << 1),
+    X11_WM_NORMAL_HINTS_PPOSITION = (1 << 2),
+    X11_WM_NORMAL_HINTS_PSIZE = (1 << 3),
+    X11_WM_NORMAL_HINTS_PMINSIZE = (1 << 4),
+    X11_WM_NORMAL_HINTS_PMAXSIZE = (1 << 5),
+    X11_WM_NORMAL_HINTS_PRESIZEINC = (1 << 6),
+    X11_WM_NORMAL_HINTS_PASPECT = (1 << 7),
+    X11_WM_NORMAL_HINTS_PBASESIZE = (1 << 8),
+    X11_WM_NORMAL_HINTS_PWINGRAVITY = (1 << 9),
+} x11_wm_normal_hints_flags;
+
+typedef struct x11_wm_normal_hints
+{
+    u32 flags;
+    u32 pad[4];
+    i32 min_width;
+    i32 min_height;
+    i32 max_width;
+    i32 max_height;
+    i32 width_inc;
+    i32 height_inc;
+    i32 min_aspect[2];
+    i32 max_aspect[2];
+    i32 base_width;
+    i32 base_height;
+    i32 win_gravity;
+} x11_wm_normal_hints;
+
+typedef enum x11_motif_wm_hints_flags
+{
+    X11_MOTIF_WM_HINTS_FUNCTIONS = (1 << 0),
+    X11_MOTIF_WM_HINTS_DECORATIONS = (1 << 1),
+} x11_motif_wm_hints_flags;
+
+typedef enum x11_motif_wm_hints_functions
+{
+    X11_MOTIF_WM_HINTS_FUNC_ALL = (1 << 0),
+    #if 0
+    X11_MOTIF_WM_HINTS_FUNC_RESIZE = (1 << 1),
+    X11_MOTIF_WM_HINTS_FUNC_MOVE = (1 << 2),
+    X11_MOTIF_WM_HINTS_FUNC_ICONIFY = (1 << 3),
+    X11_MOTIF_WM_HINTS_FUNC_MAXIMIZE = (1 << 4),
+    X11_MOTIF_WM_HINTS_FUNC_CLOSE = (1 << 5),
+    #endif
+} x11_motif_wm_hints_functions;
+
+typedef enum x11_motif_wm_hints_decorations
+{
+    X11_MOTIF_WM_HINTS_DECOR_ALL = (1 << 0),
+    X11_MOTIF_WM_HINTS_DECOR_BORDER = (1 << 1),
+    #if 0
+    X11_MOTIF_WM_HINTS_DECOR_HANDLE = (1 << 2),
+    X11_MOTIF_WM_HINTS_DECOR_TITLE = (1 << 3),
+    X11_MOTIF_WM_HINTS_DECOR_MENU = (1 << 4),
+    X11_MOTIF_WM_HINTS_DECOR_ICONIFY = (1 << 5),
+    X11_MOTIF_WM_HINTS_DECOR_MAXIMIZE = (1 << 6),
+    #endif
+} x11_motif_wm_hints_decorations;
+
+typedef struct x11_motif_wm_hints
+{
+    u32 flags;
+    u32 functions;
+    u32 decorations;
+    #if 0
+    i32 input_mode;
+    u32 status;
+    #endif
+} x11_motif_wm_hints;
+
 typedef struct x11_wm_state
 {
     x11_window_state state;
@@ -211,6 +288,8 @@ typedef enum oc_linux_window_flags
 {
     OC_LINUX_WINDOW_X11_REPARENTED = (1 << 0),
     OC_LINUX_WINDOW_X11_POS_KNOWN = (1 << 1),
+    OC_LINUX_WINDOW_X11_FRAME_EXTENTS = (1 << 2),
+    OC_LINUX_WINDOW_EMIT_EVENTS = (1 << 3),
 } oc_linux_window_flags;
 
 typedef enum oc_linux_window_focus
@@ -222,7 +301,7 @@ typedef enum oc_linux_window_focus
 
 typedef struct oc_linux_window_data
 {
-    u32 x11Id;
+    xcb_window_t x11Id;
     x11_window_state state;
     xcb_atom_t netState[32];
     u32 netStateLen;
@@ -241,6 +320,7 @@ typedef struct oc_linux_window_data
     u32 netWmSyncRequestCounterId;
     u64 netWmSyncRequestUpdateValue;
     u32 netWmDesktop;
+    xcb_generic_event_t* pendingConfigureNotify;
 } oc_linux_window_data;
 
 #define OC_PLATFORM_WINDOW_DATA oc_linux_window_data linux;

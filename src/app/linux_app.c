@@ -69,6 +69,25 @@ void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
     xcb_send_event(conn, false, linux->x11.controlWinId, 0, (const char*)&msg);
 }
 
+static void oc_linux_queue_event(oc_event* event)
+{
+    bool doQueue = false;
+    if(oc_window_is_nil(event->window))
+    {
+        doQueue = true;
+    }
+    else
+    {
+        oc_window_data* windowData = oc_window_ptr_from_handle(event->window);
+        OC_ASSERT(windowData);
+        doQueue = windowData->linux.flags & OC_LINUX_WINDOW_EMIT_EVENTS;
+    }
+    if(doQueue)
+    {
+        oc_queue_event(event);
+    }
+}
+
 void oc_init(void)
 {
     if(oc_appData.init)
@@ -87,6 +106,10 @@ void oc_init(void)
     oc_pool_init(&linux->appCmdUserPool, sizeof(oc_linux_app_cmd_user));
     linux->appCmdUserPoolMutex = oc_mutex_create();
     OC_ASSERT(linux->appCmdUserPoolMutex);
+    linux->pumpedEventsCond = oc_condition_create();
+    OC_ASSERT(linux->pumpedEventsCond);
+    linux->pumpedEventsMutex = oc_mutex_create();
+    OC_ASSERT(linux->pumpedEventsMutex);
 
     oc_arena_scope scratch = oc_scratch_begin();
 
@@ -280,7 +303,7 @@ void oc_init(void)
         {
             if(!strcmp(argv[i], "-name") && i + 1 < argc)
             {
-                instanceName = OC_STR8(argv[i]);
+                instanceName = OC_STR8(argv[i + 1]);
                 break;
             }
         }
@@ -322,6 +345,39 @@ void oc_init(void)
     int ok = gethostname((char*)x11->wmClientMachine, 256);
     OC_ASSERT(ok == 0);
     x11->wmClientMachineLen = strlen((char*)x11->wmClientMachine) + 1;
+
+    const char *startupId = getenv("DESKTOP_STARTUP_ID");
+    if(0 && startupId)
+    {
+        oc_str8 needle = OC_STR8("_TIME");
+        oc_str8 haystack = OC_STR8(startupId);
+        if(haystack.len > needle.len)
+        {
+            u64 i = haystack.len - needle.len - 1;
+            oc_str8 slice = {0};
+            for(; i != U64_MAX; i--)
+            {
+                slice = oc_str8_slice(haystack, i, haystack.len);
+                if(oc_str8_eq(slice, needle))  break;
+            }
+            if(i != U64_MAX)
+            {
+                OC_ASSERT(slice.ptr[slice.len] == '\0');
+                char *end = NULL;
+                i32 n = strtol(slice.ptr, &end, 10);
+                if(n > 0 && (n < I32_MAX || errno != ERANGE) && end == slice.ptr + slice.len)
+                {
+                    UNUSED xcb_timestamp_t timestamp = (xcb_timestamp_t)n;
+                    //TODO(pld): use as _NET_WM_USER_TIME value on first window?
+                }
+            }
+        }
+    }
+    if(0)
+    {
+        ok = unsetenv("DESKTOP_STARTUP_ID");
+        OC_ASSERT(ok == 0);
+    }
 
     // TODO(pld): aborts instead of OC_ASSERT, with errno for relevant cases
     // TODO(pld): after the above, create window and map window
@@ -415,9 +471,8 @@ static void window_update_last_user_activity(xcb_connection_t* conn, oc_window w
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
     {
-        xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-            windowData->linux.x11Id, x11->atoms._NET_WM_USER_TIME,
-            XCB_ATOM_CARDINAL, 32, 1, &ts);
+        xcb_change_property(conn, XCB_PROP_MODE_REPLACE, windowData->linux.x11Id,
+            x11->atoms._NET_WM_USER_TIME, XCB_ATOM_CARDINAL, 32, 1, &ts);
         windowData->linux.netWmUserTime = ts;
     }
 }
@@ -553,7 +608,7 @@ static void oc_pump_events_main_thread(f64 timeout)
         while(true)
         {
             int ms = 0;
-            if(end < -1.0)
+            if(end < 0.0)
             {
                 ms = -1;
             }
@@ -578,6 +633,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             ev = xcb_poll_for_event(conn);
         }
     }
+    xcb_generic_event_t* forceNextEvent = NULL;
     while(ev)
     {
         const char* type = "(unk)";
@@ -619,12 +675,19 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
-                windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED;
-                oc_event event;
-                memz(&event, sizeof(event));
-                event.type = OC_EVENT_WINDOW_FOCUS;
-                event.window = window;
-                oc_queue_event(&event);
+                if(windowData->style & OC_WINDOW_STYLE_NO_FOCUS)
+                {
+                    windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED_IGNORE_INPUTS;
+                }
+                else
+                {
+                    windowData->linux.focus = OC_LINUX_WINDOW_FOCUSED;
+                    oc_event event;
+                    memz(&event, sizeof(event));
+                    event.type = OC_EVENT_WINDOW_FOCUS;
+                    event.window = window;
+                    oc_linux_queue_event(&event);
+                }
             }
         } break;
         case XCB_FOCUS_OUT:
@@ -644,7 +707,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     memz(&event, sizeof(event));
                     event.type = OC_EVENT_WINDOW_UNFOCUS;
                     event.window = window;
-                    oc_queue_event(&event);
+                    oc_linux_queue_event(&event);
                 }
             }
         } break;
@@ -702,7 +765,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     oc_event event;
                     memz(&event, sizeof(event));
                     event.type = OC_EVENT_QUIT;
-                    oc_queue_event(&event);
+                    oc_linux_queue_event(&event);
                 }
             }
         } break;
@@ -742,9 +805,18 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_window window = window_handle_from_x11_id(noti->window);
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(!windowData)  break;
+            if(!(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS))
+            {
+                free(windowData->linux.pendingConfigureNotify);
+                windowData->linux.pendingConfigureNotify = ev;
+                ev = NULL;
+                break;
+            }
+            OC_ASSERT(!windowData->linux.pendingConfigureNotify);
             oc_rect oldRect = windowData->linux.rect;
+            bool isWithdrawn = windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN;
 
-            if(synthetic || !(windowData->linux.flags & OC_LINUX_WINDOW_X11_REPARENTED))
+            if((!isWithdrawn && (synthetic || !(windowData->linux.flags & OC_LINUX_WINDOW_X11_REPARENTED))) || (isWithdrawn && !synthetic))
             {
                 windowData->linux.rect.x = noti->x;
                 windowData->linux.rect.y = noti->y;
@@ -789,25 +861,24 @@ static void oc_pump_events_main_thread(f64 timeout)
                 if(didResize)
                 {
                     event.type = OC_EVENT_WINDOW_RESIZE;
-                    oc_queue_event(&event);
+                    oc_linux_queue_event(&event);
                 }
                 else if(didMove)
                 {
                     event.type = OC_EVENT_WINDOW_MOVE;
-                    oc_queue_event(&event);
+                    oc_linux_queue_event(&event);
                 }
-            }
-
-            //FIXME(pld): after repainting only
-            if(windowData->linux.netWmSyncRequestUpdateValue)
-            {
-                xcb_sync_counter_t id = windowData->linux.netWmSyncRequestCounterId;
-                xcb_sync_int64_t val =
+                //FIXME(pld): after repainting only
+                if(windowData->linux.netWmSyncRequestUpdateValue)
                 {
-                    .lo = (u32)(windowData->linux.netWmSyncRequestUpdateValue >>  0 & 0xFFFFFFFF),
-                    .hi = (i32)(windowData->linux.netWmSyncRequestUpdateValue >> 32 & 0xFFFFFFFF),
-                };
-                xcb_sync_set_counter(conn, id, val);
+                    xcb_sync_counter_t id = windowData->linux.netWmSyncRequestCounterId;
+                    xcb_sync_int64_t val =
+                    {
+                        .lo = (u32)(windowData->linux.netWmSyncRequestUpdateValue >>  0 & 0xFFFFFFFF),
+                        .hi = (i32)(windowData->linux.netWmSyncRequestUpdateValue >> 32 & 0xFFFFFFFF),
+                    };
+                    xcb_sync_set_counter(conn, id, val);
+                }
             }
         } break;
         case XCB_CONFIGURE_REQUEST:
@@ -863,7 +934,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                         memz(&event, sizeof(event));
                         event.type = OC_EVENT_WINDOW_HIDE;
                         event.window = window;
-                        oc_queue_event(&event);
+                        oc_linux_queue_event(&event);
                     }
                 }
                 else
@@ -1087,10 +1158,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                     OC_ASSERT(windowData);
                     if(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
                     {
-                        static const x11_wm_hints wmHints =
+                        x11_wm_hints wmHints =
                         {
                             .flags = X11_WM_HINTS_INPUT_HINT | X11_WM_HINTS_STATE_HINT,
-                            .input = true,
+                            .input = !(windowData->style & OC_WINDOW_STYLE_NO_FOCUS),
                             .initialState = X11_WINDOW_STATE_NORMAL,
                         };
                         xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
@@ -1100,6 +1171,24 @@ static void oc_pump_events_main_thread(f64 timeout)
                     xcb_delete_property(conn, windowData->linux.x11Id,
                         linux->x11.atoms._NET_WM_USER_TIME);
                     xcb_map_window(conn, windowData->linux.x11Id);
+                    if(windowData->style & OC_WINDOW_STYLE_FLOAT)
+                    {
+                        xcb_client_message_event_t msg =
+                        {
+                            .response_type = XCB_CLIENT_MESSAGE,
+                            .format = 32,
+                            .window = windowData->linux.x11Id,
+                            .type = linux->x11.atoms._NET_WM_STATE,
+                            .data.data32[0] = X11_NET_WM_STATE_ADD,
+                            .data.data32[1] = linux->x11.atoms._NET_WM_STATE_ABOVE,
+                            .data.data32[2] = 0,
+                            .data.data32[3] = X11_EWMH_SOURCE_INDICATION_NORMAL,
+                        };
+                        xcb_send_event(conn, false, linux->x11.rootWinId,
+                            XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
+                            XCB_EVENT_MASK_SUBSTRUCTURE_REDIRECT,
+                            (const char *)&msg);
+                    }
                     xcb_change_property(conn, XCB_PROP_MODE_APPEND,
                         windowData->linux.x11Id, linux->x11.atoms._NET_WM_USER_TIME,
                         XCB_ATOM_CARDINAL, 32, 0, NULL);
@@ -1125,10 +1214,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                     OC_ASSERT(windowData);
                     if(windowData->linux.state == X11_WINDOW_STATE_WITHDRAWN)
                     {
-                        static const x11_wm_hints wmHints =
+                        x11_wm_hints wmHints =
                         {
                             .flags = X11_WM_HINTS_INPUT_HINT | X11_WM_HINTS_STATE_HINT,
-                            .input = true,
+                            .input = !(windowData->style & OC_WINDOW_STYLE_NO_FOCUS),
                             .initialState = X11_WINDOW_STATE_ICONIC,
                         };
                         xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
@@ -1227,7 +1316,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                         memz(&event, sizeof(event));
                         event.type = OC_EVENT_WINDOW_UNFOCUS;
                         event.window = window;
-                        oc_queue_event(&event);
+                        oc_linux_queue_event(&event);
                     }
                 } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_SEND_TO_BACK:
@@ -1253,77 +1342,113 @@ static void oc_pump_events_main_thread(f64 timeout)
                 case OC_X11_CLIENT_MESSAGE_WINDOW_SET_FRAME_RECT:
                 {
                     OC_ASSERT(windowData);
-                    oc_rect rect = u->setFrameRect.rect;
-                    rect.w -= windowData->linux.frameLeft + windowData->linux.frameRight;
-                    rect.h -= windowData->linux.frameTop + windowData->linux.frameBottom;
-                    xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
-                        XCB_CONFIG_WINDOW_Y |
-                        XCB_CONFIG_WINDOW_WIDTH |
-                        XCB_CONFIG_WINDOW_HEIGHT |
-                        0;
-                    xcb_configure_window_value_list_t config =
+                    if(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
                     {
-                        .x = (i32)rect.x,
-                        .y = (i32)rect.y,
-                        .width = (u32)rect.w,
-                        .height = (u32)rect.h,
-                    };
-                    xcb_void_cookie_t cookie =
-                        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
-                    windowData->linux.rectNext = (u16)cookie.sequence;
+                        oc_rect rect = u->setFrameRect.rect;
+                        rect.w -= windowData->linux.frameLeft + windowData->linux.frameRight;
+                        rect.h -= windowData->linux.frameTop + windowData->linux.frameBottom;
+                        xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
+                            XCB_CONFIG_WINDOW_Y |
+                            XCB_CONFIG_WINDOW_WIDTH |
+                            XCB_CONFIG_WINDOW_HEIGHT |
+                            0;
+                        xcb_configure_window_value_list_t config =
+                        {
+                            .x = (i32)rect.x,
+                            .y = (i32)rect.y,
+                            .width = (u32)rect.w,
+                            .height = (u32)rect.h,
+                        };
+                        xcb_void_cookie_t cookie =
+                            xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                        windowData->linux.rectNext = (u16)cookie.sequence;
+                    }
+                    else
+                    {
+                        /* Requeue until we get the frame extents. */
+                        oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                            .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_SET_FRAME_RECT,
+                            .window = window,
+                            .user = *u,
+                        });
+                    }
                 } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_SET_CONTENT_RECT:
                 {
                     OC_ASSERT(windowData);
-                    oc_rect rect = u->setContentRect.rect;
-                    rect.x -= windowData->linux.frameLeft;
-                    rect.y -= windowData->linux.frameTop;
-                    xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
-                        XCB_CONFIG_WINDOW_Y |
-                        XCB_CONFIG_WINDOW_WIDTH |
-                        XCB_CONFIG_WINDOW_HEIGHT |
-                        0;
-                    xcb_configure_window_value_list_t config =
+                    if(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
                     {
-                        .x = (i32)rect.x,
-                        .y = (i32)rect.y,
-                        .width = (u32)rect.w,
-                        .height = (u32)rect.h,
-                    };
-                    xcb_void_cookie_t cookie =
-                        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
-                    windowData->linux.rectNext = (u16)cookie.sequence;
+                        oc_rect rect = u->setContentRect.rect;
+                        rect.x -= windowData->linux.frameLeft;
+                        rect.y -= windowData->linux.frameTop;
+                        xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
+                            XCB_CONFIG_WINDOW_Y |
+                            XCB_CONFIG_WINDOW_WIDTH |
+                            XCB_CONFIG_WINDOW_HEIGHT |
+                            0;
+                        xcb_configure_window_value_list_t config =
+                        {
+                            .x = (i32)rect.x,
+                            .y = (i32)rect.y,
+                            .width = (u32)rect.w,
+                            .height = (u32)rect.h,
+                        };
+                        xcb_void_cookie_t cookie =
+                            xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                        windowData->linux.rectNext = (u16)cookie.sequence;
+                    }
+                    else
+                    {
+                        /* Requeue until we get the frame extents. */
+                        oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                            .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_SET_CONTENT_RECT,
+                            .window = window,
+                            .user = *u,
+                        });
+                    }
                 } break;
                 case OC_X11_CLIENT_MESSAGE_WINDOW_CENTER:
                 {
                     OC_ASSERT(windowData);
                     OC_ASSERT(windowData->linux.netWmDesktop < linux->x11.netNumberOfDesktops);
                     OC_ASSERT(linux->x11.netWorkareaLen == linux->x11.netNumberOfDesktops);
-                    u32 desktop = windowData->linux.netWmDesktop;
-                    oc_rect workarea = linux->x11.netWorkarea[desktop];
-                    oc_rect rect = {0};
-                    rect.wh = u->center.contentWh;
-                    rect.xy = oc_vec2_add(workarea.xy, oc_vec2_mul(0.5, workarea.wh));
-                    rect.xy = oc_vec2_add(rect.xy, oc_vec2_mul(-0.5, rect.wh));
-                    /* Similar to MacOS, "somewhat above center vertically". */
-                    //rect.y -= workarea.y * 0.1;
-                    rect.x -= windowData->linux.frameLeft;
-                    rect.y -= windowData->linux.frameTop;
-                    xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
-                        XCB_CONFIG_WINDOW_Y |
-                        XCB_CONFIG_WINDOW_WIDTH |
-                        XCB_CONFIG_WINDOW_HEIGHT |
-                        0;
-                    xcb_configure_window_value_list_t config =
+                    if(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
                     {
-                        .x = (i32)rect.x,
-                        .y = (i32)rect.y,
-                        .width = (u32)rect.w,
-                        .height = (u32)rect.h,
-                    };
-                    xcb_void_cookie_t cookie =
-                        xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
-                    windowData->linux.rectNext = (u16)cookie.sequence;
+                        u32 desktop = windowData->linux.netWmDesktop;
+                        oc_rect workarea = linux->x11.netWorkarea[desktop];
+                        oc_rect rect = {0};
+                        rect.wh = u->center.contentWh;
+                        rect.xy = oc_vec2_add(workarea.xy, oc_vec2_mul(0.5, workarea.wh));
+                        rect.xy = oc_vec2_add(rect.xy, oc_vec2_mul(-0.5, rect.wh));
+                        //FIXME(pld): Do something similar as on MacOS, "somewhat above center vertically"?
+                        //rect.y -= workarea.y * 0.1;
+                        rect.x -= (windowData->linux.frameLeft + windowData->linux.frameRight) / 2;
+                        rect.y -= (windowData->linux.frameTop + windowData->linux.frameBottom) / 2;
+                        xcb_config_window_t config_mask = XCB_CONFIG_WINDOW_X |
+                            XCB_CONFIG_WINDOW_Y |
+                            XCB_CONFIG_WINDOW_WIDTH |
+                            XCB_CONFIG_WINDOW_HEIGHT |
+                            0;
+                        xcb_configure_window_value_list_t config =
+                        {
+                            .x = (i32)rect.x,
+                            .y = (i32)rect.y,
+                            .width = (u32)rect.w,
+                            .height = (u32)rect.h,
+                        };
+                        xcb_void_cookie_t cookie =
+                            xcb_configure_window_aux(conn, windowData->linux.x11Id, config_mask, &config);
+                        windowData->linux.rectNext = (u16)cookie.sequence;
+                    }
+                    else
+                    {
+                        /* Requeue until we get the frame extents. */
+                        oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                            .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_CENTER,
+                            .window = window,
+                            .user = *u,
+                        });
+                    }
                 } break;
                 case OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC:
                 {
@@ -1371,6 +1496,9 @@ static void oc_pump_events_main_thread(f64 timeout)
                         windowData->linux.frameRight = (f32)widths[1];
                         windowData->linux.frameTop = (f32)widths[2];
                         windowData->linux.frameBottom = (f32)widths[3];
+                        windowData->linux.flags |= OC_LINUX_WINDOW_X11_FRAME_EXTENTS;
+                        forceNextEvent = windowData->linux.pendingConfigureNotify;
+                        windowData->linux.pendingConfigureNotify = NULL;
                     }
                     else if(prop == linux->x11.atoms._NET_NUMBER_OF_DESKTOPS)
                     {
@@ -1433,7 +1561,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                                 memz(&event, sizeof(event));
                                 event.type = OC_EVENT_WINDOW_SHOW;
                                 event.window = window;
-                                oc_queue_event(&event);
+                                oc_linux_queue_event(&event);
                             }
                             else if(oldState == X11_WINDOW_STATE_NORMAL)
                             {
@@ -1441,7 +1569,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                                 memz(&event, sizeof(event));
                                 event.type = OC_EVENT_WINDOW_HIDE;
                                 event.window = window;
-                                oc_queue_event(&event);
+                                oc_linux_queue_event(&event);
                             }
                         }
                     }
@@ -1467,33 +1595,56 @@ static void oc_pump_events_main_thread(f64 timeout)
                 case OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT:
                 {
                     OC_ASSERT(windowData);
-                    xcb_translate_coordinates_cookie_t cookie = u->translateCoordinatesToRoot.cookie;
-                    u16 since = u->translateCoordinatesToRoot.since;
-                    xcb_translate_coordinates_reply_t* reply = NULL;
-                    reply = xcb_translate_coordinates_reply(conn, cookie, NULL);
-                    OC_ASSERT(reply);
-                    OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
-                    OC_ASSERT(reply->same_screen);
-                    OC_ASSERT(reply->child != XCB_NONE);
-                    if(since == windowData->linux.rectSince)
+                    if(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
                     {
-                        windowData->linux.rect.x = (f32)reply->dst_x;
-                        windowData->linux.rect.y = (f32)reply->dst_y;
-                        windowData->linux.flags |= OC_LINUX_WINDOW_X11_POS_KNOWN;
+                        xcb_translate_coordinates_cookie_t cookie = u->translateCoordinatesToRoot.cookie;
+                        u16 since = u->translateCoordinatesToRoot.since;
+                        xcb_translate_coordinates_reply_t* reply = NULL;
+                        reply = xcb_translate_coordinates_reply(conn, cookie, NULL);
+                        OC_ASSERT(reply);
+                        OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+                        OC_ASSERT(reply->same_screen);
+                        OC_ASSERT(reply->child != XCB_NONE);
+                        if(since == windowData->linux.rectSince)
+                        {
+                            windowData->linux.rect.x = (f32)reply->dst_x;
+                            windowData->linux.rect.y = (f32)reply->dst_y;
+                            windowData->linux.flags |= OC_LINUX_WINDOW_X11_POS_KNOWN;
 
-                        oc_event event;
-                        memz(&event, sizeof(event));
-                        event.type = OC_EVENT_WINDOW_RESIZE;
-                        event.window = window;
-                        event.move.content = windowData->linux.rect;
-                        event.move.frame = event.move.content;
-                        event.move.frame.x -= windowData->linux.frameLeft;
-                        event.move.frame.y -= windowData->linux.frameTop;
-                        event.move.frame.w += windowData->linux.frameLeft + windowData->linux.frameRight;
-                        event.move.frame.h += windowData->linux.frameTop + windowData->linux.frameBottom;
-                        oc_queue_event(&event);
+                            oc_event event;
+                            memz(&event, sizeof(event));
+                            event.type = OC_EVENT_WINDOW_RESIZE;
+                            event.window = window;
+                            event.move.content = windowData->linux.rect;
+                            event.move.frame = event.move.content;
+                            event.move.frame.x -= windowData->linux.frameLeft;
+                            event.move.frame.y -= windowData->linux.frameTop;
+                            event.move.frame.w += windowData->linux.frameLeft + windowData->linux.frameRight;
+                            event.move.frame.h += windowData->linux.frameTop + windowData->linux.frameBottom;
+                            oc_linux_queue_event(&event);
+                            //FIXME(pld): after repainting only
+                            if(windowData->linux.netWmSyncRequestUpdateValue)
+                            {
+                                xcb_sync_counter_t id = windowData->linux.netWmSyncRequestCounterId;
+                                xcb_sync_int64_t val =
+                                {
+                                    .lo = (u32)(windowData->linux.netWmSyncRequestUpdateValue >>  0 & 0xFFFFFFFF),
+                                    .hi = (i32)(windowData->linux.netWmSyncRequestUpdateValue >> 32 & 0xFFFFFFFF),
+                                };
+                                xcb_sync_set_counter(conn, id, val);
+                            }
+                        }
+                        free(reply);
                     }
-                    free(reply);
+                    else
+                    {
+                        /* Requeue until we get the frame extents. */
+                        oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                            .cmd = OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT,
+                            .window = window,
+                            .user = *u,
+                        });
+                    }
                 } break;
                 default:
                 {
@@ -1525,11 +1676,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                     memz(&event, sizeof(event));
                     event.type = OC_EVENT_WINDOW_CLOSE;
                     event.window = window;
-                    oc_queue_event(&event);
+                    oc_linux_queue_event(&event);
                 }
                 else if(protocol == linux->x11.atoms._NET_WM_PING)
                 {
-                    oc_log_info("_NET_WM_PING!\n");
                     noti->window = linux->x11.rootWinId;
                     xcb_send_event(conn, false, linux->x11.rootWinId,
                         XCB_EVENT_MASK_SUBSTRUCTURE_NOTIFY |
@@ -1555,34 +1705,53 @@ static void oc_pump_events_main_thread(f64 timeout)
         case XCB_MAPPING_NOTIFY:
             break;
         }
-        //log_event(ev);
+        if(ev)  log_event(ev);
         free(ev);
-        ev = xcb_poll_for_event(conn);
+        if(forceNextEvent)
+        {
+            ev = forceNextEvent, forceNextEvent = NULL;
+        }
+        else
+        {
+            ev = xcb_poll_for_event(conn);
+        }
     }
     // TODO(pld): handle I/O errors
     if(!ev)  OC_ASSERT(!xcb_connection_has_error(conn));
+    {
+        int ok = oc_mutex_lock(linux->pumpedEventsMutex);
+        OC_ASSERT(ok == 0);
+        ok = oc_condition_broadcast(linux->pumpedEventsCond);
+        OC_ASSERT(ok == 0);
+        ok = oc_mutex_unlock(linux->pumpedEventsMutex);
+        OC_ASSERT(ok == 0);
+    }
     return;
 }
 
-oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
+//FIXME(pld): contentRect.wh can't be zero
+oc_window oc_window_create_linux(oc_rect contentRect, oc_str8 title, oc_window_style style, bool emitEvents)
 {
-    // TODO(pld): style
-    // to support:
-    // OC_WINDOW_STYLE_NO_TITLE
-    // - _OB_WM_ACTION_UNDECORATE, _OB_WM_STATE_UNDECORATED
-    // OC_WINDOW_STYLE_FIXED_SIZE
-    // - wm_normal_hints min_width=max_width, min_height=max_height
-    // OC_WINDOW_STYLE_FLOAT
-    // - set _NET_WM_ACTION_ABOVE
-    // unsupported:
-    // OC_WINDOW_STYLE_NO_CLOSE
-    // OC_WINDOW_STYLE_NO_MINIFY
-    // OC_WINDOW_STYLE_NO_FOCUS
-    // OC_WINDOW_STYLE_POPUPMENU
-    // - set _NET_WM_WINDOW_TYPE_POPUP_MENU, override-redirect?
-    // OC_WINDOW_STYLE_NO_BUTTONS
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+
+    if(style & OC_WINDOW_STYLE_NO_CLOSE)
+    {
+        oc_log_warning("Unsupported window style: OC_WINDOW_STYLE_NO_CLOSE\n");
+    }
+    if(style & OC_WINDOW_STYLE_NO_MINIFY)
+    {
+        oc_log_warning("Unsupported window style: OC_WINDOW_STYLE_NO_MINIFY\n");
+    }
+    if(style & OC_WINDOW_STYLE_NO_BUTTONS)
+    {
+        oc_log_warning("Unsupported window style: OC_WINDOW_STYLE_NO_BUTTONS\n");
+    }
+    if(style & OC_WINDOW_STYLE_POPUPMENU)
+    {
+        // set _NET_WM_WINDOW_TYPE_POPUP_MENU, override-redirect, setinputfocus to menu when other windows get focus-in?
+        oc_log_warning("Unsupported window style: OC_WINDOW_STYLE_POPUPMENU\n");
+    }
 
     u32 winId = xcb_generate_id(conn);
     int ok = oc_mutex_lock(linux->windowPoolMutex);
@@ -1668,28 +1837,46 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
         contentRect.x, contentRect.y, contentRect.w, contentRect.h,
         0, XCB_WINDOW_CLASS_INPUT_OUTPUT, XCB_COPY_FROM_PARENT,
         attributesMask, &attributes);
-    static const x11_wm_hints wmHints =
+    x11_wm_hints wmHints =
     {
         .flags = X11_WM_HINTS_INPUT_HINT | X11_WM_HINTS_STATE_HINT,
-        .input = true,
+        .input = !(style & OC_WINDOW_STYLE_NO_FOCUS),
         .initialState = X11_WINDOW_STATE_NORMAL,
     };
-    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-        winId, XCB_ATOM_WM_HINTS,
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, XCB_ATOM_WM_HINTS,
         XCB_ATOM_WM_HINTS, 32, sizeof(wmHints) / 4, &wmHints);
-    static const u32 wmNormalHints[18] =
+    x11_wm_normal_hints wmNormalHints =
     {
-        /* flags: PPosition, PSize, PResizeInc, PWinGravity */
-        [0] = 4 | 8 | 64 | 512,
-        /* width_inc, height_inc */
-        [9] = 1,
-        [10] = 1,
-        /* win_gravity */
-        [17] = XCB_GRAVITY_NORTH_WEST,
+        .flags = X11_WM_NORMAL_HINTS_PPOSITION | X11_WM_NORMAL_HINTS_PSIZE |
+            X11_WM_NORMAL_HINTS_PRESIZEINC | X11_WM_NORMAL_HINTS_PWINGRAVITY,
+        .width_inc = 1,
+        .height_inc = 1,
+        /* The window manager will interpret configure requests' x and y as the
+         * frame top-left coordinates, width and height as the content
+         * dimensions. */
+        .win_gravity = XCB_GRAVITY_NORTH_WEST,
     };
-    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-        winId, XCB_ATOM_WM_NORMAL_HINTS,
+    if(style & OC_WINDOW_STYLE_FIXED_SIZE)
+    {
+        wmNormalHints.flags |= X11_WM_NORMAL_HINTS_PMINSIZE | X11_WM_NORMAL_HINTS_PMAXSIZE;
+        wmNormalHints.min_width = (i32)contentRect.w;
+        wmNormalHints.min_height = (i32)contentRect.h;
+        wmNormalHints.max_width = (i32)contentRect.w;
+        wmNormalHints.max_height = (i32)contentRect.h;
+    }
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, XCB_ATOM_WM_NORMAL_HINTS,
         XCB_ATOM_WM_SIZE_HINTS, 32, sizeof(wmNormalHints) / 4, &wmNormalHints);
+    if(style & OC_WINDOW_STYLE_NO_TITLE)
+    {
+        static const x11_motif_wm_hints motifWmHints =
+        {
+            .flags = X11_MOTIF_WM_HINTS_DECORATIONS,
+            .decorations = X11_MOTIF_WM_HINTS_DECOR_BORDER,
+        };
+        xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId,
+            linux->x11.atoms._MOTIF_WM_HINTS, linux->x11.atoms._MOTIF_WM_HINTS,
+            32, sizeof(motifWmHints) / 4, &motifWmHints);
+    }
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, XCB_ATOM_WM_CLASS,
         XCB_ATOM_STRING, 8, linux->x11.wmClassLen, linux->x11.wmClass);
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, XCB_ATOM_WM_CLIENT_MACHINE,
@@ -1708,7 +1895,7 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
     OC_STATIC_ASSERT(sizeof(xcb_atom_t) == 4);
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, linux->x11.atoms.WM_PROTOCOLS,
         XCB_ATOM_ATOM, 32, oc_array_size(protocols), protocols);
-    u32 counterId = xcb_generate_id(conn);
+    xcb_sync_counter_t counterId = xcb_generate_id(conn);
     xcb_sync_create_counter(conn, counterId, (xcb_sync_int64_t){0});
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, linux->x11.atoms._NET_WM_SYNC_REQUEST_COUNTER,
         XCB_ATOM_CARDINAL, 32, 1, &counterId);
@@ -1726,10 +1913,18 @@ oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style s
 
     windowData->linux.x11Id = winId;
     windowData->linux.netWmSyncRequestCounterId = counterId;
+    windowData->linux.rect = contentRect;
+    windowData->linux.flags |= OC_LINUX_WINDOW_X11_POS_KNOWN;
+    if(emitEvents)  windowData->linux.flags |= OC_LINUX_WINDOW_EMIT_EVENTS;
+    windowData->style = style;
 
     oc_window_set_title(window, title);
 
     return (window);
+}
+oc_window oc_window_create(oc_rect contentRect, oc_str8 title, oc_window_style style)
+{
+    return (oc_window_create_linux(contentRect, title, style, true));
 }
 
 void oc_window_destroy(oc_window window)
@@ -2043,8 +2238,10 @@ static i32 oc_window_get_frame_rect_dispatched(void* user)
     if(windowData)
     {
         if(windowData->linux.rectSince >= windowData->linux.rectNext &&
-            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN)
+            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN &&
+            windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
         {
+            OC_ASSERT(!windowData->linux.pendingConfigureNotify);
             oc_rect rect = windowData->linux.rect;
             rect.x -= windowData->linux.frameLeft;
             rect.y -= windowData->linux.frameTop;
@@ -2088,8 +2285,10 @@ static i32 oc_window_get_content_rect_dispatched(void* user)
     if(windowData)
     {
         if(windowData->linux.rectSince >= windowData->linux.rectNext &&
-            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN)
+            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN &&
+            windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
         {
+            OC_ASSERT(!windowData->linux.pendingConfigureNotify);
             u->rect = windowData->linux.rect;
             return (1);
         }
@@ -2126,15 +2325,50 @@ void oc_window_center(oc_window window)
     });
 }
 
-oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_window_style style)
+typedef struct oc_window_frame_rect_for_content_rect_dispatched_user
 {
-    oc_unimplemented();
-    return ((oc_rect){0});
+    oc_window window;
+    oc_rect rect;
+    f64 c;
+} oc_window_frame_rect_for_content_rect_dispatched_user;
+static i32 oc_window_frame_rect_for_content_rect_dispatched(void* user)
+{
+    oc_window_frame_rect_for_content_rect_dispatched_user* u = user;
+    oc_window_data* windowData = oc_window_ptr_from_handle(u->window);
+    if(windowData)
+    {
+        if(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
+        {
+            f64 c = u->c;
+            if(c == 0.0)  c = 1.0;
+            u->rect.x -= windowData->linux.frameLeft * c;
+            u->rect.y -= windowData->linux.frameTop * c;
+            u->rect.w += (windowData->linux.frameLeft + windowData->linux.frameRight) * c;
+            u->rect.h += (windowData->linux.frameTop + windowData->linux.frameBottom) * c;
+            return (1);
+        }
+        else
+        {
+            return (0);
+        }
+    }
+    return (1);
 }
 oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_style style)
 {
-    oc_unimplemented();
-    return ((oc_rect){0});
+    oc_window window = oc_window_create_linux((oc_rect){0,0,1,1}, OC_STR8("Orca - Measuring window"), style, false);
+    oc_window_frame_rect_for_content_rect_dispatched_user u = { .window = window, .rect = contentRect };
+    while(!oc_dispatch_on_main_thread_sync(oc_window_frame_rect_for_content_rect_dispatched, &u));
+    oc_window_destroy(window);
+    return (u.rect);
+}
+oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_window_style style)
+{
+    oc_window window = oc_window_create_linux((oc_rect){0,0,1,1}, OC_STR8("Orca - Measuring window"), style, false);
+    oc_window_frame_rect_for_content_rect_dispatched_user u = { .window = window, .rect = frameRect, .c = -1.0 };
+    while(!oc_dispatch_on_main_thread_sync(oc_window_frame_rect_for_content_rect_dispatched, &u));
+    oc_window_destroy(window);
+    return (u.rect);
 }
 
 static void oc_linux_dispatch_sync_request_tls_destructor(void* user)
@@ -2230,16 +2464,37 @@ i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
     return (res.retVal);
 }
 
-static i32 oc_dispatch_noop(void* user)
-{
-    OC_ASSERT(!user);
-    return (0);
-}
 void oc_pump_events(f64 timeout)
 {
-    // TODO(pld): use global cond to wake up threads needing to wait instead of
-    // queueing a new dispatched function on every call.
-    oc_dispatch_on_main_thread_sync_timed(oc_dispatch_noop, NULL, timeout);
+    oc_linux_app_data* linux = &oc_appData.linux;
+    if(oc_thread_self_id() == linux->mainThreadId)
+    {
+        oc_pump_events_main_thread(timeout);
+    }
+    else
+    {
+        int ok = oc_mutex_lock(linux->pumpedEventsMutex);
+        OC_ASSERT(ok == 0);
+        if (timeout > 0.0)
+        {
+            ok = oc_condition_wait(linux->pumpedEventsCond, linux->pumpedEventsMutex);
+            OC_ASSERT(ok == 0);
+        }
+        else
+        {
+            do
+            {
+                f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);
+                ok = oc_condition_timedwait(linux->pumpedEventsCond, linux->pumpedEventsMutex, timeout);
+                f64 end = oc_clock_time(OC_CLOCK_MONOTONIC);
+                timeout = oc_max(timeout - (end - start), 0.0);
+            }
+            while(ok == EINTR);
+            OC_ASSERT(ok == 0 || ok == ETIMEDOUT);
+        }
+        ok = oc_mutex_unlock(linux->pumpedEventsMutex);
+        OC_ASSERT(ok == 0);
+    }
 }
 
 void oc_clipboard_clear(void)
