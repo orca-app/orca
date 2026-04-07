@@ -151,10 +151,13 @@ void oc_test_group_begin_str8(oc_test_info* info, oc_str8 name)
 
     info->groupName = name;
 
-    printf("%s", oc_test_status_color_start[OC_TEST_INFO]);
-    printf("%s", oc_test_status_string[OC_TEST_INFO]);
-    printf("%s", oc_test_status_color_stop);
-    printf(" testing %.*s...\n", oc_str8_ip(name));
+    if(info->verbosity >= OC_TEST_PRINT_ALL)
+    {
+        printf("%s", oc_test_status_color_start[OC_TEST_INFO]);
+        printf("%s", oc_test_status_string[OC_TEST_INFO]);
+        printf("%s", oc_test_status_color_stop);
+        printf(" testing %.*s...\n", oc_str8_ip(name));
+    }
 }
 
 void oc_test_group_begin(oc_test_info* info, const char* name)
@@ -199,15 +202,12 @@ void oc_test_init(oc_test_info* info, const char* name, oc_test_verbosity verbos
 
 void oc_test_summary(oc_test_info* info)
 {
-    if(info->verbosity >= OC_TEST_PRINT_ALL_FAILED)
-    {
-        printf("----------------------------------------------------------------------------\n"
-               " %.*s test summary: passed: %i, skipped: %i, failed: %i, total: %i\n"
-               "----------------------------------------------------------------------------\n\n",
-               oc_str8_ip(info->name),
-               info->totalPassed,
-               info->totalSkipped,
-               info->totalFailed,
-               info->totalPassed + info->totalSkipped + info->totalFailed);
-    }
+    printf("----------------------------------------------------------------------------\n"
+           " %.*s test summary: passed: %i, skipped: %i, failed: %i, total: %i\n"
+           "----------------------------------------------------------------------------\n\n",
+           oc_str8_ip(info->name),
+           info->totalPassed,
+           info->totalSkipped,
+           info->totalFailed,
+           info->totalPassed + info->totalSkipped + info->totalFailed);
 }
