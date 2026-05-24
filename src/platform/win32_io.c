@@ -100,14 +100,14 @@ oc_io_error oc_fd_last_error()
     return (error);
 }
 
-oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
+oc_str16 win32_path_from_handle_null_terminated(oc_allocator* allocator, HANDLE handle)
 {
     oc_str16 res = { 0 };
 
     res.len = GetFinalPathNameByHandleW(handle, NULL, 0, FILE_NAME_NORMALIZED);
     if(res.len)
     {
-        res.ptr = oc_arena_push_array(arena, u16, res.len);
+        res.ptr = oc_allocator_push_array(allocator, u16, res.len);
         if(!GetFinalPathNameByHandleW(handle, res.ptr, res.len, FILE_NAME_NORMALIZED))
         {
             res.len = 0;
@@ -117,27 +117,27 @@ oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle)
     return (res);
 }
 
-static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
+static oc_str16 win32_get_path_at_null_terminated(oc_allocator* allocator, oc_file_desc dirFd, oc_str8 path)
 {
     oc_str16 result = { 0 };
 
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     if(dirFd)
     {
-        oc_str16 dirPathW = win32_path_from_handle_null_terminated(scratch.arena, dirFd);
-        oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
+        oc_str16 dirPathW = win32_path_from_handle_null_terminated(scratch.allocator, dirFd);
+        oc_str16 pathW = oc_win32_utf8_to_wide(scratch.allocator, path);
 
         if(dirPathW.len && pathW.len)
         {
             u64 fullPathWSize = dirPathW.len + pathW.len;
-            LPWSTR fullPathW = oc_arena_push_array(scratch.arena, u16, fullPathWSize);
+            LPWSTR fullPathW = oc_allocator_push_array(scratch.allocator, u16, fullPathWSize);
             memcpy(fullPathW, dirPathW.ptr, (dirPathW.len - 1) * sizeof(u16));
             fullPathW[dirPathW.len - 1] = '\\';
             memcpy(fullPathW + dirPathW.len, pathW.ptr, pathW.len * sizeof(u16));
 
             result.len = fullPathWSize;
-            result.ptr = oc_arena_push_array(arena, wchar_t, result.len);
+            result.ptr = oc_allocator_push_array(allocator, wchar_t, result.len);
 
             if(PathCanonicalizeW(result.ptr, fullPathW))
             {
@@ -152,7 +152,7 @@ static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc 
     }
     else
     {
-        result = oc_win32_utf8_to_wide(scratch.arena, path);
+        result = oc_win32_utf8_to_wide(scratch.allocator, path);
     }
     oc_scratch_end(scratch);
 
@@ -220,11 +220,11 @@ oc_fd_result oc_fd_open_at(oc_file_desc rootFd, oc_str8 path, oc_file_access acc
 
     if(rootFd == NULL || rootFd == INVALID_HANDLE_VALUE)
     {
-        pathW = oc_win32_utf8_to_wide(scratch.arena, path);
+        pathW = oc_win32_utf8_to_wide(scratch.allocator, path);
     }
     else
     {
-        pathW = win32_get_path_at_null_terminated(scratch.arena, rootFd, path);
+        pathW = win32_get_path_at_null_terminated(scratch.allocator, rootFd, path);
     }
 
     if(pathW.len)
@@ -446,8 +446,8 @@ oc_io_error oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
     oc_io_error err = OC_IO_OK;
 
     oc_scratch scratch = oc_scratch_begin();
-    oc_str16 srcPathW = win32_path_from_handle_null_terminated(scratch.arena, srcFd);
-    oc_str16 dstPathW = win32_path_from_handle_null_terminated(scratch.arena, dstFd);
+    oc_str16 srcPathW = win32_path_from_handle_null_terminated(scratch.allocator, srcFd);
+    oc_str16 dstPathW = win32_path_from_handle_null_terminated(scratch.allocator, dstFd);
 
     BOOL r = CopyFileW(srcPathW.ptr, dstPathW.ptr, FALSE);
     if(r)
@@ -464,7 +464,7 @@ oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
     HANDLE tmpFile = INVALID_HANDLE_VALUE;
 
     oc_scratch scratch = oc_scratch_begin();
-    WCHAR* tmpDirPathW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
+    WCHAR* tmpDirPathW = oc_allocator_push_array(scratch.allocator, WCHAR, MAX_PATH + 1);
     DWORD tmpDirPathWSize = GetTempPath2W(MAX_PATH, tmpDirPathW);
 
     if(tmpDirPathWSize > MAX_PATH || (tmpDirPathWSize == 0))
@@ -473,7 +473,7 @@ oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
     }
     else
     {
-        WCHAR* tmpFileNameW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
+        WCHAR* tmpFileNameW = oc_allocator_push_array(scratch.allocator, WCHAR, MAX_PATH + 1);
 
         // Generate a temporary file name.
         UINT r = GetTempFileNameW(tmpDirPathW,
@@ -551,7 +551,7 @@ oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
             }
             else
             {
-                oc_str8 tmpFileName = oc_win32_wide_to_utf8(scratch.arena,
+                oc_str8 tmpFileName = oc_win32_wide_to_utf8(scratch.allocator,
                                                             oc_str16_from_buffer(lstrlenW(tmpFileNameW),
                                                                                  tmpFileNameW));
                 oc_win32_path_normalize_slash_in_place(tmpFileName);
@@ -579,7 +579,7 @@ oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path)
 {
     oc_io_error err = OC_IO_OK;
     oc_scratch scratch = oc_scratch_begin();
-    oc_str16 pathW = win32_get_path_at_null_terminated(scratch.arena, fd, path);
+    oc_str16 pathW = win32_get_path_at_null_terminated(scratch.allocator, fd, path);
 
     //NOTE: for some paths, trying to create them if they exist returns a
     // ERROR_ACCESS_DENIED instead of ERROR_FILE_EXISTS or ERROR_ALREADT_EXISTS
@@ -606,7 +606,7 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
 {
     oc_io_error err = OC_IO_OK;
     oc_scratch scratch = oc_scratch_begin();
-    oc_str16 pathW = win32_get_path_at_null_terminated(scratch.arena, rootFd, path);
+    oc_str16 pathW = win32_get_path_at_null_terminated(scratch.allocator, rootFd, path);
 
     BOOL isDir = PathIsDirectoryW(pathW.ptr);
     if(isDir && !(flags & OC_FILE_REMOVE_DIR))
@@ -633,23 +633,23 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
     return err;
 }
 
-oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc rootFd, oc_str8 path)
+oc_fd_read_link_result oc_fd_read_link_at(oc_allocator* allocator, oc_file_desc rootFd, oc_str8 path)
 {
     //TODO
     return (oc_fd_read_link_result){ 0 };
 }
 
-oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
+oc_file_list oc_file_listdir_for_table(oc_allocator* allocator, oc_file directory, oc_file_table* table)
 {
     oc_file_list list = { 0 };
 
     oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
     if(slot && !slot->fatal)
     {
-        oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+        oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
         // Windows uses a trailing \* to determine it should enumerate all files in the folder
-        oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.arena, slot->fd, OC_STR8("\\*"));
+        oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.allocator, slot->fd, OC_STR8("\\*"));
 
         WIN32_FIND_DATAW entry = { 0 };
 
@@ -667,7 +667,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                     continue;
                 }
 
-                oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
+                oc_file_listdir_elt* elt = oc_allocator_push_type(allocator, oc_file_listdir_elt);
                 oc_list_push_back(&list.list, &elt->listElt);
 
                 ++list.eltCount;
@@ -690,7 +690,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                 }
 
                 oc_str16 basename16 = { .ptr = entry.cFileName, lstrlenW(entry.cFileName) };
-                elt->basename = oc_win32_wide_to_utf8(arena, basename16);
+                elt->basename = oc_win32_wide_to_utf8(allocator, basename16);
             }
             while(FindNextFileW(handle, &entry));
 
@@ -703,14 +703,14 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
     return list;
 }
 
-oc_str8 oc_file_tmp_directory_path(oc_arena* arena)
+oc_str8 oc_file_tmp_directory_path(oc_allocator* allocator)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
-    WCHAR* tmpDirPathW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
+    WCHAR* tmpDirPathW = oc_allocator_push_array(scratch.allocator, WCHAR, MAX_PATH + 1);
     DWORD tmpDirPathWSize = GetTempPath2W(MAX_PATH, tmpDirPathW);
 
-    oc_str8 path = oc_win32_wide_to_utf8(arena, oc_str16_from_buffer(tmpDirPathWSize, tmpDirPathW));
+    oc_str8 path = oc_win32_wide_to_utf8(allocator, oc_str16_from_buffer(tmpDirPathWSize, tmpDirPathW));
     oc_win32_path_normalize_slash_in_place(path);
 
     oc_scratch_end(scratch);

@@ -133,19 +133,19 @@ oc_str8 oc_path_slice_extension(oc_str8 path)
     return (oc_str8){ 0 };
 }
 
-oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
+oc_str8_list oc_path_split(oc_allocator* allocator, oc_str8 path)
 {
-    oc_scratch tmp = oc_scratch_begin_next_arena(arena);
+    oc_scratch tmp = oc_scratch_begin_next_allocator(allocator);
     oc_str8_list sep = { 0 };
-    oc_str8_list_push(tmp.arena->allocator, &sep, OC_STR8("/"));
-    oc_str8_list_push(tmp.arena->allocator, &sep, OC_STR8("\\"));
+    oc_str8_list_push(tmp.allocator, &sep, OC_STR8("/"));
+    oc_str8_list_push(tmp.allocator, &sep, OC_STR8("\\"));
 
-    oc_str8_list res = oc_str8_split(arena->allocator, path, sep);
+    oc_str8_list res = oc_str8_split(allocator, path, sep);
 
     if(path.len && oc_path_is_separator(path.ptr[0]))
     {
         //NOTE: if path is absolute, add the leading slash as the first element
-        oc_str8_list_push_front(arena->allocator, &res, oc_str8_slice(path, 0, 1));
+        oc_str8_list_push_front(allocator, &res, oc_str8_slice(path, 0, 1));
     }
     else if(oc_path_starts_with_volume_letter(path))
     {
@@ -156,11 +156,11 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
         //NOTE: add drive letter (with or without backslash) as first element
         if(path.len > 2 && (path.ptr[2] == '\\' || path.ptr[2] == '/'))
         {
-            oc_str8_list_push_front(arena->allocator, &res, oc_str8_slice(path, 0, 3));
+            oc_str8_list_push_front(allocator, &res, oc_str8_slice(path, 0, 3));
         }
         else
         {
-            oc_str8_list_push_front(arena->allocator, &res, oc_str8_slice(path, 0, 2));
+            oc_str8_list_push_front(allocator, &res, oc_str8_slice(path, 0, 2));
         }
     }
 
@@ -177,10 +177,10 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
     return (res);
 }
 
-oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
+oc_str8 oc_path_join(oc_allocator* allocator, oc_str8_list elements)
 {
     //TODO: check if elements have ending/begining '/' ?
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     oc_str8 drive = { 0 };
     oc_str8_list list = { 0 };
@@ -239,48 +239,48 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
             }
         }
     }
-    oc_str8 res = oc_str8_list_collate(arena->allocator, list, drive, OC_STR8("/"), OC_STR8(""));
+    oc_str8 res = oc_str8_list_collate(allocator, list, drive, OC_STR8("/"), OC_STR8(""));
 
     oc_scratch_end(scratch);
     return (res);
 }
 
-oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
+oc_str8 oc_path_append(oc_allocator* allocator, oc_str8 parent, oc_str8 relPath)
 {
     oc_str8 result = { 0 };
 
     if(parent.len == 0)
     {
-        result = oc_str8_push_copy(arena->allocator, relPath);
+        result = oc_str8_push_copy(allocator, relPath);
     }
     else if(relPath.len == 0)
     {
-        result = oc_str8_push_copy(arena->allocator, parent);
+        result = oc_str8_push_copy(allocator, parent);
     }
     else
     {
-        oc_scratch tmp = oc_scratch_begin_next_arena(arena);
+        oc_scratch tmp = oc_scratch_begin_next_allocator(allocator);
 
         oc_str8_list list = { 0 };
-        oc_str8_list_push(tmp.arena->allocator, &list, parent);
-        oc_str8_list_push(tmp.arena->allocator, &list, relPath);
+        oc_str8_list_push(tmp.allocator, &list, parent);
+        oc_str8_list_push(tmp.allocator, &list, relPath);
 
-        result = oc_path_join(arena, list);
+        result = oc_path_join(allocator, list);
 
         oc_scratch_end(tmp);
     }
     return (result);
 }
 
-oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
+oc_str8 oc_path_executable_relative(oc_allocator* allocator, oc_str8 relPath)
 {
     oc_str8_list list = { 0 };
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     oc_str8 executablePath = oc_path_executable(scratch.allocator);
     oc_str8 dirPath = oc_path_slice_directory(executablePath);
     oc_str8 path = oc_path_append(scratch.allocator, dirPath, relPath);
-    path = oc_path_canonical(arena, path);
+    path = oc_path_canonical(allocator, path);
 
     oc_scratch_end(scratch);
     return (path);
@@ -289,20 +289,20 @@ oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
 bool oc_path_is_absolute(oc_str8 path)
 {
     oc_scratch scratch = oc_scratch_begin();
-    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.allocator, path);
     bool result = !PathIsRelativeW(pathW.ptr);
 
     oc_scratch_end(scratch);
     return (result);
 }
 
-oc_str8 oc_path_executable(oc_arena* arena)
+oc_str8 oc_path_executable(oc_allocator* allocator)
 {
     ///////////////////////////////////////////////////////////////////
     //TODO use wide chars
     ///////////////////////////////////////////////////////////////////
 
-    char* buffer = oc_arena_push_array(arena, char, MAX_PATH + 2);
+    char* buffer = oc_allocator_push_array(allocator, char, MAX_PATH + 2);
     int size = GetModuleFileName(NULL, buffer, MAX_PATH + 1);
     //TODO: check for errors...
     oc_str8 path = oc_str8_from_buffer(size, buffer);
@@ -310,10 +310,10 @@ oc_str8 oc_path_executable(oc_arena* arena)
     return (path);
 }
 
-oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
+oc_str8 oc_path_canonical(oc_allocator* allocator, oc_str8 path)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
-    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
+    oc_str16 pathW = oc_win32_utf8_to_wide(scratch.allocator, path);
 
     DWORD required_size = GetFullPathNameW(pathW.ptr, 0, NULL, NULL);
     if(required_size == 0)
@@ -324,7 +324,7 @@ oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
         return path;
     }
 
-    WCHAR* path_buf = oc_arena_push(scratch.arena, required_size);
+    WCHAR* path_buf = oc_allocator_push(scratch.allocator, required_size);
     DWORD retval = GetFullPathNameW(pathW.ptr, required_size, path_buf, NULL);
     if(retval == 0)
     {
@@ -336,7 +336,7 @@ oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
 
     OC_ASSERT(retval < required_size);
     oc_str16 full_path_str16 = { .ptr = path_buf, .len = retval };
-    oc_str8 result = oc_win32_wide_to_utf8(arena, full_path_str16);
+    oc_str8 result = oc_win32_wide_to_utf8(allocator, full_path_str16);
 
     oc_scratch_end(scratch);
 

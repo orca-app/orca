@@ -1298,7 +1298,7 @@ void oc_clipboard_set_string(oc_str8 string)
     }
 }
 
-oc_str8 oc_clipboard_get_string(oc_arena* arena)
+oc_str8 oc_clipboard_get_string(oc_allocator* allocator)
 {
     oc_str8 string = { 0 };
 
@@ -1313,7 +1313,7 @@ oc_str8 oc_clipboard_get_string(oc_arena* arena)
                 u64 size = WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, 0, 0, 0, 0);
                 if(size)
                 {
-                    string.ptr = oc_arena_push(arena, size);
+                    string.ptr = oc_allocator_push(allocator, size);
                     string.len = size - 1;
                     WideCharToMultiByte(CP_UTF8, 0, (wchar_t*)memory, -1, string.ptr, size, 0, 0);
                     GlobalUnlock(handle);
@@ -1345,11 +1345,11 @@ oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 
 #include "platform/native_io.h"
 
-oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle); // defined in win32_io.c
+oc_str16 win32_path_from_handle_null_terminated(oc_allocator* allocator, HANDLE handle); // defined in win32_io.c
 
-oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
+oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator, oc_file_dialog_desc* desc, oc_file_table* table)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
     oc_file_dialog_result result = { 0 };
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -1399,14 +1399,14 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
             //NOTE set title
             if(desc->title.len)
             {
-                oc_str16 titleWide = oc_win32_utf8_to_wide(scratch.arena, desc->title);
+                oc_str16 titleWide = oc_win32_utf8_to_wide(scratch.allocator, desc->title);
                 dialog->lpVtbl->SetTitle(dialog, (LPCWSTR)titleWide.ptr);
             }
 
             //NOTE set ok button
             if(desc->okLabel.len)
             {
-                oc_str16 okLabelWide = oc_win32_utf8_to_wide(scratch.arena, desc->okLabel);
+                oc_str16 okLabelWide = oc_win32_utf8_to_wide(scratch.allocator, desc->okLabel);
                 dialog->lpVtbl->SetOkButtonLabel(dialog, (LPCWSTR)okLabelWide.ptr);
             }
 
@@ -1419,8 +1419,8 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                     oc_file_slot* slot = oc_file_slot_from_handle(table, desc->startAt);
                     if(slot)
                     {
-                        oc_str16 pathWide = win32_path_from_handle_null_terminated(scratch.arena, slot->fd);
-                        oc_str8 path = oc_win32_wide_to_utf8(scratch.arena, pathWide);
+                        oc_str16 pathWide = win32_path_from_handle_null_terminated(scratch.allocator, slot->fd);
+                        oc_str8 path = oc_win32_wide_to_utf8(scratch.allocator, pathWide);
                         //NOTE: remove potential \\?\ prefix which doesn't work with SHCreateItemFromParsingName()
                         if(!oc_str8_cmp(oc_str8_slice(path, 0, 4), OC_STR8("\\\\?\\")))
                         {
@@ -1438,7 +1438,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
 
             if(startPath.len)
             {
-                oc_str16 pathWide = oc_win32_utf8_to_wide(scratch.arena, startPath);
+                oc_str16 pathWide = oc_win32_utf8_to_wide(scratch.allocator, startPath);
 
                 IShellItem* item = 0;
                 hr = SHCreateItemFromParsingName((LPCWSTR)pathWide.ptr, NULL, &IID_IShellItem, (void**)&item);
@@ -1452,7 +1452,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
             //NOTE: set filters
             if(desc->filters.eltCount)
             {
-                COMDLG_FILTERSPEC* filterSpecs = oc_arena_push_array(scratch.arena, COMDLG_FILTERSPEC, desc->filters.eltCount);
+                COMDLG_FILTERSPEC* filterSpecs = oc_allocator_push_array(scratch.allocator, COMDLG_FILTERSPEC, desc->filters.eltCount);
 
                 int i = 0;
                 oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
@@ -1463,7 +1463,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                     oc_str8 filter = oc_str8_list_join(scratch.allocator, list);
 
                     int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
-                    filterSpecs[i].pszSpec = oc_arena_push_array(scratch.arena, wchar_t, filterWideSize);
+                    filterSpecs[i].pszSpec = oc_allocator_push_array(scratch.allocator, wchar_t, filterWideSize);
                     MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, (LPWSTR)filterSpecs[i].pszSpec, filterWideSize);
                     ((LPWSTR)(filterSpecs[i].pszSpec))[filterWideSize - 1] = 0;
 
@@ -1497,12 +1497,12 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                                 if(SUCCEEDED(hr))
                                 {
                                     oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
-                                    oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
+                                    oc_str8 path = oc_win32_wide_to_utf8(allocator, pathWide);
 
                                     //NOTE: convert Windows backslashes to forward slashes
                                     oc_win32_path_normalize_slash_in_place(path);
 
-                                    oc_str8_list_push(arena->allocator, &result.selection, path);
+                                    oc_str8_list_push(allocator, &result.selection, path);
 
                                     if(itemIndex == 0)
                                     {
@@ -1529,12 +1529,12 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                         if(SUCCEEDED(hr))
                         {
                             oc_str16 pathWide = oc_str16_from_buffer(lstrlenW(pathWCStr), pathWCStr);
-                            oc_str8 path = oc_win32_wide_to_utf8(arena, pathWide);
+                            oc_str8 path = oc_win32_wide_to_utf8(allocator, pathWide);
 
                             oc_win32_path_normalize_slash_in_place(path);
 
                             result.path = path;
-                            oc_str8_list_push(arena->allocator, &result.selection, result.path);
+                            oc_str8_list_push(allocator, &result.selection, result.path);
 
                             CoTaskMemFree(pathWCStr);
                         }
@@ -1559,13 +1559,13 @@ int oc_alert_popup(oc_str8 title,
                    oc_str8_list options)
 {
     oc_scratch scratch = oc_scratch_begin();
-    TASKDIALOG_BUTTON* buttons = oc_arena_push_array(scratch.arena, TASKDIALOG_BUTTON, options.eltCount);
+    TASKDIALOG_BUTTON* buttons = oc_allocator_push_array(scratch.allocator, TASKDIALOG_BUTTON, options.eltCount);
 
     int i = 0;
     oc_list_for(options.list, elt, oc_str8_elt, listElt)
     {
         int textWideSize = MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, NULL, 0);
-        wchar_t* textWide = oc_arena_push_array(scratch.arena, wchar_t, textWideSize + 1);
+        wchar_t* textWide = oc_allocator_push_array(scratch.allocator, wchar_t, textWideSize + 1);
         MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, textWide, textWideSize);
         textWide[textWideSize] = '\0';
 
@@ -1576,12 +1576,12 @@ int oc_alert_popup(oc_str8 title,
     }
 
     int titleWideSize = MultiByteToWideChar(CP_UTF8, 0, title.ptr, title.len, NULL, 0);
-    wchar_t* titleWide = oc_arena_push_array(scratch.arena, wchar_t, titleWideSize + 1);
+    wchar_t* titleWide = oc_allocator_push_array(scratch.allocator, wchar_t, titleWideSize + 1);
     MultiByteToWideChar(CP_UTF8, 0, title.ptr, title.len, titleWide, titleWideSize);
     titleWide[titleWideSize] = '\0';
 
     int messageWideSize = MultiByteToWideChar(CP_UTF8, 0, message.ptr, message.len, NULL, 0);
-    wchar_t* messageWide = oc_arena_push_array(scratch.arena, wchar_t, messageWideSize + 1);
+    wchar_t* messageWide = oc_allocator_push_array(scratch.allocator, wchar_t, messageWideSize + 1);
     MultiByteToWideChar(CP_UTF8, 0, message.ptr, message.len, messageWide, messageWideSize);
     messageWide[messageWideSize] = '\0';
 
