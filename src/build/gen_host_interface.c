@@ -736,7 +736,7 @@ int main(int argc, char** argv)
     oc_str8_list hostapiBindingList = { 0 };
 
     json_parser parser = {
-        .arena = scratch.arena,
+        .allocator = scratch.allocator,
         .contents = contents,
     };
 
