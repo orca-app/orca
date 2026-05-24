@@ -475,7 +475,7 @@ void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
         eltIndex = elt->listElt.next;
     }
 
-    oc_file_open_with_dialog_result nativeResult = oc_file_open_with_dialog_for_table(scratch.arena, rights, flags, &nativeDesc, &orca->fileTable);
+    oc_file_open_with_dialog_result nativeResult = oc_file_open_with_dialog_for_table(scratch.allocator, rights, flags, &nativeDesc, &orca->fileTable);
 
     oc_wasm_file_open_with_dialog_result result = {
         .button = nativeResult.button,
@@ -500,7 +500,7 @@ void oc_hostapi_file_listdir(oc_wasm_arena* wasmArena, oc_file* directory, oc_wa
     oc_scratch scratch = oc_scratch_begin();
 
     oc_runtime* orca = oc_runtime_get();
-    oc_file_list nativeList = oc_file_listdir_for_table(scratch.arena, *directory, &orca->fileTable);
+    oc_file_list nativeList = oc_file_listdir_for_table(scratch.allocator, *directory, &orca->fileTable);
 
     oc_wasm_file_list wasmList = { 0 };
     wasmList.eltCount = nativeList.eltCount;

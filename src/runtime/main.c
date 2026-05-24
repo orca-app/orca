@@ -419,12 +419,12 @@ int load_app(oc_runtime* app)
             oc_log_error("Couldn't create temporary directory\n");
             return -1;
         }
-        oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
+        oc_str8 tmpName = oc_catch(oc_file_name(scratch.allocator, tmpDir))
         {
             oc_log_error("Couldn't get temporary directory name\n");
             return -1;
         }
-        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.arena);
+        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.allocator);
         appDir = oc_path_append(scratch.allocator, tmpFilesPath, tmpName);
         oc_file_close(tmpDir);
     }

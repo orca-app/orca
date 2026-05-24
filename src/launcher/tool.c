@@ -54,7 +54,7 @@ int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
         }
 
         oc_scratch scratch = oc_scratch_begin();
-        oc_file_list files = oc_file_listdir(scratch.arena, srcFile);
+        oc_file_list files = oc_file_listdir(scratch.allocator, srcFile);
         oc_file_list_for(files, elt)
         {
             oc_str8 fileSrcPath = oc_path_append(scratch.allocator, srcPath, elt->basename);
@@ -430,12 +430,12 @@ int oc_tool_bundle(oc_tool_options* options)
             oc_log_error("Couldn't create tmp directory.\n");
             return -1;
         }
-        oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
+        oc_str8 tmpName = oc_catch(oc_file_name(scratch.allocator, tmpDir))
         {
             oc_log_error("Couldn't get name of tmp directory.\n");
             return -1;
         }
-        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.arena);
+        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.allocator);
         tmpPath = oc_path_append(scratch.allocator, tmpFilesPath, tmpName);
         oc_file_close(tmpDir);
     }

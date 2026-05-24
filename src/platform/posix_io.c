@@ -368,9 +368,9 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc dirFd, oc_str8 path)
     return (result);
 }
 
-oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
+oc_fd_read_link_result oc_fd_read_link_at(oc_allocator* allocator, oc_file_desc dirFd, oc_str8 path)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     if(oc_file_desc_is_nil(dirFd))
     {
@@ -391,7 +391,7 @@ oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc dirFd, o
     }
     else
     {
-        oc_str8 path = oc_str8_push_buffer(arena->allocator, r, buffer);
+        oc_str8 path = oc_str8_push_buffer(allocator, r, buffer);
         result = oc_result_value(oc_fd_read_link_result, path);
     }
 
@@ -563,7 +563,7 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
 //TODO: move that in common code
 ////////////////////////////////////////////////////////////////////////////////
 
-oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd)
+oc_fd_listdir_result oc_fd_listdir(oc_allocator* allocator, oc_file_desc dirFd)
 {
     oc_file_list list = { 0 };
 
@@ -579,7 +579,7 @@ oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd)
                 continue;
             }
 
-            oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
+            oc_file_listdir_elt* elt = oc_allocator_push_type(allocator, oc_file_listdir_elt);
             oc_list_push_back(&list.list, &elt->listElt);
             ++list.eltCount;
 
@@ -612,7 +612,7 @@ oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd)
                     break;
             }
 
-            elt->basename = oc_str8_push_buffer(arena->allocator, entry->d_namlen, entry->d_name);
+            elt->basename = oc_str8_push_buffer(allocator, entry->d_namlen, entry->d_name);
             elt->type = type;
         }
 
@@ -625,7 +625,7 @@ oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd)
     return oc_result_value(oc_fd_listdir_result, list);
 }
 
-oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table)
+oc_file_list oc_file_listdir_for_table(oc_allocator* allocator, oc_file directory, oc_file_table* table)
 {
     oc_file_list list = { 0 };
 
@@ -648,7 +648,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                     continue;
                 }
 
-                oc_file_listdir_elt* elt = oc_arena_push_type(arena, oc_file_listdir_elt);
+                oc_file_listdir_elt* elt = oc_allocator_push_type(allocator, oc_file_listdir_elt);
                 oc_list_push_back(&list.list, &elt->listElt);
                 ++list.eltCount;
 
@@ -681,7 +681,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
                         break;
                 }
 
-                elt->basename = oc_str8_push_buffer(arena->allocator, entry->d_namlen, entry->d_name);
+                elt->basename = oc_str8_push_buffer(allocator, entry->d_namlen, entry->d_name);
                 elt->type = type;
             }
 
@@ -710,8 +710,8 @@ oc_io_error oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
     return err;
 }
 
-oc_str8 oc_file_tmp_directory_path(oc_arena* arena)
+oc_str8 oc_file_tmp_directory_path(oc_allocator* allocator)
 {
-    oc_str8 path = oc_str8_push_copy(arena->allocator, OC_STR8("/tmp"));
+    oc_str8 path = oc_str8_push_copy(allocator, OC_STR8("/tmp"));
     return path;
 }

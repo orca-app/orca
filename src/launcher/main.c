@@ -206,7 +206,7 @@ int launcher_load_apps(oc_launcher* launcher)
         return -1;
     }
 
-    oc_file_list list = oc_file_listdir(scratch.arena, appsDir);
+    oc_file_list list = oc_file_listdir(scratch.allocator, appsDir);
     oc_file_close(appsDir);
 
     oc_file_list_for(list, elt)

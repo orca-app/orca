@@ -454,10 +454,10 @@ typedef struct oc_file_dialog_result
 
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 
-ORCA_API oc_file_dialog_result oc_file_dialog(oc_arena* arena, oc_file_dialog_desc* desc);
+ORCA_API oc_file_dialog_result oc_file_dialog(oc_allocator* allocator, oc_file_dialog_desc* desc);
 
 typedef struct oc_file_table oc_file_table;
-ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table);
+ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator, oc_file_dialog_desc* desc, oc_file_table* table);
 
 ORCA_API int oc_alert_popup(oc_str8 title,
                             oc_str8 message,

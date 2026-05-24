@@ -73,17 +73,17 @@ bool oc_file_desc_is_nil(oc_file_desc fd);
 
 ORCA_API oc_io_cmp oc_io_wait_single_req_for_table(oc_io_req* req, oc_file_table* table);
 ORCA_API oc_file oc_file_open_with_request_for_table(oc_str8 path, oc_file_access rights, oc_file_open_flags flags, oc_file_table* table);
-ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* arena,
+ORCA_API oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_allocator* allocator,
                                                                             oc_file_access rights,
                                                                             oc_file_open_flags flags,
                                                                             oc_file_dialog_desc* desc,
                                                                             oc_file_table* table);
 
-ORCA_API oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_file_table* table);
+ORCA_API oc_file_list oc_file_listdir_for_table(oc_allocator* allocator, oc_file directory, oc_file_table* table);
 
 typedef oc_result_type(oc_file_list, oc_io_error) oc_fd_listdir_result;
 
-oc_fd_listdir_result oc_fd_listdir(oc_arena* arena, oc_file_desc dirFd);
+oc_fd_listdir_result oc_fd_listdir(oc_allocator* allocator, oc_file_desc dirFd);
 
 //-----------------------------------------------------------------------
 // io primitives
@@ -130,4 +130,4 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
 
 typedef oc_result_type(oc_str8, oc_io_error) oc_fd_read_link_result;
 
-oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc rootFd, oc_str8 path);
+oc_fd_read_link_result oc_fd_read_link_at(oc_allocator* allocator, oc_file_desc rootFd, oc_str8 path);

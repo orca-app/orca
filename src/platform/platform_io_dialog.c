@@ -50,15 +50,15 @@ oc_file oc_file_open_with_request(oc_str8 path, oc_file_access rights, oc_file_o
     return (oc_file_open_with_request_for_table(path, rights, flags, &oc_globalFileTable));
 }
 
-oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* arena,
+oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_allocator* allocator,
                                                                    oc_file_access rights,
                                                                    oc_file_open_flags flags,
                                                                    oc_file_dialog_desc* desc,
                                                                    oc_file_table* table)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
-    oc_file_dialog_result dialogResult = oc_file_dialog_for_table(scratch.arena, desc, table);
+    oc_file_dialog_result dialogResult = oc_file_dialog_for_table(scratch.allocator, desc, table);
 
     oc_file_open_with_dialog_result result = {
         .button = dialogResult.button
@@ -84,7 +84,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
                 file = cmp.handle;
             }
 
-            oc_file_open_with_dialog_elt* resElt = oc_arena_push_type(arena, oc_file_open_with_dialog_elt);
+            oc_file_open_with_dialog_elt* resElt = oc_allocator_push_type(allocator, oc_file_open_with_dialog_elt);
             resElt->file = file;
             oc_list_push_back(&result.selection, &resElt->listElt);
 
@@ -101,7 +101,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
     return (result);
 }
 
-oc_file_open_with_dialog_result oc_file_open_with_dialog(oc_arena* arena, oc_file_access rights, oc_file_open_flags flags, oc_file_dialog_desc* desc)
+oc_file_open_with_dialog_result oc_file_open_with_dialog(oc_allocator* allocator, oc_file_access rights, oc_file_open_flags flags, oc_file_dialog_desc* desc)
 {
-    return (oc_file_open_with_dialog_for_table(arena, rights, flags, desc, &oc_globalFileTable));
+    return (oc_file_open_with_dialog_for_table(allocator, rights, flags, desc, &oc_globalFileTable));
 }
