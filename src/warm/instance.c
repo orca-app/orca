@@ -487,7 +487,7 @@ wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc
     wa_module* module = instance->module;
 
     wa_import_package package = {
-        .name = oc_str8_push_copy(arena, name),
+        .name = oc_str8_push_copy(arena->allocator, name),
     };
 
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)

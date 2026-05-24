@@ -785,14 +785,14 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
             if(name)
             {
                 OC_ASSERT(name->kind == JSON_STRING);
-                testInstance->name = oc_str8_push_copy(env->arena, name->string);
+                testInstance->name = oc_str8_push_copy(env->arena->allocator, name->string);
             }
 
             json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
             oc_str8_list list = { 0 };
-            oc_str8_list_push(env->arena, &list, testDir);
-            oc_str8_list_push(env->arena, &list, filename->string);
+            oc_str8_list_push(env->arena->allocator, &list, testDir);
+            oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
             oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -830,7 +830,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_test_fail(env, testName, command);
                 continue;
             }
-            mod->registeredName = oc_str8_push_copy(env->arena, as->string);
+            mod->registeredName = oc_str8_push_copy(env->arena->allocator, as->string);
             env->registeredCount++;
             wa_test_pass(env, testName, command);
         }
@@ -973,8 +973,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_test_instance testInstance = { 0 };
 
                 oc_str8_list list = { 0 };
-                oc_str8_list_push(env->arena, &list, testDir);
-                oc_str8_list_push(env->arena, &list, filename->string);
+                oc_str8_list_push(env->arena->allocator, &list, testDir);
+                oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
                 oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -1034,8 +1034,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
                 oc_str8_list list = { 0 };
-                oc_str8_list_push(env->arena, &list, testDir);
-                oc_str8_list_push(env->arena, &list, filename->string);
+                oc_str8_list_push(env->arena->allocator, &list, testDir);
+                oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
                 oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -1061,8 +1061,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
                     oc_str8_list list = { 0 };
-                    oc_str8_list_push(env->arena, &list, testDir);
-                    oc_str8_list_push(env->arena, &list, filename->string);
+                    oc_str8_list_push(env->arena->allocator, &list, testDir);
+                    oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
                     oc_str8 filePath = oc_path_join(env->arena, list);
 

@@ -37,7 +37,7 @@ void test_write(oc_test_info* info, oc_arena* arena)
             }
             else
             {
-                char* pathCStr = oc_str8_to_cstring(arena, path);
+                char* pathCStr = oc_str8_to_cstring(arena->allocator, path);
                 FILE* file = fopen(pathCStr, "r");
                 if(!file)
                 {

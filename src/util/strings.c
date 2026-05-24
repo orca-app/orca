@@ -31,45 +31,45 @@ oc_str8 oc_str8_slice(oc_str8 s, u64 start, u64 end)
     return ((oc_str8){ .ptr = s.ptr + start, .len = end - start });
 }
 
-oc_str8 oc_str8_push_buffer(oc_arena* arena, u64 len, char* buffer)
+oc_str8 oc_str8_push_buffer(oc_allocator* allocator, u64 len, char* buffer)
 {
     oc_str8 str = { 0 };
     str.len = len;
-    str.ptr = oc_arena_push_array(arena, char, len + 1);
+    str.ptr = oc_allocator_push_array(allocator, char, len + 1);
     memcpy(str.ptr, buffer, len);
     str.ptr[str.len] = '\0';
     return (str);
 }
 
-oc_str8 oc_str8_push_cstring(oc_arena* arena, const char* str)
+oc_str8 oc_str8_push_cstring(oc_allocator* allocator, const char* str)
 {
     int len = 0;
     if(str)
     {
         len = strlen(str);
     }
-    return (oc_str8_push_buffer(arena, strlen(str), (char*)str));
+    return (oc_str8_push_buffer(allocator, strlen(str), (char*)str));
 }
 
-oc_str8 oc_str8_push_copy(oc_arena* arena, oc_str8 s)
+oc_str8 oc_str8_push_copy(oc_allocator* allocator, oc_str8 s)
 {
-    return (oc_str8_push_buffer(arena, oc_str8_lp(s)));
+    return (oc_str8_push_buffer(allocator, oc_str8_lp(s)));
 }
 
-char* oc_str8_to_cstring(oc_arena* arena, oc_str8 string)
+char* oc_str8_to_cstring(oc_allocator* allocator, oc_str8 string)
 {
     //NOTE: forward to push_copy, which null-terminates the copy
-    string = oc_str8_push_copy(arena, string);
+    string = oc_str8_push_copy(allocator, string);
     return (string.ptr);
 }
 
-oc_str8 oc_str8_push_slice(oc_arena* arena, oc_str8 s, u64 start, u64 end)
+oc_str8 oc_str8_push_slice(oc_allocator* allocator, oc_str8 s, u64 start, u64 end)
 {
     oc_str8 slice = oc_str8_slice(s, start, end);
-    return (oc_str8_push_copy(arena, slice));
+    return (oc_str8_push_copy(allocator, slice));
 }
 
-oc_str8 oc_str8_pushfv(oc_arena* arena, const char* format, va_list args)
+oc_str8 oc_str8_pushfv(oc_allocator* allocator, const char* format, va_list args)
 {
     //NOTE(martin):
     //	We first compute the number of characters to write passing a size of 0.
@@ -82,16 +82,16 @@ oc_str8 oc_str8_pushfv(oc_arena* arena, const char* format, va_list args)
     str.len = vsnprintf(&dummy, 0, format, argCopy);
     va_end(argCopy);
 
-    str.ptr = oc_arena_push_array(arena, char, str.len + 1);
+    str.ptr = oc_allocator_push_array(allocator, char, str.len + 1);
     vsnprintf((char*)str.ptr, str.len + 1, format, args);
     return (str);
 }
 
-oc_str8 oc_str8_pushf(oc_arena* arena, const char* format, ...)
+oc_str8 oc_str8_pushf(oc_allocator* allocator, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    oc_str8 str = oc_str8_pushfv(arena, format, args);
+    oc_str8 str = oc_str8_pushfv(allocator, format, args);
     va_end(args);
     return (str);
 }
@@ -117,9 +117,9 @@ void oc_str8_list_init(oc_str8_list* list)
     list->len = 0;
 }
 
-void oc_str8_list_push(oc_arena* arena, oc_str8_list* list, oc_str8 str)
+void oc_str8_list_push(oc_allocator* allocator, oc_str8_list* list, oc_str8 str)
 {
-    oc_str8_elt* elt = oc_arena_push_type(arena, oc_str8_elt);
+    oc_str8_elt* elt = oc_allocator_push_type(allocator, oc_str8_elt);
     elt->string = str;
     oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
@@ -141,9 +141,9 @@ oc_str8 oc_str8_list_pop_back(oc_str8_list* list)
     return string;
 }
 
-void oc_str8_list_push_front(oc_arena* arena, oc_str8_list* list, oc_str8 str)
+void oc_str8_list_push_front(oc_allocator* allocator, oc_str8_list* list, oc_str8 str)
 {
-    oc_str8_elt* elt = oc_arena_push_type(arena, oc_str8_elt);
+    oc_str8_elt* elt = oc_allocator_push_type(allocator, oc_str8_elt);
     elt->string = str;
     oc_list_push_front(&list->list, &elt->listElt);
     list->eltCount++;
@@ -165,16 +165,16 @@ oc_str8 oc_str8_list_pop_front(oc_str8_list* list)
     return string;
 }
 
-void oc_str8_list_pushf(oc_arena* arena, oc_str8_list* list, const char* format, ...)
+void oc_str8_list_pushf(oc_allocator* allocator, oc_str8_list* list, const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    oc_str8 str = oc_str8_pushfv(arena, format, args);
+    oc_str8 str = oc_str8_pushfv(allocator, format, args);
     va_end(args);
-    oc_str8_list_push(arena, list, str);
+    oc_str8_list_push(allocator, list, str);
 }
 
-oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix)
+oc_str8 oc_str8_list_collate(oc_allocator* allocator, oc_str8_list list, oc_str8 prefix, oc_str8 separator, oc_str8 postfix)
 {
     oc_str8 str = { 0 };
     str.len = prefix.len + list.len + postfix.len;
@@ -183,7 +183,7 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
         str.len += list.eltCount * separator.len - 1;
     }
 
-    str.ptr = oc_arena_push_array(arena, char, str.len + 1);
+    str.ptr = oc_allocator_push_array(allocator, char, str.len + 1);
     char* dst = str.ptr;
     memcpy(dst, prefix.ptr, prefix.len);
     dst += prefix.len;
@@ -208,13 +208,13 @@ oc_str8 oc_str8_list_collate(oc_arena* arena, oc_str8_list list, oc_str8 prefix,
     return (str);
 }
 
-oc_str8 oc_str8_list_join(oc_arena* arena, oc_str8_list list)
+oc_str8 oc_str8_list_join(oc_allocator* allocator, oc_str8_list list)
 {
     oc_str8 empty = { .ptr = 0, .len = 0 };
-    return (oc_str8_list_collate(arena, list, empty, empty, empty));
+    return (oc_str8_list_collate(allocator, list, empty, empty, empty));
 }
 
-oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators)
+oc_str8_list oc_str8_split(oc_allocator* allocator, oc_str8 str, oc_str8_list separators)
 {
     oc_str8_list list = { 0 };
     oc_list_init(&list.list);
@@ -249,14 +249,14 @@ oc_str8_list oc_str8_split(oc_arena* arena, oc_str8 str, oc_str8_list separators
         if(foundSep)
         {
             oc_str8 sub = oc_str8_from_buffer(ptr - subStart, subStart);
-            oc_str8_list_push(arena, &list, sub);
+            oc_str8_list_push(allocator, &list, sub);
             ptr += foundSep->len - 1; //NOTE(martin): ptr is incremented at the end of the loop
             subStart = ptr + 1;
         }
     }
     //NOTE(martin): emit the last substring
     oc_str8 sub = oc_str8_from_buffer(ptr - subStart, subStart);
-    oc_str8_list_push(arena, &list, sub);
+    oc_str8_list_push(allocator, &list, sub);
 
     return (list);
 }
@@ -277,25 +277,25 @@ oc_str16 oc_str16_slice(oc_str16 s, u64 start, u64 end)
     return ((oc_str16){ .ptr = s.ptr + start, .len = end - start });
 }
 
-oc_str16 oc_str16_push_buffer(oc_arena* arena, u64 len, u16* buffer)
+oc_str16 oc_str16_push_buffer(oc_allocator* allocator, u64 len, u16* buffer)
 {
     oc_str16 str = { 0 };
     str.len = len;
-    str.ptr = oc_arena_push_array(arena, u16, len + 1);
+    str.ptr = oc_allocator_push_array(allocator, u16, len + 1);
     memcpy(str.ptr, buffer, len * sizeof(u16));
     str.ptr[str.len] = (u16)0;
     return (str);
 }
 
-oc_str16 oc_str16_push_copy(oc_arena* arena, oc_str16 s)
+oc_str16 oc_str16_push_copy(oc_allocator* allocator, oc_str16 s)
 {
-    return (oc_str16_push_buffer(arena, s.len, s.ptr));
+    return (oc_str16_push_buffer(allocator, s.len, s.ptr));
 }
 
-oc_str16 oc_str16_push_slice(oc_arena* arena, oc_str16 s, u64 start, u64 end)
+oc_str16 oc_str16_push_slice(oc_allocator* allocator, oc_str16 s, u64 start, u64 end)
 {
     oc_str16 slice = oc_str16_slice(s, start, end);
-    return (oc_str16_push_copy(arena, slice));
+    return (oc_str16_push_copy(allocator, slice));
 }
 
 void oc_str16_list_init(oc_str16_list* list)
@@ -305,20 +305,20 @@ void oc_str16_list_init(oc_str16_list* list)
     list->len = 0;
 }
 
-void oc_str16_list_push(oc_arena* arena, oc_str16_list* list, oc_str16 str)
+void oc_str16_list_push(oc_allocator* allocator, oc_str16_list* list, oc_str16 str)
 {
-    oc_str16_elt* elt = oc_arena_push_type(arena, oc_str16_elt);
+    oc_str16_elt* elt = oc_allocator_push_type(allocator, oc_str16_elt);
     elt->string = str;
     oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
 
-oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 prefix, oc_str16 separator, oc_str16 postfix)
+oc_str16 oc_str16_list_collate(oc_allocator* allocator, oc_str16_list list, oc_str16 prefix, oc_str16 separator, oc_str16 postfix)
 {
     oc_str16 str = { 0 };
     str.len = prefix.len + list.len + list.eltCount * separator.len + postfix.len;
-    str.ptr = oc_arena_push_array(arena, u16, str.len + 1);
+    str.ptr = oc_allocator_push_array(allocator, u16, str.len + 1);
     char* dst = (char*)str.ptr;
     memcpy(dst, prefix.ptr, prefix.len * sizeof(u16));
     dst += prefix.len * sizeof(u16);
@@ -343,10 +343,10 @@ oc_str16 oc_str16_list_collate(oc_arena* arena, oc_str16_list list, oc_str16 pre
     return (str);
 }
 
-oc_str16 oc_str16_list_join(oc_arena* arena, oc_str16_list list)
+oc_str16 oc_str16_list_join(oc_allocator* allocator, oc_str16_list list)
 {
     oc_str16 empty = { .ptr = 0, .len = 0 };
-    return (oc_str16_list_collate(arena, list, empty, empty, empty));
+    return (oc_str16_list_collate(allocator, list, empty, empty, empty));
 }
 
 //----------------------------------------------------------------------------------
@@ -370,25 +370,25 @@ oc_str32 oc_str32_slice(oc_str32 s, u64 start, u64 end)
     return ((oc_str32){ .ptr = s.ptr + start, .len = end - start });
 }
 
-oc_str32 oc_str32_push_buffer(oc_arena* arena, u64 len, u32* buffer)
+oc_str32 oc_str32_push_buffer(oc_allocator* allocator, u64 len, u32* buffer)
 {
     oc_str32 str = { 0 };
     str.len = len;
-    str.ptr = oc_arena_push_array(arena, u32, len + 1);
+    str.ptr = oc_allocator_push_array(allocator, u32, len + 1);
     memcpy(str.ptr, buffer, len * sizeof(u32));
     str.ptr[str.len] = 0;
     return (str);
 }
 
-oc_str32 oc_str32_push_copy(oc_arena* arena, oc_str32 s)
+oc_str32 oc_str32_push_copy(oc_allocator* allocator, oc_str32 s)
 {
-    return (oc_str32_push_buffer(arena, s.len, s.ptr));
+    return (oc_str32_push_buffer(allocator, s.len, s.ptr));
 }
 
-oc_str32 oc_str32_push_slice(oc_arena* arena, oc_str32 s, u64 start, u64 end)
+oc_str32 oc_str32_push_slice(oc_allocator* allocator, oc_str32 s, u64 start, u64 end)
 {
     oc_str32 slice = oc_str32_slice(s, start, end);
-    return (oc_str32_push_copy(arena, slice));
+    return (oc_str32_push_copy(allocator, slice));
 }
 
 void oc_str32_list_init(oc_str32_list* list)
@@ -398,20 +398,20 @@ void oc_str32_list_init(oc_str32_list* list)
     list->len = 0;
 }
 
-void oc_str32_list_push(oc_arena* arena, oc_str32_list* list, oc_str32 str)
+void oc_str32_list_push(oc_allocator* allocator, oc_str32_list* list, oc_str32 str)
 {
-    oc_str32_elt* elt = oc_arena_push_type(arena, oc_str32_elt);
+    oc_str32_elt* elt = oc_allocator_push_type(allocator, oc_str32_elt);
     elt->string = str;
     oc_list_push_back(&list->list, &elt->listElt);
     list->eltCount++;
     list->len += str.len;
 }
 
-oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 prefix, oc_str32 separator, oc_str32 postfix)
+oc_str32 oc_str32_list_collate(oc_allocator* allocator, oc_str32_list list, oc_str32 prefix, oc_str32 separator, oc_str32 postfix)
 {
     oc_str32 str = { 0 };
     str.len = prefix.len + list.len + list.eltCount * separator.len + postfix.len;
-    str.ptr = oc_arena_push_array(arena, u32, str.len + 1);
+    str.ptr = oc_allocator_push_array(allocator, u32, str.len + 1);
     char* dst = (char*)str.ptr;
     memcpy(dst, prefix.ptr, prefix.len * sizeof(u32));
     dst += prefix.len * sizeof(u32);
@@ -436,8 +436,8 @@ oc_str32 oc_str32_list_collate(oc_arena* arena, oc_str32_list list, oc_str32 pre
     return (str);
 }
 
-oc_str32 oc_str32_list_join(oc_arena* arena, oc_str32_list list)
+oc_str32 oc_str32_list_join(oc_allocator* allocator, oc_str32_list list)
 {
     oc_str32 empty = { .ptr = 0, .len = 0 };
-    return (oc_str32_list_collate(arena, list, empty, empty, empty));
+    return (oc_str32_list_collate(allocator, list, empty, empty, empty));
 }

@@ -13,11 +13,11 @@
 oc_file oc_file_open_with_request_for_table(oc_str8 path, oc_file_access rights, oc_file_open_flags flags, oc_file_table* table)
 {
     oc_scratch scratch = oc_scratch_begin();
-    oc_str8 msg = oc_str8_pushf(scratch.arena, "Application wants to access file '%.*s'.", (int)path.len, path.ptr);
+    oc_str8 msg = oc_str8_pushf(scratch.allocator, "Application wants to access file '%.*s'.", (int)path.len, path.ptr);
 
     oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("Deny"));
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("Accept"));
+    oc_str8_list_push(scratch.allocator, &options, OC_STR8("Deny"));
+    oc_str8_list_push(scratch.allocator, &options, OC_STR8("Accept"));
 
     int res = oc_alert_popup(OC_STR8("File Access"), msg, options);
 

@@ -118,7 +118,7 @@ void wa_compile_error(wa_build_context* context, wa_instr* instr, const char* fm
 
     va_list ap;
     va_start(ap, fmt);
-    error->string = oc_str8_pushfv(context->arena, fmt, ap);
+    error->string = oc_str8_pushfv(context->arena->allocator, fmt, ap);
     va_end(ap);
 
     oc_list_push_back(&context->module->errors, &error->listElt);

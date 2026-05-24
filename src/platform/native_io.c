@@ -184,7 +184,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 }
                 else
                 {
-                    result.name = oc_str8_push_copy(arena, elt->string);
+                    result.name = oc_str8_push_copy(arena->allocator, elt->string);
                 }
                 break;
             }
@@ -201,7 +201,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                    && ((resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW)
                        || (resolveFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST)))
                 {
-                    result.name = oc_str8_push_copy(arena, elt->string);
+                    result.name = oc_str8_push_copy(arena->allocator, elt->string);
                     break;
                 }
 
@@ -222,7 +222,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 //NOTE: push linkElements in front of pathElements
                 oc_list_for_reverse(linkElements.list, elt, oc_str8_elt, listElt)
                 {
-                    oc_str8_list_push_front(scratch.arena, &pathElements, elt->string);
+                    oc_str8_list_push_front(scratch.allocator, &pathElements, elt->string);
                 }
             }
             else if(status.type == OC_FILE_DIRECTORY || status.type == OC_FILE_REGULAR)
@@ -230,7 +230,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                 if(oc_str8_list_empty(pathElements))
                 {
                     //NOTE: we're on the last element, set name and break.
-                    result.name = oc_str8_push_copy(arena, elt->string);
+                    result.name = oc_str8_push_copy(arena->allocator, elt->string);
                     break;
                 }
                 else if(status.type != OC_FILE_DIRECTORY)
@@ -264,7 +264,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                         break;
                     }
 
-                    oc_str8_list_push(scratch.arena, &normElements, elt->string);
+                    oc_str8_list_push(scratch.allocator, &normElements, elt->string);
                 }
             }
             else

@@ -433,10 +433,10 @@ void oc_wgpu_renderer_create_compute_pipeline(WGPUDevice device,
     oc_scratch scratch = oc_scratch_begin();
     oc_str8_list list = { 0 };
 
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(src));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(oc_wgsl_common));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(src));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(oc_wgsl_common));
 
-    oc_str8 code = oc_str8_list_join(scratch.arena, list);
+    oc_str8 code = oc_str8_list_join(scratch.allocator, list);
 
     WGPUShaderModuleDescriptor desc = {
         .nextInChain = &((WGPUShaderModuleWGSLDescriptor){
@@ -493,10 +493,10 @@ void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
     oc_scratch scratch = oc_scratch_begin();
     oc_str8_list list = { 0 };
 
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(src));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(oc_wgsl_common));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(src));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(oc_wgsl_common));
 
-    oc_str8 code = oc_str8_list_join(scratch.arena, list);
+    oc_str8 code = oc_str8_list_join(scratch.allocator, list);
 
     WGPUShaderModuleDescriptor desc = {
         .nextInChain = &((WGPUShaderModuleWGSLDescriptor){
@@ -4068,7 +4068,7 @@ void oc_wgpu_canvas_debug_log_records(oc_list debugRecords)
     {
         oc_str8_list debugStringList = { 0 };
 
-        oc_str8_list_pushf(scratch.arena,
+        oc_str8_list_pushf(scratch.allocator,
                            &debugStringList,
                            "Record:\n"
                            "  pathCount        = %u\n"
@@ -4081,7 +4081,7 @@ void oc_wgpu_canvas_debug_log_records(oc_list debugRecords)
         u32 batchIndex = 0;
         oc_list_for(record->batches, batch, oc_wgpu_canvas_batch_counters, listElt)
         {
-            oc_str8_list_pushf(scratch.arena,
+            oc_str8_list_pushf(scratch.allocator,
                                &debugStringList,
                                "  Batch %i:\n"
                                "    encodedPaths    = %u\n"
@@ -4091,8 +4091,8 @@ void oc_wgpu_canvas_debug_log_records(oc_list debugRecords)
                                batch->encodedElementCount);
             batchIndex++;
         }
-        oc_str8_list_pushf(scratch.arena, &debugStringList, "\n");
-        oc_str8 debugString = oc_str8_list_join(scratch.arena, debugStringList);
+        oc_str8_list_pushf(scratch.allocator, &debugStringList, "\n");
+        oc_str8 debugString = oc_str8_list_join(scratch.allocator, debugStringList);
         oc_log_info(debugString.ptr);
     }
 

@@ -44,10 +44,10 @@ void oc_assert_fail_dialog(const char* file,
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
+    oc_str8 note = oc_str8_pushfv(scratch.allocator, fmt, ap);
     va_end(ap);
 
-    oc_str8 msg = oc_str8_pushf(scratch.arena,
+    oc_str8 msg = oc_str8_pushf(scratch.allocator,
                                 "Assertion failed in function %s() in file \"%s\", line %i:\n%s\nNote: %.*s\n",
                                 function,
                                 file,
@@ -58,7 +58,7 @@ void oc_assert_fail_dialog(const char* file,
     oc_log_error(msg.ptr);
 
     oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
+    oc_str8_list_push(scratch.allocator, &options, OC_STR8("OK"));
 
     oc_alert_popup(OC_STR8("Assertion Failed"), msg, options);
     exit(-1);
@@ -72,10 +72,10 @@ void oc_abort_ext_dialog(const char* file, const char* function, int line, const
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
+    oc_str8 note = oc_str8_pushfv(scratch.allocator, fmt, ap);
     va_end(ap);
 
-    oc_str8 msg = oc_str8_pushf(scratch.arena,
+    oc_str8 msg = oc_str8_pushf(scratch.allocator,
                                 "Fatal error in function %s() in file \"%s\", line %i:\n%.*s\n",
                                 function,
                                 file,
@@ -85,7 +85,7 @@ void oc_abort_ext_dialog(const char* file, const char* function, int line, const
     oc_log_error(msg.ptr);
 
     oc_str8_list options = { 0 };
-    oc_str8_list_push(scratch.arena, &options, OC_STR8("OK"));
+    oc_str8_list_push(scratch.allocator, &options, OC_STR8("OK"));
 
     oc_alert_popup(OC_STR8("Fatal Error"), msg, options);
     exit(-1);
@@ -468,7 +468,7 @@ void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
         oc_wasm_str8_elt* elt = oc_wasm_address_to_ptr(eltIndex, sizeof(oc_wasm_str8_elt));
         oc_str8 filter = oc_wasm_str8_to_native(elt->string);
 
-        oc_str8_list_push(scratch.arena, &nativeDesc.filters, filter);
+        oc_str8_list_push(scratch.allocator, &nativeDesc.filters, filter);
 
         oc_log_info("filter: %.*s\n", (int)filter.len, filter.ptr);
 

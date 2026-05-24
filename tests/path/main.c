@@ -319,7 +319,7 @@ int run_tests(oc_test_info* info)
         oc_test(info, "/foo/bar/baz.ext")
         {
             oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("/foo/bar/baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -345,7 +345,7 @@ int run_tests(oc_test_info* info)
         oc_test(info, "//foo//bar//baz.ext")
         {
             oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("//foo//bar//baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -372,7 +372,7 @@ int run_tests(oc_test_info* info)
         oc_test(info, "C:\\foo\\bar\\baz.ext")
         {
             oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("C:\\foo\\bar\\baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -398,7 +398,7 @@ int run_tests(oc_test_info* info)
         oc_test(info, "C:foo\\bar\\baz.ext")
         {
             oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("C:foo\\bar\\baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -428,10 +428,10 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
@@ -443,11 +443,11 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,/,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
@@ -459,11 +459,11 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,<empty>,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8(""));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8(""));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
@@ -475,11 +475,11 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,bar,baz,/)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz/")))
@@ -491,10 +491,10 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,/bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
@@ -506,10 +506,10 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,bar/,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
@@ -522,10 +522,10 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(C:\\,foo,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("C:\\"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("C:\\"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("C:\\foo/bar/baz.ext")))
@@ -537,10 +537,10 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(C:,foo,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("C:"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("C:"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
             oc_str8 path = oc_path_join(scratch.arena, list);
             if(oc_str8_cmp(path, OC_STR8("C:foo/bar/baz.ext")))

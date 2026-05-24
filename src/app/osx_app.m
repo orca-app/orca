@@ -478,8 +478,8 @@ void oc_install_keyboard_layout_listener()
 
     oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 path = oc_str8_push_cstring(scratch.arena, [filename UTF8String]);
-    oc_str8_list_push(scratch.arena, &event.paths, path);
+    oc_str8 path = oc_str8_push_cstring(scratch.allocator, [filename UTF8String]);
+    oc_str8_list_push(scratch.allocator, &event.paths, path);
 
     oc_queue_event(&event);
 
@@ -499,8 +499,8 @@ void oc_install_keyboard_layout_listener()
 
     oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 path = oc_str8_push_cstring(scratch.arena, [nsPath UTF8String]);
-    oc_str8_list_push(scratch.arena, &event.paths, path);
+    oc_str8 path = oc_str8_push_cstring(scratch.allocator, [nsPath UTF8String]);
+    oc_str8_list_push(scratch.allocator, &event.paths, path);
 
     oc_queue_event(&event);
 
@@ -1154,7 +1154,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
 
         for(NSUInteger i = 0; i < count; i++)
         {
-            oc_str8_list_push(scratch.arena, &event.paths, OC_STR8([urls[i] fileSystemRepresentation]));
+            oc_str8_list_push(scratch.allocator, &event.paths, OC_STR8([urls[i] fileSystemRepresentation]));
         }
         oc_queue_event(&event);
 
@@ -1338,7 +1338,7 @@ oc_str8 oc_clipboard_get_string(oc_arena* arena)
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
         NSString* nsString = [pb stringForType:NSPasteboardTypeString];
         const char* cString = [nsString UTF8String];
-        oc_str8 result = oc_str8_push_cstring(arena, cString);
+        oc_str8 result = oc_str8_push_cstring(arena->allocator, cString);
         return (result);
     }
 }
@@ -1382,7 +1382,7 @@ oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
 
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
         NSData* nsData = [pb dataForType:tagString];
-        oc_str8 result = oc_str8_push_buffer(arena, [nsData length], (char*)[nsData bytes]);
+        oc_str8 result = oc_str8_push_buffer(arena->allocator, [nsData length], (char*)[nsData bytes]);
         return (result);
     }
 }
@@ -1942,14 +1942,14 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
                       char path[PATH_MAX];
                       if(fcntl(slot->fd, F_GETPATH, path) != -1)
                       {
-                          oc_str8 string = oc_str8_push_cstring(scratch.arena, path);
-                          oc_str8_list_push(scratch.arena, &list, string);
+                          oc_str8 string = oc_str8_push_cstring(scratch.allocator, path);
+                          oc_str8_list_push(scratch.allocator, &list, string);
                       }
                   }
               }
               if(desc->startPath.len)
               {
-                  oc_str8_list_push(scratch.arena, &list, desc->startPath);
+                  oc_str8_list_push(scratch.allocator, &list, desc->startPath);
               }
               startPath = oc_path_join(scratch.arena, list);
           }
@@ -2001,21 +2001,21 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
                   NSArray* files = [((NSOpenPanel*)dialog) URLs];
 
                   const char* path = [[[files objectAtIndex:0] path] UTF8String];
-                  result.path = oc_str8_push_cstring(arena, path);
+                  result.path = oc_str8_push_cstring(arena->allocator, path);
 
                   for(int i = 0; i < [files count]; i++)
                   {
                       const char* path = [[[files objectAtIndex:i] path] UTF8String];
-                      oc_str8 string = oc_str8_push_cstring(arena, path);
-                      oc_str8_list_push(arena, &result.selection, string);
+                      oc_str8 string = oc_str8_push_cstring(arena->allocator, path);
+                      oc_str8_list_push(arena->allocator, &result.selection, string);
                   }
               }
               else
               {
                   const char* path = [[[dialog URL] path] UTF8String];
-                  result.path = oc_str8_push_cstring(arena, path);
+                  result.path = oc_str8_push_cstring(arena->allocator, path);
 
-                  oc_str8_list_push(arena, &result.selection, result.path);
+                  oc_str8_list_push(arena->allocator, &result.selection, result.path);
               }
               result.button = OC_FILE_DIALOG_OK;
           }

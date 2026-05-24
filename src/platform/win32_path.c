@@ -137,15 +137,15 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 {
     oc_scratch tmp = oc_scratch_begin_next(arena);
     oc_str8_list sep = { 0 };
-    oc_str8_list_push(tmp.arena, &sep, OC_STR8("/"));
-    oc_str8_list_push(tmp.arena, &sep, OC_STR8("\\"));
+    oc_str8_list_push(tmp.arena->allocator, &sep, OC_STR8("/"));
+    oc_str8_list_push(tmp.arena->allocator, &sep, OC_STR8("\\"));
 
-    oc_str8_list res = oc_str8_split(arena, path, sep);
+    oc_str8_list res = oc_str8_split(arena->allocator, path, sep);
 
     if(path.len && oc_path_is_separator(path.ptr[0]))
     {
         //NOTE: if path is absolute, add the leading slash as the first element
-        oc_str8_list_push_front(arena, &res, oc_str8_slice(path, 0, 1));
+        oc_str8_list_push_front(arena->allocator, &res, oc_str8_slice(path, 0, 1));
     }
     else if(oc_path_starts_with_volume_letter(path))
     {
@@ -156,11 +156,11 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
         //NOTE: add drive letter (with or without backslash) as first element
         if(path.len > 2 && (path.ptr[2] == '\\' || path.ptr[2] == '/'))
         {
-            oc_str8_list_push_front(arena, &res, oc_str8_slice(path, 0, 3));
+            oc_str8_list_push_front(arena->allocator, &res, oc_str8_slice(path, 0, 3));
         }
         else
         {
-            oc_str8_list_push_front(arena, &res, oc_str8_slice(path, 0, 2));
+            oc_str8_list_push_front(arena->allocator, &res, oc_str8_slice(path, 0, 2));
         }
     }
 
@@ -234,12 +234,12 @@ oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
 
                 if(slice.len || &elt->listElt == elements.list.first || &elt->listElt == elements.list.last)
                 {
-                    oc_str8_list_push(scratch.arena, &list, slice);
+                    oc_str8_list_push(scratch.allocator, &list, slice);
                 }
             }
         }
     }
-    oc_str8 res = oc_str8_list_collate(arena, list, drive, OC_STR8("/"), OC_STR8(""));
+    oc_str8 res = oc_str8_list_collate(arena->allocator, list, drive, OC_STR8("/"), OC_STR8(""));
 
     oc_scratch_end(scratch);
     return (res);
@@ -251,19 +251,19 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
 
     if(parent.len == 0)
     {
-        result = oc_str8_push_copy(arena, relPath);
+        result = oc_str8_push_copy(arena->allocator, relPath);
     }
     else if(relPath.len == 0)
     {
-        result = oc_str8_push_copy(arena, parent);
+        result = oc_str8_push_copy(arena->allocator, parent);
     }
     else
     {
         oc_scratch tmp = oc_scratch_begin_next(arena);
 
         oc_str8_list list = { 0 };
-        oc_str8_list_push(tmp.arena, &list, parent);
-        oc_str8_list_push(tmp.arena, &list, relPath);
+        oc_str8_list_push(tmp.arena->allocator, &list, parent);
+        oc_str8_list_push(tmp.arena->allocator, &list, relPath);
 
         result = oc_path_join(arena, list);
 

@@ -201,7 +201,7 @@ oc_file_name_result oc_file_name(oc_arena* arena, oc_file file)
     }
     else
     {
-        oc_str8 string = oc_str8_push_copy(arena, oc_str8_from_buffer(cmp.size, req.buffer));
+        oc_str8 string = oc_str8_push_copy(arena->allocator, oc_str8_from_buffer(cmp.size, req.buffer));
         result = oc_result_value(oc_file_name_result, string);
     }
 

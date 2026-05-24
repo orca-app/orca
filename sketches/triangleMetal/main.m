@@ -41,7 +41,7 @@ int main()
     oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 shaderPath = oc_path_executable_relative(scratch.arena, OC_STR8("triangle_shader.metallib"));
-    const char* shaderPathCString = oc_str8_to_cstring(scratch.arena, shaderPath);
+    const char* shaderPathCString = oc_str8_to_cstring(scratch.allocator, shaderPath);
     NSString* metalFileName = [[NSString alloc] initWithCString:shaderPathCString encoding:NSUTF8StringEncoding];
     NSError* err = 0;
     id<MTLLibrary> library = [device newLibraryWithFile:metalFileName error:&err];

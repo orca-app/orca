@@ -63,9 +63,9 @@ int make_app_macos(void)
     //NOTE: make bundle directory structure
     //-----------------------------------------------------------
     oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, name);
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(".app"));
-    name = oc_str8_list_join(scratch.arena, list);
+    oc_str8_list_push(scratch.allocator, &list, name);
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(".app"));
+    name = oc_str8_list_join(scratch.allocator, list);
 
     oc_str8 bundleDir = oc_path_append(scratch.arena, outDir, name);
     oc_str8 contentsDir = oc_path_append(scratch.arena, bundleDir, OC_STR8("Contents"));
@@ -147,7 +147,7 @@ int make_app_macos(void)
         for(i32 i = 0; i < 7; ++i)
         {
             oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d.png", size, size));
-            oc_str8 cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                         size, size, oc_str8_ip(icon), sized_icon.ptr);
             i32 result = system(cmd.ptr);
             if(result)
@@ -157,7 +157,7 @@ int make_app_macos(void)
 
             i32 retina_size = size * 2;
             oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d@2x.png", size, size));
-            cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                 retina_size, retina_size, oc_str8_ip(icon), sized_icon.ptr);
             result = system(cmd.ptr);
             if(result)
@@ -169,7 +169,7 @@ int make_app_macos(void)
         }
 
         oc_str8 icon_out = oc_path_append(scratch.arena, resDir, OC_STR8("icon.icns"));
-        oc_str8 cmd = oc_str8_pushf(scratch.arena, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
+        oc_str8 cmd = oc_str8_pushf(scratch.allocator, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
         i32 result = system(cmd.ptr);
         if(result)
         {
@@ -187,7 +187,7 @@ int make_app_macos(void)
     //-----------------------------------------------------------
     oc_str8 bundle_sig = OC_STR8("????");
 
-    oc_str8 plist_contents = oc_str8_pushf(scratch.arena,
+    oc_str8 plist_contents = oc_str8_pushf(scratch.allocator,
                                            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                                            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
                                            "<plist version=\"1.0\">"

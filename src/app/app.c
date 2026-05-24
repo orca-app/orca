@@ -172,7 +172,7 @@ oc_event* oc_next_event(oc_arena* arena)
                 char* buffer = oc_arena_push_array(arena, char, len);
                 oc_ringbuffer_read(queue, len, (u8*)buffer);
 
-                oc_str8_list_push(arena, &event->paths, oc_str8_from_buffer(len, buffer));
+                oc_str8_list_push(arena->allocator, &event->paths, oc_str8_from_buffer(len, buffer));
             }
         }
     }

@@ -129,7 +129,7 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
                 char* buffer = oc_arena_push_array(arena, char, len);
                 oc_ringbuffer_read(queue, len, (u8*)buffer);
 
-                oc_str8_list_push(arena, &event->paths, oc_str8_from_buffer(len, buffer));
+                oc_str8_list_push(arena->allocator, &event->paths, oc_str8_from_buffer(len, buffer));
             }
         }
     }
@@ -238,8 +238,8 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     char* home = getenv("HOME");
 
     oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(".orca"));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(".orca"));
 
     oc_str8 path = oc_path_join(arena, list);
 
@@ -258,8 +258,8 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     char* home = getenv("USERPROFILE");
 
     oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8("AppData/orca"));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8("AppData/orca"));
 
     oc_str8 path = oc_path_join(arena, list);
     oc_win32_path_normalize_slash_in_place(path);
@@ -274,7 +274,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
     oc_scratch scratch = oc_scratch_begin();
-    const char* srcCStr = oc_str8_to_cstring(scratch.arena, src);
+    const char* srcCStr = oc_str8_to_cstring(scratch.allocator, src);
 
     zip_t* zip = zip_open(srcCStr, ZIP_RDONLY, 0);
     if(!zip)
@@ -293,8 +293,8 @@ int oc_zip_extract(oc_str8 src, oc_str8 dst)
         else
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, dst);
-            oc_str8_list_push(scratch.arena, &list, name);
+            oc_str8_list_push(scratch.allocator, &list, dst);
+            oc_str8_list_push(scratch.allocator, &list, name);
             oc_str8 dstPath = oc_path_join(scratch.arena, list);
 
             if(name.ptr[name.len - 1] == '/')
@@ -375,7 +375,7 @@ oc_str8 standalone_app_name(oc_arena* arena)
     oc_str8 ext = oc_path_slice_extension(bundle);
     if(!oc_str8_cmp(ext, OC_STR8(".app")))
     {
-        result = oc_str8_push_copy(arena, oc_path_slice_stem(bundle));
+        result = oc_str8_push_copy(arena->allocator, oc_path_slice_stem(bundle));
     }
     oc_scratch_end(scratch);
     return result;
@@ -386,7 +386,7 @@ oc_str8 standalone_app_name(oc_arena* arena)
 {
     oc_scratch scratch = oc_scratch_begin_next(arena);
     oc_str8 exec = oc_path_executable(scratch.arena);
-    oc_str8 result = oc_str8_push_copy(arena, oc_path_slice_stem(exec));
+    oc_str8 result = oc_str8_push_copy(arena->allocator, oc_path_slice_stem(exec));
     oc_scratch_end(scratch);
     return result;
 }
@@ -441,16 +441,16 @@ int load_app(oc_runtime* app)
     oc_str8 dataDirSrc = { 0 };
     {
         oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, appDir);
-        oc_str8_list_push(scratch.arena, &list, OC_STR8("data/"));
+        oc_str8_list_push(scratch.allocator, &list, appDir);
+        oc_str8_list_push(scratch.allocator, &list, OC_STR8("data/"));
         dataDirSrc = oc_path_join(scratch.arena, list);
     }
     oc_str8 dataDirDest = { 0 };
     {
         oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, orcaDir);
-        oc_str8_list_push(scratch.arena, &list, OC_STR8("userdata"));
-        oc_str8_list_push(scratch.arena, &list, appName);
+        oc_str8_list_push(scratch.allocator, &list, orcaDir);
+        oc_str8_list_push(scratch.allocator, &list, OC_STR8("userdata"));
+        oc_str8_list_push(scratch.allocator, &list, appName);
 
         dataDirDest = oc_path_join(scratch.arena, list);
     }
@@ -468,8 +468,8 @@ int load_app(oc_runtime* app)
     //NOTE: loads wasm module
     {
         oc_str8_list list = { 0 };
-        oc_str8_list_push(scratch.arena, &list, appDir);
-        oc_str8_list_push(scratch.arena, &list, OC_STR8("modules/main.wasm"));
+        oc_str8_list_push(scratch.allocator, &list, appDir);
+        oc_str8_list_push(scratch.allocator, &list, OC_STR8("modules/main.wasm"));
         oc_str8 modulePath = oc_path_join(scratch.arena, list);
 
         //TODO: change for platform layer file IO functions
@@ -1113,7 +1113,7 @@ int main(int argc, char** argv)
         {
             OC_ABORT("Could not find application name.");
         }
-        oc_str8 relPath = oc_str8_pushf(scratch.arena, "../resources/%.*s.orca", oc_str8_ip(appName));
+        oc_str8 relPath = oc_str8_pushf(scratch.allocator, "../resources/%.*s.orca", oc_str8_ip(appName));
         app->path = oc_path_executable_relative(&app->env.arena, relPath);
     }
 

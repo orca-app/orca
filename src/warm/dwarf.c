@@ -153,7 +153,7 @@ void dw_parse_error(dw_parser* parser, u64 loc, const char* fmt, ...)
     oc_scratch scratch = oc_scratch_begin_next(parser->arena);
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 message = oc_str8_pushfv(scratch.arena, fmt, ap);
+    oc_str8 message = oc_str8_pushfv(scratch.allocator, fmt, ap);
     va_end(ap);
 
     dw_parse_error_str8(parser, loc, message);
@@ -2266,7 +2266,7 @@ dw_loc* dw_loc_copy(oc_arena* arena, dw_loc* src)
                 if(destInstr->op == DW_OP_implicit_value && opdIndex == 2)
                 {
                     //NOTE: if operand is a string we also need to copy it...
-                    destInstr->operands[opdIndex].string = oc_str8_push_copy(arena, srcInstr->operands[opdIndex].string);
+                    destInstr->operands[opdIndex].string = oc_str8_push_copy(arena->allocator, srcInstr->operands[opdIndex].string);
                 }
                 else
                 {

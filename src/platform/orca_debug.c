@@ -27,8 +27,8 @@ char* oc_stbsp_callback(char const* buf, void* user, int len)
 {
     oc_stbsp_context* ctx = (oc_stbsp_context*)user;
 
-    oc_str8 string = oc_str8_push_buffer(ctx->arena, len, (char*)buf);
-    oc_str8_list_push(ctx->arena, &ctx->list, string);
+    oc_str8 string = oc_str8_push_buffer(ctx->arena->allocator, len, (char*)buf);
+    oc_str8_list_push(ctx->arena->allocator, &ctx->list, string);
 
     return ((char*)buf);
 }
@@ -68,7 +68,7 @@ void platform_log_push(oc_log_output* output,
     char buf[STB_SPRINTF_MIN];
     stbsp_vsprintfcb(oc_stbsp_callback, &ctx, buf, fmt, ap);
 
-    oc_str8 string = oc_str8_list_join(scratch.arena, ctx.list);
+    oc_str8 string = oc_str8_list_join(scratch.allocator, ctx.list);
 
     oc_hostcall_log(level, strlen(function), (char*)function, strlen(file), (char*)file, line, oc_str8_ip(string));
 
@@ -96,7 +96,7 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
 
     va_end(ap);
 
-    oc_str8 msg = oc_str8_list_join(scratch.arena, ctx.list);
+    oc_str8 msg = oc_str8_list_join(scratch.allocator, ctx.list);
 
     oc_hostcall_abort_ext((char*)file, (char*)function, line, (char*)msg.ptr);
 
@@ -120,7 +120,7 @@ _Noreturn void oc_assert_fail(const char* file, const char* function, int line, 
 
     va_end(ap);
 
-    oc_str8 msg = oc_str8_list_join(scratch.arena, ctx.list);
+    oc_str8 msg = oc_str8_list_join(scratch.allocator, ctx.list);
 
     oc_hostcall_assert_fail((char*)file, (char*)function, line, (char*)src, (char*)msg.ptr);
 

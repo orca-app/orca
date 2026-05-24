@@ -91,10 +91,10 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
+    oc_str8 note = oc_str8_pushfv(scratch.allocator, fmt, ap);
     va_end(ap);
 
-    oc_str8 msg = oc_str8_pushf(scratch.arena,
+    oc_str8 msg = oc_str8_pushf(scratch.allocator,
                                 "Fatal error in function %s() in file \"%s\", line %i:\n%.*s\n",
                                 function,
                                 file,
@@ -112,10 +112,10 @@ _Noreturn void oc_assert_fail(const char* file, const char* function, int line, 
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
+    oc_str8 note = oc_str8_pushfv(scratch.allocator, fmt, ap);
     va_end(ap);
 
-    oc_str8 msg = oc_str8_pushf(scratch.arena,
+    oc_str8 msg = oc_str8_pushf(scratch.allocator,
                                 "Assertion failed in function %s() in file \"%s\", line %i:\n%s\nNote: %.*s\n",
                                 function,
                                 file,

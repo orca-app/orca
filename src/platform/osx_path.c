@@ -29,10 +29,10 @@ oc_str8 oc_path_executable(oc_arena* arena)
 oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
 {
     oc_scratch scratch = oc_scratch_begin_next(arena);
-    char* pathCString = oc_str8_to_cstring(scratch.arena, path);
+    char* pathCString = oc_str8_to_cstring(scratch.allocator, path);
 
     char* real = realpath(pathCString, 0);
-    oc_str8 result = oc_str8_push_cstring(arena, real);
+    oc_str8 result = oc_str8_push_cstring(arena->allocator, real);
 
     free(real);
     oc_scratch_end(scratch);

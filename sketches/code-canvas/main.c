@@ -365,7 +365,7 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
     oc_vec2 mouseDelta = oc_ui_get_sig().delta;
 
     oc_scratch scratch = oc_scratch_begin();
-    oc_str8 idStr = oc_str8_pushf(scratch.arena, "card-%llu", card->id);
+    oc_str8 idStr = oc_str8_pushf(scratch.allocator, "card-%llu", card->id);
     oc_ui_box_str8(idStr)
     {
         oc_ui_set_text(idStr);
@@ -726,7 +726,7 @@ i32 ui_runloop(void* user)
                         card->rect.h + 2 * OC_CARD_BORDER_SIZE,
                     };
 
-                    oc_str8 idStr = oc_str8_pushf(scratch.arena, "group-halo-%llu", card->id);
+                    oc_str8 idStr = oc_str8_pushf(scratch.allocator, "group-halo-%llu", card->id);
                     oc_ui_box_str8(idStr)
                     {
                         oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);

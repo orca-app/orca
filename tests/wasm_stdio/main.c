@@ -117,7 +117,7 @@ int test_write(void)
     }
     fclose(f);
 
-    char* pathCStr = oc_str8_to_cstring(arena, path);
+    char* pathCStr = oc_str8_to_cstring(arena->allocator, path);
     FILE* file = fopen(pathCStr, "r");
     if(!file)
     {

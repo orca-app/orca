@@ -62,7 +62,7 @@ bool icon_from_image(oc_arena* a, oc_str8 image_path, oc_str8 ico_path)
     oc_scratch scratch = oc_scratch_begin_next(a);
 
     i32 og_width, og_height, og_channels;
-    char* filename = oc_str8_to_cstring(scratch.arena, image_path);
+    char* filename = oc_str8_to_cstring(scratch.allocator, image_path);
     u8* og_image_data = stbi_load(filename, &og_width, &og_height, &og_channels, STBI_rgb_alpha);
 
     u32 sizes[] = { 16, 32, 48, 256 };
@@ -300,7 +300,7 @@ bool resource_file_from_icon(oc_arena* a, oc_str8 ico_path, oc_str8 res_path)
         goto cleanup;
     }
 
-    oc_str8 cmd = oc_str8_pushf(scratch.arena, "rc.exe /nologo /fo %.*s %s",
+    oc_str8 cmd = oc_str8_pushf(scratch.allocator, "rc.exe /nologo /fo %.*s %s",
                                 oc_str8_ip(res_path), rc_path.ptr);
     int return_code = system(cmd.ptr);
     if(return_code)

@@ -84,16 +84,16 @@ ORCA_EXPORT void oc_on_resize(u32 width, u32 height)
 
 void log_push(const char* line)
 {
-    oc_str8_list_push(&logArena, &logLines, (oc_str8)OC_STR8(line));
+    oc_str8_list_push(logArena.allocator, &logLines, (oc_str8)OC_STR8(line));
 }
 
 void log_pushf(const char* format, ...)
 {
     va_list args;
     va_start(args, format);
-    oc_str8 str = oc_str8_pushfv(&logArena, format, args);
+    oc_str8 str = oc_str8_pushfv(logArena.allocator, format, args);
     va_end(args);
-    oc_str8_list_push(&logArena, &logLines, str);
+    oc_str8_list_push(logArena.allocator, &logLines, str);
 }
 
 void column_begin(const char* header, f32 widthFraction)
@@ -382,7 +382,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                         if(result.changed)
                         {
                             oc_arena_clear(&textArena);
-                            textInfo.text = oc_str8_push_copy(&textArena, result.text);
+                            textInfo.text = oc_str8_push_copy(textArena.allocator, result.text);
                         }
                         if(result.accepted)
                         {
@@ -488,10 +488,10 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                         {
                             oc_str8_list list = { 0 };
-                            oc_str8_list_push(scratch.arena, &list, OC_STR8("radio_group .radio-row"));
-                            oc_str8_list_push(scratch.arena, &list, unselectedWhenStatus);
-                            oc_str8_list_push(scratch.arena, &list, OC_STR8(" .radio"));
-                            oc_str8 unselectedPattern = oc_str8_list_join(scratch.arena, list);
+                            oc_str8_list_push(scratch.allocator, &list, OC_STR8("radio_group .radio-row"));
+                            oc_str8_list_push(scratch.allocator, &list, unselectedWhenStatus);
+                            oc_str8_list_push(scratch.allocator, &list, OC_STR8(" .radio"));
+                            oc_str8 unselectedPattern = oc_str8_list_join(scratch.allocator, list);
 
                             oc_ui_style_rule_str8(unselectedPattern)
                             {
@@ -506,10 +506,10 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
 
                         {
                             oc_str8_list list = { 0 };
-                            oc_str8_list_push(scratch.arena, &list, OC_STR8("radio_group .radio-row"));
-                            oc_str8_list_push(scratch.arena, &list, selectedWhenStatus);
-                            oc_str8_list_push(scratch.arena, &list, OC_STR8(" .radio_selected"));
-                            oc_str8 selectedPattern = oc_str8_list_join(scratch.arena, list);
+                            oc_str8_list_push(scratch.allocator, &list, OC_STR8("radio_group .radio-row"));
+                            oc_str8_list_push(scratch.allocator, &list, selectedWhenStatus);
+                            oc_str8_list_push(scratch.allocator, &list, OC_STR8(" .radio_selected"));
+                            oc_str8 selectedPattern = oc_str8_list_join(scratch.allocator, list);
 
                             oc_ui_style_rule_str8(selectedPattern)
                             {

@@ -846,7 +846,7 @@ oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
     DWORD winStyle = WS_OVERLAPPEDWINDOW;
     AdjustWindowRect(&frame, winStyle, FALSE);
 
-    const char* titleCString = oc_str8_to_cstring(scratch.arena, title);
+    const char* titleCString = oc_str8_to_cstring(scratch.allocator, title);
 
     HWND windowHandle = CreateWindow("ApplicationWindowClass", titleCString,
                                      winStyle,
@@ -993,7 +993,7 @@ void oc_window_set_title(oc_window window, oc_str8 title)
     if(windowData)
     {
         oc_scratch scratch = oc_scratch_begin();
-        const char* titleCString = oc_str8_to_cstring(scratch.arena, title);
+        const char* titleCString = oc_str8_to_cstring(scratch.allocator, title);
 
         SetWindowText(windowData->win32.hWnd, titleCString);
 
@@ -1426,12 +1426,12 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                         {
                             path = oc_str8_slice(path, 4, path.len);
                         }
-                        oc_str8_list_push(scratch.arena, &list, path);
+                        oc_str8_list_push(scratch.allocator, &list, path);
                     }
                 }
                 if(desc->startPath.len)
                 {
-                    oc_str8_list_push(scratch.arena, &list, desc->startPath);
+                    oc_str8_list_push(scratch.allocator, &list, desc->startPath);
                 }
                 startPath = oc_path_join(scratch.arena, list);
             }
@@ -1458,9 +1458,9 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                 oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
                 {
                     oc_str8_list list = { 0 };
-                    oc_str8_list_push(scratch.arena, &list, OC_STR8("*."));
-                    oc_str8_list_push(scratch.arena, &list, elt->string);
-                    oc_str8 filter = oc_str8_list_join(scratch.arena, list);
+                    oc_str8_list_push(scratch.allocator, &list, OC_STR8("*."));
+                    oc_str8_list_push(scratch.allocator, &list, elt->string);
+                    oc_str8 filter = oc_str8_list_join(scratch.allocator, list);
 
                     int filterWideSize = 1 + MultiByteToWideChar(CP_UTF8, 0, filter.ptr, filter.len, NULL, 0);
                     filterSpecs[i].pszSpec = oc_arena_push_array(scratch.arena, wchar_t, filterWideSize);
@@ -1502,7 +1502,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                                     //NOTE: convert Windows backslashes to forward slashes
                                     oc_win32_path_normalize_slash_in_place(path);
 
-                                    oc_str8_list_push(arena, &result.selection, path);
+                                    oc_str8_list_push(arena->allocator, &result.selection, path);
 
                                     if(itemIndex == 0)
                                     {
@@ -1534,7 +1534,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                             oc_win32_path_normalize_slash_in_place(path);
 
                             result.path = path;
-                            oc_str8_list_push(arena, &result.selection, result.path);
+                            oc_str8_list_push(arena->allocator, &result.selection, result.path);
 
                             CoTaskMemFree(pathWCStr);
                         }

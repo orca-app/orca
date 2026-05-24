@@ -114,13 +114,13 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
 
         for(int i = 0; i < argc; i++)
         {
-            oc_str8_list_pushf(scratch.arena, &list, "\"%s\"", argv[i]);
+            oc_str8_list_pushf(scratch.allocator, &list, "\"%s\"", argv[i]);
             if(i < argc - 1)
             {
-                oc_str8_list_push(scratch.arena, &list, OC_STR8(" "));
+                oc_str8_list_push(scratch.allocator, &list, OC_STR8(" "));
             }
         }
-        oc_str8 commandLineU8 = oc_str8_list_join(scratch.arena, list);
+        oc_str8 commandLineU8 = oc_str8_list_join(scratch.allocator, list);
         commandLine = oc_win32_utf8_to_wide(scratch.arena, commandLineU8);
     }
 
@@ -234,7 +234,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nOut)
                 {
-                    oc_str8_list_push(scratch.arena, &outList, oc_str8_from_buffer(nOut, chunk));
+                    oc_str8_list_push(scratch.allocator, &outList, oc_str8_from_buffer(nOut, chunk));
                 }
             }
 
@@ -256,15 +256,15 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nErr)
                 {
-                    oc_str8_list_push(scratch.arena, &errList, oc_str8_from_buffer(nErr, chunk));
+                    oc_str8_list_push(scratch.allocator, &errList, oc_str8_from_buffer(nErr, chunk));
                 }
             }
         }
 
         if(error == OC_SUBPROCESS_OK && arena)
         {
-            completion.capturedStdout = oc_str8_list_join(arena, outList);
-            completion.capturedStderr = oc_str8_list_join(arena, errList);
+            completion.capturedStdout = oc_str8_list_join(arena->allocator, outList);
+            completion.capturedStderr = oc_str8_list_join(arena->allocator, errList);
         }
         oc_scratch_end(scratch);
     }

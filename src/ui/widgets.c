@@ -962,11 +962,11 @@ oc_str32 oc_ui_edit_replace_selection_with_codepoints(oc_ui_text_box_info* info,
     oc_scratch scratch = oc_scratch_begin();
 
     oc_str32_list list = { 0 };
-    oc_str32_list_push(scratch.arena, &list, before);
-    oc_str32_list_push(scratch.arena, &list, input);
-    oc_str32_list_push(scratch.arena, &list, after);
+    oc_str32_list_push(scratch.allocator, &list, before);
+    oc_str32_list_push(scratch.allocator, &list, input);
+    oc_str32_list_push(scratch.allocator, &list, after);
 
-    codepoints = oc_str32_list_join(oc_ui_frame_arena(), list);
+    codepoints = oc_str32_list_join(oc_ui_frame_arena()->allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -2052,7 +2052,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             oc_ui_text_box_render_data* renderData = oc_arena_push_type(frameArena, oc_ui_text_box_render_data);
 
             *renderData = (oc_ui_text_box_render_data){
-                .codepoints = oc_str32_push_copy(frameArena, codepoints),
+                .codepoints = oc_str32_push_copy(frameArena->allocator, codepoints),
                 .firstDisplayedChar = info->firstDisplayedChar,
                 .cursor = info->cursor,
                 .mark = info->mark,

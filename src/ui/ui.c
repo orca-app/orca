@@ -481,7 +481,7 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
         else
         {
             //NOTE: first make a copy of pattern string in frame arena
-            patternString = oc_str8_push_copy(oc_ui_frame_arena(), patternString);
+            patternString = oc_str8_push_copy(oc_ui_frame_arena()->allocator, patternString);
 
             //NOTE: parse pattern from patternString
             oc_ui_pattern pattern = { 0 };
@@ -931,7 +931,7 @@ void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* sc
     {
         stack = oc_arena_push_type(ui->frameArena, oc_ui_var_stack);
 
-        stack->name = oc_str8_push_copy(ui->frameArena, name);
+        stack->name = oc_str8_push_copy(ui->frameArena->allocator, name);
         stack->hash = hash;
         oc_list_push_back(bucket, &stack->bucketElt);
     }
@@ -1636,7 +1636,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
         box->fresh = false;
     }
 
-    box->keyString = oc_str8_push_copy(ui->frameArena, string);
+    box->keyString = oc_str8_push_copy(ui->frameArena->allocator, string);
     box->text = (oc_str8){ 0 };
     box->drawProc = 0;
 
@@ -1658,7 +1658,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
         //maybe this should be a warning that we're trying to make the box twice in the same frame?
         oc_log_warning("trying to make ui box '%.*s' (%llx) multiple times in the same frame (prev is %.*s)\n", (int)string.len, string.ptr, box->key.hash, oc_str8_ip(box->keyString));
     }
-    box->keyString = oc_str8_push_copy(ui->frameArena, string);
+    box->keyString = oc_str8_push_copy(ui->frameArena->allocator, string);
     box->text = (oc_str8){ 0 };
 
     box->frameCounter = ui->frameCounter;
@@ -1880,7 +1880,7 @@ void oc_ui_box_set_text(oc_ui_box* box, oc_str8 text)
     oc_ui_context* ui = oc_ui_get_context();
     if(ui && box)
     {
-        box->text = oc_str8_push_copy(ui->frameArena, text);
+        box->text = oc_str8_push_copy(ui->frameArena->allocator, text);
     }
 }
 

@@ -212,7 +212,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nOut)
                 {
-                    oc_str8_list_push(scratch.arena, &outList, oc_str8_from_buffer(nOut, chunk));
+                    oc_str8_list_push(scratch.allocator, &outList, oc_str8_from_buffer(nOut, chunk));
                 }
             }
 
@@ -228,7 +228,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nErr)
                 {
-                    oc_str8_list_push(scratch.arena, &errList, oc_str8_from_buffer(nErr, chunk));
+                    oc_str8_list_push(scratch.allocator, &errList, oc_str8_from_buffer(nErr, chunk));
                 }
             }
 
@@ -248,8 +248,8 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
         {
             if(arena)
             {
-                completion.capturedStdout = oc_str8_list_join(arena, outList);
-                completion.capturedStderr = oc_str8_list_join(arena, errList);
+                completion.capturedStdout = oc_str8_list_join(arena->allocator, outList);
+                completion.capturedStderr = oc_str8_list_join(arena->allocator, errList);
             }
         }
         oc_scratch_end(scratch);

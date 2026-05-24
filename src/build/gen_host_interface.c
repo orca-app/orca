@@ -99,7 +99,7 @@ oc_str8 gen_guest_type(oc_arena* arena, json_node* node)
     {
         json_node* typeNode = json_expect_field(node, OC_STR8("type"), JSON_OBJECT);
         oc_str8 type = gen_guest_type(arena, typeNode);
-        result = oc_str8_pushf(arena, "%.*s*", oc_str8_ip(type));
+        result = oc_str8_pushf(arena->allocator, "%.*s*", oc_str8_ip(type));
     }
     else
     {
@@ -113,30 +113,30 @@ void gen_hostcall_prototype(oc_arena* arena, oc_str8_list* list, proc_desc* proc
 {
     if(proc->noReturn)
     {
-        oc_str8_list_push(arena, list, OC_STR8("_Noreturn "));
+        oc_str8_list_push(arena->allocator, list, OC_STR8("_Noreturn "));
     }
 
-    oc_str8_list_push(arena, list, proc->returnType.guestType);
+    oc_str8_list_push(arena->allocator, list, proc->returnType.guestType);
 
-    oc_str8_list_pushf(arena,
+    oc_str8_list_pushf(arena->allocator,
                        list,
                        " ORCA_IMPORT(%.*s)(",
                        oc_str8_ip(proc->name));
 
     if(proc->paramCount == 0)
     {
-        oc_str8_list_push(arena, list, OC_STR8("void"));
+        oc_str8_list_push(arena->allocator, list, OC_STR8("void"));
     }
     for(int i = 0; i < proc->paramCount; i++)
     {
-        oc_str8_list_push(arena, list, proc->params[i].typeDesc.guestType);
-        oc_str8_list_pushf(arena, list, " %.*s", oc_str8_ip(proc->params[i].name));
+        oc_str8_list_push(arena->allocator, list, proc->params[i].typeDesc.guestType);
+        oc_str8_list_pushf(arena->allocator, list, " %.*s", oc_str8_ip(proc->params[i].name));
         if(i < proc->paramCount - 1)
         {
-            oc_str8_list_push(arena, list, OC_STR8(", "));
+            oc_str8_list_push(arena->allocator, list, OC_STR8(", "));
         }
     }
-    oc_str8_list_push(arena, list, OC_STR8(");\n"));
+    oc_str8_list_push(arena->allocator, list, OC_STR8(");\n"));
 }
 
 json_node* find_named_type(json_node* root, oc_str8 name)
@@ -206,7 +206,7 @@ oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
 
         if(has_attribute(node, OC_STR8("const")))
         {
-            typeString = oc_str8_pushf(arena, "const %.*s", oc_str8_ip(typeString));
+            typeString = oc_str8_pushf(arena->allocator, "const %.*s", oc_str8_ip(typeString));
         }
     }
     else if(!oc_str8_cmp(kindNode->string, OC_STR8("pointer")))
@@ -215,11 +215,11 @@ oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
 
         oc_str8 sub = get_native_type(arena, root, typeNode);
 
-        typeString = oc_str8_pushf(arena, "%.*s*", oc_str8_ip(sub));
+        typeString = oc_str8_pushf(arena->allocator, "%.*s*", oc_str8_ip(sub));
 
         if(has_attribute(node, OC_STR8("const")))
         {
-            typeString = oc_str8_pushf(arena, "%.*s const", oc_str8_ip(typeString));
+            typeString = oc_str8_pushf(arena->allocator, "%.*s const", oc_str8_ip(typeString));
         }
     }
     else if(!oc_str8_cmp(kindNode->string, OC_STR8("struct")))
@@ -233,7 +233,7 @@ oc_str8 get_native_type(oc_arena* arena, json_node* root, json_node* node)
 
         if(has_attribute(node, OC_STR8("const")))
         {
-            typeString = oc_str8_pushf(arena, "const %.*s", oc_str8_ip(typeString));
+            typeString = oc_str8_pushf(arena->allocator, "const %.*s", oc_str8_ip(typeString));
         }
     }
     return typeString;
@@ -413,34 +413,34 @@ proc_desc* parse_proc(oc_arena* arena, json_node* root, json_node* procNode)
 
 void gen_handler_prototype(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
 {
-    oc_str8_list_pushf(arena,
+    oc_str8_list_pushf(arena->allocator,
                        list,
                        "%.*s %.*s(",
                        oc_str8_ip(proc->returnType.string),
                        oc_str8_ip(proc->handler));
     for(int i = 0; i < proc->paramCount; i++)
     {
-        oc_str8_list_pushf(arena,
+        oc_str8_list_pushf(arena->allocator,
                            list,
                            "%.*s %.*s",
                            oc_str8_ip(proc->params[i].typeDesc.string),
                            oc_str8_ip(proc->params[i].name));
         if(i < proc->paramCount - 1)
         {
-            oc_str8_list_push(arena, list, OC_STR8(", "));
+            oc_str8_list_push(arena->allocator, list, OC_STR8(", "));
         }
     }
-    oc_str8_list_push(arena, list, OC_STR8(");\n"));
+    oc_str8_list_push(arena->allocator, list, OC_STR8(");\n"));
 }
 
 void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
 {
-    oc_str8_list_pushf(arena,
+    oc_str8_list_pushf(arena->allocator,
                        list,
                        "void %.*s_stub(wa_interpreter* interpreter, wa_value* params, wa_value* returns, void* user)\n{\n",
                        oc_str8_ip(proc->handler));
 
-    oc_str8_list_push(arena,
+    oc_str8_list_push(arena->allocator,
                       list,
                       OC_STR8("\twa_instance* instance = wa_interpreter_current_instance(interpreter);\n"
                               "\toc_str8 memStr8 = wa_instance_get_memory_str8(instance);\n"
@@ -453,13 +453,13 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
 
         if(param->typeDesc.isPointer)
         {
-            oc_str8_list_pushf(arena,
+            oc_str8_list_pushf(arena->allocator,
                                list,
                                "\tu64 %.*s_argOffset = (u64)(*(u32*)&params[%llu]);\n",
                                oc_str8_ip(param->name),
                                i);
 
-            oc_str8_list_pushf(arena,
+            oc_str8_list_pushf(arena->allocator,
                                list,
                                "\t%.*s %.*s_arg = (%.*s)((char*)_mem + %.*s_argOffset);\n",
                                oc_str8_ip(param->typeDesc.string),
@@ -469,7 +469,7 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
         }
         else
         {
-            oc_str8_list_pushf(arena,
+            oc_str8_list_pushf(arena->allocator,
                                list,
                                "\t%.*s %.*s_arg = *(%.*s*)&params[%llu];\n",
                                oc_str8_ip(param->typeDesc.string),
@@ -486,7 +486,7 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
 
         if(param->typeDesc.isPointer)
         {
-            oc_str8_list_pushf(arena, list, "\t{\n\t\t// Check argument '%.*s'\n", oc_str8_ip(param->name));
+            oc_str8_list_pushf(arena->allocator, list, "\t{\n\t\t// Check argument '%.*s'\n", oc_str8_ip(param->name));
 
             //NOTE: Compute size of arg, detecting overflow
             oc_str8 sizeofString = { 0 };
@@ -498,16 +498,16 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
             }
             else
             {
-                sizeofString = oc_str8_pushf(arena, "sizeof(*%.*s_arg)", oc_str8_ip(param->name));
+                sizeofString = oc_str8_pushf(arena->allocator, "sizeof(*%.*s_arg)", oc_str8_ip(param->name));
             }
 
-            oc_str8_list_pushf(arena,
+            oc_str8_list_pushf(arena->allocator,
                                list,
                                "\t\tu64 size = %u * %.*s;\n",
                                param->len.countConst,
                                oc_str8_ip(sizeofString));
 
-            oc_str8_list_pushf(arena,
+            oc_str8_list_pushf(arena->allocator,
                                list,
                                "\t\tOC_ASSERT_DIALOG(size/%u == %.*s, \"argument length overflows\");\n",
                                param->len.countConst,
@@ -515,20 +515,20 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
 
             if(param->len.countArg.len)
             {
-                oc_str8_list_pushf(arena,
+                oc_str8_list_pushf(arena->allocator,
                                    list,
                                    "\t\tOC_ASSERT_DIALOG((%.*s_arg * size)/size == %.*s_arg, \"argument length overflows\");\n",
                                    oc_str8_ip(param->len.countArg),
                                    oc_str8_ip(param->len.countArg));
 
-                oc_str8_list_pushf(arena,
+                oc_str8_list_pushf(arena->allocator,
                                    list,
                                    "\t\tsize *= %.*s_arg;\n",
                                    oc_str8_ip(param->len.countArg));
             }
 
             //NOTE: check size of arg, detecting out-of-bounds and overflow
-            oc_str8_list_pushf(arena,
+            oc_str8_list_pushf(arena->allocator,
                                list,
                                "\t\tOC_ASSERT_DIALOG((%.*s_argOffset + size < _memSize) && (%.*s_argOffset + size >= %.*s_argOffset), \"argument is out of bounds\");\n",
                                oc_str8_ip(param->name),
@@ -538,33 +538,33 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
             //NOTE: check with validation function if present
             if(param->len.checkProc.len)
             {
-                oc_str8_list_pushf(arena,
+                oc_str8_list_pushf(arena->allocator,
                                    list,
                                    "\t\tOC_ASSERT(%.*s(instance,",
                                    oc_str8_ip(param->len.checkProc));
 
                 for(int i = 0; i < param->len.checkArgCount; i++)
                 {
-                    oc_str8_list_pushf(arena, list, "%.*s_arg", oc_str8_ip(param->len.checkArgs[i]));
+                    oc_str8_list_pushf(arena->allocator, list, "%.*s_arg", oc_str8_ip(param->len.checkArgs[i]));
 
                     if(i < param->len.checkArgCount - 1)
                     {
-                        oc_str8_list_push(arena, list, OC_STR8(", "));
+                        oc_str8_list_push(arena->allocator, list, OC_STR8(", "));
                     }
                 }
-                oc_str8_list_push(arena, list, OC_STR8("), \"argument check failed\");\n"));
+                oc_str8_list_push(arena->allocator, list, OC_STR8("), \"argument check failed\");\n"));
             }
 
-            oc_str8_list_pushf(arena, list, "\t}\n");
+            oc_str8_list_pushf(arena->allocator, list, "\t}\n");
         }
     }
 
     if(proc->paramCount)
     {
-        oc_str8_list_push(arena, list, OC_STR8("\n"));
+        oc_str8_list_push(arena->allocator, list, OC_STR8("\n"));
     }
 
-    oc_str8_list_push(arena, list, OC_STR8("\t"));
+    oc_str8_list_push(arena->allocator, list, OC_STR8("\t"));
 
     if(oc_str8_cmp(proc->returnType.string, OC_STR8("void")))
     {
@@ -573,68 +573,68 @@ void gen_hostapi_stub(oc_arena* arena, oc_str8_list* list, proc_desc* proc)
             printf("Error: return type should be a scalar.\n");
             exit(-1);
         }
-        oc_str8_list_pushf(arena, list, "*(%.*s*)&returns[0] = ", oc_str8_ip(proc->returnType.string));
+        oc_str8_list_pushf(arena->allocator, list, "*(%.*s*)&returns[0] = ", oc_str8_ip(proc->returnType.string));
     }
 
-    oc_str8_list_pushf(arena, list, "%.*s(", oc_str8_ip(proc->handler));
+    oc_str8_list_pushf(arena->allocator, list, "%.*s(", oc_str8_ip(proc->handler));
     for(int i = 0; i < proc->paramCount; i++)
     {
         param_desc* param = &proc->params[i];
-        oc_str8_list_pushf(arena, list, "%.*s_arg", oc_str8_ip(param->name));
+        oc_str8_list_pushf(arena->allocator, list, "%.*s_arg", oc_str8_ip(param->name));
         if(i < proc->paramCount - 1)
         {
-            oc_str8_list_push(arena, list, OC_STR8(", "));
+            oc_str8_list_push(arena->allocator, list, OC_STR8(", "));
         }
     }
-    oc_str8_list_push(arena, list, OC_STR8(");\n}\n\n"));
+    oc_str8_list_push(arena->allocator, list, OC_STR8(");\n}\n\n"));
 }
 
 void gen_hostapi_binding(oc_arena* arena, oc_str8_list* list, oc_str8 apiName, oc_list procList)
 {
-    oc_str8_list_pushf(arena,
+    oc_str8_list_pushf(arena->allocator,
                        list,
                        "void bindgen_link_%.*s_api(oc_arena* arena, wa_import_package* package)\n{\n",
                        oc_str8_ip(apiName));
 
     oc_list_for(procList, proc, proc_desc, listElt)
     {
-        oc_str8_list_pushf(arena,
+        oc_str8_list_pushf(arena->allocator,
                            list,
                            "\t{\n\t\t// Bind %.*s to %.*s\n",
                            oc_str8_ip(proc->handler),
                            oc_str8_ip(proc->name));
 
-        oc_str8_list_push(arena, list, OC_STR8("\t\twa_value_type paramTypes[] = {"));
+        oc_str8_list_push(arena->allocator, list, OC_STR8("\t\twa_value_type paramTypes[] = {"));
 
         for(int i = 0; i < proc->paramCount; i++)
         {
-            oc_str8_list_push(arena, list, proc->params[i].typeDesc.wasmType);
+            oc_str8_list_push(arena->allocator, list, proc->params[i].typeDesc.wasmType);
             if(i < proc->paramCount - 1)
             {
-                oc_str8_list_push(arena, list, OC_STR8(", "));
+                oc_str8_list_push(arena->allocator, list, OC_STR8(", "));
             }
         }
 
-        oc_str8_list_push(arena, list, OC_STR8("};\n"));
+        oc_str8_list_push(arena->allocator, list, OC_STR8("};\n"));
 
-        oc_str8_list_pushf(arena, list, "\t\twa_value_type returnTypes[] = {%.*s};\n", oc_str8_ip(proc->returnType.wasmType));
-        oc_str8_list_pushf(arena, list, "\t\twa_import_binding binding = {0};\n");
-        oc_str8_list_pushf(arena, list, "\t\tbinding.name = OC_STR8(\"%.*s\");\n", oc_str8_ip(proc->name));
-        oc_str8_list_pushf(arena, list, "\t\tbinding.kind = WA_BINDING_HOST_FUNCTION;\n");
-        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.proc = %.*s_stub;\n", oc_str8_ip(proc->handler));
-        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.paramCount = %u;\n", proc->paramCount);
+        oc_str8_list_pushf(arena->allocator, list, "\t\twa_value_type returnTypes[] = {%.*s};\n", oc_str8_ip(proc->returnType.wasmType));
+        oc_str8_list_pushf(arena->allocator, list, "\t\twa_import_binding binding = {0};\n");
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.name = OC_STR8(\"%.*s\");\n", oc_str8_ip(proc->name));
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.kind = WA_BINDING_HOST_FUNCTION;\n");
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.hostFunction.proc = %.*s_stub;\n", oc_str8_ip(proc->handler));
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.hostFunction.type.paramCount = %u;\n", proc->paramCount);
 
         u32 returnCount = oc_str8_cmp(proc->returnType.string, OC_STR8("void"))
                             ? 1
                             : 0;
-        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.returnCount = %u;\n", returnCount);
-        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.params = paramTypes;\n");
-        oc_str8_list_pushf(arena, list, "\t\tbinding.hostFunction.type.returns = returnTypes;\n");
-        oc_str8_list_pushf(arena, list, "\t\twa_import_package_push_binding(arena, package, &binding);\n");
-        oc_str8_list_push(arena, list, OC_STR8("\t}\n"));
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.hostFunction.type.returnCount = %u;\n", returnCount);
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.hostFunction.type.params = paramTypes;\n");
+        oc_str8_list_pushf(arena->allocator, list, "\t\tbinding.hostFunction.type.returns = returnTypes;\n");
+        oc_str8_list_pushf(arena->allocator, list, "\t\twa_import_package_push_binding(arena, package, &binding);\n");
+        oc_str8_list_push(arena->allocator, list, OC_STR8("\t}\n"));
     }
 
-    oc_str8_list_push(arena, list, OC_STR8("}\n"));
+    oc_str8_list_push(arena->allocator, list, OC_STR8("}\n"));
 }
 
 int main(int argc, char** argv)
@@ -766,25 +766,25 @@ int main(int argc, char** argv)
 
     //NOTE: generate hostcall header
     {
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostcallDeclList,
                           OC_STR8("//---------------------------------------------------\n"));
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostcallDeclList,
                           OC_STR8("// hostcalls declarations generated from host_interface.json\n"));
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostcallDeclList,
                           OC_STR8("//---------------------------------------------------\n"));
 
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostcallDeclList,
                           OC_STR8("#pragma once\n\n"));
 
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostcallDeclList,
                           OC_STR8("#include \"platform/platform.h\"\n\n"));
 
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostcallDeclList,
                           OC_STR8("#include \"orca.h\"\n\n"));
 
@@ -803,7 +803,7 @@ int main(int argc, char** argv)
 
                     if(!oc_str8_cmp(typeKindNode->string, OC_STR8("struct")))
                     {
-                        oc_str8_list_pushf(scratch.arena,
+                        oc_str8_list_pushf(scratch.allocator,
                                            &hostcallDeclList,
                                            "typedef struct %.*s %.*s;\n",
                                            oc_str8_ip(nameNode->string),
@@ -811,7 +811,7 @@ int main(int argc, char** argv)
                     }
                     else if(!oc_str8_cmp(typeKindNode->string, OC_STR8("union")))
                     {
-                        oc_str8_list_pushf(scratch.arena,
+                        oc_str8_list_pushf(scratch.allocator,
                                            &hostcallDeclList,
                                            "typedef union %.*s %.*s;\n",
                                            oc_str8_ip(nameNode->string),
@@ -820,7 +820,7 @@ int main(int argc, char** argv)
                 }
             }
         }
-        oc_str8_list_push(scratch.arena, &hostcallDeclList, OC_STR8("\n"));
+        oc_str8_list_push(scratch.allocator, &hostcallDeclList, OC_STR8("\n"));
 
         //NOTE: generate hostcalls prototypes
         oc_list_for(procList, proc, proc_desc, listElt)
@@ -831,17 +831,17 @@ int main(int argc, char** argv)
 
     //NOTE: generate hostapi stubs and binding code
     {
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostapiBindingList,
                           OC_STR8("//-----------------------------------------------------------\n"));
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostapiBindingList,
                           OC_STR8("// host api binding code generated from host_interface.json\n"));
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostapiBindingList,
                           OC_STR8("//-----------------------------------------------------------\n\n"));
 
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostapiBindingList,
                           OC_STR8("// Hostcall handlers prototypes\n"));
 
@@ -851,7 +851,7 @@ int main(int argc, char** argv)
             gen_handler_prototype(scratch.arena, &hostapiBindingList, proc);
         }
         */
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostapiBindingList,
                           OC_STR8("\n// Handler stubs\n"));
 
@@ -860,7 +860,7 @@ int main(int argc, char** argv)
             gen_hostapi_stub(scratch.arena, &hostapiBindingList, proc);
         }
 
-        oc_str8_list_push(scratch.arena,
+        oc_str8_list_push(scratch.allocator,
                           &hostapiBindingList,
                           OC_STR8("\n// Handlers binding code\n"));
 
@@ -869,12 +869,12 @@ int main(int argc, char** argv)
 
     if(hostcallPath.len)
     {
-        oc_str8 hostcallDecl = oc_str8_list_join(scratch.arena, hostcallDeclList);
+        oc_str8 hostcallDecl = oc_str8_list_join(scratch.allocator, hostcallDeclList);
         oc_file_write(hostCallsFile, hostcallDecl.len, hostcallDecl.ptr);
         oc_file_close(hostCallsFile);
     }
 
-    oc_str8 hostapiBinding = oc_str8_list_join(scratch.arena, hostapiBindingList);
+    oc_str8 hostapiBinding = oc_str8_list_join(scratch.allocator, hostapiBindingList);
     oc_file_write(stubsFile, hostapiBinding.len, hostapiBinding.ptr);
     oc_file_close(stubsFile);
 

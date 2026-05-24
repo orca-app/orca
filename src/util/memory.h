@@ -32,7 +32,7 @@ typedef struct oc_allocator
 #define oc_allocator_push_aligned(allocator, size, align)      \
     ({                                                         \
         void* __p = (allocator)->push(allocator, size, align); \
-        if(size && p)                                          \
+        if(size && __p)                                        \
         {                                                      \
             memset(__p, 0, size);                              \
         }                                                      \

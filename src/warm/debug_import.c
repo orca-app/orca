@@ -38,7 +38,7 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     if(!file)
     {
         file = oc_arena_push_type(scratchArena, wa_source_file_elt);
-        file->file.fullPath = oc_str8_push_copy(pathArena, fullPath);
+        file->file.fullPath = oc_str8_push_copy(pathArena->allocator, fullPath);
         file->file.rootPath = oc_str8_slice(file->file.fullPath, 0, rootPath.len);
         file->index = *fileCount;
         oc_list_push_back(files, &file->listElt);
@@ -55,7 +55,7 @@ void wa_dwarf_error_callback(dw_parser* parser, u64 loc, oc_str8 message, void* 
 
     error->loc = loc;
     error->status = WA_PARSE_ERROR;
-    error->string = oc_str8_push_copy(module->arena, message);
+    error->string = oc_str8_push_copy(module->arena->allocator, message);
     oc_list_push_back(&module->errors, &error->listElt);
 }
 
@@ -220,7 +220,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 if(oc_option_check(typeAttr))
                 {
                     type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(typeAttr)->valU64);
-                    type->name = oc_str8_pushf(context->arena, "%.*s*", oc_str8_ip(type->type->name));
+                    type->name = oc_str8_pushf(context->arena->allocator, "%.*s*", oc_str8_ip(type->type->name));
                 }
                 else
                 {
@@ -314,7 +314,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         dw_attr_ptr_option memberName = dw_die_get_attr(child, DW_AT_name);
                         if(oc_option_check(memberName))
                         {
-                            member->name = oc_str8_push_copy(context->arena, oc_option_unwrap(memberName)->string);
+                            member->name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(memberName)->string);
                         }
 
                         dw_attr_ptr_option memberType = dw_die_get_attr(child, DW_AT_type);
@@ -367,7 +367,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         dw_attr_ptr_option name = dw_die_get_attr(child, DW_AT_name);
                         if(oc_option_check(name))
                         {
-                            enumerator->name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
+                            enumerator->name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(name)->string);
                         }
                         //TODO: extract const values
 
@@ -397,7 +397,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
             dw_attr_ptr_option name = dw_die_get_attr(die, DW_AT_name);
             if(oc_option_check(name))
             {
-                type->name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
+                type->name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(name)->string);
             }
         }
     }
@@ -420,7 +420,7 @@ wa_debug_variable wa_debug_import_variable(wa_import_context* context, dw_die* v
     dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
     if(oc_option_check(name))
     {
-        var.name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
+        var.name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(name)->string);
     }
 
     //TODO: consider not creating the variable if we don't have a name for it?
@@ -819,7 +819,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
             //      we'd get a duplicate. In this case, we prefer the root path put by the compiler
             if(file->index == fileIndices[0])
             {
-                file->file.fullPath = oc_str8_push_copy(arena, fullPath);
+                file->file.fullPath = oc_str8_push_copy(arena->allocator, fullPath);
                 file->file.rootPath = oc_str8_slice(file->file.fullPath, 0, rootPath.len);
             }
 

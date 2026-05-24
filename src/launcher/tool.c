@@ -104,7 +104,7 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
 {
     //NOTE: bundle the app image into a windows app dir
     oc_scratch scratch = oc_scratch_begin();
-    oc_str8 appPath = oc_str8_pushf(scratch.arena,
+    oc_str8 appPath = oc_str8_pushf(scratch.allocator,
                                     "%.*s/%.*s",
                                     oc_str8_ip(options->outDir),
                                     oc_str8_ip(options->name));
@@ -140,7 +140,7 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
     //NOTE: copy binaries to bin dir
     int status = 0;
     oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
-    oc_str8 dstRuntimeName = oc_str8_pushf(scratch.arena, "%.*s.exe", oc_str8_ip(options->name));
+    oc_str8 dstRuntimeName = oc_str8_pushf(scratch.allocator, "%.*s.exe", oc_str8_ip(options->name));
     oc_str8 dstRuntimePath = oc_path_append(scratch.arena, binPath, dstRuntimeName);
 
     status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime.exe")), dstRuntimePath);
@@ -222,7 +222,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 {
     //NOTE: bundle the app image into a macos bundle
     oc_scratch scratch = oc_scratch_begin();
-    oc_str8 bundlePath = oc_str8_pushf(scratch.arena,
+    oc_str8 bundlePath = oc_str8_pushf(scratch.allocator,
                                        "%.*s/%.*s.app",
                                        oc_str8_ip(options->outDir),
                                        oc_str8_ip(options->name));
@@ -305,8 +305,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
         i32 size = 16;
         for(i32 i = 0; i < 7; ++i)
         {
-            oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d.png", size, size));
-            oc_str8 cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.allocator, "icon_%dx%d.png", size, size));
+            oc_str8 cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                         size, size, oc_str8_ip(options->icon), sized_icon.ptr);
             i32 result = system(cmd.ptr);
             if(result)
@@ -316,8 +316,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             }
 
             i32 retina_size = size * 2;
-            oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d@2x.png", size, size));
-            cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.allocator, "icon_%dx%d@2x.png", size, size));
+            cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                 retina_size, retina_size, oc_str8_ip(options->icon), sized_icon.ptr);
             result = system(cmd.ptr);
             if(result)
@@ -330,7 +330,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
         }
 
         oc_str8 icon_out = oc_path_append(scratch.arena, resPath, OC_STR8("icon.icns"));
-        oc_str8 cmd = oc_str8_pushf(scratch.arena, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
+        oc_str8 cmd = oc_str8_pushf(scratch.allocator, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
         i32 result = system(cmd.ptr);
         if(result)
         {
@@ -351,7 +351,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     //-----------------------------------------------------------
     oc_str8 bundle_sig = OC_STR8("????");
 
-    oc_str8 plist_contents = oc_str8_pushf(scratch.arena,
+    oc_str8 plist_contents = oc_str8_pushf(scratch.allocator,
                                            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                                            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
                                            "<plist version=\"1.0\">"
@@ -485,7 +485,7 @@ int oc_tool_bundle(oc_tool_options* options)
         oc_str8 dir = options->resDirs[i];
         if(dir.len && dir.ptr[dir.len - 1] != '/')
         {
-            dir = oc_str8_pushf(scratch.arena, "%.*s/", oc_str8_ip(dir));
+            dir = oc_str8_pushf(scratch.allocator, "%.*s/", oc_str8_ip(dir));
         }
         error = oc_file_copy(dir, resPath, 0);
         if(error != OC_IO_OK)
@@ -511,7 +511,7 @@ int oc_tool_bundle(oc_tool_options* options)
     if(options->icon.len)
     {
         oc_str8 ext = oc_path_slice_extension(options->icon);
-        oc_str8 name = oc_str8_pushf(scratch.arena, "thumbnail%.*s", oc_str8_ip(ext));
+        oc_str8 name = oc_str8_pushf(scratch.allocator, "thumbnail%.*s", oc_str8_ip(ext));
         oc_str8 path = oc_path_append(scratch.arena, resPath, name);
         error = oc_file_copy(options->icon, path, 0);
 
@@ -526,7 +526,7 @@ int oc_tool_bundle(oc_tool_options* options)
     //NOTE: zip folder to out directory
     int status = 0;
     oc_str8 outDir = options->standalone ? tmpPath : options->outDir;
-    oc_str8 outFile = oc_str8_pushf(scratch.arena,
+    oc_str8 outFile = oc_str8_pushf(scratch.allocator,
                                     "%.*s/%.*s.orca",
                                     oc_str8_ip(outDir),
                                     oc_str8_ip(options->name),

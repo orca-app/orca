@@ -40,7 +40,7 @@ void wa_reader_error(wa_reader* reader, wa_reader_status status, const char* fmt
 
     va_list ap;
     va_start(ap, fmt);
-    oc_str8 message = oc_str8_pushfv(scratch.arena, fmt, ap);
+    oc_str8 message = oc_str8_pushfv(scratch.allocator, fmt, ap);
     va_end(ap);
 
     if(reader->errorCallback)
