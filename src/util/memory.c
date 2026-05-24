@@ -36,8 +36,8 @@ oc_arena_chunk* oc_arena_chunk_alloc(oc_arena* arena, u64 chunkMinSize)
     u64 reserveSize = oc_align_up_pow2(chunkMinSize + sizeof(oc_arena_chunk), OC_ARENA_COMMIT_ALIGNMENT);
     u64 commitSize = oc_align_up_pow2(sizeof(oc_arena_chunk), OC_ARENA_COMMIT_ALIGNMENT);
 
-    char* mem = oc_base_reserve(arena->base, reserveSize);
-    oc_base_commit(arena->base, mem, commitSize);
+    char* mem = oc_platform_memory_reserve(arena->base, reserveSize);
+    oc_platform_memory_commit(arena->base, mem, commitSize);
 
     oc_arena_chunk* chunk = (oc_arena_chunk*)mem;
 
@@ -69,7 +69,7 @@ void oc_arena_init_with_options(oc_arena* arena, oc_arena_options* options)
     arena->push = oc_arena_allocator_push;
     arena->allocator = (oc_allocator*)arena;
 
-    arena->base = options->base ? options->base : oc_base_allocator_default();
+    arena->base = options->base ? options->base : oc_platform_memory_default();
 
     u64 reserveSize = options->reserve ? (options->reserve + sizeof(oc_arena_chunk)) : OC_ARENA_DEFAULT_RESERVE_SIZE;
 
@@ -80,7 +80,7 @@ void oc_arena_cleanup(oc_arena* arena)
 {
     oc_list_for_safe(arena->chunks, chunk, oc_arena_chunk, listElt)
     {
-        oc_base_release(arena->base, chunk, chunk->cap);
+        oc_platform_memory_release(arena->base, chunk, chunk->cap);
     }
     memset(arena, 0, sizeof(oc_arena));
 }
@@ -149,7 +149,7 @@ void* oc_arena_push_aligned_uninitialized(oc_arena* arena, u64 size, u32 alignme
         u64 nextCommitted = oc_align_up_pow2(nextOffset, OC_ARENA_COMMIT_ALIGNMENT);
         nextCommitted = oc_clamp_high(nextCommitted, chunk->cap);
         u64 commitSize = nextCommitted - chunk->committed;
-        oc_base_commit(arena->base, chunk->ptr + chunk->committed, commitSize);
+        oc_platform_memory_commit(arena->base, chunk->ptr + chunk->committed, commitSize);
         chunk->committed = nextCommitted;
     }
     char* p = chunk->ptr + alignedOffset;

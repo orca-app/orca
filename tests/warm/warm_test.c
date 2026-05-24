@@ -725,16 +725,16 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     }
 
     //spec test memory
-    oc_base_allocator* allocator = oc_base_allocator_default();
+    oc_platform_memory* allocator = oc_platform_memory_default();
     env->testspecMemory = (wa_memory){
         .limits = {
             .kind = WA_LIMIT_MIN_MAX,
             .min = 1,
             .max = 2,
         },
-        .ptr = oc_base_reserve(allocator, 2 * WA_PAGE_SIZE),
+        .ptr = oc_platform_memory_reserve(allocator, 2 * WA_PAGE_SIZE),
     };
-    oc_base_commit(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.min * WA_PAGE_SIZE);
+    oc_platform_memory_commit(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.min * WA_PAGE_SIZE);
 
     //spec test table
     env->testspecTable = (wa_table){
@@ -1130,7 +1130,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     env->totalSkipped += env->skipped;
     env->totalFailed += env->failed;
 
-    oc_base_release(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.max * WA_PAGE_SIZE);
+    oc_platform_memory_release(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.max * WA_PAGE_SIZE);
 
     return (0);
 }

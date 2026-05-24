@@ -66,7 +66,7 @@ typedef struct oc_arena
     oc_allocator_push_proc push;
     oc_allocator* allocator;
 
-    oc_base_allocator* base;
+    oc_platform_memory* base;
     oc_list chunks;
     oc_arena_chunk* currentChunk;
 
@@ -74,7 +74,7 @@ typedef struct oc_arena
 
 typedef struct oc_arena_options
 {
-    oc_base_allocator* base;
+    oc_platform_memory* base;
     u64 reserve;
 } oc_arena_options;
 
@@ -111,7 +111,7 @@ typedef struct oc_pool
 
 typedef struct oc_pool_options
 {
-    oc_base_allocator* base;
+    oc_platform_memory* base;
     u64 reserve;
 } oc_pool_options;
 

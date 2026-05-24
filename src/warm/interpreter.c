@@ -1927,13 +1927,13 @@ wa_status wa_interpreter_run(wa_interpreter* interpreter, bool step)
 
                 i32 res = -1;
                 u32 n = *(u32*)&(L0.valI32);
-                oc_base_allocator* allocator = oc_base_allocator_default();
+                oc_platform_memory* allocator = oc_platform_memory_default();
 
                 if(mem->limits.min + n <= mem->limits.max
                    && (mem->limits.min + n >= mem->limits.min))
                 {
                     res = mem->limits.min;
-                    oc_base_commit(allocator, mem->ptr + mem->limits.min * WA_PAGE_SIZE, n * WA_PAGE_SIZE);
+                    oc_platform_memory_commit(allocator, mem->ptr + mem->limits.min * WA_PAGE_SIZE, n * WA_PAGE_SIZE);
                     mem->limits.min += n;
                 }
 
@@ -2205,10 +2205,10 @@ wa_interpreter* wa_interpreter_create(oc_arena* arena)
 {
     wa_interpreter* interpreter = oc_arena_push_type(arena, wa_interpreter);
 
-    oc_base_allocator* alloc = oc_base_allocator_default();
+    oc_platform_memory* alloc = oc_platform_memory_default();
     //TODO: should we rather allocate it in arena?
-    interpreter->localsBuffer = oc_base_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
-    oc_base_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+    interpreter->localsBuffer = oc_platform_memory_reserve(alloc, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+    oc_platform_memory_commit(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 
     interpreter->locals = interpreter->localsBuffer;
     oc_arena_init(&interpreter->arena);
@@ -2223,8 +2223,8 @@ wa_interpreter* wa_interpreter_create(oc_arena* arena)
 
 void wa_interpreter_destroy(wa_interpreter* interpreter)
 {
-    oc_base_allocator* alloc = oc_base_allocator_default();
-    oc_base_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
+    oc_platform_memory* alloc = oc_platform_memory_default();
+    oc_platform_memory_release(alloc, interpreter->localsBuffer, WA_LOCALS_BUFFER_SIZE * sizeof(wa_value));
 
     oc_arena_cleanup(&interpreter->arena);
 }

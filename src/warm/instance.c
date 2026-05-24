@@ -441,7 +441,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
     }
 
     //NOTE: allocate memories
-    oc_base_allocator* allocator = oc_base_allocator_default();
+    oc_platform_memory* allocator = oc_platform_memory_default();
 
     instance->memories = oc_arena_push_array(arena, wa_memory*, module->memoryCount);
 
@@ -459,8 +459,8 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
                             ? UINT32_MAX / WA_PAGE_SIZE
                             : limits->max;
 
-        mem->ptr = oc_base_reserve(allocator, mem->limits.max * WA_PAGE_SIZE);
-        oc_base_commit(allocator, mem->ptr, mem->limits.min * WA_PAGE_SIZE);
+        mem->ptr = oc_platform_memory_reserve(allocator, mem->limits.max * WA_PAGE_SIZE);
+        oc_platform_memory_commit(allocator, mem->ptr, mem->limits.min * WA_PAGE_SIZE);
 
         instance->memories[memIndex] = mem;
     }

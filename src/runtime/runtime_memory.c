@@ -31,8 +31,8 @@ void* oc_runtime_wasm_memory_resize_callback(void* p, unsigned long newSize, voi
     {
         u32 commitSize = newSize - committed;
 
-        oc_base_allocator* allocator = oc_base_allocator_default();
-        oc_base_commit(allocator, memory->ptr + committed, commitSize);
+        oc_platform_memory* allocator = oc_platform_memory_default();
+        oc_platform_memory_commit(allocator, memory->ptr + committed, commitSize);
         memory->limits.min += commitSize / WA_PAGE_SIZE;
 
         return (memory->ptr);
@@ -48,8 +48,8 @@ void oc_runtime_wasm_memory_free_callback(void* p, void* userData)
 {
     wa_memory* memory = (wa_memory*)userData;
 
-    oc_base_allocator* allocator = oc_base_allocator_default();
-    oc_base_release(allocator, memory->ptr, memory->limits.max * WA_PAGE_SIZE);
+    oc_platform_memory* allocator = oc_platform_memory_default();
+    oc_platform_memory_release(allocator, memory->ptr, memory->limits.max * WA_PAGE_SIZE);
     memset(memory, 0, sizeof(wa_memory));
 }
 
