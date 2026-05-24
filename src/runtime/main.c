@@ -241,7 +241,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(".orca"));
 
-    oc_str8 path = oc_path_join(arena, list);
+    oc_str8 path = oc_path_join(arena->allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -1114,7 +1114,7 @@ int main(int argc, char** argv)
             OC_ABORT("Could not find application name.");
         }
         oc_str8 relPath = oc_str8_pushf(scratch.allocator, "../resources/%.*s.orca", oc_str8_ip(appName));
-        app->path = oc_path_executable_relative(&app->env.arena, relPath);
+        app->path = oc_path_executable_relative(app->env.arena.allocator, relPath);
     }
 
     oc_scratch_end(scratch);

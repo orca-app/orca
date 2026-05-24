@@ -115,7 +115,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(".orca"));
 
-    oc_str8 path = oc_path_join(arena, list);
+    oc_str8 path = oc_path_join(arena->allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -215,7 +215,7 @@ int launcher_load_apps(oc_launcher* launcher)
         if(!oc_str8_cmp(ext, OC_STR8(".orca")))
         {
             oc_launcher_item* item = oc_arena_push_type(&launcher->libraryArena, oc_launcher_item);
-            item->path = oc_path_append(&launcher->libraryArena, appsPath, elt->basename);
+            item->path = oc_path_append(launcher->libraryArena.allocator, appsPath, elt->basename);
             item->name = oc_path_slice_stem(item->path);
 
             //NOTE: load thumbnail
