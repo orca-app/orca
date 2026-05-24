@@ -687,9 +687,9 @@ oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 b
     return (oc_font_get_glyph_indices_from_font_data(fontData, codePoints, backing));
 }
 
-oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints)
+oc_str32 oc_font_push_glyph_indices(oc_allocator* allocator, oc_font font, oc_str32 codePoints)
 {
-    u32* buffer = oc_arena_push_array_uninitialized(arena, u32, codePoints.len);
+    u32* buffer = oc_allocator_push_array_uninitialized(allocator, u32, codePoints.len);
     oc_str32 backing = { .ptr = buffer, .len = codePoints.len };
     return (oc_font_get_glyph_indices(font, codePoints, backing));
 }
@@ -810,7 +810,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
     }
 
     oc_scratch scratch = oc_scratch_begin();
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, font, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.allocator, font, codePoints);
 
     //NOTE(martin): find width of missing character
     //TODO(martin): should cache that at font creation...
@@ -1664,7 +1664,7 @@ void oc_codepoints_outlines(oc_str32 codePoints)
 
     oc_scratch scratch = oc_scratch_begin();
 
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.allocator, context->attributes.font, codePoints);
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 
     oc_scratch_end(scratch);
@@ -1685,7 +1685,7 @@ void oc_text_outlines(oc_str8 text)
 
     oc_scratch scratch = oc_scratch_begin();
     oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.allocator, text);
-    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
+    oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.allocator, context->attributes.font, codePoints);
 
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
 
@@ -1993,17 +1993,17 @@ void oc_image_draw(oc_image image, oc_rect rect)
 //NOTE: rectangle allocator
 typedef struct oc_rect_atlas
 {
-    oc_arena* arena;
+    oc_allocator* allocator;
     oc_vec2i size;
     oc_vec2i pos;
     u32 lineHeight;
 
 } oc_rect_atlas;
 
-oc_rect_atlas* oc_rect_atlas_create(oc_arena* arena, i32 width, i32 height)
+oc_rect_atlas* oc_rect_atlas_create(oc_allocator* allocator, i32 width, i32 height)
 {
-    oc_rect_atlas* atlas = oc_arena_push_type(arena, oc_rect_atlas);
-    atlas->arena = arena;
+    oc_rect_atlas* atlas = oc_allocator_push_type(allocator, oc_rect_atlas);
+    atlas->allocator = allocator;
     atlas->size = (oc_vec2i){ width, height };
     return (atlas);
 }
@@ -2073,7 +2073,7 @@ oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image ba
     oc_scratch scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
-    char* buffer = oc_arena_push_uninitialized(scratch.arena, size);
+    char* buffer = oc_allocator_push_uninitialized(scratch.allocator, size);
     u64 read = oc_file_read(file, size, buffer);
 
     if(read != size)

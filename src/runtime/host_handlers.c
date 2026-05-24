@@ -287,7 +287,7 @@ void oc_runtime_clipboard_process_event_end(oc_runtime_clipboard* clipboard)
     clipboard->isGetAllowed = false;
 }
 
-void oc_hostapi_clipboard_get_string(oc_wasm_arena* wasmArena, oc_wasm_str8* returnPointer)
+void oc_hostapi_clipboard_get_string(oc_wasm_allocator* wasmAllocator, oc_wasm_str8* returnPointer)
 {
     oc_runtime_clipboard* clipboard = &__orcaApp.clipboard;
 
@@ -298,7 +298,7 @@ void oc_hostapi_clipboard_get_string(oc_wasm_arena* wasmArena, oc_wasm_str8* ret
 
         oc_str8 string = oc_clipboard_get_string(scratch.allocator);
 
-        oc_wasm_addr returnAddr = oc_wasm_arena_push(wasmArena, string.len + 1);
+        oc_wasm_addr returnAddr = oc_wasm_allocator_push(wasmAllocator, string.len + 1);
         char* returnPtr = (char*)oc_wasm_address_to_ptr(returnAddr, string.len + 1);
 
         memcpy(returnPtr, string.ptr, string.len);
@@ -431,7 +431,7 @@ void oc_hostapi_file_open_with_request(oc_wasm_str8* path, oc_file_access rights
     *returnPointer = file;
 }
 
-void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
+void oc_hostapi_file_open_with_dialog(oc_wasm_allocator* wasmAllocator,
                                       oc_file_access rights,
                                       oc_file_open_flags flags,
                                       oc_wasm_file_dialog_desc* desc,
@@ -484,7 +484,7 @@ void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
 
     oc_list_for(nativeResult.selection, elt, oc_file_open_with_dialog_elt, listElt)
     {
-        oc_wasm_addr wasmEltAddr = oc_wasm_arena_push_type(wasmArena, oc_wasm_file_open_with_dialog_elt);
+        oc_wasm_addr wasmEltAddr = oc_wasm_allocator_push_type(wasmAllocator, oc_wasm_file_open_with_dialog_elt);
         oc_wasm_file_open_with_dialog_elt* wasmElt = oc_wasm_address_to_ptr(wasmEltAddr, sizeof(oc_wasm_file_open_with_dialog_elt));
         wasmElt->file = elt->file;
 
@@ -495,7 +495,7 @@ void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
     *returnPointer = result;
 }
 
-void oc_hostapi_file_listdir(oc_wasm_arena* wasmArena, oc_file* directory, oc_wasm_file_list* returnPointer)
+void oc_hostapi_file_listdir(oc_wasm_allocator* wasmAllocator, oc_file* directory, oc_wasm_file_list* returnPointer)
 {
     oc_scratch scratch = oc_scratch_begin();
 
@@ -508,11 +508,11 @@ void oc_hostapi_file_listdir(oc_wasm_arena* wasmArena, oc_file* directory, oc_wa
     {
         oc_file_list_for(nativeList, nativeElt)
         {
-            oc_wasm_addr wasmEltAddr = oc_wasm_arena_push_type(wasmArena, oc_wasm_file_listdir_elt);
+            oc_wasm_addr wasmEltAddr = oc_wasm_allocator_push_type(wasmAllocator, oc_wasm_file_listdir_elt);
             oc_wasm_file_listdir_elt* wasmElt = oc_wasm_address_to_ptr(wasmEltAddr, sizeof(oc_wasm_file_listdir_elt));
             oc_wasm_list_push_back(&wasmList.list, &wasmElt->listElt);
 
-            wasmElt->basename = oc_wasm_str8_from_native(wasmArena, nativeElt->basename);
+            wasmElt->basename = oc_wasm_str8_from_native(wasmAllocator, nativeElt->basename);
             wasmElt->type = nativeElt->type;
         }
     }

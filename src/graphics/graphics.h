@@ -182,7 +182,7 @@ ORCA_API oc_font oc_font_create_from_path(oc_str8 path, u32 rangeCount, oc_unico
 ORCA_API void oc_font_destroy(oc_font font);
 
 ORCA_API oc_str32 oc_font_get_glyph_indices(oc_font font, oc_str32 codePoints, oc_str32 backing);
-ORCA_API oc_str32 oc_font_push_glyph_indices(oc_arena* arena, oc_font font, oc_str32 codePoints);
+ORCA_API oc_str32 oc_font_push_glyph_indices(oc_allocator* allocator, oc_font font, oc_str32 codePoints);
 ORCA_API u32 oc_font_get_glyph_index(oc_font font, oc_utf32 codePoint);
 
 // metrics
@@ -217,7 +217,7 @@ ORCA_API oc_vec2 oc_image_size(oc_image image);
 //NOTE: rectangle allocator
 typedef struct oc_rect_atlas oc_rect_atlas;
 
-ORCA_API oc_rect_atlas* oc_rect_atlas_create(oc_arena* arena, i32 width, i32 height);
+ORCA_API oc_rect_atlas* oc_rect_atlas_create(oc_allocator* allocator, i32 width, i32 height);
 ORCA_API oc_rect oc_rect_atlas_alloc(oc_rect_atlas* atlas, i32 width, i32 height);
 ORCA_API void oc_rect_atlas_recycle(oc_rect_atlas* atlas, oc_rect rect);
 

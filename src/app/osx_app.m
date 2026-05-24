@@ -1343,50 +1343,6 @@ oc_str8 oc_clipboard_get_string(oc_allocator* allocator)
     }
 }
 
-bool oc_clipboard_has_tag(const char* tag)
-{
-    @autoreleasepool
-    {
-
-        NSString* tagString = [[NSString alloc] initWithUTF8String:tag];
-        NSArray* tagArray = [NSArray arrayWithObjects:tagString, nil];
-
-        NSPasteboard* pb = [NSPasteboard generalPasteboard];
-        NSString* available = [pb availableTypeFromArray:tagArray];
-
-        return (available != nil);
-    }
-}
-
-void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 string)
-{
-    @autoreleasepool
-    {
-
-        NSString* tagString = [[NSString alloc] initWithUTF8String:tag];
-        NSArray* tagArray = [NSArray arrayWithObjects:tagString, nil];
-        NSData* nsData = [NSData dataWithBytes:string.ptr length:string.len];
-
-        NSPasteboard* pb = [NSPasteboard generalPasteboard];
-        [pb addTypes:tagArray owner:nil];
-        [pb setData:nsData forType:tagString];
-    }
-}
-
-oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
-{
-    @autoreleasepool
-    {
-
-        NSString* tagString = [[NSString alloc] initWithUTF8String:tag];
-
-        NSPasteboard* pb = [NSPasteboard generalPasteboard];
-        NSData* nsData = [pb dataForType:tagString];
-        oc_str8 result = oc_str8_push_buffer(arena->allocator, [nsData length], (char*)[nsData bytes]);
-        return (result);
-    }
-}
-
 //---------------------------------------------------------------
 // Window public API
 //---------------------------------------------------------------

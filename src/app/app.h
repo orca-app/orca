@@ -397,10 +397,6 @@ ORCA_API void oc_clipboard_set_string(oc_str8 string);
 ORCA_API oc_str8 oc_clipboard_get_string(oc_allocator* arena);
 ORCA_API oc_str8 oc_clipboard_copy_string(oc_str8 backing);
 
-ORCA_API bool oc_clipboard_has_tag(const char* tag);
-ORCA_API void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data);
-ORCA_API oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag);
-
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 
 //--------------------------------------------------------------------

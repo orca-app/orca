@@ -11,9 +11,9 @@
 //This is used to pass raw events from the runtime
 ORCA_EXPORT oc_event oc_rawEvent;
 
-ORCA_EXPORT void* oc_arena_push_aligned_stub(oc_arena* arena, u64 size, u32 alignment)
+ORCA_EXPORT void* oc_allocator_push_aligned_stub(oc_allocator* allocator, u64 size, u32 alignment)
 {
-    return (oc_arena_push_aligned(arena, size, alignment));
+    return (oc_allocator_push_aligned(allocator, size, alignment));
 }
 
 void oc_window_set_title(oc_str8 title)
@@ -26,10 +26,10 @@ void oc_window_set_size(oc_vec2 size)
     oc_hostcall_window_set_size(&size);
 }
 
-oc_str8 oc_clipboard_get_string(oc_arena* arena)
+oc_str8 oc_clipboard_get_string(oc_allocator* allocator)
 {
     oc_str8 ret = { 0 };
-    oc_hostcall_clipboard_get_string(arena, &ret);
+    oc_hostcall_clipboard_get_string(allocator, &ret);
     return ret;
 }
 

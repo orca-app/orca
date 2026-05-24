@@ -142,11 +142,11 @@ void oc_wasm_list_push_back(oc_wasm_list* list, oc_wasm_list_elt* elt)
     list->count++;
 }
 
-oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_arena* arena, oc_str8 nativeString)
+oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_allocator* allocator, oc_str8 nativeString)
 {
     oc_wasm_str8 wasmString = {
         .len = nativeString.len,
-        .ptr = oc_wasm_arena_push(arena, nativeString.len),
+        .ptr = oc_wasm_allocator_push(allocator, nativeString.len),
     };
 
     char* wasmBuffer = oc_wasm_address_to_ptr(wasmString.ptr, wasmString.len);
@@ -156,25 +156,25 @@ oc_wasm_str8 oc_wasm_str8_from_native(oc_wasm_arena* arena, oc_str8 nativeString
 }
 
 //------------------------------------------------------------------------------------
-// Wasm arenas helpers
+// Wasm allocators helpers
 //------------------------------------------------------------------------------------
 
-oc_wasm_addr oc_wasm_arena_push(oc_wasm_arena* arena, u64 size)
+oc_wasm_addr oc_wasm_allocator_push(oc_wasm_allocator* allocator, u64 size)
 {
-    return oc_wasm_arena_push_aligned(arena, size, 1);
+    return oc_wasm_allocator_push_aligned(allocator, size, 1);
 }
 
-oc_wasm_addr oc_wasm_arena_push_aligned(oc_wasm_arena* arena, u64 size, u32 alignment)
+oc_wasm_addr oc_wasm_allocator_push_aligned(oc_wasm_allocator* allocator, u64 size, u32 alignment)
 {
     oc_wasm_env* env = oc_runtime_get_env();
 
     wa_value params[3];
-    params[0].valI32 = oc_wasm_address_from_ptr((void*)arena, sizeof(oc_wasm_arena));
+    params[0].valI32 = oc_wasm_address_from_ptr((void*)allocator, sizeof(oc_wasm_allocator));
     params[1].valI64 = size;
     params[2].valI32 = alignment;
 
     wa_value returns[1];
-    wa_status status = wa_interpreter_invoke(env->interpreter, env->instance, env->exports[OC_EXPORT_ARENA_PUSH], 3, params, 1, returns);
+    wa_status status = wa_interpreter_invoke(env->interpreter, env->instance, env->exports[OC_EXPORT_ALLOCATOR_PUSH], 3, params, 1, returns);
 
     OC_WASM_TRAP(status);
 
