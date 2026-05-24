@@ -15,7 +15,7 @@ wasmFlags=(--target=wasm32 \
   -I "$ORCA_DIR"/src/ext)
 
 # build sample as wasm module and link it with the orca module
-clang "${wasmFlags[@]}" -L "$ORCA_DIR"/bin -lorca_wasm -o module.wasm src/main.c src/microui/microui.c
+clang "${wasmFlags[@]}" -L "$ORCA_DIR"/lib -lorca_wasm -o main.wasm src/main.c src/microui/microui.c
 
 # create app directory and copy files into it
-orca bundle --name Microui --resource-dir data module.wasm
+orca bundle --name Microui --resource-dir data main.wasm
