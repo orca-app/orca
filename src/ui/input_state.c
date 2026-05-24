@@ -414,7 +414,7 @@ oc_str8 oc_input_text_utf8(oc_arena* arena, oc_input_state* input)
     oc_str8 res = { 0 };
     if(input->text.lastUpdate == input->frameCounter)
     {
-        res = oc_utf8_push_from_codepoints(arena, input->text.codePoints);
+        res = oc_utf8_push_from_codepoints(arena->allocator, input->text.codePoints);
     }
     return (res);
 }

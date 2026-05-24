@@ -929,7 +929,7 @@ oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text)
     }
 
     oc_scratch scratch = oc_scratch_begin();
-    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.allocator, text);
     oc_text_metrics result = oc_font_text_metrics_utf32(font, fontSize, codePoints);
     oc_scratch_end(scratch);
     return (result);
@@ -1684,7 +1684,7 @@ void oc_text_outlines(oc_str8 text)
     }
 
     oc_scratch scratch = oc_scratch_begin();
-    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
+    oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.allocator, text);
     oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
 
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);

@@ -989,7 +989,7 @@ void oc_ui_edit_copy_selection_to_clipboard(oc_ui_text_box_info* info, oc_str32 
     u32 start = oc_min(info->cursor, info->mark);
     u32 end = oc_max(info->cursor, info->mark);
     oc_str32 selection = oc_str32_slice(codepoints, start, end);
-    oc_str8 string = oc_utf8_push_from_codepoints(oc_ui_frame_arena(), selection);
+    oc_str8 string = oc_utf8_push_from_codepoints(oc_ui_frame_arena()->allocator, selection);
 
     oc_clipboard_set_string(string);
 }
@@ -1001,7 +1001,7 @@ oc_str32 oc_ui_edit_replace_selection_with_clipboard(oc_ui_text_box_info* info, 
 #else
     oc_arena* frameArena = oc_ui_frame_arena();
     oc_str8 string = oc_clipboard_get_string(frameArena);
-    oc_str32 input = oc_utf8_push_to_codepoints(frameArena, string);
+    oc_str32 input = oc_utf8_push_to_codepoints(frameArena->allocator, string);
     oc_str32 result = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, input);
 #endif
     return (result);
@@ -1831,7 +1831,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             oc_vec2 pos = oc_mouse_position(oc_ui_input());
             f32 cursorX = pos.x - textRect.x;
 
-            oc_str32 codepoints = oc_utf8_push_to_codepoints(frameArena, info->text); //TODO: need to get frame arena
+            oc_str32 codepoints = oc_utf8_push_to_codepoints(frameArena->allocator, info->text); //TODO: need to get frame arena
             i32 newCursor = 0;
             i32 hoveredChar = 0;
             f32 x = 0;
@@ -1959,7 +1959,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
 
         if(sig.focus)
         {
-            oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
+            oc_str32 oldCodepoints = oc_utf8_push_to_codepoints(frameArena->allocator, info->text);
             oc_str32 codepoints = oldCodepoints;
             //TODO(martin): check conversion here. Is there a way for cursor or mark to be negative at this point?
             info->cursor = oc_clamp(info->cursor, 0, (i32)codepoints.len);
@@ -2007,7 +2007,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             if(sig.pasted)
             {
                 oc_str8 pastedText = oc_clipboard_pasted_text(input);
-                oc_str32 input = oc_utf8_push_to_codepoints(frameArena, pastedText);
+                oc_str32 input = oc_utf8_push_to_codepoints(frameArena->allocator, pastedText);
                 codepoints = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, input);
             }
 
@@ -2015,7 +2015,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             if(oldCodepoints.ptr != codepoints.ptr)
             {
                 result.changed = true;
-                result.text = oc_utf8_push_from_codepoints(arena, codepoints);
+                result.text = oc_utf8_push_from_codepoints(arena->allocator, codepoints);
             }
 
             if(oc_key_press_count(input, OC_KEY_ENTER))
@@ -2077,12 +2077,12 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
 
             if(info->text.len)
             {
-                renderData->codepoints = oc_utf8_push_to_codepoints(frameArena, info->text);
+                renderData->codepoints = oc_utf8_push_to_codepoints(frameArena->allocator, info->text);
             }
             else
             {
                 oc_ui_style_set_var_str8(OC_UI_COLOR, OC_UI_THEME_TEXT_2);
-                renderData->codepoints = oc_utf8_push_to_codepoints(frameArena, info->defaultText);
+                renderData->codepoints = oc_utf8_push_to_codepoints(frameArena->allocator, info->defaultText);
             }
 
             oc_ui_set_draw_proc(oc_ui_text_box_render, renderData);
