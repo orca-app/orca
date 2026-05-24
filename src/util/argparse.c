@@ -963,7 +963,7 @@ int oc_arg_parser_parse(oc_arg_parser* parser, int argc, char** argv)
     argc--;
     argv++;
 
-    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(parser->arena);
 
     u32 posArgIndex = 0;
 

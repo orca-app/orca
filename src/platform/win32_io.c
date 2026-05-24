@@ -121,7 +121,7 @@ static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc 
 {
     oc_str16 result = { 0 };
 
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     if(dirFd)
     {
@@ -646,7 +646,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
     oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
     if(slot && !slot->fatal)
     {
-        oc_scratch scratch = oc_scratch_begin_next(arena);
+        oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
         // Windows uses a trailing \* to determine it should enumerate all files in the folder
         oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.arena, slot->fd, OC_STR8("\\*"));
@@ -705,7 +705,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 
 oc_str8 oc_file_tmp_directory_path(oc_arena* arena)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     WCHAR* tmpDirPathW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
     DWORD tmpDirPathWSize = GetTempPath2W(MAX_PATH, tmpDirPathW);

@@ -118,7 +118,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
 {
 
     oc_io_resolve_result result = { 0 };
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     if(oc_file_desc_is_nil(rootFd))
     {
@@ -129,12 +129,12 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
     else if(path.len && path.ptr[0] == '/')
     {
         //NOTE: if rootFd is not null, we treat absolute paths as relative to rootFd
-        path = oc_path_append(scratch.arena, OC_STR8("."), path);
+        path = oc_path_append(scratch.allocator, OC_STR8("."), path);
     }
 
     oc_file_desc fd = rootFd == OC_FILE_AT_FDCWD ? rootFd : oc_fd_dup(rootFd);
     oc_str8_list normElements = { 0 };
-    oc_str8_list pathElements = oc_path_split(scratch.arena, path);
+    oc_str8_list pathElements = oc_path_split(scratch.allocator, path);
     oc_str8_elt* elt = 0;
 
     while((elt = oc_list_pop_front_entry(&pathElements.list, oc_str8_elt, listElt)) != 0)
@@ -159,7 +159,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
             {
                 //NOTE: here we need to recompute fd from path. We can't just openat ".." because the directory
                 // associated with fd could have been moved, and we could potentially escape the root
-                oc_str8 normPath = oc_path_join(scratch.arena, normElements);
+                oc_str8 normPath = oc_path_join(scratch.allocator, normElements);
                 oc_io_resolve_result r = oc_io_resolve(scratch.arena, rootFd, normPath, OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW);
                 if(r.error != OC_IO_OK)
                 {
@@ -217,7 +217,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
                     break;
                 }
 
-                oc_str8_list linkElements = oc_path_split(scratch.arena, target);
+                oc_str8_list linkElements = oc_path_split(scratch.allocator, target);
 
                 //NOTE: push linkElements in front of pathElements
                 oc_list_for_reverse(linkElements.list, elt, oc_str8_elt, listElt)
@@ -289,8 +289,8 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
             // In this case, we treat it as the current directory
             result.name = OC_STR8(".");
         }
-        result.path = oc_path_join(scratch.arena, normElements);
-        result.path = oc_path_append(arena, result.path, result.name);
+        result.path = oc_path_join(scratch.allocator, normElements);
+        result.path = oc_path_append(arena->allocator, result.path, result.name);
     }
 
     oc_scratch_end(scratch);
@@ -602,11 +602,11 @@ oc_io_cmp oc_io_makedir(oc_io_req* req, oc_file_table* table)
         // but the atSlot / req parameters make this a bit annoying...
         if(req->makeDirFlags & OC_FILE_MAKEDIR_CREATE_PARENTS)
         {
-            oc_str8_list pathElements = oc_path_split(scratch.arena, path);
+            oc_str8_list pathElements = oc_path_split(scratch.allocator, path);
             oc_str8 prefixPath = { 0 };
             oc_str8_list_for(pathElements, elt)
             {
-                prefixPath = oc_path_append(scratch.arena, prefixPath, elt->string);
+                prefixPath = oc_path_append(scratch.allocator, prefixPath, elt->string);
 
                 oc_io_req subReq = {
                     .op = OC_IO_MAKE_DIR,

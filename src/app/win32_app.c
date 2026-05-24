@@ -1349,7 +1349,7 @@ oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle);
 
 oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
     oc_file_dialog_result result = { 0 };
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -1433,7 +1433,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_d
                 {
                     oc_str8_list_push(scratch.allocator, &list, desc->startPath);
                 }
-                startPath = oc_path_join(scratch.arena, list);
+                startPath = oc_path_join(scratch.allocator, list);
             }
 
             if(startPath.len)

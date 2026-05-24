@@ -183,7 +183,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
     // write call.
 
     {
-        oc_scratch scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
+        oc_scratch scratch = arena ? oc_scratch_begin_next_arena(arena) : oc_scratch_begin();
 
         oc_str8_list outList = { 0 };
         oc_str8_list errList = { 0 };

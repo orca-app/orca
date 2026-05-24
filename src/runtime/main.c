@@ -233,7 +233,7 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
 #if OC_PLATFORM_MACOS
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     char* home = getenv("HOME");
 
@@ -253,7 +253,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     char* home = getenv("USERPROFILE");
 
@@ -295,7 +295,7 @@ int oc_zip_extract(oc_str8 src, oc_str8 dst)
             oc_str8_list list = { 0 };
             oc_str8_list_push(scratch.allocator, &list, dst);
             oc_str8_list_push(scratch.allocator, &list, name);
-            oc_str8 dstPath = oc_path_join(scratch.arena, list);
+            oc_str8 dstPath = oc_path_join(scratch.allocator, list);
 
             if(name.ptr[name.len - 1] == '/')
             {
@@ -370,8 +370,8 @@ oc_str8 standalone_app_name(oc_arena* arena)
 {
     oc_str8 result = { 0 };
 
-    oc_scratch scratch = oc_scratch_begin_next(arena);
-    oc_str8 bundle = oc_path_executable_relative(scratch.arena, OC_STR8("../.."));
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_str8 bundle = oc_path_executable_relative(scratch.allocator, OC_STR8("../.."));
     oc_str8 ext = oc_path_slice_extension(bundle);
     if(!oc_str8_cmp(ext, OC_STR8(".app")))
     {
@@ -384,8 +384,8 @@ oc_str8 standalone_app_name(oc_arena* arena)
 
 oc_str8 standalone_app_name(oc_arena* arena)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
-    oc_str8 exec = oc_path_executable(scratch.arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_str8 exec = oc_path_executable(scratch.allocator);
     oc_str8 result = oc_str8_push_copy(arena->allocator, oc_path_slice_stem(exec));
     oc_scratch_end(scratch);
     return result;
@@ -425,7 +425,7 @@ int load_app(oc_runtime* app)
             return -1;
         }
         oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.arena);
-        appDir = oc_path_append(scratch.arena, tmpFilesPath, tmpName);
+        appDir = oc_path_append(scratch.allocator, tmpFilesPath, tmpName);
         oc_file_close(tmpDir);
     }
 
@@ -443,7 +443,7 @@ int load_app(oc_runtime* app)
         oc_str8_list list = { 0 };
         oc_str8_list_push(scratch.allocator, &list, appDir);
         oc_str8_list_push(scratch.allocator, &list, OC_STR8("data/"));
-        dataDirSrc = oc_path_join(scratch.arena, list);
+        dataDirSrc = oc_path_join(scratch.allocator, list);
     }
     oc_str8 dataDirDest = { 0 };
     {
@@ -452,7 +452,7 @@ int load_app(oc_runtime* app)
         oc_str8_list_push(scratch.allocator, &list, OC_STR8("userdata"));
         oc_str8_list_push(scratch.allocator, &list, appName);
 
-        dataDirDest = oc_path_join(scratch.arena, list);
+        dataDirDest = oc_path_join(scratch.allocator, list);
     }
     oc_file_makedir(dataDirDest,
                     &(oc_file_makedir_options){
@@ -470,7 +470,7 @@ int load_app(oc_runtime* app)
         oc_str8_list list = { 0 };
         oc_str8_list_push(scratch.allocator, &list, appDir);
         oc_str8_list_push(scratch.allocator, &list, OC_STR8("modules/main.wasm"));
-        oc_str8 modulePath = oc_path_join(scratch.arena, list);
+        oc_str8 modulePath = oc_path_join(scratch.allocator, list);
 
         //TODO: change for platform layer file IO functions
         FILE* file = fopen(modulePath.ptr, "rb");
@@ -1038,7 +1038,7 @@ oc_font orca_font_create(const char* resourcePath)
 {
     //NOTE(martin): create default fonts
     oc_scratch scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.allocator, OC_STR8(resourcePath));
 
     oc_font font = oc_font_nil();
 

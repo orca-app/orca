@@ -65,7 +65,7 @@ oc_font create_font(const char* path)
 {
     //NOTE(martin): create font
     oc_scratch scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(path));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.allocator, OC_STR8(path));
     char* fontPathCString = oc_str8_to_cstring(scratch.allocator, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");

@@ -223,7 +223,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
     {
         wa_source_file* file = &files[fileIndex];
 
-        oc_scratch scratch = oc_scratch_begin_next(arena);
+        oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
         //NOTE: add the file's root to the source tree
         wa_source_node* root = 0;
@@ -251,7 +251,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
 
         //NOTE: traverse the root's subtree and add nodes as needed
         oc_str8 relativePath = oc_str8_slice(file->fullPath, file->rootPath.len, file->fullPath.len);
-        oc_str8_list pathElements = oc_path_split(scratch.arena, relativePath);
+        oc_str8_list pathElements = oc_path_split(scratch.allocator, relativePath);
 
         oc_str8_list_for(pathElements, eltName)
         {
@@ -369,7 +369,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
         return list;
     }
 
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
     wa_debug_variable** shadow = oc_arena_push_array(scratch.arena, wa_debug_variable*, funcInfo->totalVarDecl);
     u64 shadowCount = 0;
 

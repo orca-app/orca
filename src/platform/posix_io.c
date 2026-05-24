@@ -370,7 +370,7 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc dirFd, oc_str8 path)
 
 oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     if(oc_file_desc_is_nil(dirFd))
     {

@@ -574,7 +574,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
     info->functions = oc_arena_push_array(module->arena, wa_debug_function_ptr_option, info->functionCount);
 
     //NOTE: type import context to deduplicate types
-    oc_scratch scratch = oc_scratch_begin_next(module->arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(module->arena);
 
     wa_import_context context = {
         .arena = module->arena,
@@ -728,7 +728,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
     info->wasmToLine = oc_arena_push_array(arena, wa_wasm_to_line_entry, info->wasmToLineCount);
 
     //NOTE: build a global file table and build wasm line map
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     wa_source_info* sourceInfo = &info->sourceInfo;
     oc_list files = { 0 };
@@ -795,9 +795,9 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
                 {
                     // dir path relative to current directory of compilation
                     rootPath = table->header.dirEntries[0].path;
-                    filePath = oc_path_append(scratch.arena, dirPath, filePath);
+                    filePath = oc_path_append(scratch.allocator, dirPath, filePath);
                 }
-                fullPath = oc_path_append(scratch.arena, rootPath, filePath);
+                fullPath = oc_path_append(scratch.allocator, rootPath, filePath);
 
                 //TODO: review this. this doesn't seem to be always the case.
                 OC_DEBUG_ASSERT(!oc_str8_cmp(rootPath, oc_str8_slice(fullPath, 0, rootPath.len)),
@@ -913,7 +913,7 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
     }
 
     //NOTE: parse dwarf info and process it
-    oc_scratch scratch = oc_scratch_begin_next(module->arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(module->arena);
 
     dw_parser parser = {
         .arena = scratch.arena,

@@ -877,8 +877,8 @@ int main()
 
     oc_font* fonts[2] = { &fontRegular, &fontBold };
     oc_str8 fontNames[2] = {
-        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Regular.ttf")),
-        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Bold.ttf"))
+        oc_path_executable_relative(scratch.allocator, OC_STR8("../OpenSans-Regular.ttf")),
+        oc_path_executable_relative(scratch.allocator, OC_STR8("../OpenSans-Bold.ttf"))
     };
 
     for(int i = 0; i < 2; i++)

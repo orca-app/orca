@@ -56,7 +56,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
                                                                    oc_file_dialog_desc* desc,
                                                                    oc_file_table* table)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     oc_file_dialog_result dialogResult = oc_file_dialog_for_table(scratch.arena, desc, table);
 

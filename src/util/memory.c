@@ -256,7 +256,7 @@ oc_scratch oc_scratch_begin(void)
     return oc_scratch_begin_on_arena(arena);
 }
 
-ORCA_API oc_scratch oc_scratch_begin_next(oc_arena* used)
+ORCA_API oc_scratch oc_scratch_begin_next_arena(oc_arena* used)
 {
     oc_arena* arena = 0;
     if((used >= __scratchPool)
@@ -280,6 +280,11 @@ ORCA_API oc_scratch oc_scratch_begin_next(oc_arena* used)
     OC_ASSERT(arena);
 
     return oc_scratch_begin_on_arena(arena);
+}
+
+ORCA_API oc_scratch oc_scratch_begin_next_allocator(oc_allocator* allocator)
+{
+    return oc_scratch_begin_next_arena((oc_arena*)allocator);
 }
 
 void oc_scratch_end(oc_scratch scope)

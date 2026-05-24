@@ -135,7 +135,7 @@ oc_str8 oc_path_slice_extension(oc_str8 path)
 
 oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 {
-    oc_scratch tmp = oc_scratch_begin_next(arena);
+    oc_scratch tmp = oc_scratch_begin_next_arena(arena);
     oc_str8_list sep = { 0 };
     oc_str8_list_push(tmp.arena->allocator, &sep, OC_STR8("/"));
     oc_str8_list_push(tmp.arena->allocator, &sep, OC_STR8("\\"));
@@ -180,7 +180,7 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
 {
     //TODO: check if elements have ending/begining '/' ?
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     oc_str8 drive = { 0 };
     oc_str8_list list = { 0 };
@@ -259,7 +259,7 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
     }
     else
     {
-        oc_scratch tmp = oc_scratch_begin_next(arena);
+        oc_scratch tmp = oc_scratch_begin_next_arena(arena);
 
         oc_str8_list list = { 0 };
         oc_str8_list_push(tmp.arena->allocator, &list, parent);
@@ -275,11 +275,11 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
 oc_str8 oc_path_executable_relative(oc_arena* arena, oc_str8 relPath)
 {
     oc_str8_list list = { 0 };
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
-    oc_str8 executablePath = oc_path_executable(scratch.arena);
+    oc_str8 executablePath = oc_path_executable(scratch.allocator);
     oc_str8 dirPath = oc_path_slice_directory(executablePath);
-    oc_str8 path = oc_path_append(scratch.arena, dirPath, relPath);
+    oc_str8 path = oc_path_append(scratch.allocator, dirPath, relPath);
     path = oc_path_canonical(arena, path);
 
     oc_scratch_end(scratch);
@@ -312,7 +312,7 @@ oc_str8 oc_path_executable(oc_arena* arena)
 
 oc_str8 oc_path_canonical(oc_arena* arena, oc_str8 path)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
     oc_str16 pathW = oc_win32_utf8_to_wide(scratch.arena, path);
 
     DWORD required_size = GetFullPathNameW(pathW.ptr, 0, NULL, NULL);

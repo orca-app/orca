@@ -139,7 +139,10 @@ typedef struct oc_scratch
 
 ORCA_API oc_scratch oc_scratch_begin_on_arena(oc_arena* arena);
 ORCA_API oc_scratch oc_scratch_begin(void);
-ORCA_API oc_scratch oc_scratch_begin_next(oc_arena* used);
+
+ORCA_API oc_scratch oc_scratch_begin_next_allocator(oc_allocator* allocator);
+ORCA_API oc_scratch oc_scratch_begin_next_arena(oc_arena* used);
+
 ORCA_API void oc_scratch_end(oc_scratch scratch);
 
 #ifdef __cplusplus

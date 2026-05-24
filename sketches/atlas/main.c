@@ -48,8 +48,8 @@ int main()
     oc_rect_atlas* atlas = oc_rect_atlas_create(&permanentArena, 16000, 16000);
     oc_image atlasImage = oc_image_create(surface, 16000, 16000);
 
-    oc_str8 path1 = oc_path_executable_relative(scratch.arena, OC_STR8("../../../sketches/resources/triceratops.png"));
-    oc_str8 path2 = oc_path_executable_relative(scratch.arena, OC_STR8("../../../sketches/resources/Top512.png"));
+    oc_str8 path1 = oc_path_executable_relative(scratch.allocator, OC_STR8("../../../sketches/resources/triceratops.png"));
+    oc_str8 path2 = oc_path_executable_relative(scratch.allocator, OC_STR8("../../../sketches/resources/Top512.png"));
 
     oc_image_region image1 = oc_image_atlas_alloc_from_file(atlas, atlasImage, path1, false);
     oc_image_region image2 = oc_image_atlas_alloc_from_file(atlas, atlasImage, path2, false);

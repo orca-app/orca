@@ -33,7 +33,7 @@ int oc_zip_extract(oc_str8 src, oc_str8 dst)
             oc_str8_list list = { 0 };
             oc_str8_list_push(scratch.allocator, &list, dst);
             oc_str8_list_push(scratch.allocator, &list, name);
-            oc_str8 dstPath = oc_path_join(scratch.arena, list);
+            oc_str8 dstPath = oc_path_join(scratch.allocator, list);
 
             if(name.ptr[name.len - 1] == '/')
             {
@@ -107,7 +107,7 @@ error:
 #if OC_PLATFORM_MACOS
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     char* home = getenv("HOME");
 
@@ -126,7 +126,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_scratch scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     char* home = getenv("USERPROFILE");
 
@@ -150,9 +150,9 @@ int oc_tool_run(oc_tool_options* options)
 
     //TODO: if options->app is a URL, download it here
 #if OC_PLATFORM_WINDOWS
-    oc_str8 runtimeExe = oc_path_executable_relative(scratch.arena, OC_STR8("./orca_runtime.exe"));
+    oc_str8 runtimeExe = oc_path_executable_relative(scratch.allocator, OC_STR8("./orca_runtime.exe"));
 #else
-    oc_str8 runtimeExe = oc_path_executable_relative(scratch.arena, OC_STR8("./orca_runtime"));
+    oc_str8 runtimeExe = oc_path_executable_relative(scratch.allocator, OC_STR8("./orca_runtime"));
 #endif
     //TODO: we don't want to capture ouput from that process...
     char* appCStr = oc_str8_to_cstring(scratch.allocator, options->app);
@@ -198,7 +198,7 @@ int launcher_load_apps(oc_launcher* launcher)
     oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 home = get_orca_home_dir(scratch.arena);
-    oc_str8 appsPath = oc_path_append(scratch.arena, home, OC_STR8("apps"));
+    oc_str8 appsPath = oc_path_append(scratch.allocator, home, OC_STR8("apps"));
 
     oc_file appsDir = oc_catch(oc_file_open(appsPath, OC_FILE_ACCESS_READ, 0))
     {
@@ -291,7 +291,7 @@ i32 launcher_create(void* userData)
     // load font
     oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../resources/Menlo.ttf"));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.allocator, OC_STR8("../resources/Menlo.ttf"));
     //TODO: get rid of that soon
     oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
                                    OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
@@ -374,8 +374,8 @@ void launcher_load_app_from_url(oc_str8 url)
     }
 
     oc_str8 home = get_orca_home_dir(scratch.arena);
-    oc_str8 transientAppsPath = oc_path_append(scratch.arena, home, OC_STR8("apps/transient"));
-    oc_str8 dstPath = oc_path_append(scratch.arena, transientAppsPath, basename);
+    oc_str8 transientAppsPath = oc_path_append(scratch.allocator, home, OC_STR8("apps/transient"));
+    oc_str8 dstPath = oc_path_append(scratch.allocator, transientAppsPath, basename);
 
     oc_io_error error = oc_file_makedir(transientAppsPath,
                                         &(oc_file_makedir_options){

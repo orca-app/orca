@@ -1892,7 +1892,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
     dispatch_block_t block = ^{
       @autoreleasepool
       {
-          oc_scratch scratch = oc_scratch_begin_next(arena);
+          oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
           NSWindow* keyWindow = [NSApp keyWindow];
 
@@ -1951,7 +1951,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
               {
                   oc_str8_list_push(scratch.allocator, &list, desc->startPath);
               }
-              startPath = oc_path_join(scratch.arena, list);
+              startPath = oc_path_join(scratch.allocator, list);
           }
 
           NSString* nsPath = 0;
