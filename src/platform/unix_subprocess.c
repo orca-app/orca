@@ -113,7 +113,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
             close(fd);
         }
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         char** terminatedArgv = oc_arena_push_array(scratch.arena, char*, argc + 1);
         memcpy(terminatedArgv, argv, argc * sizeof(char*));
 
@@ -183,7 +183,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
     // write call.
 
     {
-        oc_arena_scope scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
+        oc_scratch scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
 
         oc_str8_list outList = { 0 };
         oc_str8_list errList = { 0 };

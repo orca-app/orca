@@ -381,7 +381,7 @@ wa_status wa_instance_initialize(wa_instance* instance)
         }
 
         //TODO: later take an interpreter as input of instantiate?
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
         wa_status status = wa_interpreter_invoke(interpreter, instance, func, 0, 0, 0, 0);
         oc_scratch_end(scratch);

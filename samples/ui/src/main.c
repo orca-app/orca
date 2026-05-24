@@ -43,7 +43,7 @@ ORCA_EXPORT void oc_on_init(void)
     const char* fontNames[2] = { "/OpenSans-Regular.ttf", "/OpenSans-Bold.ttf" };
     for(int i = 0; i < 2; i++)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_file file = oc_catch(oc_file_open(OC_STR8(fontNames[i]), OC_FILE_ACCESS_READ, 0))
         {
@@ -162,7 +162,7 @@ void labeled_slider(const char* label, f32* value)
 
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     static bool darkTheme = true;
 

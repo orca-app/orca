@@ -2185,7 +2185,7 @@ wa_status wa_instance_interpret_expr(wa_instance* instance,
                                      u32 retCount,
                                      wa_value* returns)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
     wa_interpreter_init(interpreter, instance, func, type, code, argCount, args, retCount, returns);
 

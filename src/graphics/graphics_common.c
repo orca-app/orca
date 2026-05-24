@@ -590,7 +590,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
 oc_font oc_font_create_from_file(oc_file file, u32 rangeCount, oc_unicode_range* ranges)
 {
     oc_font font = oc_font_nil();
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
     char* buffer = oc_arena_push_uninitialized(scratch.arena, size);
@@ -809,7 +809,7 @@ oc_text_metrics oc_font_text_metrics_utf32(oc_font font, f32 fontSize, oc_str32 
         return ((oc_text_metrics){ 0 });
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, font, codePoints);
 
     //NOTE(martin): find width of missing character
@@ -928,7 +928,7 @@ oc_text_metrics oc_font_text_metrics(oc_font font, f32 fontSize, oc_str8 text)
         return ((oc_text_metrics){ 0 });
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
     oc_text_metrics result = oc_font_text_metrics_utf32(font, fontSize, codePoints);
     oc_scratch_end(scratch);
@@ -1662,7 +1662,7 @@ void oc_codepoints_outlines(oc_str32 codePoints)
         return;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
     oc_glyph_outlines_from_font_data(fontData, glyphIndices);
@@ -1683,7 +1683,7 @@ void oc_text_outlines(oc_str8 text)
         return;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str32 codePoints = oc_utf8_push_to_codepoints(scratch.arena, text);
     oc_str32 glyphIndices = oc_font_push_glyph_indices(scratch.arena, context->attributes.font, codePoints);
 
@@ -1913,7 +1913,7 @@ oc_image oc_image_create_from_memory(oc_canvas_renderer renderer, oc_str8 mem, b
 oc_image oc_image_create_from_file(oc_canvas_renderer renderer, oc_file file, bool flip)
 {
     oc_image image = oc_image_nil();
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
     char* buffer = oc_arena_push_uninitialized(scratch.arena, size);
@@ -2070,7 +2070,7 @@ oc_image_region oc_image_atlas_alloc_from_file(oc_rect_atlas* atlas, oc_image ba
 {
     oc_image_region imageRgn = { 0 };
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     u64 size = oc_file_size(file);
     char* buffer = oc_arena_push_uninitialized(scratch.arena, size);

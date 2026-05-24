@@ -729,7 +729,7 @@ int main(int argc, char** argv)
         return (-1);
     }
 
-    oc_arena_scope programScratch = oc_scratch_begin();
+    oc_scratch programScratch = oc_scratch_begin();
 
     //NOTE: create window renderer, surface, and context
     oc_init();
@@ -785,7 +785,7 @@ int main(int argc, char** argv)
 
     while(!oc_should_quit())
     {
-        oc_arena_scope frameScratch = oc_scratch_begin();
+        oc_scratch frameScratch = oc_scratch_begin();
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         oc_pump_events(0);

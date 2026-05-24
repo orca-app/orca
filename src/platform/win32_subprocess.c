@@ -105,7 +105,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         childStdErr[1] = GetStdHandle(STD_ERROR_HANDLE);
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str16 execName = oc_win32_utf8_to_wide(scratch.arena, OC_STR8(argv[0]));
     oc_str16 commandLine = { 0 };
@@ -203,7 +203,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                                 NULL,
                                 NULL);
 
-        oc_arena_scope scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
+        oc_scratch scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
 
         oc_str8_list outList = { 0 };
         oc_str8_list errList = { 0 };

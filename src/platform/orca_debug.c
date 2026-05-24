@@ -60,7 +60,7 @@ void platform_log_push(oc_log_output* output,
                        const char* fmt,
                        va_list ap)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_stbsp_context ctx = { .arena = scratch.arena,
                              .list = { 0 } };
@@ -81,7 +81,7 @@ void platform_log_push(oc_log_output* output,
 
 _Noreturn void oc_abort_ext(const char* file, const char* function, int line, const char* fmt, ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_stbsp_context ctx = {
         .arena = scratch.arena,
@@ -105,7 +105,7 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
 
 _Noreturn void oc_assert_fail(const char* file, const char* function, int line, const char* src, const char* fmt, ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_stbsp_context ctx = {
         .arena = scratch.arena,

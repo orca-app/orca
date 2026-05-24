@@ -77,7 +77,7 @@ i32 ui_runloop(void* user)
 
     while(!oc_should_quit())
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
@@ -420,7 +420,7 @@ int main()
     renderer = oc_canvas_renderer_create();
     surface = oc_canvas_surface_create_for_window(renderer, window);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_font* fonts[2] = { &fontRegular, &fontBold };
     oc_str8 fontNames[2] = {

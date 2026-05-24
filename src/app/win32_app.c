@@ -811,7 +811,7 @@ i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 
 oc_window oc_window_create(oc_rect rect, oc_str8 title, oc_window_style style)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_window_data* window = oc_window_alloc();
     memset(window, 0, sizeof(oc_window_data));
@@ -992,7 +992,7 @@ void oc_window_set_title(oc_window window, oc_str8 title)
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
     if(windowData)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         const char* titleCString = oc_str8_to_cstring(scratch.arena, title);
 
         SetWindowText(windowData->win32.hWnd, titleCString);
@@ -1349,7 +1349,7 @@ oc_str16 win32_path_from_handle_null_terminated(oc_arena* arena, HANDLE handle);
 
 oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
     oc_file_dialog_result result = { 0 };
 
     HRESULT hr = CoInitializeEx(NULL, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE);
@@ -1558,7 +1558,7 @@ int oc_alert_popup(oc_str8 title,
                    oc_str8 message,
                    oc_str8_list options)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     TASKDIALOG_BUTTON* buttons = oc_arena_push_array(scratch.arena, TASKDIALOG_BUTTON, options.eltCount);
 
     int i = 0;

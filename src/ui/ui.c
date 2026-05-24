@@ -2337,7 +2337,7 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
 
     //NOTE(martin): match ruleset against box, which may produce derived rules
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTRIBUTE_COUNT);
 
@@ -2549,7 +2549,7 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
 
 void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_axis mainAxis = box->style.layout.axis;
     oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
@@ -2730,7 +2730,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
     }
 
     //NOTE: collect boxes into a breadth-first-order list
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_list boxes = { 0 };
     oc_ui_layout_item* rootElt = oc_arena_push_type(scratch.arena, oc_ui_layout_item);

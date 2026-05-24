@@ -40,7 +40,7 @@ void oc_assert_fail_dialog(const char* file,
                            const char* fmt,
                            ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);
@@ -68,7 +68,7 @@ void oc_assert_fail_dialog(const char* file,
 
 void oc_abort_ext_dialog(const char* file, const char* function, int line, const char* fmt, ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);
@@ -294,7 +294,7 @@ void oc_hostapi_clipboard_get_string(oc_wasm_arena* wasmArena, oc_wasm_str8* ret
     oc_wasm_str8 result = { 0 };
     if(clipboard->isGetAllowed)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_str8 string = oc_clipboard_get_string(scratch.arena);
 
@@ -438,7 +438,7 @@ void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
                                       oc_wasm_file_open_with_dialog_result* returnPointer)
 {
     oc_runtime* orca = oc_runtime_get();
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_file_dialog_desc nativeDesc = {
         .kind = desc->kind,
@@ -497,7 +497,7 @@ void oc_hostapi_file_open_with_dialog(oc_wasm_arena* wasmArena,
 
 void oc_hostapi_file_listdir(oc_wasm_arena* wasmArena, oc_file* directory, oc_wasm_file_list* returnPointer)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_runtime* orca = oc_runtime_get();
     oc_file_list nativeList = oc_file_listdir_for_table(scratch.arena, *directory, &orca->fileTable);

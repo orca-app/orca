@@ -639,7 +639,7 @@ void gen_hostapi_binding(oc_arena* arena, oc_str8_list* list, oc_str8 apiName, o
 
 int main(int argc, char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 inputPath = { 0 };
     oc_str8 hostcallPath = { 0 };

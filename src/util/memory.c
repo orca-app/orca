@@ -56,9 +56,18 @@ void oc_arena_init(oc_arena* arena)
     oc_arena_init_with_options(arena, &(oc_arena_options){ 0 });
 }
 
+void* oc_arena_allocator_push(oc_allocator* allocator, u64 size, u64 align)
+{
+    oc_arena* arena = (oc_arena*)allocator;
+    return oc_arena_push_aligned_uninitialized(arena, size, align);
+}
+
 void oc_arena_init_with_options(oc_arena* arena, oc_arena_options* options)
 {
     memset(arena, 0, sizeof(oc_arena));
+
+    arena->push = oc_arena_allocator_push;
+    arena->allocator = (oc_allocator*)arena;
 
     arena->base = options->base ? options->base : oc_base_allocator_default();
 
@@ -158,26 +167,6 @@ void oc_arena_clear(oc_arena* arena)
     arena->currentChunk = oc_list_first_entry(arena->chunks, oc_arena_chunk, listElt);
 }
 
-oc_arena_scope oc_arena_scope_begin(oc_arena* arena)
-{
-    oc_arena_scope scope = { .arena = arena,
-                             .chunk = arena->currentChunk,
-                             .offset = arena->currentChunk->offset };
-    return (scope);
-}
-
-void oc_arena_scope_end(oc_arena_scope scope)
-{
-    for(oc_arena_chunk* chunk = scope.arena->currentChunk;
-        chunk != 0 && chunk != scope.chunk;
-        chunk = oc_list_prev_entry(chunk, oc_arena_chunk, listElt))
-    {
-        chunk->offset = sizeof(oc_arena_chunk);
-    }
-    scope.arena->currentChunk = scope.chunk;
-    scope.arena->currentChunk->offset = scope.offset;
-}
-
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory pool
 //--------------------------------------------------------------------------------
@@ -223,7 +212,7 @@ void oc_pool_clear(oc_pool* pool)
 }
 
 //--------------------------------------------------------------------------------
-//NOTE(martin): per-thread scratch arena
+//NOTE(martin): scratch arena
 //--------------------------------------------------------------------------------
 
 enum
@@ -250,16 +239,25 @@ static oc_arena* oc_scratch_at_index(int index)
     return (scratch);
 }
 
-ORCA_API oc_arena_scope oc_scratch_begin(void)
+oc_scratch oc_scratch_begin_on_arena(oc_arena* arena)
 {
-    oc_arena* scratch = oc_scratch_at_index(0);
-    oc_arena_scope scope = oc_arena_scope_begin(scratch);
+    oc_scratch scope = {
+        .allocator = (oc_allocator*)arena,
+        .arena = arena,
+        .chunk = arena->currentChunk,
+        .offset = arena->currentChunk->offset,
+    };
     return (scope);
 }
 
-ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used)
+oc_scratch oc_scratch_begin(void)
 {
-    oc_arena_scope scope = { 0 };
+    oc_arena* arena = oc_scratch_at_index(0);
+    return oc_scratch_begin_on_arena(arena);
+}
+
+ORCA_API oc_scratch oc_scratch_begin_next(oc_arena* used)
+{
     oc_arena* arena = 0;
     if((used >= __scratchPool)
        && ((u64)(used - __scratchPool) < (u64)OC_SCRATCH_POOL_SIZE))
@@ -281,7 +279,17 @@ ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used)
 
     OC_ASSERT(arena);
 
-    scope = oc_arena_scope_begin(arena);
+    return oc_scratch_begin_on_arena(arena);
+}
 
-    return (scope);
+void oc_scratch_end(oc_scratch scope)
+{
+    for(oc_arena_chunk* chunk = scope.arena->currentChunk;
+        chunk != 0 && chunk != scope.chunk;
+        chunk = oc_list_prev_entry(chunk, oc_arena_chunk, listElt))
+    {
+        chunk->offset = sizeof(oc_arena_chunk);
+    }
+    scope.arena->currentChunk = scope.chunk;
+    scope.arena->currentChunk->offset = scope.offset;
 }

@@ -12,7 +12,7 @@
 
 oc_file oc_file_open_with_request_for_table(oc_str8 path, oc_file_access rights, oc_file_open_flags flags, oc_file_table* table)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 msg = oc_str8_pushf(scratch.arena, "Application wants to access file '%.*s'.", (int)path.len, path.ptr);
 
     oc_str8_list options = { 0 };
@@ -56,7 +56,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_arena* are
                                                                    oc_file_dialog_desc* desc,
                                                                    oc_file_table* table)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     oc_file_dialog_result dialogResult = oc_file_dialog_for_table(scratch.arena, desc, table);
 

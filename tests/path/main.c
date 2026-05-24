@@ -4,7 +4,7 @@
 
 int run_tests(oc_test_info* info)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_test_group(info, "oc_path_slice_directory")
     {

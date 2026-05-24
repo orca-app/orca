@@ -1820,7 +1820,7 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_arena_scope",
+                    "name": "oc_scratch",
                     "doc": "This struct provides a way to store the current offset in a given arena, in order to reset the arena to that offset later. This allows using arenas in a stack-like fashion, e.g. to create temporary \"scratch\" allocations",
                     "type": {
                         "kind": "struct",
@@ -2124,12 +2124,12 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_arena_scope_begin",
-                    "doc": "Begin a memory scope. This creates an `oc_arena_scope` object that stores the current offset of the arena. The arena can later be reset to that offset by calling `oc_arena_scope_end`, releasing all memory that was allocated within the scope to the arena.",
+                    "name": "oc_scratch_begin",
+                    "doc": "Begin a memory scope. This creates an `oc_scratch` object that stores the current offset of the arena. The arena can later be reset to that offset by calling `oc_scratch_end`, releasing all memory that was allocated within the scope to the arena.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_arena_scope",
-                        "doc": "A `oc_arena_scope` object storing the current offset of the arena."
+                        "name": "oc_scratch",
+                        "doc": "A `oc_scratch` object storing the current offset of the arena."
                     },
                     "params": [
                         {
@@ -2147,7 +2147,7 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_arena_scope_end",
+                    "name": "oc_scratch_end",
                     "doc": "End a memory scope. This resets an arena to the offset it had when the scope was created. All memory allocated within the scope is released back to the arena.",
                     "return": {
                         "kind": "void"
@@ -2155,10 +2155,10 @@
                     "params": [
                         {
                             "name": "scope",
-                            "doc": "An `oc_arena_scope` object that was created by a call to `oc_arena_scope_begin()`.",
+                            "doc": "An `oc_scratch` object that was created by a call to `oc_scratch_begin()`.",
                             "type": {
                                 "kind": "namedType",
-                                "name": "oc_arena_scope"
+                                "name": "oc_scratch"
                             }
                         }
                     ]
@@ -2176,7 +2176,7 @@
                     ],
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_arena_scope",
+                        "name": "oc_scratch",
                         "doc": "A memory scope object. You can use the `arena` field of this object to allocate memory from the scratch scope. When you're done, pass the scope oject to `oc_scratch_end()`."
                     },
                     "params": []
@@ -2187,7 +2187,7 @@
                     "doc": "Begin a scratch scope that does not conflict with a given arena. See `oc_scratch_begin()` for more details about when to use this function.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_arena_scope",
+                        "name": "oc_scratch",
                         "doc": "A memory scope object. You can use the `arena` field of this object to allocate memory from the scratch scope. When you're done, pass the scope oject to `oc_scratch_end()`."
                     },
                     "params": [

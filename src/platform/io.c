@@ -184,7 +184,7 @@ oc_file_name_result oc_file_name(oc_arena* arena, oc_file file)
 {
     oc_file_name_result result = { 0 };
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
     u64 size = 4096;
     char* buffer = oc_arena_push_array_uninitialized(scratch.arena, char, size);
     oc_io_req req = {
@@ -262,7 +262,7 @@ oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
     oc_file_status status = oc_file_get_status(file);
     if(status.type == OC_FILE_DIRECTORY)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         oc_file_list list = oc_file_listdir(scratch.arena, file);
         oc_file_list_for(list, elt)
         {
@@ -327,7 +327,7 @@ oc_io_error oc_file_copy_recursive(oc_str8 srcPath, oc_str8 dstPath, oc_file_cop
 
     if(srcStatus.type == OC_FILE_DIRECTORY)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         //NOTE: if src is a directory, we create dst as a directory if it doesn't exist,
         // and copy src/* into dst/*

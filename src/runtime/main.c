@@ -233,7 +233,7 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
 #if OC_PLATFORM_MACOS
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     char* home = getenv("HOME");
 
@@ -253,7 +253,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     char* home = getenv("USERPROFILE");
 
@@ -273,7 +273,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     const char* srcCStr = oc_str8_to_cstring(scratch.arena, src);
 
     zip_t* zip = zip_open(srcCStr, ZIP_RDONLY, 0);
@@ -370,7 +370,7 @@ oc_str8 standalone_app_name(oc_arena* arena)
 {
     oc_str8 result = { 0 };
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
     oc_str8 bundle = oc_path_executable_relative(scratch.arena, OC_STR8("../.."));
     oc_str8 ext = oc_path_slice_extension(bundle);
     if(!oc_str8_cmp(ext, OC_STR8(".app")))
@@ -384,7 +384,7 @@ oc_str8 standalone_app_name(oc_arena* arena)
 
 oc_str8 standalone_app_name(oc_arena* arena)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
     oc_str8 exec = oc_path_executable(scratch.arena);
     oc_str8 result = oc_str8_push_copy(arena, oc_path_slice_stem(exec));
     oc_scratch_end(scratch);
@@ -394,7 +394,7 @@ oc_str8 standalone_app_name(oc_arena* arena)
 
 int load_app(oc_runtime* app)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 orcaDir = get_orca_home_dir(scratch.arena);
 
@@ -667,7 +667,7 @@ i32 vm_runloop(void* user)
 
     while(!app->quit)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         oc_event* event = 0;
 
         while(!app->quit && (event = queue_next_event(scratch.arena, &app->eventBuffer)) != 0)
@@ -881,7 +881,7 @@ i32 control_runloop(void* user)
 
     while(!app->quit)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         oc_event* event = 0;
 
         while((event = oc_next_event(scratch.arena)) != 0)
@@ -1037,7 +1037,7 @@ i32 control_runloop(void* user)
 oc_font orca_font_create(const char* resourcePath)
 {
     //NOTE(martin): create default fonts
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(resourcePath));
 
     oc_font font = oc_font_nil();
@@ -1075,7 +1075,7 @@ int main(int argc, char** argv)
 {
     oc_runtime* app = &__orcaApp;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_arg_parser parser = { 0 };
     oc_arg_parser_init(&parser,

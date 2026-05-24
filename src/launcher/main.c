@@ -11,7 +11,7 @@ int oc_tool_install(oc_tool_options* options) { return 0; }
 
 int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     const char* srcCStr = oc_str8_to_cstring(scratch.arena, src);
 
     zip_t* zip = zip_open(srcCStr, ZIP_RDONLY, 0);
@@ -107,7 +107,7 @@ error:
 #if OC_PLATFORM_MACOS
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     char* home = getenv("HOME");
 
@@ -126,7 +126,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 oc_str8 get_orca_home_dir(oc_arena* arena)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     char* home = getenv("USERPROFILE");
 
@@ -146,7 +146,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 int oc_tool_run(oc_tool_options* options)
 {
     int status = 0;
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     //TODO: if options->app is a URL, download it here
 #if OC_PLATFORM_WINDOWS
@@ -195,7 +195,7 @@ typedef struct oc_launcher
 
 int launcher_load_apps(oc_launcher* launcher)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 home = get_orca_home_dir(scratch.arena);
     oc_str8 appsPath = oc_path_append(scratch.arena, home, OC_STR8("apps"));
@@ -289,7 +289,7 @@ i32 launcher_create(void* userData)
     oc_canvas_context_select(oc_canvas_context_nil());
 
     // load font
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../resources/Menlo.ttf"));
     //TODO: get rid of that soon
@@ -362,7 +362,7 @@ size_t curl_write(void* ptr, size_t size, size_t nmemb, void* stream)
 
 void launcher_load_app_from_url(oc_str8 url)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 basename = oc_path_slice_filename(url);
     oc_str8 ext = oc_path_slice_extension(url);
@@ -424,7 +424,7 @@ i32 launcher_runloop(void* data)
 
     while(!quit)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
         {
@@ -529,7 +529,7 @@ i32 launcher_runloop(void* data)
                     f32 thumbnailSpacing = (containerSize.x - maxThumbnailsPerRow * APP_THUMBNAIL_SIZE) / (maxThumbnailsPerRow + 1);
 
                     oc_vec2 pos = { thumbnailSpacing, 0 };
-                    oc_arena_scope scratch = oc_scratch_begin();
+                    oc_scratch scratch = oc_scratch_begin();
                     int colIndex = 0;
 
                     oc_list_for_indexed(launcher.items, it, oc_launcher_item, listElt)
@@ -632,7 +632,7 @@ i32 launcher_runloop(void* data)
 
 int main(int argc, char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_tool_options options = { 0 };
     oc_arg_parser parser = { 0 };

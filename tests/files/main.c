@@ -1482,7 +1482,7 @@ oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
 
 int main(int argc, const char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     TEST_DIR = parseTestDir(argc, argv, scratch.arena);
 

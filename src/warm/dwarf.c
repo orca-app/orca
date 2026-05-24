@@ -150,7 +150,7 @@ void dw_parse_error_str8(dw_parser* parser, u64 loc, oc_str8 message)
 
 void dw_parse_error(dw_parser* parser, u64 loc, const char* fmt, ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
     va_list ap;
     va_start(ap, fmt);
     oc_str8 message = oc_str8_pushfv(scratch.arena, fmt, ap);
@@ -216,7 +216,7 @@ void wa_read_file_entries(dw_parser* parser,
         }
     }
 
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
     format = oc_arena_push_array(scratch.arena, dw_file_entry_format_elt, formatCount);
 
     if(header->version == 5)
@@ -734,7 +734,7 @@ dw_line_info dw_load_line_info(dw_parser* parser, dw_sections* sections, dw_info
 
     wa_reader reader = wa_reader_subreader(&parser->rootReader, sections->line.offset, sections->line.len);
 
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
     oc_list tablesList = { 0 };
     u64 tableCount = 0;
 
@@ -1061,7 +1061,7 @@ dw_abbrev_table dw_load_abbrev_table(dw_parser* parser, dw_section section, u64 
     } dw_abbrev_attr_elt;
 
     oc_list entries = { 0 };
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
 
     wa_reader reader = wa_reader_subreader(&parser->rootReader, section.offset, section.len);
     wa_reader_seek(&reader, offset);
@@ -1290,7 +1290,7 @@ dw_loc_option dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section sect
 
     if(unit->version == 4)
     {
-        oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+        oc_scratch scratch = oc_scratch_begin_next(parser->arena);
 
         typedef struct dw_loc_entry_elt
         {
@@ -1405,7 +1405,7 @@ dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* u
 
         oc_list list = { 0 };
 
-        oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+        oc_scratch scratch = oc_scratch_begin_next(parser->arena);
 
         while(wa_reader_has_more(&reader))
         {
@@ -2013,7 +2013,7 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
     oc_list units = { 0 };
     info->unitCount = 0;
 
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
 
     while(wa_reader_has_more(&reader))
     {

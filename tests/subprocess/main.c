@@ -100,7 +100,7 @@ int run_tests(test_subprocess_options* options)
             }
             else
             {
-                oc_arena_scope scratch = oc_scratch_begin();
+                oc_scratch scratch = oc_scratch_begin();
 
                 oc_subprocess_completion comp = oc_catch(oc_subprocess_read_and_wait(scratch.arena, subprocess))
                 {
@@ -152,7 +152,7 @@ int run_tests(test_subprocess_options* options)
             }
             else
             {
-                oc_arena_scope scratch = oc_scratch_begin();
+                oc_scratch scratch = oc_scratch_begin();
 
                 oc_subprocess_completion comp = oc_catch(oc_subprocess_read_and_wait(scratch.arena, subprocess))
                 {
@@ -217,7 +217,7 @@ int run_tests(test_subprocess_options* options)
 
         oc_test(&info, "read")
         {
-            oc_arena_scope scratch = oc_scratch_begin();
+            oc_scratch scratch = oc_scratch_begin();
 
             const char* args[] = {
                 options->exec.ptr,
@@ -265,7 +265,7 @@ int run_tests(test_subprocess_options* options)
 
 int main(int argc, char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     test_subprocess_options options = {
         .exec = OC_STR8(argv[0]),

@@ -11,12 +11,12 @@
 oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
 {
     const char* test_dir_arg_prefix = "--test-dir=";
-    for (int i = 1; i < argc; ++i)
+    for(int i = 1; i < argc; ++i)
     {
         const char* arg = argv[i];
         const size_t arglen = strlen(arg);
 
-        if (strstr(arg, test_dir_arg_prefix) == arg)
+        if(strstr(arg, test_dir_arg_prefix) == arg)
         {
             const char* slice = arg + strlen(test_dir_arg_prefix);
             return OC_STR8(slice);
@@ -30,7 +30,7 @@ int main(int argc, const char** argv)
 {
     oc_init();
 
-    oc_arena_scope arena_scope = oc_scratch_begin();
+    oc_scratch arena_scope = oc_scratch_begin();
     oc_str8 test_dir = parseTestDir(argc, argv, arena_scope.arena);
     oc_str8 test_txt_path = oc_path_append(arena_scope.arena, test_dir, OC_STR8("test.txt"));
 

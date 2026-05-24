@@ -118,7 +118,7 @@ oc_io_resolve_result oc_io_resolve(oc_arena* arena, oc_file_desc rootFd, oc_str8
 {
 
     oc_io_resolve_result result = { 0 };
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     if(oc_file_desc_is_nil(rootFd))
     {
@@ -358,7 +358,7 @@ oc_io_cmp oc_io_open(oc_io_req* req, oc_file_table* table)
             }
             else
             {
-                oc_arena_scope scratch = oc_scratch_begin();
+                oc_scratch scratch = oc_scratch_begin();
 
                 oc_file_desc rootFd = atSlot ? atSlot->fd : oc_file_desc_nil();
 
@@ -592,7 +592,7 @@ oc_io_cmp oc_io_makedir(oc_io_req* req, oc_file_table* table)
     }
     else
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_file_desc rootFd = atSlot ? atSlot->fd : oc_file_desc_nil();
 
@@ -670,7 +670,7 @@ oc_io_cmp oc_io_remove(oc_io_req* req, oc_file_table* table)
     }
     else
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_file_desc rootFd = atSlot ? atSlot->fd : oc_file_desc_nil();
 
@@ -694,7 +694,7 @@ oc_io_cmp oc_io_remove(oc_io_req* req, oc_file_table* table)
 oc_io_error oc_io_copy_recursive(oc_file srcDir, oc_file dstDir, oc_io_req* req, oc_file_table* table)
 {
     oc_io_error error = OC_IO_OK;
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_file_list list = oc_file_listdir(scratch.arena, srcDir);
     oc_file_list_for(list, elt)

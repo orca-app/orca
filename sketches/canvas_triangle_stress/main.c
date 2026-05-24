@@ -31,7 +31,7 @@ int main()
         return (-1);
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 path = oc_path_executable_relative(scratch.arena, OC_STR8("resources/triceratops.png"));
     oc_image image = oc_image_create_from_path(renderer, path, false);
 
@@ -97,7 +97,7 @@ int main()
     while(!oc_should_quit())
     {
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;

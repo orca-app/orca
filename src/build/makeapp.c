@@ -3,7 +3,7 @@
 
 void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_file srcDir = oc_catch(oc_file_open(src, OC_FILE_ACCESS_READ, 0))
     {
@@ -51,7 +51,7 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 
 int make_app_macos(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 name = OC_STR8("Orca");
     oc_str8 exec = OC_STR8("orca");
@@ -263,7 +263,7 @@ int make_app_macos(void)
 
 int make_app_win32(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 name = OC_STR8("Orca");
     oc_str8 exec = OC_STR8("orca.exe");

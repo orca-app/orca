@@ -254,7 +254,7 @@ oc_vec2 oc_card_spacer_move_direction(oc_card_spacer_state* state, oc_card_space
 
 void oc_card_spacer(oc_code_canvas* canvas, u32 initialCardCount, oc_card** initialCards)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     //NOTE: create initial state
     oc_card_spacer_state state = {
@@ -364,7 +364,7 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
     oc_vec2 mousePos = oc_ui_get_sig().mouse;
     oc_vec2 mouseDelta = oc_ui_get_sig().delta;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 idStr = oc_str8_pushf(scratch.arena, "card-%llu", card->id);
     oc_ui_box_str8(idStr)
     {
@@ -411,7 +411,7 @@ void oc_card_ui(oc_code_canvas* canvas, oc_card* card)
 
 void oc_canvas_compute_groups(oc_code_canvas* canvas)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     //NOTE: recycle previous groups
     for(oc_card_group* group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt);
@@ -580,7 +580,7 @@ i32 ui_runloop(void* user)
 
     while(!oc_should_quit())
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
@@ -873,7 +873,7 @@ int main()
     renderer = oc_canvas_renderer_create();
     surface = oc_canvas_surface_create_for_window(renderer, window);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_font* fonts[2] = { &fontRegular, &fontBold };
     oc_str8 fontNames[2] = {

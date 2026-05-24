@@ -169,7 +169,7 @@ GLuint compile_shader(const char* vs, const char* fs)
         int logSize = 0;
         glGetProgramiv(prog, GL_INFO_LOG_LENGTH, &logSize);
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         char* log = oc_arena_push(scratch.arena, logSize);
 
         glGetProgramInfoLog(prog, logSize, 0, log);

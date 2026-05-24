@@ -460,7 +460,7 @@ wa_debug_range_list wa_import_range_list(wa_import_context* context, dw_die* die
 
         //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
         // since some dwarf range entries are base selection entries that don't make it into the final range list
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_option_unwrap(rangesAttr)->ranges.entryCount);
 
         for(u64 i = 0; i < oc_option_unwrap(rangesAttr)->ranges.entryCount; i++)
@@ -574,7 +574,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
     info->functions = oc_arena_push_array(module->arena, wa_debug_function_ptr_option, info->functionCount);
 
     //NOTE: type import context to deduplicate types
-    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
+    oc_scratch scratch = oc_scratch_begin_next(module->arena);
 
     wa_import_context context = {
         .arena = module->arena,
@@ -728,7 +728,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
     info->wasmToLine = oc_arena_push_array(arena, wa_wasm_to_line_entry, info->wasmToLineCount);
 
     //NOTE: build a global file table and build wasm line map
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     wa_source_info* sourceInfo = &info->sourceInfo;
     oc_list files = { 0 };
@@ -913,7 +913,7 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
     }
 
     //NOTE: parse dwarf info and process it
-    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
+    oc_scratch scratch = oc_scratch_begin_next(module->arena);
 
     dw_parser parser = {
         .arena = scratch.arena,

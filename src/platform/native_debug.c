@@ -87,7 +87,7 @@ void platform_log_push(oc_log_output* output,
 
 _Noreturn void oc_abort_ext(const char* file, const char* function, int line, const char* fmt, ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);
@@ -108,7 +108,7 @@ _Noreturn void oc_abort_ext(const char* file, const char* function, int line, co
 
 _Noreturn void oc_assert_fail(const char* file, const char* function, int line, const char* src, const char* fmt, ...)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);

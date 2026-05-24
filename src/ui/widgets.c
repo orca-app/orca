@@ -959,7 +959,7 @@ oc_str32 oc_ui_edit_replace_selection_with_codepoints(oc_ui_text_box_info* info,
     oc_str32 before = oc_str32_slice(codepoints, 0, start);
     oc_str32 after = oc_str32_slice(codepoints, end, codepoints.len);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str32_list list = { 0 };
     oc_str32_list_push(scratch.arena, &list, before);

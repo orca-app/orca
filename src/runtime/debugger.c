@@ -27,7 +27,7 @@ void debug_overlay_toggle(oc_debug_overlay* overlay)
 
 void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     static const char* levelNames[] = { "Error: ", "Warning: ", "Info: " };
     static const oc_color levelColors[] = { { 0.8, 0, 0, 1 },
@@ -90,7 +90,7 @@ void overlay_ui(oc_debug_overlay* overlay)
     //TODO: we should probably pump new log entries from a ring buffer here
     //////////////////////////////////////////////////////////////////////////////
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_set_context(overlay->ui);
     oc_canvas_context_select(overlay->context);
@@ -223,7 +223,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
     {
         wa_source_file* file = &files[fileIndex];
 
-        oc_arena_scope scratch = oc_scratch_begin_next(arena);
+        oc_scratch scratch = oc_scratch_begin_next(arena);
 
         //NOTE: add the file's root to the source tree
         wa_source_node* root = 0;
@@ -369,7 +369,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
         return list;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
     wa_debug_variable** shadow = oc_arena_push_array(scratch.arena, wa_debug_variable*, funcInfo->totalVarDecl);
     u64 shadowCount = 0;
 
@@ -570,7 +570,7 @@ oc_debugger_code_tab* oc_debugger_code_tab_alloc(oc_debugger* debugger)
 void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* node, int indent)
 {
     //TODO: use full path to disambiguate similarly named root dirs
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 id = oc_str8_pushf(scratch.arena, "path-%llu", node->id);
 
     oc_ui_box_str8(id)
@@ -672,7 +672,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
     wa_type* strippedType = wa_type_strip(value->type);
     OC_ASSERT(strippedType);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 uidStr = oc_str8_pushf(scratch.arena, "%llu", *uid);
     (*uid)++;
 
@@ -1113,7 +1113,7 @@ void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
 
 void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_box* callstackScrollPanel = oc_ui_box("callstack-scroll-panel")
     {
@@ -1235,7 +1235,7 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
 
 void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interpreter, bool fresh)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
     u32 funcIndex = func - interpreter->instance->functions;
@@ -1405,7 +1405,7 @@ void oc_debugger_code_view_autoscroll(oc_debugger* debugger, oc_debugger_code_ta
 
 void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interpreter, oc_debugger_code_tab* tab)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     f32 scrollToY = 0;
     f32 scrollLineH = 0;
@@ -1649,7 +1649,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
 
 void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter, oc_debugger_code_tab* tab)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     f32 scrollToY = 0;
     f32 scrollLineH = 0;
@@ -1855,7 +1855,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 {
     wa_interpreter* interpreter = env->interpreter;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_set_context(debugger->ui);
     oc_canvas_context_select(debugger->canvas);

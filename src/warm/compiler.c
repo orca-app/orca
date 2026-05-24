@@ -519,7 +519,7 @@ void wa_emit(wa_build_context* context, wa_code* code)
     if(context->codeLen >= context->codeCap)
     {
         //TODO: better handle realloc
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         wa_code* tmp = oc_arena_push_array(scratch.arena, wa_code, context->codeLen);
         memcpy(tmp, context->code, context->codeLen * sizeof(wa_code));
 
@@ -540,7 +540,7 @@ wa_code* wa_push_code(wa_build_context* context)
     if(context->codeLen >= context->codeCap)
     {
         //TODO: better handle realloc
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         wa_code* tmp = oc_arena_push_array(scratch.arena, wa_code, context->codeLen);
         memcpy(tmp, context->code, context->codeLen * sizeof(wa_code));
 
@@ -695,7 +695,7 @@ void wa_push_block_inputs(wa_build_context* context, wa_func_type* type)
 
 void wa_block_begin(wa_build_context* context, wa_instr* instr)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_func_type* type = instr->blockType;
 
     //NOTE: check block type input (but we don't pop or use them here)
@@ -722,7 +722,7 @@ void wa_block_begin(wa_build_context* context, wa_instr* instr)
 
 void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_func_type* type = block->begin->blockType;
 
     wa_operand* opds = wa_operand_stack_get_operands(scratch.arena,
@@ -747,7 +747,7 @@ void wa_block_move_results_to_input_slots(wa_build_context* context, wa_block* b
 
 void wa_block_move_results_to_output_slots(wa_build_context* context, wa_block* block, wa_instr* instr)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_func_type* type = block->begin->blockType;
 
     wa_operand* opds = wa_operand_stack_get_operands(scratch.arena,
@@ -861,7 +861,7 @@ void wa_patch_jump_targets(wa_build_context* context, wa_block* block)
 
 int wa_compile_return(wa_build_context* context, wa_func_type* type, wa_instr* instr)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     //NOTE: typecheck the return operands, but don't use the result because we will potentally
     //      rewrite their register slots below
@@ -1176,7 +1176,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
     //TODO: this can break branches if first instr is a loop...?
     wa_control_stack_push(context, oc_list_first_entry(instructions, wa_instr, listElt), type);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_list_for(instructions, instr, wa_instr, listElt)
     {

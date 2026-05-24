@@ -104,7 +104,7 @@ oc_str8 oc_path_slice_extension(oc_str8 path)
 
 oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 {
-    oc_arena_scope tmp = oc_scratch_begin_next(arena);
+    oc_scratch tmp = oc_scratch_begin_next(arena);
     oc_str8_list sep = { 0 };
     oc_str8_list_push(tmp.arena, &sep, OC_STR8("/"));
 
@@ -132,7 +132,7 @@ oc_str8_list oc_path_split(oc_arena* arena, oc_str8 path)
 oc_str8 oc_path_join(oc_arena* arena, oc_str8_list elements)
 {
     //TODO: check if elements have ending/begining '/' ?
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
     oc_str8_list list = { 0 };
     oc_str8_list_for(elements, elt)
     {
@@ -195,7 +195,7 @@ oc_str8 oc_path_append(oc_arena* arena, oc_str8 parent, oc_str8 relPath)
     }
     else
     {
-        oc_arena_scope tmp = oc_scratch_begin_next(arena);
+        oc_scratch tmp = oc_scratch_begin_next(arena);
 
         oc_str8_list list = { 0 };
         oc_str8_list_push(tmp.arena, &list, parent);

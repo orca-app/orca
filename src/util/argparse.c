@@ -662,7 +662,7 @@ void oc_arg_parser_error(oc_arg_parser* parser, const char* fmt, ...)
 {
     printf("error: ");
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     va_list ap;
     va_start(ap, fmt);
@@ -963,7 +963,7 @@ int oc_arg_parser_parse(oc_arg_parser* parser, int argc, char** argv)
     argc--;
     argv++;
 
-    oc_arena_scope scratch = oc_scratch_begin_next(parser->arena);
+    oc_scratch scratch = oc_scratch_begin_next(parser->arena);
 
     u32 posArgIndex = 0;
 

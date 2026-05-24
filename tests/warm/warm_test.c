@@ -289,7 +289,7 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
 
     u32 argCount = args->childCount;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_func_type type = wa_func_get_type(scratch.arena, instance, func);
     OC_ASSERT(argCount == type.paramCount);
 
@@ -475,7 +475,7 @@ wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, 
 {
     u32 packageCount = env->registeredCount + 1;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_import_package* packages = oc_arena_push_array(scratch.arena, wa_import_package, packageCount);
 
     u32 index = 1;

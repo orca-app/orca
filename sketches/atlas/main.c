@@ -40,7 +40,7 @@ int main()
 
     //NOTE: create atlas
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_arena permanentArena = { 0 };
     oc_arena_init(&permanentArena);

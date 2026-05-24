@@ -121,7 +121,7 @@ static oc_str16 win32_get_path_at_null_terminated(oc_arena* arena, oc_file_desc 
 {
     oc_str16 result = { 0 };
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     if(dirFd)
     {
@@ -215,7 +215,7 @@ oc_fd_result oc_fd_open_at(oc_file_desc rootFd, oc_str8 path, oc_file_access acc
         win32AttributeFlags |= FILE_FLAG_OPEN_REPARSE_POINT;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str16 pathW = { 0 };
 
     if(rootFd == NULL || rootFd == INVALID_HANDLE_VALUE)
@@ -445,7 +445,7 @@ oc_io_error oc_fd_copyfile(oc_file_desc srcFd, oc_file_desc dstFd)
 {
     oc_io_error err = OC_IO_OK;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str16 srcPathW = win32_path_from_handle_null_terminated(scratch.arena, srcFd);
     oc_str16 dstPathW = win32_path_from_handle_null_terminated(scratch.arena, dstFd);
 
@@ -463,7 +463,7 @@ oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
     oc_io_error err = OC_IO_OK;
     HANDLE tmpFile = INVALID_HANDLE_VALUE;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     WCHAR* tmpDirPathW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
     DWORD tmpDirPathWSize = GetTempPath2W(MAX_PATH, tmpDirPathW);
 
@@ -578,7 +578,7 @@ oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
 oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path)
 {
     oc_io_error err = OC_IO_OK;
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str16 pathW = win32_get_path_at_null_terminated(scratch.arena, fd, path);
 
     //NOTE: for some paths, trying to create them if they exist returns a
@@ -605,7 +605,7 @@ oc_io_error oc_fd_makedir_at(oc_file_desc fd, oc_str8 path)
 oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags flags)
 {
     oc_io_error err = OC_IO_OK;
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str16 pathW = win32_get_path_at_null_terminated(scratch.arena, rootFd, path);
 
     BOOL isDir = PathIsDirectoryW(pathW.ptr);
@@ -646,7 +646,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
     oc_file_slot* slot = oc_file_slot_from_handle(table, directory);
     if(slot && !slot->fatal)
     {
-        oc_arena_scope scratch = oc_scratch_begin_next(arena);
+        oc_scratch scratch = oc_scratch_begin_next(arena);
 
         // Windows uses a trailing \* to determine it should enumerate all files in the folder
         oc_str16 dirPathW = win32_get_path_at_null_terminated(scratch.arena, slot->fd, OC_STR8("\\*"));
@@ -705,7 +705,7 @@ oc_file_list oc_file_listdir_for_table(oc_arena* arena, oc_file directory, oc_fi
 
 oc_str8 oc_file_tmp_directory_path(oc_arena* arena)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     WCHAR* tmpDirPathW = oc_arena_push_array(scratch.arena, WCHAR, MAX_PATH + 1);
     DWORD tmpDirPathWSize = GetTempPath2W(MAX_PATH, tmpDirPathW);

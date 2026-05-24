@@ -712,7 +712,7 @@ u64 orca_glGetUniform_params_length_generic(GLuint program, GLint location)
     int uniformCount = 0;
     glGetProgramiv(program, GL_ACTIVE_UNIFORMS, &uniformCount);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     char* name = oc_arena_push(scratch.arena, maxUniformName + 1);
 
     u64 count = 0;
@@ -840,7 +840,7 @@ void glShaderSource_stub(wa_interpreter* interpreter, wa_value* _params, wa_valu
 
     int* stringOffsetArray = (int*)((char*)_mem + stringArrayOffset);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     const char** stringArray = (const char**)oc_arena_push_array(scratch.arena, char*, count);
     for(int i = 0; i < count; i++)
     {
@@ -961,7 +961,7 @@ void glGetUniformIndices_stub(wa_interpreter* interpreter, wa_value* _params, wa
                   "parameter 'uniformNames' overflows wasm memory");
     }
     //NOTE: check each individual uniformNames
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     char** uniformNamesRaw = oc_arena_push_array(scratch.arena, char*, uniformCount);
     for(int i = 0; i < uniformCount; i++)
@@ -1037,7 +1037,7 @@ void orca_gl_getstring_init(orca_gl_getstring_info* info, char* memory)
     }
 
     glGetIntegerv(GL_NUM_EXTENSIONS, (GLint*)&info->indexedEntryCount);
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     const char** extensions = oc_arena_push(scratch.arena, info->indexedEntryCount);
 
     //NOTE: we will hold this until program terminates

@@ -259,7 +259,7 @@ oc_fd_result oc_fd_open_at(oc_file_desc dirFd, oc_str8 path, oc_file_access acce
         dirFd = AT_FDCWD;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
     int flags = oc_fd_convert_access_rights(accessRights);
@@ -340,7 +340,7 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc dirFd, oc_str8 path)
         dirFd = AT_FDCWD;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
     int statFlag = AT_SYMLINK_NOFOLLOW;
@@ -370,7 +370,7 @@ oc_fd_stat_result oc_fd_stat_at(oc_file_desc dirFd, oc_str8 path)
 
 oc_fd_read_link_result oc_fd_read_link_at(oc_arena* arena, oc_file_desc dirFd, oc_str8 path)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next(arena);
 
     if(oc_file_desc_is_nil(dirFd))
     {
@@ -465,7 +465,7 @@ oc_fd_readwrite_result oc_fd_write(oc_file_desc fd, u64 size, char* buffer)
 
 oc_fd_result oc_fd_maketmp(oc_file_slot* slot, oc_file_maketmp_flags flags)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 template = oc_str8_push_cstring(scratch.arena, "/tmp/orca.XXXXXX");
 
     oc_file_desc fd = oc_file_desc_nil();
@@ -509,7 +509,7 @@ oc_io_error oc_fd_makedir_at(oc_file_desc dirFd, oc_str8 path)
         dirFd = AT_FDCWD;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
     int r = mkdirat(dirFd, pathCStr, 0700);
@@ -545,7 +545,7 @@ oc_io_error oc_fd_remove(oc_file_desc rootFd, oc_str8 path, oc_file_remove_flags
             {
                 flags |= AT_REMOVEDIR;
             }
-            oc_arena_scope scratch = oc_scratch_begin();
+            oc_scratch scratch = oc_scratch_begin();
             char* pathCStr = oc_str8_to_cstring(scratch.arena, path);
 
             int r = unlinkat(rootFd, pathCStr, flags);

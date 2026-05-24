@@ -53,7 +53,7 @@ int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
             return -1;
         }
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         oc_file_list files = oc_file_listdir(scratch.arena, srcFile);
         oc_file_list_for(files, elt)
         {
@@ -103,7 +103,7 @@ int oc_tool_bundle_copy(oc_str8 src, oc_str8 dest)
 int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage)
 {
     //NOTE: bundle the app image into a windows app dir
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 appPath = oc_str8_pushf(scratch.arena,
                                     "%.*s/%.*s",
                                     oc_str8_ip(options->outDir),
@@ -221,7 +221,7 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
 int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 {
     //NOTE: bundle the app image into a macos bundle
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8 bundlePath = oc_str8_pushf(scratch.arena,
                                        "%.*s/%.*s.app",
                                        oc_str8_ip(options->outDir),
@@ -415,7 +415,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 int oc_tool_bundle(oc_tool_options* options)
 {
     //NOTE: bundle orca app file
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 tmpPath = { 0 };
     {
@@ -566,7 +566,7 @@ int oc_tool_bundle(oc_tool_options* options)
 
 int oc_tool_sdk_path(oc_tool_options* options)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 sdkPath = oc_path_executable_relative(scratch.arena, OC_STR8("../SDK"));
     printf("%.*s\n", oc_str8_ip(sdkPath));

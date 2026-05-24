@@ -16,6 +16,39 @@ extern "C" {
 #endif
 
 //--------------------------------------------------------------------------------
+//NOTE(martin): allocator interface
+//--------------------------------------------------------------------------------
+
+typedef struct oc_allocator oc_allocator;
+typedef void* (*oc_allocator_push_proc)(oc_allocator* allocator, u64 size, u64 align);
+
+typedef struct oc_allocator
+{
+    oc_allocator_push_proc push;
+} oc_allocator;
+
+#define oc_allocator_push_aligned_uninitialized(allocator, size, align) (allocator)->push(allocator, size, align)
+
+#define oc_allocator_push_aligned(allocator, size, align)      \
+    ({                                                         \
+        void* __p = (allocator)->push(allocator, size, align); \
+        if(size && p)                                          \
+        {                                                      \
+            memset(__p, 0, size);                              \
+        }                                                      \
+        __p;                                                   \
+    })
+
+#define oc_allocator_push(allocator, size) oc_allocator_push_aligned(allocator, size, 1)
+#define oc_allocator_push_uninitialized(allocator, size) oc_allocator_push_aligned_uninitialized(allocator, size, 1)
+
+#define oc_allocator_push_type(allocator, type) oc_allocator_push_aligned(allocator, sizeof(type), _Alignof(type))
+#define oc_allocator_push_array(allocator, type, count) oc_allocator_push_aligned(allocator, sizeof(type) * count, _Alignof(type))
+
+#define oc_allocator_push_type_uninitialized(allocator, type) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type), _Alignof(type))
+#define oc_allocator_push_array_uninitialized(allocator, type, count) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type), _Alignof(type))
+
+//--------------------------------------------------------------------------------
 //NOTE(martin): memory arena
 //--------------------------------------------------------------------------------
 
@@ -30,18 +63,14 @@ typedef struct oc_arena_chunk
 
 typedef struct oc_arena
 {
+    oc_allocator_push_proc push;
+    oc_allocator* allocator;
+
     oc_base_allocator* base;
     oc_list chunks;
     oc_arena_chunk* currentChunk;
 
 } oc_arena;
-
-typedef struct oc_arena_scope
-{
-    oc_arena* arena;
-    oc_arena_chunk* chunk;
-    u64 offset;
-} oc_arena_scope;
 
 typedef struct oc_arena_options
 {
@@ -60,9 +89,6 @@ ORCA_API void* oc_arena_push_aligned_uninitialized(oc_arena* arena, u64 size, u3
 
 ORCA_API void oc_arena_clear(oc_arena* arena);
 
-ORCA_API oc_arena_scope oc_arena_scope_begin(oc_arena* arena);
-ORCA_API void oc_arena_scope_end(oc_arena_scope scope);
-
 #define oc_arena_push_type(arena, type) ((type*)oc_arena_push_aligned(arena, sizeof(type), _Alignof(type)))
 #define oc_arena_push_array(arena, type, count) ((type*)oc_arena_push_aligned(arena, sizeof(type) * (count), _Alignof(type)))
 
@@ -73,7 +99,7 @@ ORCA_API void oc_arena_scope_end(oc_arena_scope scope);
 //NOTE(martin): memory pool
 //--------------------------------------------------------------------------------
 
-//TODO: we could probably remove pool. Most of the time we construct pool on top of
+//TODO: remove pool. Most of the time we construct pool on top of
 //      arenas "manually" with different free lists per object types...
 
 typedef struct oc_pool
@@ -100,12 +126,21 @@ ORCA_API void oc_pool_clear(oc_pool* pool);
 #define oc_pool_alloc_type(arena, type) ((type*)oc_pool_alloc(arena))
 
 //--------------------------------------------------------------------------------
-//NOTE(martin): per-thread implicit scratch arena
+//NOTE(martin): arena-based scratch allocator
 //--------------------------------------------------------------------------------
-ORCA_API oc_arena_scope oc_scratch_begin(void);
-ORCA_API oc_arena_scope oc_scratch_begin_next(oc_arena* used);
 
-#define oc_scratch_end(scope) oc_arena_scope_end(scope)
+typedef struct oc_scratch
+{
+    oc_allocator* allocator;
+    oc_arena* arena;
+    oc_arena_chunk* chunk;
+    u64 offset;
+} oc_scratch;
+
+ORCA_API oc_scratch oc_scratch_begin_on_arena(oc_arena* arena);
+ORCA_API oc_scratch oc_scratch_begin(void);
+ORCA_API oc_scratch oc_scratch_begin_next(oc_arena* used);
+ORCA_API void oc_scratch_end(oc_scratch scratch);
 
 #ifdef __cplusplus
 } // extern "C"

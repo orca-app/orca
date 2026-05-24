@@ -430,7 +430,7 @@ void oc_wgpu_renderer_create_compute_pipeline(WGPUDevice device,
                                               WGPUBindGroupLayout* bindGroupLayouts,
                                               WGPUComputePipeline* pipeline)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8_list list = { 0 };
 
     oc_str8_list_push(scratch.arena, &list, OC_STR8(src));
@@ -490,7 +490,7 @@ void oc_wgpu_renderer_create_render_pipeline(WGPUDevice device,
                                              WGPUBindGroupLayout* bindGroupLayout,
                                              WGPURenderPipeline* pipeline)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_str8_list list = { 0 };
 
     oc_str8_list_push(scratch.arena, &list, OC_STR8(src));
@@ -3026,7 +3026,7 @@ bool oc_wgpu_canvas_encode_batch(oc_wgpu_canvas_encoding_context* context)
         oc_wgpu_canvas_renderer* renderer = context->renderer;
 
         //convert primitives to wgpu_paths
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         context->arena = scratch.arena;
 
         context->pathData = 0;
@@ -4062,7 +4062,7 @@ oc_list oc_wgpu_canvas_debug_get_records(oc_canvas_renderer handle)
 
 void oc_wgpu_canvas_debug_log_records(oc_list debugRecords)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_list_for(debugRecords, record, oc_wgpu_canvas_frame_counters, listElt)
     {

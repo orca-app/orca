@@ -476,7 +476,7 @@ void oc_install_keyboard_layout_listener()
     event.window = (oc_window){ 0 };
     event.type = OC_EVENT_PATHDROP;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 path = oc_str8_push_cstring(scratch.arena, [filename UTF8String]);
     oc_str8_list_push(scratch.arena, &event.paths, path);
@@ -497,7 +497,7 @@ void oc_install_keyboard_layout_listener()
     event.window = (oc_window){ 0 };
     event.type = OC_EVENT_PATHDROP;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 path = oc_str8_push_cstring(scratch.arena, [nsPath UTF8String]);
     oc_str8_list_push(scratch.arena, &event.paths, path);
@@ -1150,7 +1150,7 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
         event.window = (oc_window){ 0 };
         event.type = OC_EVENT_PATHDROP;
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         for(NSUInteger i = 0; i < count; i++)
         {
@@ -1892,7 +1892,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
     dispatch_block_t block = ^{
       @autoreleasepool
       {
-          oc_arena_scope scratch = oc_scratch_begin_next(arena);
+          oc_scratch scratch = oc_scratch_begin_next(arena);
 
           NSWindow* keyWindow = [NSApp keyWindow];
 

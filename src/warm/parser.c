@@ -1385,7 +1385,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     {
         wa_func* func = &module->functions[funcIndex];
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         u32 funcLen = wa_read_leb128_u32(&parser->reader);
         u32 funcStartOffset = wa_reader_offset(&parser->reader);
