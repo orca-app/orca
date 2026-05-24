@@ -231,9 +231,9 @@ wa_status orca_invoke(wa_interpreter* interpreter, wa_instance* instance, wa_fun
 }
 
 #if OC_PLATFORM_MACOS
-oc_str8 get_orca_home_dir(oc_arena* arena)
+oc_str8 get_orca_home_dir(oc_allocator* allocator)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     char* home = getenv("HOME");
 
@@ -241,7 +241,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(".orca"));
 
-    oc_str8 path = oc_path_join(arena->allocator, list);
+    oc_str8 path = oc_path_join(allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -251,9 +251,9 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 #elif OC_PLATFORM_WINDOWS
     #include "platform/win32_string_helpers.h"
 
-oc_str8 get_orca_home_dir(oc_arena* arena)
+oc_str8 get_orca_home_dir(oc_allocator* allocator)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     char* home = getenv("USERPROFILE");
 
@@ -261,7 +261,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8("AppData/orca"));
 
-    oc_str8 path = oc_path_join(arena->allocator, list);
+    oc_str8 path = oc_path_join(allocator, list);
     oc_win32_path_normalize_slash_in_place(path);
 
     oc_scratch_end(scratch);
@@ -396,7 +396,7 @@ int load_app(oc_runtime* app)
 {
     oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 orcaDir = get_orca_home_dir(scratch.arena);
+    oc_str8 orcaDir = get_orca_home_dir(scratch.allocator);
 
     //TODO: path could be URL/installed app/app file. For now, only handle app files
 

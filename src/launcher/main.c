@@ -105,9 +105,9 @@ error:
 
 //TODO: put in common with runtime code
 #if OC_PLATFORM_MACOS
-oc_str8 get_orca_home_dir(oc_arena* arena)
+oc_str8 get_orca_home_dir(oc_allocator* allocator)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     char* home = getenv("HOME");
 
@@ -115,7 +115,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(".orca"));
 
-    oc_str8 path = oc_path_join(arena->allocator, list);
+    oc_str8 path = oc_path_join(allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -124,9 +124,9 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 #elif OC_PLATFORM_WINDOWS
 
-oc_str8 get_orca_home_dir(oc_arena* arena)
+oc_str8 get_orca_home_dir(oc_allocator* allocator)
 {
-    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     char* home = getenv("USERPROFILE");
 
@@ -134,7 +134,7 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8("AppData/orca"));
 
-    oc_str8 path = oc_path_join(arena->allocator, list);
+    oc_str8 path = oc_path_join(arena, list);
 
     oc_scratch_end(scratch);
 
@@ -197,7 +197,7 @@ int launcher_load_apps(oc_launcher* launcher)
 {
     oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 home = get_orca_home_dir(scratch.arena);
+    oc_str8 home = get_orca_home_dir(scratch.allocator);
     oc_str8 appsPath = oc_path_append(scratch.allocator, home, OC_STR8("apps"));
 
     oc_file appsDir = oc_catch(oc_file_open(appsPath, OC_FILE_ACCESS_READ, 0))
@@ -373,7 +373,7 @@ void launcher_load_app_from_url(oc_str8 url)
         return;
     }
 
-    oc_str8 home = get_orca_home_dir(scratch.arena);
+    oc_str8 home = get_orca_home_dir(scratch.allocator);
     oc_str8 transientAppsPath = oc_path_append(scratch.allocator, home, OC_STR8("apps/transient"));
     oc_str8 dstPath = oc_path_append(scratch.allocator, transientAppsPath, basename);
 
