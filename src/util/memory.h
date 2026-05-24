@@ -96,36 +96,6 @@ ORCA_API void oc_arena_clear(oc_arena* arena);
 #define oc_arena_push_array_uninitialized(arena, type, count) ((type*)oc_arena_push_aligned_uninitialized(arena, sizeof(type) * (count), _Alignof(type)))
 
 //--------------------------------------------------------------------------------
-//NOTE(martin): memory pool
-//--------------------------------------------------------------------------------
-
-//TODO: remove pool. Most of the time we construct pool on top of
-//      arenas "manually" with different free lists per object types...
-
-typedef struct oc_pool
-{
-    oc_arena arena;
-    oc_list freeList;
-    u64 blockSize;
-} oc_pool;
-
-typedef struct oc_pool_options
-{
-    oc_platform_memory* base;
-    u64 reserve;
-} oc_pool_options;
-
-ORCA_API void oc_pool_init(oc_pool* pool, u64 blockSize);
-ORCA_API void oc_pool_init_with_options(oc_pool* pool, u64 blockSize, oc_pool_options* options);
-ORCA_API void oc_pool_cleanup(oc_pool* pool);
-
-ORCA_API void* oc_pool_alloc(oc_pool* pool);
-ORCA_API void oc_pool_recycle(oc_pool* pool, void* ptr);
-ORCA_API void oc_pool_clear(oc_pool* pool);
-
-#define oc_pool_alloc_type(arena, type) ((type*)oc_pool_alloc(arena))
-
-//--------------------------------------------------------------------------------
 //NOTE(martin): arena-based scratch allocator
 //--------------------------------------------------------------------------------
 

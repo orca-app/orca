@@ -179,7 +179,8 @@ typedef struct oc_ui_context
     oc_arena frameArenas[2];
     oc_arena* frameArena;
 
-    oc_pool boxPool;
+    oc_arena boxArena;
+    oc_list boxFreeList;
     oc_list boxMap[OC_UI_BOX_MAP_BUCKET_COUNT];
 
     oc_ui_box* root;
@@ -216,7 +217,8 @@ oc_ui_context* oc_ui_context_create(oc_font defaultFont)
     }
     ui->frameArena = &ui->frameArenas[0];
 
-    oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
+    oc_arena_init(&ui->boxArena);
+
     ui->defaultFont = defaultFont;
 
     ui->styleVariables.mask = (4 << 10) - 1;
@@ -241,7 +243,7 @@ void oc_ui_context_destroy(oc_ui_context* context)
     {
         oc_arena_cleanup(&context->frameArenas[i]);
     }
-    oc_pool_cleanup(&context->boxPool);
+    oc_arena_cleanup(&context->boxArena);
     memset(context, 0, sizeof(oc_ui_context));
 }
 
@@ -1624,7 +1626,11 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     if(!box)
     {
-        box = oc_pool_alloc_type(&ui->boxPool, oc_ui_box);
+        box = oc_list_pop_front_entry(&ui->boxFreeList, oc_ui_box, listElt);
+        if(!box)
+        {
+            box = oc_arena_push_type_uninitialized(&ui->boxArena, oc_ui_box);
+        }
         memset(box, 0, sizeof(oc_ui_box));
 
         box->key = key;
@@ -3310,6 +3316,7 @@ void oc_ui_frame_end(void)
             if(box->frameCounter < ui->frameCounter)
             {
                 oc_list_remove(&ui->boxMap[i], &box->bucketElt);
+                oc_list_push_front(&ui->boxFreeList, &box->listElt);
             }
         }
     }

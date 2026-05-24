@@ -168,50 +168,6 @@ void oc_arena_clear(oc_arena* arena)
 }
 
 //--------------------------------------------------------------------------------
-//NOTE(martin): memory pool
-//--------------------------------------------------------------------------------
-void oc_pool_init(oc_pool* pool, u64 blockSize)
-{
-    oc_pool_init_with_options(pool, blockSize, &(oc_pool_options){ 0 });
-}
-
-void oc_pool_init_with_options(oc_pool* pool, u64 blockSize, oc_pool_options* options)
-{
-    oc_arena_init_with_options(&pool->arena, &(oc_arena_options){ .base = options->base, .reserve = options->reserve });
-    pool->blockSize = oc_clamp_low(blockSize, sizeof(oc_list));
-    oc_list_init(&pool->freeList);
-}
-
-void oc_pool_cleanup(oc_pool* pool)
-{
-    oc_arena_cleanup(&pool->arena);
-    memset(pool, 0, sizeof(oc_pool));
-}
-
-void* oc_pool_alloc(oc_pool* pool)
-{
-    if(oc_list_empty(pool->freeList))
-    {
-        return (oc_arena_push(&pool->arena, pool->blockSize));
-    }
-    else
-    {
-        return (oc_list_pop_front(&pool->freeList));
-    }
-}
-
-void oc_pool_recycle(oc_pool* pool, void* ptr)
-{
-    oc_list_push_front(&pool->freeList, (oc_list_elt*)ptr);
-}
-
-void oc_pool_clear(oc_pool* pool)
-{
-    oc_arena_clear(&pool->arena);
-    oc_list_init(&pool->freeList);
-}
-
-//--------------------------------------------------------------------------------
 //NOTE(martin): scratch arena
 //--------------------------------------------------------------------------------
 
