@@ -46,5 +46,5 @@ oc_subprocess_result oc_subprocess_run(int argc, char** argv, oc_subprocess_run_
         return oc_result_error(oc_subprocess_result, oc_last_error());
     }
 
-    return oc_subprocess_read_and_wait(runOption.captureArena, subprocess);
+    return oc_subprocess_read_and_wait(runOption.captureAllocator, subprocess);
 }
