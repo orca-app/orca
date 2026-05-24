@@ -46,7 +46,7 @@ typedef struct oc_allocator
 #define oc_allocator_push_array(allocator, type, count) oc_allocator_push_aligned(allocator, sizeof(type) * count, _Alignof(type))
 
 #define oc_allocator_push_type_uninitialized(allocator, type) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type), _Alignof(type))
-#define oc_allocator_push_array_uninitialized(allocator, type, count) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type), _Alignof(type))
+#define oc_allocator_push_array_uninitialized(allocator, type, count) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type) * count, _Alignof(type))
 
 //--------------------------------------------------------------------------------
 //NOTE(martin): memory arena
