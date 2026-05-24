@@ -1465,7 +1465,7 @@ void oc_ui_theme_dark()
 void oc_ui_process_event(oc_event* event)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_input_process_event(ui->frameArena, &ui->input, event);
+    oc_input_process_event(ui->frameArena->allocator, &ui->input, event);
 }
 
 oc_vec2 oc_ui_mouse_position(void)

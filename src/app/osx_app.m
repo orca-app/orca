@@ -1329,7 +1329,7 @@ oc_str8 oc_clipboard_copy_string(oc_str8 backing)
     }
 }
 
-oc_str8 oc_clipboard_get_string(oc_arena* arena)
+oc_str8 oc_clipboard_get_string(oc_allocator* allocator)
 {
     @autoreleasepool
     {
@@ -1338,7 +1338,7 @@ oc_str8 oc_clipboard_get_string(oc_arena* arena)
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
         NSString* nsString = [pb stringForType:NSPasteboardTypeString];
         const char* cString = [nsString UTF8String];
-        oc_str8 result = oc_str8_push_cstring(arena->allocator, cString);
+        oc_str8 result = oc_str8_push_cstring(allocator, cString);
         return (result);
     }
 }

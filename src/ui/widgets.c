@@ -1000,7 +1000,7 @@ oc_str32 oc_ui_edit_replace_selection_with_clipboard(oc_ui_text_box_info* info, 
     oc_str32 result = codepoints;
 #else
     oc_arena* frameArena = oc_ui_frame_arena();
-    oc_str8 string = oc_clipboard_get_string(frameArena);
+    oc_str8 string = oc_clipboard_get_string(frameArena->allocator);
     oc_str32 input = oc_utf8_push_to_codepoints(frameArena->allocator, string);
     oc_str32 result = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, input);
 #endif
@@ -1966,7 +1966,7 @@ oc_ui_text_box_result oc_ui_text_box_str8(oc_str8 key, oc_arena* arena, oc_ui_te
             info->mark = oc_clamp(info->mark, 0, (i32)codepoints.len);
 
             //NOTE replace selection with input codepoints
-            oc_str32 inputCodepoints = oc_input_text_utf32(frameArena, input);
+            oc_str32 inputCodepoints = oc_input_text_utf32(frameArena->allocator, input);
             if(inputCodepoints.len)
             {
                 codepoints = oc_ui_edit_replace_selection_with_codepoints(info, codepoints, inputCodepoints);

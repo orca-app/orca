@@ -296,7 +296,7 @@ void oc_hostapi_clipboard_get_string(oc_wasm_arena* wasmArena, oc_wasm_str8* ret
     {
         oc_scratch scratch = oc_scratch_begin();
 
-        oc_str8 string = oc_clipboard_get_string(scratch.arena);
+        oc_str8 string = oc_clipboard_get_string(scratch.allocator);
 
         oc_wasm_addr returnAddr = oc_wasm_arena_push(wasmArena, string.len + 1);
         char* returnPtr = (char*)oc_wasm_address_to_ptr(returnAddr, string.len + 1);
