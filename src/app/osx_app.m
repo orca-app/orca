@@ -1925,7 +1925,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator,
           [dialog setDirectoryURL:[NSURL fileURLWithPath:nsPath]];
 
           //NOTE: set filters
-          if(desc->filters.eltCount)
+          if(oc_typed_list_count(desc->filters.list))
           {
               NSMutableArray* fileTypesArray = [NSMutableArray array];
 
@@ -2026,7 +2026,7 @@ int oc_alert_popup(oc_str8 title,
           [string release];
 
           [alert setAlertStyle:NSAlertStyleWarning];
-          result = options.eltCount - ([alert runModal] - NSAlertFirstButtonReturn) - 1;
+          result = oc_typed_list_count(options.list) - ([alert runModal] - NSAlertFirstButtonReturn) - 1;
           [keyWindow makeKeyWindow];
       }
     };

@@ -16,7 +16,7 @@ oc_app oc_appData = { 0 };
 
 void oc_init_window_handles()
 {
-    oc_list_init(&oc_appData.windowFreeList);
+    oc_appData.windowFreeList = (oc_list){ 0 };
     for(int i = 0; i < OC_APP_MAX_WINDOWS; i++)
     {
         oc_appData.windowPool[i].generation = 1;
@@ -150,7 +150,7 @@ oc_event* oc_next_event(oc_arena* arena)
 
         if(event->type == OC_EVENT_PATHDROP)
         {
-            u64 pathCount = event->paths.eltCount;
+            u64 pathCount = oc_typed_list_count(event->paths.list);
             event->paths = (oc_str8_list){ 0 };
 
             for(int i = 0; i < pathCount; i++)

@@ -927,7 +927,7 @@ pub fn build(b: *Build) !void {
     };
 
     var gen_host_interface_compile_flags: std.ArrayList([]const u8) = .empty;
-    try gen_host_interface_compile_flags.append(b.allocator, "-std=c11");
+    try gen_host_interface_compile_flags.append(b.allocator, "-std=c23");
     try gen_host_interface_compile_flags.append(b.allocator, "-Werror");
     try gen_host_interface_compile_flags.append(b.allocator, "-g");
     try gen_host_interface_compile_flags.append(b.allocator, "-O0");
@@ -1011,7 +1011,7 @@ pub fn build(b: *Build) !void {
     var orca_platform_compile_flags: std.ArrayList([]const u8) = .empty;
     defer orca_platform_compile_flags.deinit(b.allocator);
     try orca_platform_compile_flags.appendSlice(b.allocator, &.{
-        "-std=c11",
+        "-std=c23",
         "-Werror",
         "-DOC_BUILD_DLL",
         "-D_USE_MATH_DEFINES",
@@ -1145,7 +1145,7 @@ pub fn build(b: *Build) !void {
     warm_lib.addCSourceFiles(.{
         .files = warm_sources,
         .flags = &.{
-            "-std=c11",
+            "-std=c23",
             "-Werror",
             "-g",
             "-O0",
@@ -1167,7 +1167,7 @@ pub fn build(b: *Build) !void {
         try orca_launcher_compile_flags.append(b.allocator, "-DOC_DEBUG");
         try orca_launcher_compile_flags.append(b.allocator, "-DOC_LOG_COMPILE_DEBUG");
     }
-    try orca_launcher_compile_flags.append(b.allocator, "-std=c11");
+    try orca_launcher_compile_flags.append(b.allocator, "-std=c23");
     try orca_launcher_compile_flags.append(b.allocator, "-Werror");
     try orca_launcher_compile_flags.append(b.allocator, b.fmt("-DORCA_TOOL_VERSION={s}", .{git_version_tool}));
 
@@ -1218,7 +1218,7 @@ pub fn build(b: *Build) !void {
         });
     }
     try orca_runtime_compile_flags.appendSlice(b.allocator, &.{
-        "-std=c11",
+        "-std=c23",
         "-Werror",
     });
 
@@ -1316,7 +1316,7 @@ pub fn build(b: *Build) !void {
         "-DBULK_MEMORY_THRESHOLD=32",
 
         // other flags
-        "--std=c11",
+        "--std=c23",
     };
     // zig fmt: on
 

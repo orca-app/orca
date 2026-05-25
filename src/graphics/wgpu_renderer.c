@@ -4040,9 +4040,9 @@ void oc_wgpu_canvas_debug_clear_records(oc_canvas_renderer handle)
     {
         oc_wgpu_canvas_renderer* renderer = (oc_wgpu_canvas_renderer*)base;
         oc_arena_clear(&renderer->debugArena);
-        oc_list_init(&renderer->debugRecords);
-        oc_list_init(&renderer->frameCountersFreeList);
-        oc_list_init(&renderer->batchCountersFreeList);
+        renderer->debugRecords = (oc_list){ 0 };
+        renderer->frameCountersFreeList = (oc_list){ 0 };
+        renderer->batchCountersFreeList = (oc_list){ 0 };
         renderer->debugRecordsCount = 0;
     }
 }

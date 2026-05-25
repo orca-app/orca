@@ -1649,7 +1649,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
     //NOTE: setup hierarchy
     if(box->frameCounter != ui->frameCounter)
     {
-        oc_list_init(&box->children);
+        box->children = (oc_list){ 0 };
         box->childCount = 0;
         box->parent = oc_ui_box_top();
         if(box->parent)

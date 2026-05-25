@@ -1450,9 +1450,9 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator, oc_file_
             }
 
             //NOTE: set filters
-            if(desc->filters.eltCount)
+            if(oc_typed_list_count(desc->filters.list))
             {
-                COMDLG_FILTERSPEC* filterSpecs = oc_allocator_push_array(scratch.allocator, COMDLG_FILTERSPEC, desc->filters.eltCount);
+                COMDLG_FILTERSPEC* filterSpecs = oc_allocator_push_array(scratch.allocator, COMDLG_FILTERSPEC, oc_typed_list_count(desc->filters.list));
 
                 int i = 0;
                 oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
@@ -1559,7 +1559,7 @@ int oc_alert_popup(oc_str8 title,
                    oc_str8_list options)
 {
     oc_scratch scratch = oc_scratch_begin();
-    TASKDIALOG_BUTTON* buttons = oc_allocator_push_array(scratch.allocator, TASKDIALOG_BUTTON, options.eltCount);
+    TASKDIALOG_BUTTON* buttons = oc_allocator_push_array(scratch.allocator, TASKDIALOG_BUTTON, oc_typed_list_count(options.list));
 
     int i = 0;
     oc_list_for(options.list, elt, oc_str8_elt, listElt)
@@ -1595,7 +1595,7 @@ int oc_alert_popup(oc_str8 title,
         .pszMainIcon = TD_WARNING_ICON,
         .pszMainInstruction = messageWide,
         .pszContent = NULL,
-        .cButtons = options.eltCount,
+        .cButtons = oc_typed_list_count(options.list),
         .pButtons = buttons,
         .nDefaultButton = 0,
     };
