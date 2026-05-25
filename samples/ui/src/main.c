@@ -19,7 +19,7 @@ oc_font fontBold;
 oc_ui_context* ui;
 oc_arena textArena = { 0 };
 oc_arena logArena = { 0 };
-oc_str8_list logLines;
+oc_str8_list logLines = { 0 };
 
 typedef enum cmd
 {
@@ -68,7 +68,6 @@ ORCA_EXPORT void oc_on_init(void)
 
     oc_arena_init(&textArena);
     oc_arena_init(&logArena);
-    oc_list_init(&logLines.list);
 }
 
 ORCA_EXPORT void oc_on_raw_event(oc_event* event)
@@ -431,7 +430,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             oc_ui_style_set_f32(OC_UI_MARGIN_Y, 16);
                             oc_ui_style_set_i32(OC_UI_AXIS, OC_UI_AXIS_Y);
 
-                            if(oc_list_empty(logLines.list))
+                            if(oc_typed_list_empty(logLines.list))
                             {
                                 oc_ui_style_rule("label")
                                 {

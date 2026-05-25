@@ -137,7 +137,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
     oc_str8_list pathElements = oc_path_split(scratch.allocator, path);
     oc_str8_elt* elt = 0;
 
-    while((elt = oc_list_pop_front_entry(&pathElements.list, oc_str8_elt, listElt)) != 0)
+    while((elt = oc_typed_list_pop_front(&pathElements.list)) != 0)
     {
         if(!oc_str8_cmp(elt->string, OC_STR8(".")))
         {
@@ -191,13 +191,13 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
 
             if(status.type == OC_FILE_SYMLINK)
             {
-                if(!oc_list_empty(pathElements.list) && (resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW))
+                if(!oc_typed_list_empty(pathElements.list) && (resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW))
                 {
                     result.error = OC_IO_ERR_SYMLINK;
                     break;
                 }
 
-                if(oc_list_empty(pathElements.list)
+                if(oc_typed_list_empty(pathElements.list)
                    && ((resolveFlags & OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW)
                        || (resolveFlags & OC_FILE_RESOLVE_SYMLINK_OPEN_LAST)))
                 {

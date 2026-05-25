@@ -107,7 +107,7 @@ oc_event* queue_next_event(oc_arena* arena, oc_ringbuffer* queue)
 
         if(event->type == OC_EVENT_PATHDROP)
         {
-            u64 pathCount = event->paths.eltCount;
+            u64 pathCount = oc_typed_list_count(event->paths.list);
             event->paths = (oc_str8_list){ 0 };
 
             for(int i = 0; i < pathCount; i++)

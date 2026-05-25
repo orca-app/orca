@@ -169,7 +169,7 @@ oc_str8_list oc_path_split(oc_allocator* allocator, oc_str8 path)
     {
         if(elt->string.len == 0)
         {
-            oc_list_remove(&res.list, &elt->listElt);
+            oc_typed_list_remove(&res.list, elt);
         }
     }
 

@@ -1353,29 +1353,6 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_list_init",
-                    "doc": "Zero-initializes a linked list.",
-                    "visibiliy": "ORCA_API",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "list",
-                            "doc": "A pointer to the list to initialize.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list"
-                                }
-                            }
-                        }
-                    ],
-                    "note": "In C the same result can be achieved with `*list = (oc_list){0}`."
-                },
-                {
-                    "kind": "proc",
                     "name": "oc_list_insert",
                     "doc": "Insert an element in a list after a given element.",
                     "visibiliy": "ORCA_API",
@@ -1612,6 +1589,294 @@
                                     "name": "oc_list"
                                 }
                             }
+                        }
+                    ]
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_typed_list_links",
+                    "doc": "An element of a typed intrusive doubly-linked list.",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "prev",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_typed_list_links"
+                                    }
+                                },
+                                "doc": "Points to the previous element in the list."
+                            },
+                            {
+                                "name": "next",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_typed_list_links"
+                                    }
+                                },
+                                "doc": "Points to the next element in the list."
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list",
+                    "doc": "Create a type specification for a typed doubly-linked list. You should use this as `typedef oc_typed_list(myType) myTypeList;`",
+                    "params": [
+                        {
+                            "name": "type",
+                            "doc": "The type of item stored in the list."
+                        },
+                        {
+                            "name": "linksField",
+                            "doc": "The name of the `oc_typed_list_links` field in `type` by which the items are linked in the list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_empty",
+                    "doc": "Check if a list is empty.",
+                    "return": {
+                        "doc": "`true` if the list is empty, `false` otherwise."
+                    },
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` linked list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_first",
+                    "doc": "Get the first element of a list.",
+                    "params": [
+                        {
+                            "name": "l",
+                            "doc": "An `oc_typed_list` list."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the first item of the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_last",
+                    "doc": "Returns the last element of a list.",
+                    "params": [
+                        {
+                            "name": "l",
+                            "doc": "An `oc_typed_list` list."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the last item of the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_next",
+                    "doc": "Get the next element in a list.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` list."
+                        },
+                        {
+                            "name": "elt",
+                            "doc": "A pointer to an item in a list."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the next item in the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_prev",
+                    "doc": "Get the previous element in a list.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` list."
+                        },
+                        {
+                            "name": "elt",
+                            "doc": "A pointer to an item in a list."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the previous item in the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_push_front",
+                    "doc": "Add an element at the end of a list.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "The list to add an element to."
+                        },
+                        {
+                            "name": "item",
+                            "doc": "The item to add to the list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_push_back",
+                    "doc": "Add an element at the end of a list.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "The list to add an element to."
+                        },
+                        {
+                            "name": "item",
+                            "doc": "The item to add to the list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_pop_front",
+                    "doc": "Remove the first entry from a list and return it.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` object."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the item that was removed from the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_pop_back",
+                    "doc": "Remove the last entry from a list and return it.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` object."
+                        }
+                    ],
+                    "return": {
+                        "doc": "A pointer to the item that was removed from the list."
+                    }
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_linked_list_insert_after",
+                    "doc": "Insert an element in a list after a given element.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` list."
+                        },
+                        {
+                            "name": "after",
+                            "doc": "The item after which to insert."
+                        },
+                        {
+                            "name": "item",
+                            "doc": "The item to insert in the list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_linked_list_insert_before",
+                    "doc": "Insert an element in a list before a given element.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` list."
+                        },
+                        {
+                            "name": "before",
+                            "doc": "The item before which to insert."
+                        },
+                        {
+                            "name": "item",
+                            "doc": "The item to insert in the list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_remove",
+                    "doc": "Remove an element from a typed list.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "The list to remove from."
+                        },
+                        {
+                            "name": "item",
+                            "doc": "The item to remove from the list."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_for",
+                    "doc": [
+                        "Loop through a typed linked list.",
+                        "",
+                        "This macro creates a loop with an iterator named after the `elt` macro parameter. The iterator is of the type of the entries linked in the list.",
+                        "",
+                        "You should follow this macro with the loop body, where you can use the iterator."
+                    ],
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` object."
+                        },
+                        {
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
+                        }
+                    ],
+                    "note": "You should not add or remove elements from the list inside the loop body. If you need to do so, use `oc_typed_list_for_safe` instead."
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_for_reverse",
+                    "doc": "Loop through a linked list from last to first. See `oc_typed_list_for` for details.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` object."
+                        },
+                        {
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
+                        }
+                    ]
+                },
+                {
+                    "kind": "macro",
+                    "name": "oc_typed_list_for_safe",
+                    "doc": "Loop through a typed linked list in a way that allows adding or removing elements from it in the loop body. See `oc_typed_list_for` for more details.",
+                    "params": [
+                        {
+                            "name": "list",
+                            "doc": "An `oc_typed_list` object."
+                        },
+                        {
+                            "name": "elt",
+                            "doc": "The name of the loop iterator."
                         }
                     ]
                 }
@@ -2805,7 +3070,7 @@
                                 "doc": "The string element is linked into its parent string list through this field.",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_list_elt"
+                                    "name": "oc_typed_list_links"
                                 }
                             },
                             {
@@ -2830,26 +3095,77 @@
                                 "name": "list",
                                 "doc": "A linked-list of `oc_str8_elt`.",
                                 "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list"
+                                        "kind": "union",
+                                        "fields": [
+                                            {
+                                                "name": "",
+                                                "type": {
+                                                    "kind": "struct",
+                                                    "fields": [
+                                                        {
+                                                            "name": "first",
+                                                            "type": {
+                                                                "kind": "pointer",
+                                                                "type": {
+                                                                    "kind": "namedType",
+                                                                    "name": "oc_typed_list_links"
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "name": "last",
+                                                            "type": {
+                                                                "kind": "pointer",
+                                                                "type": {
+                                                                    "kind": "namedType",
+                                                                    "name": "oc_typed_list_links"
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "name": "count",
+                                                            "type": {
+                                                                "kind": "u64"
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "name": "t",
+                                                "type": {
+                                                    "kind": "pointer",
+                                                    "type": {
+                                                        "kind": "namedType",
+                                                        "name": "oc_str8_elt"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ofs",
+                                                "type": {
+                                                    "kind": "pointer",
+                                                    "type": {
+                                                        "kind": "array",
+                                                        "type": {
+                                                            "kind": "char"
+                                                        },
+                                                        "count": 0
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "len",
+                                    "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
+                                    "type": {
+                                        "kind": "u64"
+                                    }
                                 }
-                            },
-                            {
-                                "name": "eltCount",
-                                "doc": "The number of elements in `list`.",
-                                "type": {
-                                    "kind": "u64"
-                                }
-                            },
-                            {
-                                "name": "len",
-                                "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
-                                "type": {
-                                    "kind": "u64"
-                                }
-                            }
-                        ]
-                    }
+                            ]
+                        }
                 },
                 {
                     "kind": "proc",
@@ -3342,7 +3658,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_str16_elt",
-                    "doc": "A type representing an element of an `oc_str16` list.",
+                    "doc": "A type representing an element of a string list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -3351,7 +3667,7 @@
                                 "doc": "The string element is linked into its parent string list through this field.",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_list_elt"
+                                    "name": "oc_typed_list_links"
                                 }
                             },
                             {
@@ -3368,6 +3684,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_str16_list",
+                    "doc": "A type representing a string list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -3375,26 +3692,77 @@
                                 "name": "list",
                                 "doc": "A linked-list of `oc_str16_elt`.",
                                 "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list"
+                                        "kind": "union",
+                                        "fields": [
+                                            {
+                                                "name": "",
+                                                "type": {
+                                                    "kind": "struct",
+                                                    "fields": [
+                                                        {
+                                                            "name": "first",
+                                                            "type": {
+                                                                "kind": "pointer",
+                                                                "type": {
+                                                                    "kind": "namedType",
+                                                                    "name": "oc_typed_list_links"
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "name": "last",
+                                                            "type": {
+                                                                "kind": "pointer",
+                                                                "type": {
+                                                                    "kind": "namedType",
+                                                                    "name": "oc_typed_list_links"
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "name": "count",
+                                                            "type": {
+                                                                "kind": "u64"
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "name": "t",
+                                                "type": {
+                                                    "kind": "pointer",
+                                                    "type": {
+                                                        "kind": "namedType",
+                                                        "name": "oc_str16_elt"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ofs",
+                                                "type": {
+                                                    "kind": "pointer",
+                                                    "type": {
+                                                        "kind": "array",
+                                                        "type": {
+                                                            "kind": "char"
+                                                        },
+                                                        "count": 0
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "len",
+                                    "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
+                                    "type": {
+                                        "kind": "u64"
+                                    }
                                 }
-                            },
-                            {
-                                "name": "eltCount",
-                                "doc": "The number of elements in `list`.",
-                                "type": {
-                                    "kind": "u64"
-                                }
-                            },
-                            {
-                                "name": "len",
-                                "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
-                                "type": {
-                                    "kind": "u64"
-                                }
-                            }
-                        ]
-                    }
+                            ]
+                        }
                 },
                 {
                     "kind": "proc",
@@ -3782,7 +4150,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_str32_elt",
-                    "doc": "A type representing an element of an `oc_str32` list.",
+                    "doc": "A type representing an element of a string list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -3791,7 +4159,7 @@
                                 "doc": "The string element is linked into its parent string list through this field.",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_list_elt"
+                                    "name": "oc_typed_list_links"
                                 }
                             },
                             {
@@ -3808,6 +4176,7 @@
                 {
                     "kind": "typename",
                     "name": "oc_str32_list",
+                    "doc": "A type representing a string list.",
                     "type": {
                         "kind": "struct",
                         "fields": [
@@ -3815,26 +4184,77 @@
                                 "name": "list",
                                 "doc": "A linked-list of `oc_str32_elt`.",
                                 "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_list"
+                                        "kind": "union",
+                                        "fields": [
+                                            {
+                                                "name": "",
+                                                "type": {
+                                                    "kind": "struct",
+                                                    "fields": [
+                                                        {
+                                                            "name": "first",
+                                                            "type": {
+                                                                "kind": "pointer",
+                                                                "type": {
+                                                                    "kind": "namedType",
+                                                                    "name": "oc_typed_list_links"
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "name": "last",
+                                                            "type": {
+                                                                "kind": "pointer",
+                                                                "type": {
+                                                                    "kind": "namedType",
+                                                                    "name": "oc_typed_list_links"
+                                                                }
+                                                            }
+                                                        },
+                                                        {
+                                                            "name": "count",
+                                                            "type": {
+                                                                "kind": "u64"
+                                                            }
+                                                        }
+                                                    ]
+                                                }
+                                            },
+                                            {
+                                                "name": "t",
+                                                "type": {
+                                                    "kind": "pointer",
+                                                    "type": {
+                                                        "kind": "namedType",
+                                                        "name": "oc_str32_elt"
+                                                    }
+                                                }
+                                            },
+                                            {
+                                                "name": "ofs",
+                                                "type": {
+                                                    "kind": "pointer",
+                                                    "type": {
+                                                        "kind": "array",
+                                                        "type": {
+                                                            "kind": "char"
+                                                        },
+                                                        "count": 0
+                                                    }
+                                                }
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "name": "len",
+                                    "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
+                                    "type": {
+                                        "kind": "u64"
+                                    }
                                 }
-                            },
-                            {
-                                "name": "eltCount",
-                                "doc": "The number of elements in `list`.",
-                                "type": {
-                                    "kind": "u64"
-                                }
-                            },
-                            {
-                                "name": "len",
-                                "doc": "The total length of the string list, which is the sum of the lengths over all elements.",
-                                "type": {
-                                    "kind": "u64"
-                                }
-                            }
-                        ]
-                    }
+                            ]
+                        }
                 },
                 {
                     "kind": "proc",

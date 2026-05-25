@@ -112,8 +112,7 @@ int oc_str8_cmp(oc_str8 s1, oc_str8 s2)
 
 void oc_str8_list_init(oc_str8_list* list)
 {
-    oc_list_init(&list->list);
-    list->eltCount = 0;
+    list->list = (typeof(list->list)){ 0 };
     list->len = 0;
 }
 
@@ -121,8 +120,7 @@ void oc_str8_list_push(oc_allocator* allocator, oc_str8_list* list, oc_str8 str)
 {
     oc_str8_elt* elt = oc_allocator_push_type(allocator, oc_str8_elt);
     elt->string = str;
-    oc_list_push_back(&list->list, &elt->listElt);
-    list->eltCount++;
+    oc_typed_list_push_back(&list->list, elt);
     list->len += str.len;
 }
 
@@ -130,10 +128,9 @@ oc_str8 oc_str8_list_pop_back(oc_str8_list* list)
 {
     oc_str8 string = { 0 };
 
-    oc_str8_elt* elt = oc_list_pop_back_entry(&list->list, oc_str8_elt, listElt);
+    oc_str8_elt* elt = oc_typed_list_pop_back(&list->list);
     if(elt)
     {
-        list->eltCount--;
         OC_DEBUG_ASSERT(elt->string.len < list->len);
         list->len -= elt->string.len;
         string = elt->string;
@@ -145,8 +142,7 @@ void oc_str8_list_push_front(oc_allocator* allocator, oc_str8_list* list, oc_str
 {
     oc_str8_elt* elt = oc_allocator_push_type(allocator, oc_str8_elt);
     elt->string = str;
-    oc_list_push_front(&list->list, &elt->listElt);
-    list->eltCount++;
+    oc_typed_list_push_front(&list->list, elt);
     list->len += str.len;
 }
 
@@ -154,10 +150,9 @@ oc_str8 oc_str8_list_pop_front(oc_str8_list* list)
 {
     oc_str8 string = { 0 };
 
-    oc_str8_elt* elt = oc_list_pop_front_entry(&list->list, oc_str8_elt, listElt);
+    oc_str8_elt* elt = oc_typed_list_pop_front(&list->list);
     if(elt)
     {
-        list->eltCount--;
         OC_DEBUG_ASSERT(elt->string.len < list->len);
         list->len -= elt->string.len;
         string = elt->string;
@@ -178,9 +173,9 @@ oc_str8 oc_str8_list_collate(oc_allocator* allocator, oc_str8_list list, oc_str8
 {
     oc_str8 str = { 0 };
     str.len = prefix.len + list.len + postfix.len;
-    if(list.eltCount && separator.len)
+    if(oc_typed_list_count(list.list) && separator.len)
     {
-        str.len += list.eltCount * separator.len - 1;
+        str.len += oc_typed_list_count(list.list) * separator.len - 1;
     }
 
     str.ptr = oc_allocator_push_array(allocator, char, str.len + 1);
@@ -188,15 +183,15 @@ oc_str8 oc_str8_list_collate(oc_allocator* allocator, oc_str8_list list, oc_str8
     memcpy(dst, prefix.ptr, prefix.len);
     dst += prefix.len;
 
-    oc_str8_elt* elt = oc_list_first_entry(list.list, oc_str8_elt, listElt);
+    oc_str8_elt* elt = oc_typed_list_first(list.list);
     if(elt)
     {
         memcpy(dst, elt->string.ptr, elt->string.len);
         dst += elt->string.len;
-        elt = oc_list_next_entry(elt, oc_str8_elt, listElt);
+        elt = oc_typed_list_next(list.list, elt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str8_elt, listElt))
+    for(; elt != 0; elt = oc_typed_list_next(list.list, elt))
     {
         memcpy(dst, separator.ptr, separator.len);
         dst += separator.len;
@@ -217,7 +212,6 @@ oc_str8 oc_str8_list_join(oc_allocator* allocator, oc_str8_list list)
 oc_str8_list oc_str8_split(oc_allocator* allocator, oc_str8 str, oc_str8_list separators)
 {
     oc_str8_list list = { 0 };
-    oc_list_init(&list.list);
 
     char* ptr = str.ptr;
     char* end = str.ptr + str.len;
@@ -226,7 +220,7 @@ oc_str8_list oc_str8_split(oc_allocator* allocator, oc_str8 str, oc_str8_list se
     {
         //NOTE(martin): search all separators and try to match them to the current ptr
         oc_str8* foundSep = 0;
-        oc_list_for(separators.list, elt, oc_str8_elt, listElt)
+        oc_typed_list_for(separators.list, elt)
         {
             oc_str8* separator = &elt->string;
             bool equal = true;
@@ -300,8 +294,7 @@ oc_str16 oc_str16_push_slice(oc_allocator* allocator, oc_str16 s, u64 start, u64
 
 void oc_str16_list_init(oc_str16_list* list)
 {
-    oc_list_init(&list->list);
-    list->eltCount = 0;
+    list->list = (typeof(list->list)){ 0 };
     list->len = 0;
 }
 
@@ -309,29 +302,28 @@ void oc_str16_list_push(oc_allocator* allocator, oc_str16_list* list, oc_str16 s
 {
     oc_str16_elt* elt = oc_allocator_push_type(allocator, oc_str16_elt);
     elt->string = str;
-    oc_list_push_back(&list->list, &elt->listElt);
-    list->eltCount++;
+    oc_typed_list_push_back(&list->list, elt);
     list->len += str.len;
 }
 
 oc_str16 oc_str16_list_collate(oc_allocator* allocator, oc_str16_list list, oc_str16 prefix, oc_str16 separator, oc_str16 postfix)
 {
     oc_str16 str = { 0 };
-    str.len = prefix.len + list.len + list.eltCount * separator.len + postfix.len;
+    str.len = prefix.len + list.len + oc_typed_list_count(list.list) * separator.len + postfix.len;
     str.ptr = oc_allocator_push_array(allocator, u16, str.len + 1);
     char* dst = (char*)str.ptr;
     memcpy(dst, prefix.ptr, prefix.len * sizeof(u16));
     dst += prefix.len * sizeof(u16);
 
-    oc_str16_elt* elt = oc_list_first_entry(list.list, oc_str16_elt, listElt);
+    oc_str16_elt* elt = oc_typed_list_first(list.list);
     if(elt)
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u16));
         dst += elt->string.len * sizeof(u16);
-        elt = oc_list_next_entry(elt, oc_str16_elt, listElt);
+        elt = oc_typed_list_next(list.list, elt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str16_elt, listElt))
+    for(; elt != 0; elt = oc_typed_list_next(list.list, elt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u16));
         dst += separator.len * sizeof(u16);
@@ -393,8 +385,7 @@ oc_str32 oc_str32_push_slice(oc_allocator* allocator, oc_str32 s, u64 start, u64
 
 void oc_str32_list_init(oc_str32_list* list)
 {
-    oc_list_init(&list->list);
-    list->eltCount = 0;
+    list->list = (typeof(list->list)){ 0 };
     list->len = 0;
 }
 
@@ -402,29 +393,28 @@ void oc_str32_list_push(oc_allocator* allocator, oc_str32_list* list, oc_str32 s
 {
     oc_str32_elt* elt = oc_allocator_push_type(allocator, oc_str32_elt);
     elt->string = str;
-    oc_list_push_back(&list->list, &elt->listElt);
-    list->eltCount++;
+    oc_typed_list_push_back(&list->list, elt);
     list->len += str.len;
 }
 
 oc_str32 oc_str32_list_collate(oc_allocator* allocator, oc_str32_list list, oc_str32 prefix, oc_str32 separator, oc_str32 postfix)
 {
     oc_str32 str = { 0 };
-    str.len = prefix.len + list.len + list.eltCount * separator.len + postfix.len;
+    str.len = prefix.len + list.len + oc_typed_list_count(list.list) * separator.len + postfix.len;
     str.ptr = oc_allocator_push_array(allocator, u32, str.len + 1);
     char* dst = (char*)str.ptr;
     memcpy(dst, prefix.ptr, prefix.len * sizeof(u32));
     dst += prefix.len * sizeof(u32);
 
-    oc_str32_elt* elt = oc_list_first_entry(list.list, oc_str32_elt, listElt);
+    oc_str32_elt* elt = oc_typed_list_first(list.list);
     if(elt)
     {
         memcpy(dst, elt->string.ptr, elt->string.len * sizeof(u32));
         dst += elt->string.len * sizeof(u32);
-        elt = oc_list_next_entry(elt, oc_str32_elt, listElt);
+        elt = oc_typed_list_next(list.list, elt);
     }
 
-    for(; elt != 0; elt = oc_list_next_entry(elt, oc_str32_elt, listElt))
+    for(; elt != 0; elt = oc_typed_list_next(list.list, elt))
     {
         memcpy(dst, separator.ptr, separator.len * sizeof(u32));
         dst += separator.len * sizeof(u32);
