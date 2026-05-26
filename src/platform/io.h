@@ -333,7 +333,7 @@ typedef struct oc_file_list
     u64 eltCount;
 } oc_file_list;
 
-ORCA_API oc_file_list oc_file_listdir(oc_arena* arena, oc_file directory);
+ORCA_API oc_file_list oc_file_listdir(oc_allocator* allocator, oc_file directory);
 
 #define oc_file_list_for(filelist, elt) oc_list_for(filelist.list, elt, oc_file_listdir_elt, listElt)
 
@@ -348,13 +348,13 @@ ORCA_API oc_file oc_file_open_with_request(oc_str8 path, oc_file_access rights, 
 //----------------------------------------------------------------
 
 typedef oc_result_type(oc_str8, oc_io_error) oc_file_name_result;
-ORCA_API oc_file_name_result oc_file_name(oc_arena* arena, oc_file file);
+ORCA_API oc_file_name_result oc_file_name(oc_allocator* allocator, oc_file file);
 
 //----------------------------------------------------------------
 // Temporary. Get path of temp files directory
 //----------------------------------------------------------------
 #ifndef OC_PLATFORM_ORCA
-ORCA_API oc_str8 oc_file_tmp_directory_path(oc_arena* arena);
+ORCA_API oc_str8 oc_file_tmp_directory_path(oc_allocator* allocator);
 #endif
 
 #ifdef __cplusplus

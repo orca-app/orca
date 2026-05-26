@@ -84,7 +84,7 @@ int test_listdir(void)
 {
     oc_log_info("listdir");
 
-    oc_arena_scope arena_scope = oc_scratch_begin();
+    oc_scratch arena_scope = oc_scratch_begin();
 
     const expected_entry expected[] = {
         { OC_STR8("./nested1"), OC_FILE_DIRECTORY },

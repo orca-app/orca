@@ -59,10 +59,10 @@ typedef struct
 bool icon_from_image(oc_arena* a, oc_str8 image_path, oc_str8 ico_path)
 {
     bool result = true;
-    oc_arena_scope scratch = oc_scratch_begin_next(a);
+    oc_scratch scratch = oc_scratch_begin_next_arena(a);
 
     i32 og_width, og_height, og_channels;
-    char* filename = oc_str8_to_cstring(scratch.arena, image_path);
+    char* filename = oc_str8_to_cstring(scratch.allocator, image_path);
     u8* og_image_data = stbi_load(filename, &og_width, &og_height, &og_channels, STBI_rgb_alpha);
 
     u32 sizes[] = { 16, 32, 48, 256 };
@@ -174,7 +174,7 @@ cleanup:
 bool embed_icon_into_exe(oc_arena* a, oc_str8 exe_path, oc_str8 ico_path)
 {
     bool result = true;
-    oc_arena_scope scratch = oc_scratch_begin_next(a);
+    oc_scratch scratch = oc_scratch_begin_next_arena(a);
     oc_file ico_file = { 0 };
 
     ico_file = oc_catch(oc_file_open(ico_path,
@@ -278,10 +278,10 @@ bool resource_file_from_icon(oc_arena* a, oc_str8 ico_path, oc_str8 res_path)
 {
     bool result = true;
     oc_file rc_file = { 0 }, res_file = { 0 };
-    oc_arena_scope scratch = oc_scratch_begin_next(a);
+    oc_scratch scratch = oc_scratch_begin_next_arena(a);
 
     oc_str8 input_dir = oc_path_slice_directory(ico_path);
-    oc_str8 rc_path = oc_path_append(scratch.arena, input_dir, OC_STR8("icon.rc"));
+    oc_str8 rc_path = oc_path_append(scratch.allocator, input_dir, OC_STR8("icon.rc"));
     rc_file = oc_catch(oc_file_open(rc_path,
                                     OC_FILE_ACCESS_WRITE,
                                     &(oc_file_open_options){
@@ -300,7 +300,7 @@ bool resource_file_from_icon(oc_arena* a, oc_str8 ico_path, oc_str8 res_path)
         goto cleanup;
     }
 
-    oc_str8 cmd = oc_str8_pushf(scratch.arena, "rc.exe /nologo /fo %.*s %s",
+    oc_str8 cmd = oc_str8_pushf(scratch.allocator, "rc.exe /nologo /fo %.*s %s",
                                 oc_str8_ip(res_path), rc_path.ptr);
     int return_code = system(cmd.ptr);
     if(return_code)

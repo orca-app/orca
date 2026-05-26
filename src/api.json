@@ -1641,7 +1641,7 @@
                                     "kind": "pointer",
                                     "type": {
                                         "kind": "namedType",
-                                        "name": "oc_base_allocator"
+                                        "name": "oc_platform_memory"
                                     }
                                 }
                             },
@@ -1670,7 +1670,7 @@
                                     "kind": "pointer",
                                     "type": {
                                         "kind": "namedType",
-                                        "name": "oc_base_allocator"
+                                        "name": "oc_platform_memory"
                                     }
                                 }
                             },
@@ -1694,7 +1694,7 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_base_allocator",
+                    "name": "oc_platform_memory",
                     "doc": "A structure that defines how to allocate memory from the system.",
                     "type": {
                         "kind": "struct",
@@ -1734,6 +1734,60 @@
                         ]
                     }
                 },
+                {
+                    "kind": "typename",
+                    "name": "oc_allocator_push_proc",
+                    "type": {
+                        "kind": "proc",
+                        "return": {
+                            "kind": "pointer",
+                            "type": {
+                                "kind": "void"
+                            }
+                        },
+                        "params": [
+                            {
+                                "name": "arg0",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_allocator"
+                                    }
+                                }
+                            },
+                            {
+                                "name": "arg1",
+                                "type": {
+                                    "kind": "u64"
+                                }
+                            },
+                            {
+                                "name": "arg2",
+                                "type": {
+                                    "kind": "u64"
+                                }
+                            }
+                        ]
+                    }
+                },
+                {
+                    "kind": "typename",
+                    "name": "oc_allocator",
+                    "type": {
+                        "kind": "struct",
+                        "fields": [
+                            {
+                                "name": "push",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_allocator_push_proc"
+                                }
+                            }
+                        ]
+                    }
+                },
+
                 {
                     "kind": "typename",
                     "name": "oc_arena_chunk",
@@ -1786,13 +1840,30 @@
                         "kind": "struct",
                         "fields": [
                             {
+                                "name": "push",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_allocator_push_proc"
+                                }
+                            },
+                            {
+                                "name": "allocator",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_allocator"
+                                    }
+                                }
+                            },
+                            {
                                 "name": "base",
                                 "doc": "An allocator providing memory pages from the system",
                                 "type": {
                                     "kind": "pointer",
                                     "type": {
                                         "kind": "namedType",
-                                        "name": "oc_base_allocator"
+                                        "name": "oc_platform_memory"
                                     }
                                 }
                             },
@@ -1820,11 +1891,21 @@
                 },
                 {
                     "kind": "typename",
-                    "name": "oc_arena_scope",
+                    "name": "oc_scratch",
                     "doc": "This struct provides a way to store the current offset in a given arena, in order to reset the arena to that offset later. This allows using arenas in a stack-like fashion, e.g. to create temporary \"scratch\" allocations",
                     "type": {
                         "kind": "struct",
                         "fields": [
+                            {
+                                "name": "allocator",
+                                "type": {
+                                    "kind": "pointer",
+                                    "type": {
+                                        "kind": "namedType",
+                                        "name": "oc_allocator"
+                                    }
+                                }
+                            },
                             {
                                 "name": "arena",
                                 "doc": "The arena which offset is stored.",
@@ -1871,7 +1952,7 @@
                                     "kind": "pointer",
                                     "type": {
                                         "kind": "namedType",
-                                        "name": "oc_base_allocator"
+                                        "name": "oc_platform_memory"
                                     }
                                 }
                             },
@@ -2124,47 +2205,6 @@
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_arena_scope_begin",
-                    "doc": "Begin a memory scope. This creates an `oc_arena_scope` object that stores the current offset of the arena. The arena can later be reset to that offset by calling `oc_arena_scope_end`, releasing all memory that was allocated within the scope to the arena.",
-                    "return": {
-                        "kind": "namedType",
-                        "name": "oc_arena_scope",
-                        "doc": "A `oc_arena_scope` object storing the current offset of the arena."
-                    },
-                    "params": [
-                        {
-                            "name": "arena",
-                            "doc": "The arena for which the scope is created.",
-                            "type": {
-                                "kind": "pointer",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_arena"
-                                }
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
-                    "name": "oc_arena_scope_end",
-                    "doc": "End a memory scope. This resets an arena to the offset it had when the scope was created. All memory allocated within the scope is released back to the arena.",
-                    "return": {
-                        "kind": "void"
-                    },
-                    "params": [
-                        {
-                            "name": "scope",
-                            "doc": "An `oc_arena_scope` object that was created by a call to `oc_arena_scope_begin()`.",
-                            "type": {
-                                "kind": "namedType",
-                                "name": "oc_arena_scope"
-                            }
-                        }
-                    ]
-                },
-                {
-                    "kind": "proc",
                     "name": "oc_scratch_begin",
                     "doc": [
                         "Begin a scratch scope. This creates a memory scope on a per-thread, global \"scratch\" arena. This allows easily creating temporary memory for scratch computations or intermediate results, in a stack-like fashion.",
@@ -2176,18 +2216,18 @@
                     ],
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_arena_scope",
+                        "name": "oc_scratch",
                         "doc": "A memory scope object. You can use the `arena` field of this object to allocate memory from the scratch scope. When you're done, pass the scope oject to `oc_scratch_end()`."
                     },
                     "params": []
                 },
                 {
                     "kind": "proc",
-                    "name": "oc_scratch_begin_next",
+                    "name": "oc_scratch_begin_next_arena",
                     "doc": "Begin a scratch scope that does not conflict with a given arena. See `oc_scratch_begin()` for more details about when to use this function.",
                     "return": {
                         "kind": "namedType",
-                        "name": "oc_arena_scope",
+                        "name": "oc_scratch",
                         "doc": "A memory scope object. You can use the `arena` field of this object to allocate memory from the scratch scope. When you're done, pass the scope oject to `oc_scratch_end()`."
                     },
                     "params": [
@@ -2200,6 +2240,24 @@
                                     "kind": "namedType",
                                     "name": "oc_arena"
                                 }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "kind": "proc",
+                    "name": "oc_scratch_end",
+                    "doc": "End a memory scope. This resets an arena to the offset it had when the scope was created. All memory allocated within the scope is released back to the arena.",
+                    "return": {
+                        "kind": "void"
+                    },
+                    "params": [
+                        {
+                            "name": "scope",
+                            "doc": "An `oc_scratch` object that was created by a call to `oc_scratch_begin()`.",
+                            "type": {
+                                "kind": "namedType",
+                                "name": "oc_scratch"
                             }
                         }
                     ]
@@ -2446,7 +2504,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_buffer",
-                    "doc": "Pushes a copy of a buffer to an arena, and makes a string refering to that copy.",
+                    "doc": "Pushes a copy of a buffer to an allocator, and makes a string refering to that copy.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
@@ -2454,13 +2512,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
-                                "doc": "The arena on which to copy the input buffer.",
+                                "doc": "The allocator on which to copy the input buffer.",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2486,7 +2544,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_cstring",
-                    "doc": "Pushes a copy of a C null-terminated string to an arena, and makes a string referring to that copy.",
+                    "doc": "Pushes a copy of a C null-terminated string to an allocator, and makes a string referring to that copy.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
@@ -2494,13 +2552,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
-                                "doc": "The arena on which to copy the input buffer.",
+                                "doc": "The allocator on which to copy the input buffer.",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2520,7 +2578,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_copy",
-                    "doc": "Copy the contents of a string on an arena and make a new string referring to the copied bytes.",
+                    "doc": "Copy the contents of a string on an allocator and make a new string referring to the copied bytes.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
@@ -2528,13 +2586,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the contents of the input string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the contents of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2551,20 +2609,20 @@
                 {
                     "kind": "proc",
                     "name": "oc_str8_push_slice",
-                    "doc": "Make a copy of a string slice. This function copies a subsequence of the input string onto an arena, and returns a new string referring to the copied content.",
+                    "doc": "Make a copy of a string slice. This function copies a subsequence of the input string onto an allocator, and returns a new string referring to the copied content.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8"
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the slice of the input string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the slice of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2600,17 +2658,17 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
-                        "doc": "The result string built from the format string and variadic arguments. The backing memory of the string is allocated on `arena`."
+                        "doc": "The result string built from the format string and variadic arguments. The backing memory of the string is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the contents of the string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the contents of the string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2641,17 +2699,17 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
-                        "doc": "The result string built from the format string and variadic arguments. The backing memory of the string is allocated on `arena`."
+                        "doc": "The result string built from the format string and variadic arguments. The backing memory of the string is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the contents of the string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the contents of the string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2711,17 +2769,17 @@
                         "type": {
                             "kind": "char"
                         },
-                        "doc": "A null-terminated copy of the input string's contents. This copy is allocated on `arena`."
+                        "doc": "A null-terminated copy of the input string's contents. This copy is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the contents of `string` and the null terminator.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the contents of `string` and the null terminator.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2802,13 +2860,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate the new string element.",
+                            "name": "allocator",
+                            "doc": "A memory allocator on which to allocate the new string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2842,13 +2900,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the contents of the string, as well as the string element.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the contents of the string, as well as the string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2890,17 +2948,17 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
-                        "doc": "The resulting string, whose contents is allocated on `arena`."
+                        "doc": "The resulting string, whose contents is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "An arena on which to allocate the contents of the new string.",
+                            "name": "allocator",
+                            "doc": "An allocator on which to allocate the contents of the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2945,17 +3003,17 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
-                        "doc": "The resulting string, whose contents is allocated on `arena`."
+                        "doc": "The resulting string, whose contents is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the new string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -2984,13 +3042,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the elements of the string list.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the elements of the string list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3167,7 +3225,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_str16_push_buffer",
-                    "doc": "Copy the content of a 16-bit character buffer on an arena and make a new `oc_str16` referencing the copied contents.",
+                    "doc": "Copy the content of a 16-bit character buffer on an allocator and make a new `oc_str16` referencing the copied contents.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16",
@@ -3175,13 +3233,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the input buffer.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the input buffer.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3215,13 +3273,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the contents of the input string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the contents of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3246,13 +3304,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the slice of the input string's contents.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the slice of the input string's contents.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3347,13 +3405,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate the new string element.",
+                            "name": "allocator",
+                            "doc": "A memory allocator on which to allocate the new string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3385,17 +3443,17 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str16",
-                        "doc": "The resulting string, whose content is allocated on `arena`."
+                        "doc": "The resulting string, whose content is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the new string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3424,13 +3482,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the elements of the string list.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the elements of the string list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3607,7 +3665,7 @@
                 {
                     "kind": "proc",
                     "name": "oc_str32_push_buffer",
-                    "doc": "Copy the content of a 32-bit character buffer on an arena and make a new `oc_str32` referencing the copied contents.",
+                    "doc": "Copy the content of a 32-bit character buffer on an allocator and make a new `oc_str32` referencing the copied contents.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32",
@@ -3615,13 +3673,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the input buffer.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the input buffer.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3655,13 +3713,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the contents of the input string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the contents of the input string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3686,13 +3744,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to copy the slice of the input string's contents.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to copy the slice of the input string's contents.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3787,13 +3845,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate the new string element.",
+                            "name": "allocator",
+                            "doc": "A memory allocator on which to allocate the new string element.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3825,17 +3883,17 @@
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32",
-                        "doc": "The resulting string, whose contents is allocated on `arena`."
+                        "doc": "The resulting string, whose contents is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the new string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the new string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -3864,13 +3922,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the elements of the string list.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the elements of the string list.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -4337,21 +4395,21 @@
                 {
                     "kind": "proc",
                     "name": "oc_utf8_push_to_codepoints",
-                    "doc": "Decode a utf8 encoded string to a string of unicode codepoints using an arena.",
+                    "doc": "Decode a utf8 encoded string to a string of unicode codepoints using an allocator.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32",
-                        "doc": "The decoded codepoints. The contents of the string is allocated on `arena`."
+                        "doc": "The decoded codepoints. The contents of the string is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the codepoints.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the codepoints.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -4368,21 +4426,21 @@
                 {
                     "kind": "proc",
                     "name": "oc_utf8_push_from_codepoints",
-                    "doc": "Encode a string of unicode codepoints into a utf8 string using an arena.",
+                    "doc": "Encode a string of unicode codepoints into a utf8 string using an allocator.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str8",
-                        "doc": "The encoded utf8 string. The contents of the string is allocated on `arena`."
+                        "doc": "The encoded utf8 string. The contents of the string is allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "The arena on which to allocate the utf8 encoded string.",
+                            "name": "allocator",
+                            "doc": "The allocator on which to allocate the utf8 encoded string.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -8632,12 +8690,12 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -9089,12 +9147,12 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -9119,12 +9177,12 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -10780,12 +10838,12 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -10986,12 +11044,12 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
+                            "name": "allocator",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -11080,13 +11138,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate elements of the result.",
+                            "name": "allocator",
+                            "doc": "A memory allocator on which to allocate elements of the result.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -11175,13 +11233,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "An arena on which to allocate string list elements.",
+                            "name": "allocator",
+                            "doc": "An allocator on which to allocate string list elements.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -11206,13 +11264,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "An arena on which to allocate the resulting path.",
+                            "name": "allocator",
+                            "doc": "An allocator on which to allocate the resulting path.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -11237,13 +11295,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "An arena on which to allocate the resulting path.",
+                            "name": "allocator",
+                            "doc": "An allocator on which to allocate the resulting path.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -12358,21 +12416,21 @@
                 {
                     "kind": "proc",
                     "name": "oc_font_push_glyph_indices",
-                    "doc": "Get the glyph indices of a run of unicode code points in a given font and push them on an arena.",
+                    "doc": "Get the glyph indices of a run of unicode code points in a given font and push them on an allocator.",
                     "return": {
                         "kind": "namedType",
                         "name": "oc_str32",
-                        "doc": "A slice of glyph indices, allocated on `arena`."
+                        "doc": "A slice of glyph indices, allocated on `allocator`."
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate the result indices.",
+                            "name": "allocator",
+                            "doc": "A memory allocator on which to allocate the result indices.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },
@@ -12861,13 +12919,13 @@
                     },
                     "params": [
                         {
-                            "name": "arena",
-                            "doc": "A memory arena on which to allocate the atlas.",
+                            "name": "allocator",
+                            "doc": "A memory allocator on which to allocate the atlas.",
                             "type": {
                                 "kind": "pointer",
                                 "type": {
                                     "kind": "namedType",
-                                    "name": "oc_arena"
+                                    "name": "oc_allocator"
                                 }
                             }
                         },

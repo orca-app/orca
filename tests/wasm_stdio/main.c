@@ -91,7 +91,7 @@ int test_read(void)
 
 int test_write(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     oc_arena* arena = scratch.arena;
 
     oc_str8 path = OC_STR8("write_test.txt");
@@ -117,7 +117,7 @@ int test_write(void)
     }
     fclose(f);
 
-    char* pathCStr = oc_str8_to_cstring(arena, path);
+    char* pathCStr = oc_str8_to_cstring(arena->allocator, path);
     FILE* file = fopen(pathCStr, "r");
     if(!file)
     {

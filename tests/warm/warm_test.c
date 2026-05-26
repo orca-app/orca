@@ -289,7 +289,7 @@ wa_test_result wa_test_invoke(wa_test_env* env, wa_instance* instance, json_node
 
     u32 argCount = args->childCount;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_func_type type = wa_func_get_type(scratch.arena, instance, func);
     OC_ASSERT(argCount == type.paramCount);
 
@@ -475,7 +475,7 @@ wa_status wa_test_instantiate(wa_test_env* env, wa_test_instance* testInstance, 
 {
     u32 packageCount = env->registeredCount + 1;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     wa_import_package* packages = oc_arena_push_array(scratch.arena, wa_import_package, packageCount);
 
     u32 index = 1;
@@ -725,16 +725,16 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     }
 
     //spec test memory
-    oc_base_allocator* allocator = oc_base_allocator_default();
+    oc_platform_memory* allocator = oc_platform_memory_default();
     env->testspecMemory = (wa_memory){
         .limits = {
             .kind = WA_LIMIT_MIN_MAX,
             .min = 1,
             .max = 2,
         },
-        .ptr = oc_base_reserve(allocator, 2 * WA_PAGE_SIZE),
+        .ptr = oc_platform_memory_reserve(allocator, 2 * WA_PAGE_SIZE),
     };
-    oc_base_commit(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.min * WA_PAGE_SIZE);
+    oc_platform_memory_commit(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.min * WA_PAGE_SIZE);
 
     //spec test table
     env->testspecTable = (wa_table){
@@ -785,14 +785,14 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
             if(name)
             {
                 OC_ASSERT(name->kind == JSON_STRING);
-                testInstance->name = oc_str8_push_copy(env->arena, name->string);
+                testInstance->name = oc_str8_push_copy(env->arena->allocator, name->string);
             }
 
             json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
             oc_str8_list list = { 0 };
-            oc_str8_list_push(env->arena, &list, testDir);
-            oc_str8_list_push(env->arena, &list, filename->string);
+            oc_str8_list_push(env->arena->allocator, &list, testDir);
+            oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
             oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -830,7 +830,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_test_fail(env, testName, command);
                 continue;
             }
-            mod->registeredName = oc_str8_push_copy(env->arena, as->string);
+            mod->registeredName = oc_str8_push_copy(env->arena->allocator, as->string);
             env->registeredCount++;
             wa_test_pass(env, testName, command);
         }
@@ -973,8 +973,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 wa_test_instance testInstance = { 0 };
 
                 oc_str8_list list = { 0 };
-                oc_str8_list_push(env->arena, &list, testDir);
-                oc_str8_list_push(env->arena, &list, filename->string);
+                oc_str8_list_push(env->arena->allocator, &list, testDir);
+                oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
                 oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -1034,8 +1034,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                 json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
                 oc_str8_list list = { 0 };
-                oc_str8_list_push(env->arena, &list, testDir);
-                oc_str8_list_push(env->arena, &list, filename->string);
+                oc_str8_list_push(env->arena->allocator, &list, testDir);
+                oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
                 oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -1061,8 +1061,8 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
                     json_node* filename = json_find_assert(command, "filename", JSON_STRING);
 
                     oc_str8_list list = { 0 };
-                    oc_str8_list_push(env->arena, &list, testDir);
-                    oc_str8_list_push(env->arena, &list, filename->string);
+                    oc_str8_list_push(env->arena->allocator, &list, testDir);
+                    oc_str8_list_push(env->arena->allocator, &list, filename->string);
 
                     oc_str8 filePath = oc_path_join(env->arena, list);
 
@@ -1130,7 +1130,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
     env->totalSkipped += env->skipped;
     env->totalFailed += env->failed;
 
-    oc_base_release(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.max * WA_PAGE_SIZE);
+    oc_platform_memory_release(allocator, env->testspecMemory.ptr, env->testspecMemory.limits.max * WA_PAGE_SIZE);
 
     return (0);
 }

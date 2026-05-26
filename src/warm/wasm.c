@@ -55,7 +55,7 @@ void wa_import_package_push_binding(oc_arena* arena, wa_import_package* package,
 {
     wa_import_package_elt* elt = oc_arena_push_type(arena, wa_import_package_elt);
     elt->binding = *binding;
-    elt->binding.name = oc_str8_push_copy(arena, binding->name);
+    elt->binding.name = oc_str8_push_copy(arena->allocator, binding->name);
 
     if(binding->kind == WA_BINDING_HOST_FUNCTION)
     {

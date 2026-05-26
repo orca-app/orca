@@ -179,7 +179,8 @@ typedef struct oc_ui_context
     oc_arena frameArenas[2];
     oc_arena* frameArena;
 
-    oc_pool boxPool;
+    oc_arena boxArena;
+    oc_list boxFreeList;
     oc_list boxMap[OC_UI_BOX_MAP_BUCKET_COUNT];
 
     oc_ui_box* root;
@@ -216,7 +217,8 @@ oc_ui_context* oc_ui_context_create(oc_font defaultFont)
     }
     ui->frameArena = &ui->frameArenas[0];
 
-    oc_pool_init(&ui->boxPool, sizeof(oc_ui_box));
+    oc_arena_init(&ui->boxArena);
+
     ui->defaultFont = defaultFont;
 
     ui->styleVariables.mask = (4 << 10) - 1;
@@ -241,7 +243,7 @@ void oc_ui_context_destroy(oc_ui_context* context)
     {
         oc_arena_cleanup(&context->frameArenas[i]);
     }
-    oc_pool_cleanup(&context->boxPool);
+    oc_arena_cleanup(&context->boxArena);
     memset(context, 0, sizeof(oc_ui_context));
 }
 
@@ -481,7 +483,7 @@ void oc_ui_style_rule_begin(oc_str8 patternString)
         else
         {
             //NOTE: first make a copy of pattern string in frame arena
-            patternString = oc_str8_push_copy(oc_ui_frame_arena(), patternString);
+            patternString = oc_str8_push_copy(oc_ui_frame_arena()->allocator, patternString);
 
             //NOTE: parse pattern from patternString
             oc_ui_pattern pattern = { 0 };
@@ -931,7 +933,7 @@ void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* sc
     {
         stack = oc_arena_push_type(ui->frameArena, oc_ui_var_stack);
 
-        stack->name = oc_str8_push_copy(ui->frameArena, name);
+        stack->name = oc_str8_push_copy(ui->frameArena->allocator, name);
         stack->hash = hash;
         oc_list_push_back(bucket, &stack->bucketElt);
     }
@@ -1465,7 +1467,7 @@ void oc_ui_theme_dark()
 void oc_ui_process_event(oc_event* event)
 {
     oc_ui_context* ui = oc_ui_get_context();
-    oc_input_process_event(ui->frameArena, &ui->input, event);
+    oc_input_process_event(ui->frameArena->allocator, &ui->input, event);
 }
 
 oc_vec2 oc_ui_mouse_position(void)
@@ -1624,7 +1626,11 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     if(!box)
     {
-        box = oc_pool_alloc_type(&ui->boxPool, oc_ui_box);
+        box = oc_list_pop_front_entry(&ui->boxFreeList, oc_ui_box, listElt);
+        if(!box)
+        {
+            box = oc_arena_push_type_uninitialized(&ui->boxArena, oc_ui_box);
+        }
         memset(box, 0, sizeof(oc_ui_box));
 
         box->key = key;
@@ -1636,7 +1642,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
         box->fresh = false;
     }
 
-    box->keyString = oc_str8_push_copy(ui->frameArena, string);
+    box->keyString = oc_str8_push_copy(ui->frameArena->allocator, string);
     box->text = (oc_str8){ 0 };
     box->drawProc = 0;
 
@@ -1658,7 +1664,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
         //maybe this should be a warning that we're trying to make the box twice in the same frame?
         oc_log_warning("trying to make ui box '%.*s' (%llx) multiple times in the same frame (prev is %.*s)\n", (int)string.len, string.ptr, box->key.hash, oc_str8_ip(box->keyString));
     }
-    box->keyString = oc_str8_push_copy(ui->frameArena, string);
+    box->keyString = oc_str8_push_copy(ui->frameArena->allocator, string);
     box->text = (oc_str8){ 0 };
 
     box->frameCounter = ui->frameCounter;
@@ -1880,7 +1886,7 @@ void oc_ui_box_set_text(oc_ui_box* box, oc_str8 text)
     oc_ui_context* ui = oc_ui_get_context();
     if(ui && box)
     {
-        box->text = oc_str8_push_copy(ui->frameArena, text);
+        box->text = oc_str8_push_copy(ui->frameArena->allocator, text);
     }
 }
 
@@ -2337,7 +2343,7 @@ void oc_ui_styling_prepass(oc_ui_context* ui, oc_ui_box* box, oc_list* ruleset)
 
     //NOTE(martin): match ruleset against box, which may produce derived rules
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_pattern_specificity* specArray = oc_arena_push_array(scratch.arena, oc_ui_pattern_specificity, OC_UI_ATTRIBUTE_COUNT);
 
@@ -2549,7 +2555,7 @@ void oc_ui_layout_line_alignment(oc_ui_box* box, oc_ui_layout_line* line)
 
 void oc_ui_layout_contents(oc_ui_box* box, bool wrap)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_axis mainAxis = box->style.layout.axis;
     oc_ui_axis crossAxis = (mainAxis + 1) % OC_UI_AXIS_COUNT;
@@ -2730,7 +2736,7 @@ void oc_ui_solve_layout(oc_ui_context* ui)
     }
 
     //NOTE: collect boxes into a breadth-first-order list
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_list boxes = { 0 };
     oc_ui_layout_item* rootElt = oc_arena_push_type(scratch.arena, oc_ui_layout_item);
@@ -3310,6 +3316,7 @@ void oc_ui_frame_end(void)
             if(box->frameCounter < ui->frameCounter)
             {
                 oc_list_remove(&ui->boxMap[i], &box->bucketElt);
+                oc_list_push_front(&ui->boxFreeList, &box->listElt);
             }
         }
     }

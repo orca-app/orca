@@ -27,7 +27,7 @@ void debug_overlay_toggle(oc_debug_overlay* overlay)
 
 void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     static const char* levelNames[] = { "Error: ", "Warning: ", "Info: " };
     static const oc_color levelColors[] = { { 0.8, 0, 0, 1 },
@@ -42,7 +42,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
                                              { { 0.4, 0.4, 0.4, 0.5 }, { 0.5, 0.5, 0.5, 0.5 } }
     };
 
-    oc_str8 key = oc_str8_pushf(scratch.arena, "%ull", entry->recordIndex);
+    oc_str8 key = oc_str8_pushf(scratch.allocator, "%ull", entry->recordIndex);
 
     oc_ui_box_str8(key)
     {
@@ -72,7 +72,7 @@ void log_entry_ui(oc_debug_overlay* overlay, log_entry* entry)
             }
             oc_ui_label("level", levelNames[entry->level]);
 
-            oc_str8 loc = oc_str8_pushf(scratch.arena,
+            oc_str8 loc = oc_str8_pushf(scratch.allocator,
                                         "%.*s() in %.*s:%i:",
                                         oc_str8_ip(entry->function),
                                         oc_str8_ip(entry->file),
@@ -90,7 +90,7 @@ void overlay_ui(oc_debug_overlay* overlay)
     //TODO: we should probably pump new log entries from a ring buffer here
     //////////////////////////////////////////////////////////////////////////////
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_set_context(overlay->ui);
     oc_canvas_context_select(overlay->context);
@@ -223,7 +223,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
     {
         wa_source_file* file = &files[fileIndex];
 
-        oc_arena_scope scratch = oc_scratch_begin_next(arena);
+        oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
         //NOTE: add the file's root to the source tree
         wa_source_node* root = 0;
@@ -251,7 +251,7 @@ void oc_debugger_build_source_tree(oc_arena* arena, wa_source_node* sourceTree, 
 
         //NOTE: traverse the root's subtree and add nodes as needed
         oc_str8 relativePath = oc_str8_slice(file->fullPath, file->rootPath.len, file->fullPath.len);
-        oc_str8_list pathElements = oc_path_split(scratch.arena, relativePath);
+        oc_str8_list pathElements = oc_path_split(scratch.allocator, relativePath);
 
         oc_str8_list_for(pathElements, eltName)
         {
@@ -369,7 +369,7 @@ oc_list debugger_build_locals_tree(oc_arena* arena, wa_interpreter* interpreter,
         return list;
     }
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
     wa_debug_variable** shadow = oc_arena_push_array(scratch.arena, wa_debug_variable*, funcInfo->totalVarDecl);
     u64 shadowCount = 0;
 
@@ -570,8 +570,8 @@ oc_debugger_code_tab* oc_debugger_code_tab_alloc(oc_debugger* debugger)
 void source_tree_ui(oc_debugger* debugger, oc_ui_box* panel, wa_source_node* node, int indent)
 {
     //TODO: use full path to disambiguate similarly named root dirs
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 id = oc_str8_pushf(scratch.arena, "path-%llu", node->id);
+    oc_scratch scratch = oc_scratch_begin();
+    oc_str8 id = oc_str8_pushf(scratch.allocator, "path-%llu", node->id);
 
     oc_ui_box_str8(id)
     {
@@ -672,8 +672,8 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
     wa_type* strippedType = wa_type_strip(value->type);
     OC_ASSERT(strippedType);
 
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 uidStr = oc_str8_pushf(scratch.arena, "%llu", *uid);
+    oc_scratch scratch = oc_scratch_begin();
+    oc_str8 uidStr = oc_str8_pushf(scratch.allocator, "%llu", *uid);
     (*uid)++;
 
     oc_ui_box_str8(uidStr)
@@ -721,7 +721,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
 
             if(name.len)
             {
-                oc_str8 nameStr = oc_str8_pushf(scratch.arena, "%.*s = ", oc_str8_ip(name));
+                oc_str8 nameStr = oc_str8_pushf(scratch.allocator, "%.*s = ", oc_str8_ip(name));
                 oc_ui_label_str8(OC_STR8("name"), nameStr);
             }
 
@@ -729,7 +729,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 if(value->type->name.len)
                 {
-                    oc_str8 typeStr = oc_str8_pushf(scratch.arena, "(%.*s) ", oc_str8_ip(value->type->name));
+                    oc_str8 typeStr = oc_str8_pushf(scratch.allocator, "(%.*s) ", oc_str8_ip(value->type->name));
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
                 else if(strippedType->kind == WA_TYPE_NIL)
@@ -747,7 +747,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                 else if(strippedType->kind == WA_TYPE_ARRAY)
                 {
                     wa_type* eltType = strippedType->array.type;
-                    oc_str8 typeStr = oc_str8_pushf(scratch.arena, "((%.*s)[%llu]) ", oc_str8_ip(eltType->name), strippedType->array.count);
+                    oc_str8 typeStr = oc_str8_pushf(scratch.allocator, "((%.*s)[%llu]) ", oc_str8_ip(eltType->name), strippedType->array.count);
                     oc_ui_label_str8(OC_STR8("type"), typeStr);
                 }
             }
@@ -779,7 +779,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                         {
                             case 1:
                             {
-                                valStr = oc_str8_pushf(scratch.arena, "%hhu", *value->data.ptr);
+                                valStr = oc_str8_pushf(scratch.allocator, "%hhu", *value->data.ptr);
                             }
                             break;
 
@@ -787,7 +787,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                             {
                                 u16 u = 0;
                                 memcpy(&u, value->data.ptr, sizeof(u16));
-                                valStr = oc_str8_pushf(scratch.arena, "%hu", u);
+                                valStr = oc_str8_pushf(scratch.allocator, "%hu", u);
                             }
                             break;
 
@@ -795,7 +795,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                             {
                                 u32 u = 0;
                                 memcpy(&u, value->data.ptr, sizeof(u32));
-                                valStr = oc_str8_pushf(scratch.arena, "%u", u);
+                                valStr = oc_str8_pushf(scratch.allocator, "%u", u);
                             }
                             break;
 
@@ -803,12 +803,12 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                             {
                                 u64 u = 0;
                                 memcpy(&u, value->data.ptr, sizeof(u64));
-                                valStr = oc_str8_pushf(scratch.arena, "%llu", u);
+                                valStr = oc_str8_pushf(scratch.allocator, "%llu", u);
                             }
                             break;
 
                             default:
-                                valStr = oc_str8_pushf(scratch.arena, "unsupported size %llu", strippedType->size);
+                                valStr = oc_str8_pushf(scratch.allocator, "unsupported size %llu", strippedType->size);
                                 break;
                         }
                         oc_ui_label_str8(OC_STR8("value"), valStr);
@@ -822,7 +822,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                         {
                             case 1:
                             {
-                                valStr = oc_str8_pushf(scratch.arena, "%hhi", *value->data.ptr);
+                                valStr = oc_str8_pushf(scratch.allocator, "%hhi", *value->data.ptr);
                             }
                             break;
 
@@ -830,7 +830,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                             {
                                 i16 i = 0;
                                 memcpy(&i, value->data.ptr, sizeof(i16));
-                                valStr = oc_str8_pushf(scratch.arena, "%hi", i);
+                                valStr = oc_str8_pushf(scratch.allocator, "%hi", i);
                             }
                             break;
 
@@ -838,7 +838,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                             {
                                 i32 i = 0;
                                 memcpy(&i, value->data.ptr, sizeof(i32));
-                                valStr = oc_str8_pushf(scratch.arena, "%i", i);
+                                valStr = oc_str8_pushf(scratch.allocator, "%i", i);
                             }
                             break;
 
@@ -846,12 +846,12 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                             {
                                 i64 i = 0;
                                 memcpy(&i, value->data.ptr, sizeof(i64));
-                                valStr = oc_str8_pushf(scratch.arena, "%lli", i);
+                                valStr = oc_str8_pushf(scratch.allocator, "%lli", i);
                             }
                             break;
 
                             default:
-                                valStr = oc_str8_pushf(scratch.arena, "unsupported size %llu", strippedType->size);
+                                valStr = oc_str8_pushf(scratch.allocator, "unsupported size %llu", strippedType->size);
                                 break;
                         }
                         oc_ui_label_str8(OC_STR8("value"), valStr);
@@ -865,13 +865,13 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                         {
                             f32 f = 0;
                             memcpy(&f, value->data.ptr, strippedType->size);
-                            valStr = oc_str8_pushf(scratch.arena, "%f", f);
+                            valStr = oc_str8_pushf(scratch.allocator, "%f", f);
                         }
                         else if(strippedType->size == 8)
                         {
                             f64 f = 0;
                             memcpy(&f, value->data.ptr, strippedType->size);
-                            valStr = oc_str8_pushf(scratch.arena, "%f", f);
+                            valStr = oc_str8_pushf(scratch.allocator, "%f", f);
                         }
 
                         oc_ui_label_str8(OC_STR8("value"), valStr);
@@ -883,7 +883,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 u32 addr = 0;
                 memcpy(&addr, value->data.ptr, sizeof(u32));
-                oc_str8 valStr = oc_str8_pushf(scratch.arena, "0x%08x", addr);
+                oc_str8 valStr = oc_str8_pushf(scratch.allocator, "0x%08x", addr);
                 oc_ui_label_str8(OC_STR8("value"), valStr);
             }
         }
@@ -901,7 +901,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
             {
                 oc_list_for_indexed(value->children, it, oc_debugger_value, listElt)
                 {
-                    oc_str8 indexStr = oc_str8_pushf(scratch.arena, "[%llu]", it.index);
+                    oc_str8 indexStr = oc_str8_pushf(scratch.allocator, "[%llu]", it.index);
                     debugger_show_value(indexStr, it.elt, indent + 1, uid, false, interpreter, debugger);
                 }
             }
@@ -923,7 +923,7 @@ void debugger_show_value(oc_str8 name, oc_debugger_value* value, u32 indent, u64
                     }
                     else
                     {
-                        oc_str8 data = oc_str8_push_copy(&debugger->debugArena,
+                        oc_str8 data = oc_str8_push_copy(debugger->debugArena.allocator,
                                                          (oc_str8){
                                                              .ptr = memory->ptr + addr,
                                                              .len = pointeeType->size,
@@ -1113,7 +1113,7 @@ void oc_debugger_symbol_browser(oc_debugger* debugger, oc_wasm_env* env)
 
 void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_box* callstackScrollPanel = oc_ui_box("callstack-scroll-panel")
     {
@@ -1145,8 +1145,8 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
                 u32 functionIndex = func - interpreter->instance->functions;
                 oc_str8 name = wa_module_get_function_name(interpreter->instance->module, functionIndex);
 
-                oc_str8 label = oc_str8_pushf(scratch.arena, "label-%i", frameIndex);
-                oc_str8 text = oc_str8_pushf(scratch.arena, "[%i] %.*s + 0x%08llx", frameIndex, oc_str8_ip(name), addr);
+                oc_str8 label = oc_str8_pushf(scratch.allocator, "label-%i", frameIndex);
+                oc_str8 text = oc_str8_pushf(scratch.allocator, "[%i] %.*s + 0x%08llx", frameIndex, oc_str8_ip(name), addr);
 
                 oc_ui_style_rule(".label.hover")
                 {
@@ -1235,7 +1235,7 @@ void oc_debugger_callstack_ui(oc_debugger* debugger, wa_interpreter* interpreter
 
 void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interpreter, bool fresh)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     wa_func* func = interpreter->controlStack[debugger->selectedFrame].func;
     u32 funcIndex = func - interpreter->instance->functions;
@@ -1262,7 +1262,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             }
         }
         */
-        oc_str8 regId = oc_str8_pushf(scratch.arena, "reg-%llu", regIndex);
+        oc_str8 regId = oc_str8_pushf(scratch.allocator, "reg-%llu", regIndex);
         oc_str8 regText = { 0 };
 
         wa_register_map* map = &interpreter->instance->module->debugInfo->registerMaps[funcIndex][regIndex];
@@ -1282,7 +1282,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
         {
             case WA_TYPE_I32:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu (i32) = %i",
                                         regIndex,
                                         locals[regIndex].valI32);
@@ -1290,7 +1290,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             break;
             case WA_TYPE_I64:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu (i64) = %lli",
                                         regIndex,
                                         locals[regIndex].valI64);
@@ -1298,7 +1298,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             break;
             case WA_TYPE_F32:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu (f32) = %f",
                                         regIndex,
                                         locals[regIndex].valF32);
@@ -1306,7 +1306,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             break;
             case WA_TYPE_F64:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu (f64) = %f",
                                         regIndex,
                                         locals[regIndex].valF64);
@@ -1314,7 +1314,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             break;
             case WA_TYPE_FUNC_REF:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu (funcref) = 0x%016llx",
                                         regIndex,
                                         locals[regIndex].valI64);
@@ -1322,7 +1322,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             break;
             case WA_TYPE_EXTERN_REF:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu (externref) = 0x%016llx",
                                         regIndex,
                                         locals[regIndex].valI64);
@@ -1330,7 +1330,7 @@ void oc_debugger_register_view(oc_debugger* debugger, wa_interpreter* interprete
             break;
             default:
             {
-                regText = oc_str8_pushf(scratch.arena,
+                regText = oc_str8_pushf(scratch.allocator,
                                         "r%llu = 0x%016llx",
                                         regIndex,
                                         locals[regIndex].valI64);
@@ -1405,7 +1405,7 @@ void oc_debugger_code_view_autoscroll(oc_debugger* debugger, oc_debugger_code_ta
 
 void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interpreter, oc_debugger_code_tab* tab)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     f32 scrollToY = 0;
     f32 scrollLineH = 0;
@@ -1462,7 +1462,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
 
                 const wa_instr_info* info = &wa_instr_infos[opcode];
 
-                oc_str8 key = oc_str8_pushf(scratch.arena, "0x%08llx", codeIndex);
+                oc_str8 key = oc_str8_pushf(scratch.allocator, "0x%08llx", codeIndex);
 
                 oc_ui_box_str8(key)
                 {
@@ -1554,51 +1554,51 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                             for(u32 opdIndex = 0; opdIndex < info->opdCount; opdIndex++)
                             {
                                 wa_code* opd = &func->code[codeIndex + opdIndex + 1];
-                                oc_str8 opdKey = oc_str8_pushf(scratch.arena, "opd%u", opdIndex);
+                                oc_str8 opdKey = oc_str8_pushf(scratch.allocator, "opd%u", opdIndex);
 
                                 oc_str8 s = { 0 };
 
                                 switch(info->opd[opdIndex])
                                 {
                                     case WA_OPD_CONST_I32:
-                                        s = oc_str8_pushf(scratch.arena, "%i", opd->valI32);
+                                        s = oc_str8_pushf(scratch.allocator, "%i", opd->valI32);
                                         break;
                                     case WA_OPD_CONST_I64:
-                                        s = oc_str8_pushf(scratch.arena, "%lli", opd->valI64);
+                                        s = oc_str8_pushf(scratch.allocator, "%lli", opd->valI64);
                                         break;
                                     case WA_OPD_CONST_F32:
-                                        s = oc_str8_pushf(scratch.arena, "%f", opd->valF32);
+                                        s = oc_str8_pushf(scratch.allocator, "%f", opd->valF32);
                                         break;
                                     case WA_OPD_CONST_F64:
-                                        s = oc_str8_pushf(scratch.arena, "%f", opd->valF64);
+                                        s = oc_str8_pushf(scratch.allocator, "%f", opd->valF64);
                                         break;
 
                                     case WA_OPD_LOCAL_INDEX:
-                                        s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
+                                        s = oc_str8_pushf(scratch.allocator, "r%u", opd->valU32);
                                         break;
                                     case WA_OPD_GLOBAL_INDEX:
-                                        s = oc_str8_pushf(scratch.arena, "g%u", opd->valU32);
+                                        s = oc_str8_pushf(scratch.allocator, "g%u", opd->valU32);
                                         break;
 
                                     case WA_OPD_FUNC_INDEX:
                                         s = wa_module_get_function_name(interpreter->instance->module, opd->valU32);
                                         if(s.len == 0)
                                         {
-                                            s = oc_str8_pushf(scratch.arena, "%u", opd->valU32);
+                                            s = oc_str8_pushf(scratch.allocator, "%u", opd->valU32);
                                         }
                                         break;
 
                                     case WA_OPD_JUMP_TARGET:
-                                        s = oc_str8_pushf(scratch.arena, "%+lli", opd->valI64);
+                                        s = oc_str8_pushf(scratch.allocator, "%+lli", opd->valI64);
                                         break;
 
                                     case WA_OPD_MEM_ARG:
-                                        s = oc_str8_pushf(scratch.arena, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
+                                        s = oc_str8_pushf(scratch.allocator, "a%u:+%u", opd->memArg.align, opd->memArg.offset);
                                         break;
 
                                     default:
                                         //TODO: defaulting to local index for now, review that after completing wasm tables
-                                        s = oc_str8_pushf(scratch.arena, "r%u", opd->valU32);
+                                        s = oc_str8_pushf(scratch.allocator, "r%u", opd->valU32);
                                         break;
                                 }
 
@@ -1625,7 +1625,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
                             for(u64 i = 0; i < brCount; i++)
                             {
                                 codeIndex++;
-                                oc_str8 s = oc_str8_pushf(scratch.arena, "0x%02llx ", func->code[codeIndex].valI64);
+                                oc_str8 s = oc_str8_pushf(scratch.allocator, "0x%02llx ", func->code[codeIndex].valI64);
                                 oc_ui_label_str8(s, s);
                             }
                         }
@@ -1649,7 +1649,7 @@ void oc_debugger_assembly_view(oc_debugger* debugger, wa_interpreter* interprete
 
 void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter, oc_debugger_code_tab* tab)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     f32 scrollToY = 0;
     f32 scrollLineH = 0;
@@ -1708,7 +1708,7 @@ void oc_debugger_source_view(oc_debugger* debugger, wa_interpreter* interpreter,
             }
             offset++;
 
-            oc_str8 lineNumStr = oc_str8_pushf(scratch.arena, "%i", lineNum);
+            oc_str8 lineNumStr = oc_str8_pushf(scratch.allocator, "%i", lineNum);
             oc_ui_box_str8(lineNumStr)
             {
                 lineH = oc_ui_box_top()->rect.h;
@@ -1855,7 +1855,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
 {
     wa_interpreter* interpreter = env->interpreter;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_ui_set_context(debugger->ui);
     oc_canvas_context_select(debugger->canvas);
@@ -2064,7 +2064,7 @@ void debugger_ui(oc_debugger* debugger, oc_wasm_env* env)
                     {
                         oc_debugger_code_tab* tab = it.elt;
 
-                        oc_str8 idStr = oc_str8_pushf(scratch.arena, "tab-%i", it.index);
+                        oc_str8 idStr = oc_str8_pushf(scratch.allocator, "tab-%i", it.index);
                         oc_str8 name = { 0 };
 
                         if(tab->mode == OC_DEBUGGER_CODE_TAB_ASSEMBLY && tab->selectedFunction >= 0)

@@ -4,7 +4,7 @@
 
 int run_tests(oc_test_info* info)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_test_group(info, "oc_path_slice_directory")
     {
@@ -318,8 +318,8 @@ int run_tests(oc_test_info* info)
     {
         oc_test(info, "/foo/bar/baz.ext")
         {
-            oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("/foo/bar/baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8_list list = oc_path_split(scratch.allocator, OC_STR8("/foo/bar/baz.ext"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -344,8 +344,8 @@ int run_tests(oc_test_info* info)
 
         oc_test(info, "//foo//bar//baz.ext")
         {
-            oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("//foo//bar//baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8_list list = oc_path_split(scratch.allocator, OC_STR8("//foo//bar//baz.ext"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -371,8 +371,8 @@ int run_tests(oc_test_info* info)
 #if OC_PLATFORM_WINDOWS
         oc_test(info, "C:\\foo\\bar\\baz.ext")
         {
-            oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("C:\\foo\\bar\\baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8_list list = oc_path_split(scratch.allocator, OC_STR8("C:\\foo\\bar\\baz.ext"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -397,8 +397,8 @@ int run_tests(oc_test_info* info)
 
         oc_test(info, "C:foo\\bar\\baz.ext")
         {
-            oc_str8_list list = oc_path_split(scratch.arena, OC_STR8("C:foo\\bar\\baz.ext"));
-            oc_str8 elements = oc_str8_list_collate(scratch.arena, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
+            oc_str8_list list = oc_path_split(scratch.allocator, OC_STR8("C:foo\\bar\\baz.ext"));
+            oc_str8 elements = oc_str8_list_collate(scratch.allocator, list, OC_STR8("("), OC_STR8(","), OC_STR8(")"));
 
             if(list.list.count != 4)
             {
@@ -428,12 +428,12 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz.ext)", oc_str8_ip(path));
@@ -443,13 +443,13 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,/,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz.ext)", oc_str8_ip(path));
@@ -459,13 +459,13 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,<empty>,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8(""));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8(""));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz.ext)", oc_str8_ip(path));
@@ -475,13 +475,13 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,bar,baz,/)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz/")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz/)", oc_str8_ip(path));
@@ -491,12 +491,12 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,/bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz.ext)", oc_str8_ip(path));
@@ -506,12 +506,12 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(/,foo,bar/,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar/"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar/"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("/foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar/baz.ext)", oc_str8_ip(path));
@@ -522,12 +522,12 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(C:\\,foo,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("C:\\"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("C:\\"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("C:\\foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected C:\\foo/bar/baz.ext)", oc_str8_ip(path));
@@ -537,12 +537,12 @@ int run_tests(oc_test_info* info)
         oc_test(info, "(C:,foo,bar,baz.ext)")
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("C:"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("foo"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("bar"));
-            oc_str8_list_push(scratch.arena, &list, OC_STR8("baz.ext"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("C:"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("foo"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("bar"));
+            oc_str8_list_push(scratch.allocator, &list, OC_STR8("baz.ext"));
 
-            oc_str8 path = oc_path_join(scratch.arena, list);
+            oc_str8 path = oc_path_join(scratch.allocator, list);
             if(oc_str8_cmp(path, OC_STR8("C:foo/bar/baz.ext")))
             {
                 oc_test_fail(info, "%.*s (expected C:foo/bar/baz.ext)", oc_str8_ip(path));
@@ -555,7 +555,7 @@ int run_tests(oc_test_info* info)
     {
         oc_test(info, "/foo, bar")
         {
-            oc_str8 path = oc_path_append(scratch.arena, OC_STR8("/foo"), OC_STR8("bar"));
+            oc_str8 path = oc_path_append(scratch.allocator, OC_STR8("/foo"), OC_STR8("bar"));
             if(oc_str8_cmp(path, OC_STR8("/foo/bar")))
             {
                 oc_test_fail(info, "%.*s (expected /foo/bar)", oc_str8_ip(path));
@@ -568,7 +568,7 @@ int run_tests(oc_test_info* info)
 #if OC_PLATFORM_MACOS
         oc_test(info, "/usr/bin/../local")
         {
-            oc_str8 path = oc_path_canonical(scratch.arena, OC_STR8("/usr/bin/../local"));
+            oc_str8 path = oc_path_canonical(scratch.allocator, OC_STR8("/usr/bin/../local"));
             if(oc_str8_cmp(path, OC_STR8("/usr/local")))
             {
                 oc_test_fail(info, "%.*s (%llu) (expected /usr/local)",
@@ -579,7 +579,7 @@ int run_tests(oc_test_info* info)
 #elif OC_PLATFORM_WINDOWS
         oc_test(info, "C:\\Program Files\\..\\Users")
         {
-            oc_str8 path = oc_path_canonical(scratch.arena, OC_STR8("C:\\Program Files\\..\\Users"));
+            oc_str8 path = oc_path_canonical(scratch.allocator, OC_STR8("C:\\Program Files\\..\\Users"));
             if(oc_str8_cmp(path, OC_STR8("C:\\Users")))
             {
                 oc_test_fail(info, "%.*s (%llu) (expected C:\\Users)",

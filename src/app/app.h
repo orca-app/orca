@@ -394,12 +394,8 @@ ORCA_API i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user);
 ORCA_API void oc_clipboard_clear(void);
 
 ORCA_API void oc_clipboard_set_string(oc_str8 string);
-ORCA_API oc_str8 oc_clipboard_get_string(oc_arena* arena);
+ORCA_API oc_str8 oc_clipboard_get_string(oc_allocator* arena);
 ORCA_API oc_str8 oc_clipboard_copy_string(oc_str8 backing);
-
-ORCA_API bool oc_clipboard_has_tag(const char* tag);
-ORCA_API void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data);
-ORCA_API oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag);
 
 #endif // !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 
@@ -454,10 +450,10 @@ typedef struct oc_file_dialog_result
 
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
 
-ORCA_API oc_file_dialog_result oc_file_dialog(oc_arena* arena, oc_file_dialog_desc* desc);
+ORCA_API oc_file_dialog_result oc_file_dialog(oc_allocator* allocator, oc_file_dialog_desc* desc);
 
 typedef struct oc_file_table oc_file_table;
-ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table);
+ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator, oc_file_dialog_desc* desc, oc_file_table* table);
 
 ORCA_API int oc_alert_popup(oc_str8 title,
                             oc_str8 message,

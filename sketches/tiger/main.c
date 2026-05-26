@@ -18,9 +18,9 @@
 oc_font create_font()
 {
     //NOTE(martin): create font
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/OpenSansLatinSubset.ttf"));
-    char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
+    oc_scratch scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.allocator, OC_STR8("resources/OpenSansLatinSubset.ttf"));
+    char* fontPathCString = oc_str8_to_cstring(scratch.allocator, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
@@ -102,7 +102,7 @@ int main()
 
     while(!oc_should_quit())
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
 
         oc_pump_events(0);
@@ -238,7 +238,7 @@ int main()
         oc_set_font_size(12);
         oc_move_to(50, 600 - 50);
 
-        oc_str8 text = oc_str8_pushf(scratch.arena,
+        oc_str8 text = oc_str8_pushf(scratch.allocator,
                                      "Orca vector graphics test program (frame time = %fs, fps = %f)...",
                                      frameTime,
                                      1. / frameTime);

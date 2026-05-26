@@ -11,8 +11,8 @@ int oc_tool_install(oc_tool_options* options) { return 0; }
 
 int oc_zip_extract(oc_str8 src, oc_str8 dst)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
-    const char* srcCStr = oc_str8_to_cstring(scratch.arena, src);
+    oc_scratch scratch = oc_scratch_begin();
+    const char* srcCStr = oc_str8_to_cstring(scratch.allocator, src);
 
     zip_t* zip = zip_open(srcCStr, ZIP_RDONLY, 0);
     if(!zip)
@@ -31,9 +31,9 @@ int oc_zip_extract(oc_str8 src, oc_str8 dst)
         else
         {
             oc_str8_list list = { 0 };
-            oc_str8_list_push(scratch.arena, &list, dst);
-            oc_str8_list_push(scratch.arena, &list, name);
-            oc_str8 dstPath = oc_path_join(scratch.arena, list);
+            oc_str8_list_push(scratch.allocator, &list, dst);
+            oc_str8_list_push(scratch.allocator, &list, name);
+            oc_str8 dstPath = oc_path_join(scratch.allocator, list);
 
             if(name.ptr[name.len - 1] == '/')
             {
@@ -105,17 +105,17 @@ error:
 
 //TODO: put in common with runtime code
 #if OC_PLATFORM_MACOS
-oc_str8 get_orca_home_dir(oc_arena* arena)
+oc_str8 get_orca_home_dir(oc_allocator* allocator)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     char* home = getenv("HOME");
 
     oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(".orca"));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(".orca"));
 
-    oc_str8 path = oc_path_join(arena, list);
+    oc_str8 path = oc_path_join(allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -124,17 +124,17 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 
 #elif OC_PLATFORM_WINDOWS
 
-oc_str8 get_orca_home_dir(oc_arena* arena)
+oc_str8 get_orca_home_dir(oc_allocator* allocator)
 {
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
     char* home = getenv("USERPROFILE");
 
     oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(home));
-    oc_str8_list_push(scratch.arena, &list, OC_STR8("AppData/orca"));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8("AppData/orca"));
 
-    oc_str8 path = oc_path_join(arena, list);
+    oc_str8 path = oc_path_join(allocator, list);
 
     oc_scratch_end(scratch);
 
@@ -146,16 +146,16 @@ oc_str8 get_orca_home_dir(oc_arena* arena)
 int oc_tool_run(oc_tool_options* options)
 {
     int status = 0;
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     //TODO: if options->app is a URL, download it here
 #if OC_PLATFORM_WINDOWS
-    oc_str8 runtimeExe = oc_path_executable_relative(scratch.arena, OC_STR8("./orca_runtime.exe"));
+    oc_str8 runtimeExe = oc_path_executable_relative(scratch.allocator, OC_STR8("./orca_runtime.exe"));
 #else
-    oc_str8 runtimeExe = oc_path_executable_relative(scratch.arena, OC_STR8("./orca_runtime"));
+    oc_str8 runtimeExe = oc_path_executable_relative(scratch.allocator, OC_STR8("./orca_runtime"));
 #endif
     //TODO: we don't want to capture ouput from that process...
-    char* appCStr = oc_str8_to_cstring(scratch.arena, options->app);
+    char* appCStr = oc_str8_to_cstring(scratch.allocator, options->app);
     oc_subprocess_spawn_result result = oc_subprocess_spawn(2, (char*[]){ runtimeExe.ptr, appCStr }, 0);
 
     if(!oc_result_check(result))
@@ -195,10 +195,10 @@ typedef struct oc_launcher
 
 int launcher_load_apps(oc_launcher* launcher)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 home = get_orca_home_dir(scratch.arena);
-    oc_str8 appsPath = oc_path_append(scratch.arena, home, OC_STR8("apps"));
+    oc_str8 home = get_orca_home_dir(scratch.allocator);
+    oc_str8 appsPath = oc_path_append(scratch.allocator, home, OC_STR8("apps"));
 
     oc_file appsDir = oc_catch(oc_file_open(appsPath, OC_FILE_ACCESS_READ, 0))
     {
@@ -206,7 +206,7 @@ int launcher_load_apps(oc_launcher* launcher)
         return -1;
     }
 
-    oc_file_list list = oc_file_listdir(scratch.arena, appsDir);
+    oc_file_list list = oc_file_listdir(scratch.allocator, appsDir);
     oc_file_close(appsDir);
 
     oc_file_list_for(list, elt)
@@ -215,7 +215,7 @@ int launcher_load_apps(oc_launcher* launcher)
         if(!oc_str8_cmp(ext, OC_STR8(".orca")))
         {
             oc_launcher_item* item = oc_arena_push_type(&launcher->libraryArena, oc_launcher_item);
-            item->path = oc_path_append(&launcher->libraryArena, appsPath, elt->basename);
+            item->path = oc_path_append(launcher->libraryArena.allocator, appsPath, elt->basename);
             item->name = oc_path_slice_stem(item->path);
 
             //NOTE: load thumbnail
@@ -289,9 +289,9 @@ i32 launcher_create(void* userData)
     oc_canvas_context_select(oc_canvas_context_nil());
 
     // load font
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8("../resources/Menlo.ttf"));
+    oc_str8 fontPath = oc_path_executable_relative(scratch.allocator, OC_STR8("../resources/Menlo.ttf"));
     //TODO: get rid of that soon
     oc_unicode_range ranges[5] = { OC_UNICODE_BASIC_LATIN,
                                    OC_UNICODE_C1_CONTROLS_AND_LATIN_1_SUPPLEMENT,
@@ -362,7 +362,7 @@ size_t curl_write(void* ptr, size_t size, size_t nmemb, void* stream)
 
 void launcher_load_app_from_url(oc_str8 url)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 basename = oc_path_slice_filename(url);
     oc_str8 ext = oc_path_slice_extension(url);
@@ -373,9 +373,9 @@ void launcher_load_app_from_url(oc_str8 url)
         return;
     }
 
-    oc_str8 home = get_orca_home_dir(scratch.arena);
-    oc_str8 transientAppsPath = oc_path_append(scratch.arena, home, OC_STR8("apps/transient"));
-    oc_str8 dstPath = oc_path_append(scratch.arena, transientAppsPath, basename);
+    oc_str8 home = get_orca_home_dir(scratch.allocator);
+    oc_str8 transientAppsPath = oc_path_append(scratch.allocator, home, OC_STR8("apps/transient"));
+    oc_str8 dstPath = oc_path_append(scratch.allocator, transientAppsPath, basename);
 
     oc_io_error error = oc_file_makedir(transientAppsPath,
                                         &(oc_file_makedir_options){
@@ -401,7 +401,7 @@ void launcher_load_app_from_url(oc_str8 url)
 
     curl_global_init(CURL_GLOBAL_ALL);
     CURL* curl = curl_easy_init();
-    const char* urlCString = oc_str8_to_cstring(scratch.arena, url);
+    const char* urlCString = oc_str8_to_cstring(scratch.allocator, url);
     curl_easy_setopt(curl, CURLOPT_URL, urlCString);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curl_write);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &dst);
@@ -424,7 +424,7 @@ i32 launcher_runloop(void* data)
 
     while(!quit)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
         {
@@ -529,7 +529,7 @@ i32 launcher_runloop(void* data)
                     f32 thumbnailSpacing = (containerSize.x - maxThumbnailsPerRow * APP_THUMBNAIL_SIZE) / (maxThumbnailsPerRow + 1);
 
                     oc_vec2 pos = { thumbnailSpacing, 0 };
-                    oc_arena_scope scratch = oc_scratch_begin();
+                    oc_scratch scratch = oc_scratch_begin();
                     int colIndex = 0;
 
                     oc_list_for_indexed(launcher.items, it, oc_launcher_item, listElt)
@@ -543,7 +543,7 @@ i32 launcher_runloop(void* data)
                             pos.y += APP_THUMBNAIL_SIZE + 30;
                         }
 
-                        oc_str8 idStr = oc_str8_pushf(scratch.arena, "item-%i", it.index);
+                        oc_str8 idStr = oc_str8_pushf(scratch.allocator, "item-%i", it.index);
                         oc_ui_box_str8(idStr)
                         {
                             oc_ui_style_set_i32(OC_UI_POSITION, OC_UI_POSITION_PARENT);
@@ -632,7 +632,7 @@ i32 launcher_runloop(void* data)
 
 int main(int argc, char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_tool_options options = { 0 };
     oc_arg_parser parser = { 0 };

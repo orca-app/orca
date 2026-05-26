@@ -32,7 +32,7 @@ void wa_parse_error(wa_parser* parser, const char* fmt, ...)
 
     va_list ap;
     va_start(ap, fmt);
-    error->string = oc_str8_pushfv(parser->arena, fmt, ap);
+    error->string = oc_str8_pushfv(parser->arena->allocator, fmt, ap);
     va_end(ap);
 
     oc_list_push_back(&parser->module->errors, &error->listElt);
@@ -44,7 +44,7 @@ void wa_parse_error_str8(wa_parser* parser, oc_str8 message)
 
     error->loc = wa_reader_absolute_loc(&parser->reader);
     error->status = WA_PARSE_ERROR;
-    error->string = oc_str8_push_copy(parser->arena, message);
+    error->string = oc_str8_push_copy(parser->arena->allocator, message);
     oc_list_push_back(&parser->module->errors, &error->listElt);
 }
 
@@ -1385,7 +1385,7 @@ void wa_parse_code(wa_parser* parser, wa_module* module)
     {
         wa_func* func = &module->functions[funcIndex];
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         u32 funcLen = wa_read_leb128_u32(&parser->reader);
         u32 funcStartOffset = wa_reader_offset(&parser->reader);

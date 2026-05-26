@@ -279,18 +279,18 @@ oc_str8 oc_utf8_from_codepoints(u64 maxBytes, char* backing, oc_str32 codePoints
     return (res);
 }
 
-oc_str32 oc_utf8_push_to_codepoints(oc_arena* arena, oc_str8 string)
+oc_str32 oc_utf8_push_to_codepoints(oc_allocator* allocator, oc_str8 string)
 {
     u64 count = oc_utf8_codepoint_count_for_string(string);
-    oc_utf32* backing = oc_arena_push_array(arena, oc_utf32, count);
+    oc_utf32* backing = oc_allocator_push_array(allocator, oc_utf32, count);
     oc_str32 res = oc_utf8_to_codepoints(count, backing, string);
     return (res);
 }
 
-oc_str8 oc_utf8_push_from_codepoints(oc_arena* arena, oc_str32 codePoints)
+oc_str8 oc_utf8_push_from_codepoints(oc_allocator* allocator, oc_str32 codePoints)
 {
     u64 count = oc_utf8_byte_count_for_codepoints(codePoints);
-    char* backing = oc_arena_push_array(arena, char, count);
+    char* backing = oc_allocator_push_array(allocator, char, count);
     oc_str8 res = oc_utf8_from_codepoints(count, backing, codePoints);
     return (res);
 }

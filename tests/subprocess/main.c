@@ -46,7 +46,7 @@ int run_tests(test_subprocess_options* options)
     {
         oc_test(&info, "pass arguments")
         {
-            const char* args[] = {
+            char* args[] = {
                 options->exec.ptr,
                 "child",
                 "add",
@@ -84,7 +84,7 @@ int run_tests(test_subprocess_options* options)
 
         oc_test(&info, "read")
         {
-            const char* args[] = {
+            char* args[] = {
                 options->exec.ptr,
                 "child",
                 "print_test"
@@ -100,9 +100,9 @@ int run_tests(test_subprocess_options* options)
             }
             else
             {
-                oc_arena_scope scratch = oc_scratch_begin();
+                oc_scratch scratch = oc_scratch_begin();
 
-                oc_subprocess_completion comp = oc_catch(oc_subprocess_read_and_wait(scratch.arena, subprocess))
+                oc_subprocess_completion comp = oc_catch(oc_subprocess_read_and_wait(scratch.allocator, subprocess))
                 {
                     oc_test_fail(&info,
                                  "oc_subprocess_read_and_wait() error: %.*s",
@@ -152,9 +152,9 @@ int run_tests(test_subprocess_options* options)
             }
             else
             {
-                oc_arena_scope scratch = oc_scratch_begin();
+                oc_scratch scratch = oc_scratch_begin();
 
-                oc_subprocess_completion comp = oc_catch(oc_subprocess_read_and_wait(scratch.arena, subprocess))
+                oc_subprocess_completion comp = oc_catch(oc_subprocess_read_and_wait(scratch.allocator, subprocess))
                 {
                     oc_test_fail(&info,
                                  "oc_subprocess_read_and_wait() error: %.*s",
@@ -217,7 +217,7 @@ int run_tests(test_subprocess_options* options)
 
         oc_test(&info, "read")
         {
-            oc_arena_scope scratch = oc_scratch_begin();
+            oc_scratch scratch = oc_scratch_begin();
 
             const char* args[] = {
                 options->exec.ptr,
@@ -226,7 +226,7 @@ int run_tests(test_subprocess_options* options)
             };
 
             oc_subprocess_run_options runOptions = {
-                .captureArena = scratch.arena,
+                .captureAllocator = scratch.allocator,
                 .stdOut = OC_SUBPROCESS_STDIO_PIPE,
             };
 
@@ -265,7 +265,7 @@ int run_tests(test_subprocess_options* options)
 
 int main(int argc, char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     test_subprocess_options options = {
         .exec = OC_STR8(argv[0]),
@@ -273,7 +273,7 @@ int main(int argc, char** argv)
 
     oc_arg_parser parser = { 0 };
     oc_arg_parser_init(&parser,
-                       scratch.arena,
+                       scratch.allocator,
                        OC_STR8("test_subprocess"),
                        &(oc_arg_parser_options){
                            .desc = OC_STR8("Tests for Orca subprocess API."),

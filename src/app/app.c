@@ -172,7 +172,7 @@ oc_event* oc_next_event(oc_arena* arena)
                 char* buffer = oc_arena_push_array(arena, char, len);
                 oc_ringbuffer_read(queue, len, (u8*)buffer);
 
-                oc_str8_list_push(arena, &event->paths, oc_str8_from_buffer(len, buffer));
+                oc_str8_list_push(arena->allocator, &event->paths, oc_str8_from_buffer(len, buffer));
             }
         }
     }
@@ -236,7 +236,7 @@ void oc_window_set_frame_size(oc_window window, oc_vec2 size)
 // dialogs
 //---------------------------------------------------------------
 
-oc_file_dialog_result oc_file_dialog(oc_arena* arena, oc_file_dialog_desc* desc)
+oc_file_dialog_result oc_file_dialog(oc_allocator* allocator, oc_file_dialog_desc* desc)
 {
-    return (oc_file_dialog_for_table(arena, desc, oc_file_table_get_global()));
+    return (oc_file_dialog_for_table(allocator, desc, oc_file_table_get_global()));
 }

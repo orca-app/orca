@@ -37,7 +37,7 @@ void test_write(oc_test_info* info, oc_arena* arena)
             }
             else
             {
-                char* pathCStr = oc_str8_to_cstring(arena, path);
+                char* pathCStr = oc_str8_to_cstring(arena->allocator, path);
                 FILE* file = fopen(pathCStr, "r");
                 if(!file)
                 {
@@ -1482,7 +1482,7 @@ oc_str8 parseTestDir(int argc, const char** argv, oc_arena* arena)
 
 int main(int argc, const char** argv)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     TEST_DIR = parseTestDir(argc, argv, scratch.arena);
 

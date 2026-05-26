@@ -53,12 +53,12 @@ int add_to_archive(zip_t* zip, oc_str8 srcPath, oc_str8 dstPath)
             return -1;
         }
 
-        oc_arena_scope scratch = oc_scratch_begin();
-        oc_file_list files = oc_file_listdir(scratch.arena, srcFile);
+        oc_scratch scratch = oc_scratch_begin();
+        oc_file_list files = oc_file_listdir(scratch.allocator, srcFile);
         oc_file_list_for(files, elt)
         {
-            oc_str8 fileSrcPath = oc_path_append(scratch.arena, srcPath, elt->basename);
-            oc_str8 fileDstPath = oc_path_append(scratch.arena, dstPath, elt->basename);
+            oc_str8 fileSrcPath = oc_path_append(scratch.allocator, srcPath, elt->basename);
+            oc_str8 fileDstPath = oc_path_append(scratch.allocator, dstPath, elt->basename);
             if(add_to_archive(zip, fileSrcPath, fileDstPath))
             {
                 return -1;
@@ -103,8 +103,8 @@ int oc_tool_bundle_copy(oc_str8 src, oc_str8 dest)
 int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage)
 {
     //NOTE: bundle the app image into a windows app dir
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 appPath = oc_str8_pushf(scratch.arena,
+    oc_scratch scratch = oc_scratch_begin();
+    oc_str8 appPath = oc_str8_pushf(scratch.allocator,
                                     "%.*s/%.*s",
                                     oc_str8_ip(options->outDir),
                                     oc_str8_ip(options->name));
@@ -116,8 +116,8 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
         return -1;
     }
 
-    oc_str8 binPath = oc_path_append(scratch.arena, appPath, OC_STR8("bin"));
-    oc_str8 resPath = oc_path_append(scratch.arena, appPath, OC_STR8("resources"));
+    oc_str8 binPath = oc_path_append(scratch.allocator, appPath, OC_STR8("bin"));
+    oc_str8 resPath = oc_path_append(scratch.allocator, appPath, OC_STR8("resources"));
 
     error = oc_file_makedir(binPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     if(error)
@@ -139,21 +139,21 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
 
     //NOTE: copy binaries to bin dir
     int status = 0;
-    oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
-    oc_str8 dstRuntimeName = oc_str8_pushf(scratch.arena, "%.*s.exe", oc_str8_ip(options->name));
-    oc_str8 dstRuntimePath = oc_path_append(scratch.arena, binPath, dstRuntimeName);
+    oc_str8 srcBin = oc_path_executable_relative(scratch.allocator, OC_STR8("."));
+    oc_str8 dstRuntimeName = oc_str8_pushf(scratch.allocator, "%.*s.exe", oc_str8_ip(options->name));
+    oc_str8 dstRuntimePath = oc_path_append(scratch.allocator, binPath, dstRuntimeName);
 
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime.exe")), dstRuntimePath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_platform.dll")), binPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dll")), binPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dll")), binPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("webgpu.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("orca_runtime.exe")), dstRuntimePath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("orca_platform.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("libEGL.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("libGLESv2.dll")), binPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("webgpu.dll")), binPath);
 
     //NOTE: copy resources
-    oc_str8 srcRes = oc_path_executable_relative(scratch.arena, OC_STR8("../resources"));
+    oc_str8 srcRes = oc_path_executable_relative(scratch.allocator, OC_STR8("../resources"));
 
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcRes, OC_STR8("Menlo.ttf")), resPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
 
     //NOTE: copy app image
     status |= oc_tool_bundle_copy(appImage, resPath);
@@ -166,7 +166,7 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
     //NOTE: set executable icon
     if(options->icon.len)
     {
-        oc_str8 tmpDir = oc_path_append(scratch.arena, appPath, OC_STR8("tmp"));
+        oc_str8 tmpDir = oc_path_append(scratch.allocator, appPath, OC_STR8("tmp"));
 
         oc_io_error error = oc_file_remove(tmpDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
         if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
@@ -186,7 +186,7 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
             return -1;
         }
 
-        oc_str8 icoPath = oc_path_append(scratch.arena, tmpDir, OC_STR8("icon.ico"));
+        oc_str8 icoPath = oc_path_append(scratch.allocator, tmpDir, OC_STR8("icon.ico"));
         if(!icon_from_image(scratch.arena, options->icon, icoPath))
         {
             oc_log_error("failed to create windows icon for \"%.*s\"\n", oc_str8_ip(options->icon));
@@ -221,8 +221,8 @@ int oc_tool_bundle_standalone_windows(oc_tool_options* options, oc_str8 appImage
 int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 {
     //NOTE: bundle the app image into a macos bundle
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 bundlePath = oc_str8_pushf(scratch.arena,
+    oc_scratch scratch = oc_scratch_begin();
+    oc_str8 bundlePath = oc_str8_pushf(scratch.allocator,
                                        "%.*s/%.*s.app",
                                        oc_str8_ip(options->outDir),
                                        oc_str8_ip(options->name));
@@ -234,9 +234,9 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
         return -1;
     }
 
-    oc_str8 contentsPath = oc_path_append(scratch.arena, bundlePath, OC_STR8("Contents"));
-    oc_str8 macosPath = oc_path_append(scratch.arena, contentsPath, OC_STR8("macOS/"));
-    oc_str8 resPath = oc_path_append(scratch.arena, contentsPath, OC_STR8("resources/"));
+    oc_str8 contentsPath = oc_path_append(scratch.allocator, bundlePath, OC_STR8("Contents"));
+    oc_str8 macosPath = oc_path_append(scratch.allocator, contentsPath, OC_STR8("macOS/"));
+    oc_str8 resPath = oc_path_append(scratch.allocator, contentsPath, OC_STR8("resources/"));
 
     error = oc_file_makedir(macosPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     if(error)
@@ -257,19 +257,19 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 
     //NOTE: copy binaries to macOS dir
     int status = 0;
-    oc_str8 srcBin = oc_path_executable_relative(scratch.arena, OC_STR8("."));
+    oc_str8 srcBin = oc_path_executable_relative(scratch.allocator, OC_STR8("."));
 
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("orca_runtime")), macosPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("liborca_platform.dylib")), macosPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libEGL.dylib")), macosPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libGLESv2.dylib")), macosPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcBin, OC_STR8("libwebgpu.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("orca_runtime")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("liborca_platform.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("libEGL.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("libGLESv2.dylib")), macosPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcBin, OC_STR8("libwebgpu.dylib")), macosPath);
 
     //NOTE: copy resources
-    oc_str8 srcRes = oc_path_executable_relative(scratch.arena, OC_STR8("../resources"));
+    oc_str8 srcRes = oc_path_executable_relative(scratch.allocator, OC_STR8("../resources"));
 
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo.ttf")), resPath);
-    status |= oc_tool_bundle_copy(oc_path_append(scratch.arena, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcRes, OC_STR8("Menlo.ttf")), resPath);
+    status |= oc_tool_bundle_copy(oc_path_append(scratch.allocator, srcRes, OC_STR8("Menlo Bold.ttf")), resPath);
 
     //NOTE: copy app image
     status |= oc_tool_bundle_copy(appImage, resPath);
@@ -285,7 +285,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     if(options->icon.len)
     {
         oc_str8 icon_dir = oc_path_slice_directory(options->icon);
-        oc_str8 iconset = oc_path_append(scratch.arena, icon_dir, OC_STR8("icon.iconset"));
+        oc_str8 iconset = oc_path_append(scratch.allocator, icon_dir, OC_STR8("icon.iconset"));
 
         oc_io_error error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
         if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
@@ -305,8 +305,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
         i32 size = 16;
         for(i32 i = 0; i < 7; ++i)
         {
-            oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d.png", size, size));
-            oc_str8 cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 sized_icon = oc_path_append(scratch.allocator, iconset, oc_str8_pushf(scratch.allocator, "icon_%dx%d.png", size, size));
+            oc_str8 cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                         size, size, oc_str8_ip(options->icon), sized_icon.ptr);
             i32 result = system(cmd.ptr);
             if(result)
@@ -316,8 +316,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             }
 
             i32 retina_size = size * 2;
-            oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d@2x.png", size, size));
-            cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 retina_icon = oc_path_append(scratch.allocator, iconset, oc_str8_pushf(scratch.allocator, "icon_%dx%d@2x.png", size, size));
+            cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                 retina_size, retina_size, oc_str8_ip(options->icon), sized_icon.ptr);
             result = system(cmd.ptr);
             if(result)
@@ -329,8 +329,8 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
             size *= 2;
         }
 
-        oc_str8 icon_out = oc_path_append(scratch.arena, resPath, OC_STR8("icon.icns"));
-        oc_str8 cmd = oc_str8_pushf(scratch.arena, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
+        oc_str8 icon_out = oc_path_append(scratch.allocator, resPath, OC_STR8("icon.icns"));
+        oc_str8 cmd = oc_str8_pushf(scratch.allocator, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
         i32 result = system(cmd.ptr);
         if(result)
         {
@@ -351,7 +351,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
     //-----------------------------------------------------------
     oc_str8 bundle_sig = OC_STR8("????");
 
-    oc_str8 plist_contents = oc_str8_pushf(scratch.arena,
+    oc_str8 plist_contents = oc_str8_pushf(scratch.allocator,
                                            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                                            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
                                            "<plist version=\"1.0\">"
@@ -382,7 +382,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
                                            oc_str8_ip(options->appVersion),
                                            oc_str8_ip(bundle_sig));
 
-    oc_str8 plist_path = oc_path_append(scratch.arena, contentsPath, OC_STR8("Info.plist"));
+    oc_str8 plist_path = oc_path_append(scratch.allocator, contentsPath, OC_STR8("Info.plist"));
     oc_file plist_file = oc_catch(oc_file_open(plist_path,
                                                OC_FILE_ACCESS_WRITE,
                                                &(oc_file_open_options){
@@ -415,7 +415,7 @@ int oc_tool_bundle_standalone_macos(oc_tool_options* options, oc_str8 appImage)
 int oc_tool_bundle(oc_tool_options* options)
 {
     //NOTE: bundle orca app file
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 tmpPath = { 0 };
     {
@@ -430,17 +430,17 @@ int oc_tool_bundle(oc_tool_options* options)
             oc_log_error("Couldn't create tmp directory.\n");
             return -1;
         }
-        oc_str8 tmpName = oc_catch(oc_file_name(scratch.arena, tmpDir))
+        oc_str8 tmpName = oc_catch(oc_file_name(scratch.allocator, tmpDir))
         {
             oc_log_error("Couldn't get name of tmp directory.\n");
             return -1;
         }
-        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.arena);
-        tmpPath = oc_path_append(scratch.arena, tmpFilesPath, tmpName);
+        oc_str8 tmpFilesPath = oc_file_tmp_directory_path(scratch.allocator);
+        tmpPath = oc_path_append(scratch.allocator, tmpFilesPath, tmpName);
         oc_file_close(tmpDir);
     }
 
-    oc_str8 modPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("modules/"));
+    oc_str8 modPath = oc_path_append(scratch.allocator, tmpPath, OC_STR8("modules/"));
     oc_io_error error = oc_file_makedir(modPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     if(error != OC_IO_OK)
     {
@@ -448,7 +448,7 @@ int oc_tool_bundle(oc_tool_options* options)
                      oc_str8_ip(oc_io_error_string(error)));
     }
 
-    oc_str8 resPath = oc_path_append(scratch.arena, tmpPath, OC_STR8("data/"));
+    oc_str8 resPath = oc_path_append(scratch.allocator, tmpPath, OC_STR8("data/"));
     error = oc_file_makedir(resPath, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
     if(error != OC_IO_OK)
     {
@@ -485,7 +485,7 @@ int oc_tool_bundle(oc_tool_options* options)
         oc_str8 dir = options->resDirs[i];
         if(dir.len && dir.ptr[dir.len - 1] != '/')
         {
-            dir = oc_str8_pushf(scratch.arena, "%.*s/", oc_str8_ip(dir));
+            dir = oc_str8_pushf(scratch.allocator, "%.*s/", oc_str8_ip(dir));
         }
         error = oc_file_copy(dir, resPath, 0);
         if(error != OC_IO_OK)
@@ -511,8 +511,8 @@ int oc_tool_bundle(oc_tool_options* options)
     if(options->icon.len)
     {
         oc_str8 ext = oc_path_slice_extension(options->icon);
-        oc_str8 name = oc_str8_pushf(scratch.arena, "thumbnail%.*s", oc_str8_ip(ext));
-        oc_str8 path = oc_path_append(scratch.arena, resPath, name);
+        oc_str8 name = oc_str8_pushf(scratch.allocator, "thumbnail%.*s", oc_str8_ip(ext));
+        oc_str8 path = oc_path_append(scratch.allocator, resPath, name);
         error = oc_file_copy(options->icon, path, 0);
 
         if(error != OC_IO_OK)
@@ -526,7 +526,7 @@ int oc_tool_bundle(oc_tool_options* options)
     //NOTE: zip folder to out directory
     int status = 0;
     oc_str8 outDir = options->standalone ? tmpPath : options->outDir;
-    oc_str8 outFile = oc_str8_pushf(scratch.arena,
+    oc_str8 outFile = oc_str8_pushf(scratch.allocator,
                                     "%.*s/%.*s.orca",
                                     oc_str8_ip(outDir),
                                     oc_str8_ip(options->name),
@@ -566,9 +566,9 @@ int oc_tool_bundle(oc_tool_options* options)
 
 int oc_tool_sdk_path(oc_tool_options* options)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 sdkPath = oc_path_executable_relative(scratch.arena, OC_STR8("../SDK"));
+    oc_str8 sdkPath = oc_path_executable_relative(scratch.allocator, OC_STR8("../SDK"));
     printf("%.*s\n", oc_str8_ip(sdkPath));
 
     oc_scratch_end(scratch);

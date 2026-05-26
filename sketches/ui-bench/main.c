@@ -66,7 +66,7 @@ i32 ui_runloop(void* user)
 
     while(!oc_should_quit())
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_event* event = 0;
         while((event = oc_next_event(scratch.arena)) != 0)
@@ -279,12 +279,12 @@ int main()
     renderer = oc_canvas_renderer_create();
     surface = oc_canvas_surface_create_for_window(renderer, window);
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_font* fonts[2] = { &fontRegular, &fontBold };
     oc_str8 fontNames[2] = {
-        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Regular.ttf")),
-        oc_path_executable_relative(scratch.arena, OC_STR8("../OpenSans-Bold.ttf"))
+        oc_path_executable_relative(scratch.allocator, OC_STR8("../OpenSans-Regular.ttf")),
+        oc_path_executable_relative(scratch.allocator, OC_STR8("../OpenSans-Bold.ttf"))
     };
 
     for(int i = 0; i < 2; i++)

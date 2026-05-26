@@ -113,7 +113,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
             close(fd);
         }
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         char** terminatedArgv = oc_arena_push_array(scratch.arena, char*, argc + 1);
         memcpy(terminatedArgv, argv, argc * sizeof(char*));
 
@@ -173,7 +173,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
 
 typedef oc_result_type(oc_str8, oc_subprocess_error) oc_subprocess_read_result;
 
-oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess subprocess)
+oc_subprocess_result oc_subprocess_read_and_wait(oc_allocator* allocator, oc_subprocess subprocess)
 {
     oc_subprocess_result result = { 0 };
     oc_subprocess_completion completion = { 0 };
@@ -183,7 +183,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
     // write call.
 
     {
-        oc_arena_scope scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
+        oc_scratch scratch = allocator ? oc_scratch_begin_next_allocator(allocator) : oc_scratch_begin();
 
         oc_str8_list outList = { 0 };
         oc_str8_list errList = { 0 };
@@ -212,7 +212,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nOut)
                 {
-                    oc_str8_list_push(scratch.arena, &outList, oc_str8_from_buffer(nOut, chunk));
+                    oc_str8_list_push(scratch.allocator, &outList, oc_str8_from_buffer(nOut, chunk));
                 }
             }
 
@@ -228,7 +228,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nErr)
                 {
-                    oc_str8_list_push(scratch.arena, &errList, oc_str8_from_buffer(nErr, chunk));
+                    oc_str8_list_push(scratch.allocator, &errList, oc_str8_from_buffer(nErr, chunk));
                 }
             }
 
@@ -246,10 +246,10 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
         }
         else
         {
-            if(arena)
+            if(allocator)
             {
-                completion.capturedStdout = oc_str8_list_join(arena, outList);
-                completion.capturedStderr = oc_str8_list_join(arena, errList);
+                completion.capturedStdout = oc_str8_list_join(allocator, outList);
+                completion.capturedStderr = oc_str8_list_join(allocator, errList);
             }
         }
         oc_scratch_end(scratch);

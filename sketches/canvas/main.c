@@ -55,7 +55,7 @@ int main()
     while(!oc_should_quit())
     {
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;

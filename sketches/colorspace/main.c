@@ -34,12 +34,12 @@ int main()
         return (-1);
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 dalaiPath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/gamma_dalai_lama_gray.png"));
+    oc_str8 dalaiPath = oc_path_executable_relative(scratch.allocator, OC_STR8("resources/gamma_dalai_lama_gray.png"));
     oc_image dalai = oc_image_create_from_path(renderer, dalaiPath, false);
 
-    oc_str8 offensivePath = oc_path_executable_relative(scratch.arena, OC_STR8("resources/gamma-1.0-or-2.2.png"));
+    oc_str8 offensivePath = oc_path_executable_relative(scratch.allocator, OC_STR8("resources/gamma-1.0-or-2.2.png"));
     oc_image offensive = oc_image_create_from_path(renderer, offensivePath, false);
 
     oc_wgpu_canvas_debug_set_record_options(renderer,
@@ -74,7 +74,7 @@ int main()
     while(!oc_should_quit())
     {
         f64 startTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;

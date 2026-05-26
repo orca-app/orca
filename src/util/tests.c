@@ -91,11 +91,11 @@ void oc_test_mark_fmt(oc_test_info* info, oc_test_status status, const char* fmt
 
         printf(" %.*s", oc_str8_ip(info->testName));
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         va_list ap;
         va_start(ap, fmt);
-        oc_str8 note = oc_str8_pushfv(scratch.arena, fmt, ap);
+        oc_str8 note = oc_str8_pushfv(scratch.allocator, fmt, ap);
         va_end(ap);
 
         if(note.len)

@@ -180,11 +180,11 @@ u64 oc_file_size(oc_file file)
     return (status.size);
 }
 
-oc_file_name_result oc_file_name(oc_arena* arena, oc_file file)
+oc_file_name_result oc_file_name(oc_allocator* allocator, oc_file file)
 {
     oc_file_name_result result = { 0 };
 
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
     u64 size = 4096;
     char* buffer = oc_arena_push_array_uninitialized(scratch.arena, char, size);
     oc_io_req req = {
@@ -201,7 +201,7 @@ oc_file_name_result oc_file_name(oc_arena* arena, oc_file file)
     }
     else
     {
-        oc_str8 string = oc_str8_push_copy(arena, oc_str8_from_buffer(cmp.size, req.buffer));
+        oc_str8 string = oc_str8_push_copy(allocator, oc_str8_from_buffer(cmp.size, req.buffer));
         result = oc_result_value(oc_file_name_result, string);
     }
 
@@ -262,11 +262,11 @@ oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
     oc_file_status status = oc_file_get_status(file);
     if(status.type == OC_FILE_DIRECTORY)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
-        oc_file_list list = oc_file_listdir(scratch.arena, file);
+        oc_scratch scratch = oc_scratch_begin();
+        oc_file_list list = oc_file_listdir(scratch.allocator, file);
         oc_file_list_for(list, elt)
         {
-            oc_str8 childPath = oc_path_append(scratch.arena, path, elt->basename);
+            oc_str8 childPath = oc_path_append(scratch.allocator, path, elt->basename);
             error = oc_file_remove_recursive(root, childPath);
             if(error)
             {
@@ -327,7 +327,7 @@ oc_io_error oc_file_copy_recursive(oc_str8 srcPath, oc_str8 dstPath, oc_file_cop
 
     if(srcStatus.type == OC_FILE_DIRECTORY)
     {
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         //NOTE: if src is a directory, we create dst as a directory if it doesn't exist,
         // and copy src/* into dst/*
@@ -343,13 +343,13 @@ oc_io_error oc_file_copy_recursive(oc_str8 srcPath, oc_str8 dstPath, oc_file_cop
             return error;
         }
 
-        oc_file_list files = oc_file_listdir(scratch.arena, src);
+        oc_file_list files = oc_file_listdir(scratch.allocator, src);
         oc_file_close(src);
 
         oc_file_list_for(files, file)
         {
-            oc_str8 srcChild = oc_path_append(scratch.arena, srcPath, file->basename);
-            oc_str8 dstChild = oc_path_append(scratch.arena, dstPath, file->basename);
+            oc_str8 srcChild = oc_path_append(scratch.allocator, srcPath, file->basename);
+            oc_str8 dstChild = oc_path_append(scratch.allocator, dstPath, file->basename);
             error = oc_file_copy_recursive(srcChild, dstChild, options);
             if(error != OC_IO_OK)
             {

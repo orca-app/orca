@@ -3,13 +3,13 @@
 
 void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_file srcDir = oc_catch(oc_file_open(src, OC_FILE_ACCESS_READ, 0))
     {
         oc_log_error("couldn't open directory %.*s", oc_str8_ip(src));
     }
-    oc_file_list files = oc_file_listdir(scratch.arena, srcDir);
+    oc_file_list files = oc_file_listdir(scratch.allocator, srcDir);
     oc_file_close(srcDir);
 
     oc_file_list_for(files, elt)
@@ -17,16 +17,16 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
         oc_str8 ext = oc_path_slice_extension(elt->basename);
         if(elt->type == OC_FILE_REGULAR && !oc_str8_cmp(ext, OC_STR8(".h")))
         {
-            oc_str8 srcFile = oc_path_append(scratch.arena, src, elt->basename);
-            oc_str8 dstFile = oc_path_append(scratch.arena, dst, elt->basename);
+            oc_str8 srcFile = oc_path_append(scratch.allocator, src, elt->basename);
+            oc_str8 dstFile = oc_path_append(scratch.allocator, dst, elt->basename);
 
             oc_file_makedir(dst, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
             oc_file_copy(srcFile, dstFile, 0);
         }
         else if(elt->type == OC_FILE_DIRECTORY)
         {
-            oc_str8 srcDir = oc_path_append(scratch.arena, src, elt->basename);
-            oc_str8 dstDir = oc_path_append(scratch.arena, dst, elt->basename);
+            oc_str8 srcDir = oc_path_append(scratch.allocator, src, elt->basename);
+            oc_str8 dstDir = oc_path_append(scratch.allocator, dst, elt->basename);
 
             bool skip = false;
             oc_str8_list_for(ignore, ignoreElt)
@@ -51,7 +51,7 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
 
 int make_app_macos(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 name = OC_STR8("Orca");
     oc_str8 exec = OC_STR8("orca");
@@ -63,18 +63,18 @@ int make_app_macos(void)
     //NOTE: make bundle directory structure
     //-----------------------------------------------------------
     oc_str8_list list = { 0 };
-    oc_str8_list_push(scratch.arena, &list, name);
-    oc_str8_list_push(scratch.arena, &list, OC_STR8(".app"));
-    name = oc_str8_list_join(scratch.arena, list);
+    oc_str8_list_push(scratch.allocator, &list, name);
+    oc_str8_list_push(scratch.allocator, &list, OC_STR8(".app"));
+    name = oc_str8_list_join(scratch.allocator, list);
 
-    oc_str8 bundleDir = oc_path_append(scratch.arena, outDir, name);
-    oc_str8 contentsDir = oc_path_append(scratch.arena, bundleDir, OC_STR8("Contents"));
-    oc_str8 exeDir = oc_path_append(scratch.arena, contentsDir, OC_STR8("MacOS"));
-    oc_str8 resDir = oc_path_append(scratch.arena, contentsDir, OC_STR8("resources"));
-    oc_str8 sdkDir = oc_path_append(scratch.arena, contentsDir, OC_STR8("SDK"));
-    oc_str8 sdkSrcDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("src"));
-    oc_str8 sdkLibCDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("orca-libc"));
-    oc_str8 sdkLibDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("lib"));
+    oc_str8 bundleDir = oc_path_append(scratch.allocator, outDir, name);
+    oc_str8 contentsDir = oc_path_append(scratch.allocator, bundleDir, OC_STR8("Contents"));
+    oc_str8 exeDir = oc_path_append(scratch.allocator, contentsDir, OC_STR8("MacOS"));
+    oc_str8 resDir = oc_path_append(scratch.allocator, contentsDir, OC_STR8("resources"));
+    oc_str8 sdkDir = oc_path_append(scratch.allocator, contentsDir, OC_STR8("SDK"));
+    oc_str8 sdkSrcDir = oc_path_append(scratch.allocator, sdkDir, OC_STR8("src"));
+    oc_str8 sdkLibCDir = oc_path_append(scratch.allocator, sdkDir, OC_STR8("orca-libc"));
+    oc_str8 sdkLibDir = oc_path_append(scratch.allocator, sdkDir, OC_STR8("lib"));
 
     oc_io_error error = oc_file_remove(bundleDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
     if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
@@ -109,30 +109,30 @@ int make_app_macos(void)
     //-----------------------------------------------------------
     oc_str8_list ignore = { 0 };
 
-    copy_headers(OC_STR8("./src/app"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("app")), ignore);
-    copy_headers(OC_STR8("./src/graphics"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("graphics")), ignore);
-    copy_headers(OC_STR8("./src/platform"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("platform")), ignore);
-    copy_headers(OC_STR8("./src/ui"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ui")), ignore);
-    copy_headers(OC_STR8("./src/util"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("util")), ignore);
+    copy_headers(OC_STR8("./src/app"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("app")), ignore);
+    copy_headers(OC_STR8("./src/graphics"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("graphics")), ignore);
+    copy_headers(OC_STR8("./src/platform"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("platform")), ignore);
+    copy_headers(OC_STR8("./src/ui"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ui")), ignore);
+    copy_headers(OC_STR8("./src/util"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("util")), ignore);
 
-    copy_headers(OC_STR8("./src/ext/angle"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/angle")), ignore);
-    copy_headers(OC_STR8("./src/ext/dawn"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/dawn")), ignore);
-    copy_headers(OC_STR8("./src/ext/GL"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/GL")), ignore);
-    copy_headers(OC_STR8("./src/ext/KHR"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/KHR")), ignore);
-    copy_headers(OC_STR8("./src/ext/stb"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/stb")), ignore);
+    copy_headers(OC_STR8("./src/ext/angle"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/angle")), ignore);
+    copy_headers(OC_STR8("./src/ext/dawn"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/dawn")), ignore);
+    copy_headers(OC_STR8("./src/ext/GL"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/GL")), ignore);
+    copy_headers(OC_STR8("./src/ext/KHR"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/KHR")), ignore);
+    copy_headers(OC_STR8("./src/ext/stb"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/stb")), ignore);
 
-    oc_file_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("orca.h")), 0);
+    oc_file_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("orca.h")), 0);
     oc_file_copy(OC_STR8("./zig-out/orca-libc"), sdkLibCDir, 0);
 
     oc_file_makedir(sdkLibDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-    oc_file_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a")), 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.allocator, sdkLibDir, OC_STR8("liborca_wasm.a")), 0);
     //-----------------------------------------------------------
     //NOTE make icon
     //-----------------------------------------------------------
     if(icon.len)
     {
         oc_str8 icon_dir = oc_path_slice_directory(icon);
-        oc_str8 iconset = oc_path_append(scratch.arena, icon_dir, OC_STR8("icon.iconset"));
+        oc_str8 iconset = oc_path_append(scratch.allocator, icon_dir, OC_STR8("icon.iconset"));
 
         oc_io_error error = oc_file_remove(iconset, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
         if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
@@ -146,8 +146,8 @@ int make_app_macos(void)
         i32 size = 16;
         for(i32 i = 0; i < 7; ++i)
         {
-            oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d.png", size, size));
-            oc_str8 cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 sized_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.allocator, "icon_%dx%d.png", size, size));
+            oc_str8 cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                         size, size, oc_str8_ip(icon), sized_icon.ptr);
             i32 result = system(cmd.ptr);
             if(result)
@@ -156,8 +156,8 @@ int make_app_macos(void)
             }
 
             i32 retina_size = size * 2;
-            oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.arena, "icon_%dx%d@2x.png", size, size));
-            cmd = oc_str8_pushf(scratch.arena, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
+            oc_str8 retina_icon = oc_path_append(scratch.arena, iconset, oc_str8_pushf(scratch.allocator, "icon_%dx%d@2x.png", size, size));
+            cmd = oc_str8_pushf(scratch.allocator, "sips -z %d %d %.*s --out %s >/dev/null 2>&1",
                                 retina_size, retina_size, oc_str8_ip(icon), sized_icon.ptr);
             result = system(cmd.ptr);
             if(result)
@@ -168,8 +168,8 @@ int make_app_macos(void)
             size *= 2;
         }
 
-        oc_str8 icon_out = oc_path_append(scratch.arena, resDir, OC_STR8("icon.icns"));
-        oc_str8 cmd = oc_str8_pushf(scratch.arena, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
+        oc_str8 icon_out = oc_path_append(scratch.allocator, resDir, OC_STR8("icon.icns"));
+        oc_str8 cmd = oc_str8_pushf(scratch.allocator, "iconutil -c icns -o %s %s", icon_out.ptr, iconset.ptr);
         i32 result = system(cmd.ptr);
         if(result)
         {
@@ -187,7 +187,7 @@ int make_app_macos(void)
     //-----------------------------------------------------------
     oc_str8 bundle_sig = OC_STR8("????");
 
-    oc_str8 plist_contents = oc_str8_pushf(scratch.arena,
+    oc_str8 plist_contents = oc_str8_pushf(scratch.allocator,
                                            "<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
                                            "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
                                            "<plist version=\"1.0\">"
@@ -240,7 +240,7 @@ int make_app_macos(void)
                                            oc_str8_ip(bundle_sig),
                                            oc_str8_ip(exec));
 
-    oc_str8 plist_path = oc_path_append(scratch.arena, contentsDir, OC_STR8("Info.plist"));
+    oc_str8 plist_path = oc_path_append(scratch.allocator, contentsDir, OC_STR8("Info.plist"));
     oc_file plist_file = oc_catch(oc_file_open(plist_path,
                                                OC_FILE_ACCESS_WRITE,
                                                &(oc_file_open_options){
@@ -263,7 +263,7 @@ int make_app_macos(void)
 
 int make_app_win32(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_str8 name = OC_STR8("Orca");
     oc_str8 exec = OC_STR8("orca.exe");
@@ -273,13 +273,13 @@ int make_app_win32(void)
     //-----------------------------------------------------------
     //NOTE: make directory structure
     //-----------------------------------------------------------
-    oc_str8 appDir = oc_path_append(scratch.arena, outDir, name);
-    oc_str8 exeDir = oc_path_append(scratch.arena, appDir, OC_STR8("bin"));
-    oc_str8 resDir = oc_path_append(scratch.arena, appDir, OC_STR8("resources"));
-    oc_str8 sdkDir = oc_path_append(scratch.arena, appDir, OC_STR8("SDK"));
-    oc_str8 sdkSrcDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("src"));
-    oc_str8 sdkLibCDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("orca-libc"));
-    oc_str8 sdkLibDir = oc_path_append(scratch.arena, sdkDir, OC_STR8("lib"));
+    oc_str8 appDir = oc_path_append(scratch.allocator, outDir, name);
+    oc_str8 exeDir = oc_path_append(scratch.allocator, appDir, OC_STR8("bin"));
+    oc_str8 resDir = oc_path_append(scratch.allocator, appDir, OC_STR8("resources"));
+    oc_str8 sdkDir = oc_path_append(scratch.allocator, appDir, OC_STR8("SDK"));
+    oc_str8 sdkSrcDir = oc_path_append(scratch.allocator, sdkDir, OC_STR8("src"));
+    oc_str8 sdkLibCDir = oc_path_append(scratch.allocator, sdkDir, OC_STR8("orca-libc"));
+    oc_str8 sdkLibDir = oc_path_append(scratch.allocator, sdkDir, OC_STR8("lib"));
 
     oc_io_error error = oc_file_remove(appDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
     if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
@@ -315,29 +315,29 @@ int make_app_win32(void)
     //-----------------------------------------------------------
     oc_str8_list ignore = { 0 };
 
-    copy_headers(OC_STR8("./src/app"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("app")), ignore);
-    copy_headers(OC_STR8("./src/graphics"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("graphics")), ignore);
-    copy_headers(OC_STR8("./src/platform"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("platform")), ignore);
-    copy_headers(OC_STR8("./src/ui"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ui")), ignore);
-    copy_headers(OC_STR8("./src/util"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("util")), ignore);
+    copy_headers(OC_STR8("./src/app"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("app")), ignore);
+    copy_headers(OC_STR8("./src/graphics"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("graphics")), ignore);
+    copy_headers(OC_STR8("./src/platform"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("platform")), ignore);
+    copy_headers(OC_STR8("./src/ui"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ui")), ignore);
+    copy_headers(OC_STR8("./src/util"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("util")), ignore);
 
-    copy_headers(OC_STR8("./src/ext/angle"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/angle")), ignore);
-    copy_headers(OC_STR8("./src/ext/dawn"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/dawn")), ignore);
-    copy_headers(OC_STR8("./src/ext/GL"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/GL")), ignore);
-    copy_headers(OC_STR8("./src/ext/KHR"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/KHR")), ignore);
-    copy_headers(OC_STR8("./src/ext/stb"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("ext/stb")), ignore);
+    copy_headers(OC_STR8("./src/ext/angle"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/angle")), ignore);
+    copy_headers(OC_STR8("./src/ext/dawn"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/dawn")), ignore);
+    copy_headers(OC_STR8("./src/ext/GL"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/GL")), ignore);
+    copy_headers(OC_STR8("./src/ext/KHR"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/KHR")), ignore);
+    copy_headers(OC_STR8("./src/ext/stb"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("ext/stb")), ignore);
 
-    oc_file_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.arena, sdkSrcDir, OC_STR8("orca.h")), 0);
+    oc_file_copy(OC_STR8("./src/orca.h"), oc_path_append(scratch.allocator, sdkSrcDir, OC_STR8("orca.h")), 0);
     oc_file_copy(OC_STR8("./zig-out/orca-libc"), sdkLibCDir, 0);
 
     oc_file_makedir(sdkLibDir, &(oc_file_makedir_options){ .flags = OC_FILE_MAKEDIR_CREATE_PARENTS });
-    oc_file_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.arena, sdkLibDir, OC_STR8("liborca_wasm.a")), 0);
+    oc_file_copy(OC_STR8("./zig-out/bin/liborca_wasm.a"), oc_path_append(scratch.allocator, sdkLibDir, OC_STR8("liborca_wasm.a")), 0);
 
     //-----------------------------------------------------------
     //NOTE make icon
     //-----------------------------------------------------------
     {
-        oc_str8 tmpDir = oc_path_append(scratch.arena, appDir, OC_STR8("tmp"));
+        oc_str8 tmpDir = oc_path_append(scratch.allocator, appDir, OC_STR8("tmp"));
 
         oc_io_error error = oc_file_remove(tmpDir, &(oc_file_remove_options){ .flags = OC_FILE_REMOVE_RECURSIVE });
         if(error != OC_IO_OK && error != OC_IO_ERR_NO_ENTRY)
@@ -348,14 +348,14 @@ int make_app_win32(void)
 
         oc_file_makedir(tmpDir, 0);
 
-        oc_str8 icoPath = oc_path_append(scratch.arena, tmpDir, OC_STR8("icon.ico"));
+        oc_str8 icoPath = oc_path_append(scratch.allocator, tmpDir, OC_STR8("icon.ico"));
         if(!icon_from_image(scratch.arena, icon, icoPath))
         {
             fprintf(stderr, "failed to create windows icon for \"%.*s\"\n", oc_str8_ip(icon));
             return -1;
         }
 
-        oc_str8 execPath = oc_path_append(scratch.arena, exeDir, exec);
+        oc_str8 execPath = oc_path_append(scratch.allocator, exeDir, exec);
         if(!embed_icon_into_exe(scratch.arena,
                                 execPath,
                                 icoPath))

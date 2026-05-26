@@ -105,23 +105,23 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
         childStdErr[1] = GetStdHandle(STD_ERROR_HANDLE);
     }
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str16 execName = oc_win32_utf8_to_wide(scratch.arena, OC_STR8(argv[0]));
+    oc_str16 execName = oc_win32_utf8_to_wide(scratch.allocator, OC_STR8(argv[0]));
     oc_str16 commandLine = { 0 };
     {
         oc_str8_list list = { 0 };
 
         for(int i = 0; i < argc; i++)
         {
-            oc_str8_list_pushf(scratch.arena, &list, "\"%s\"", argv[i]);
+            oc_str8_list_pushf(scratch.allocator, &list, "\"%s\"", argv[i]);
             if(i < argc - 1)
             {
-                oc_str8_list_push(scratch.arena, &list, OC_STR8(" "));
+                oc_str8_list_push(scratch.allocator, &list, OC_STR8(" "));
             }
         }
-        oc_str8 commandLineU8 = oc_str8_list_join(scratch.arena, list);
-        commandLine = oc_win32_utf8_to_wide(scratch.arena, commandLineU8);
+        oc_str8 commandLineU8 = oc_str8_list_join(scratch.allocator, list);
+        commandLine = oc_win32_utf8_to_wide(scratch.allocator, commandLineU8);
     }
 
     STARTUPINFOW startupInfo = {
@@ -179,7 +179,7 @@ oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subproc
     }
 }
 
-oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess subprocess)
+oc_subprocess_result oc_subprocess_read_and_wait(oc_allocator* allocator, oc_subprocess subprocess)
 {
     oc_subprocess_completion completion = { 0 };
     oc_subprocess_error error = OC_SUBPROCESS_OK;
@@ -203,7 +203,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                                 NULL,
                                 NULL);
 
-        oc_arena_scope scratch = arena ? oc_scratch_begin_next(arena) : oc_scratch_begin();
+        oc_scratch scratch = allocator ? oc_scratch_begin_next_allocator(allocator) : oc_scratch_begin();
 
         oc_str8_list outList = { 0 };
         oc_str8_list errList = { 0 };
@@ -234,7 +234,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nOut)
                 {
-                    oc_str8_list_push(scratch.arena, &outList, oc_str8_from_buffer(nOut, chunk));
+                    oc_str8_list_push(scratch.allocator, &outList, oc_str8_from_buffer(nOut, chunk));
                 }
             }
 
@@ -256,15 +256,15 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess 
                 }
                 else if(nErr)
                 {
-                    oc_str8_list_push(scratch.arena, &errList, oc_str8_from_buffer(nErr, chunk));
+                    oc_str8_list_push(scratch.allocator, &errList, oc_str8_from_buffer(nErr, chunk));
                 }
             }
         }
 
-        if(error == OC_SUBPROCESS_OK && arena)
+        if(error == OC_SUBPROCESS_OK && allocator)
         {
-            completion.capturedStdout = oc_str8_list_join(arena, outList);
-            completion.capturedStderr = oc_str8_list_join(arena, errList);
+            completion.capturedStdout = oc_str8_list_join(allocator, outList);
+            completion.capturedStderr = oc_str8_list_join(allocator, errList);
         }
         oc_scratch_end(scratch);
     }

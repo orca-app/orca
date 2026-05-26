@@ -476,10 +476,10 @@ void oc_install_keyboard_layout_listener()
     event.window = (oc_window){ 0 };
     event.type = OC_EVENT_PATHDROP;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 path = oc_str8_push_cstring(scratch.arena, [filename UTF8String]);
-    oc_str8_list_push(scratch.arena, &event.paths, path);
+    oc_str8 path = oc_str8_push_cstring(scratch.allocator, [filename UTF8String]);
+    oc_str8_list_push(scratch.allocator, &event.paths, path);
 
     oc_queue_event(&event);
 
@@ -497,10 +497,10 @@ void oc_install_keyboard_layout_listener()
     event.window = (oc_window){ 0 };
     event.type = OC_EVENT_PATHDROP;
 
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
-    oc_str8 path = oc_str8_push_cstring(scratch.arena, [nsPath UTF8String]);
-    oc_str8_list_push(scratch.arena, &event.paths, path);
+    oc_str8 path = oc_str8_push_cstring(scratch.allocator, [nsPath UTF8String]);
+    oc_str8_list_push(scratch.allocator, &event.paths, path);
 
     oc_queue_event(&event);
 
@@ -1150,11 +1150,11 @@ static const NSRange kEmptyRange = { NSNotFound, 0 };
         event.window = (oc_window){ 0 };
         event.type = OC_EVENT_PATHDROP;
 
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         for(NSUInteger i = 0; i < count; i++)
         {
-            oc_str8_list_push(scratch.arena, &event.paths, OC_STR8([urls[i] fileSystemRepresentation]));
+            oc_str8_list_push(scratch.allocator, &event.paths, OC_STR8([urls[i] fileSystemRepresentation]));
         }
         oc_queue_event(&event);
 
@@ -1329,7 +1329,7 @@ oc_str8 oc_clipboard_copy_string(oc_str8 backing)
     }
 }
 
-oc_str8 oc_clipboard_get_string(oc_arena* arena)
+oc_str8 oc_clipboard_get_string(oc_allocator* allocator)
 {
     @autoreleasepool
     {
@@ -1338,51 +1338,7 @@ oc_str8 oc_clipboard_get_string(oc_arena* arena)
         NSPasteboard* pb = [NSPasteboard generalPasteboard];
         NSString* nsString = [pb stringForType:NSPasteboardTypeString];
         const char* cString = [nsString UTF8String];
-        oc_str8 result = oc_str8_push_cstring(arena, cString);
-        return (result);
-    }
-}
-
-bool oc_clipboard_has_tag(const char* tag)
-{
-    @autoreleasepool
-    {
-
-        NSString* tagString = [[NSString alloc] initWithUTF8String:tag];
-        NSArray* tagArray = [NSArray arrayWithObjects:tagString, nil];
-
-        NSPasteboard* pb = [NSPasteboard generalPasteboard];
-        NSString* available = [pb availableTypeFromArray:tagArray];
-
-        return (available != nil);
-    }
-}
-
-void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 string)
-{
-    @autoreleasepool
-    {
-
-        NSString* tagString = [[NSString alloc] initWithUTF8String:tag];
-        NSArray* tagArray = [NSArray arrayWithObjects:tagString, nil];
-        NSData* nsData = [NSData dataWithBytes:string.ptr length:string.len];
-
-        NSPasteboard* pb = [NSPasteboard generalPasteboard];
-        [pb addTypes:tagArray owner:nil];
-        [pb setData:nsData forType:tagString];
-    }
-}
-
-oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
-{
-    @autoreleasepool
-    {
-
-        NSString* tagString = [[NSString alloc] initWithUTF8String:tag];
-
-        NSPasteboard* pb = [NSPasteboard generalPasteboard];
-        NSData* nsData = [pb dataForType:tagString];
-        oc_str8 result = oc_str8_push_buffer(arena, [nsData length], (char*)[nsData bytes]);
+        oc_str8 result = oc_str8_push_cstring(allocator, cString);
         return (result);
     }
 }
@@ -1885,14 +1841,14 @@ i32 oc_dispatch_on_main_thread_sync(oc_dispatch_proc proc, void* user)
 
 @end
 
-ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
+ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator, oc_file_dialog_desc* desc, oc_file_table* table)
 {
     __block oc_file_dialog_result result = { 0 };
 
     dispatch_block_t block = ^{
       @autoreleasepool
       {
-          oc_arena_scope scratch = oc_scratch_begin_next(arena);
+          oc_scratch scratch = oc_scratch_begin_next_allocator(allocator);
 
           NSWindow* keyWindow = [NSApp keyWindow];
 
@@ -1942,16 +1898,16 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
                       char path[PATH_MAX];
                       if(fcntl(slot->fd, F_GETPATH, path) != -1)
                       {
-                          oc_str8 string = oc_str8_push_cstring(scratch.arena, path);
-                          oc_str8_list_push(scratch.arena, &list, string);
+                          oc_str8 string = oc_str8_push_cstring(scratch.allocator, path);
+                          oc_str8_list_push(scratch.allocator, &list, string);
                       }
                   }
               }
               if(desc->startPath.len)
               {
-                  oc_str8_list_push(scratch.arena, &list, desc->startPath);
+                  oc_str8_list_push(scratch.allocator, &list, desc->startPath);
               }
-              startPath = oc_path_join(scratch.arena, list);
+              startPath = oc_path_join(scratch.allocator, list);
           }
 
           NSString* nsPath = 0;
@@ -2001,21 +1957,21 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file
                   NSArray* files = [((NSOpenPanel*)dialog) URLs];
 
                   const char* path = [[[files objectAtIndex:0] path] UTF8String];
-                  result.path = oc_str8_push_cstring(arena, path);
+                  result.path = oc_str8_push_cstring(allocator, path);
 
                   for(int i = 0; i < [files count]; i++)
                   {
                       const char* path = [[[files objectAtIndex:i] path] UTF8String];
-                      oc_str8 string = oc_str8_push_cstring(arena, path);
-                      oc_str8_list_push(arena, &result.selection, string);
+                      oc_str8 string = oc_str8_push_cstring(allocator, path);
+                      oc_str8_list_push(allocator, &result.selection, string);
                   }
               }
               else
               {
                   const char* path = [[[dialog URL] path] UTF8String];
-                  result.path = oc_str8_push_cstring(arena, path);
+                  result.path = oc_str8_push_cstring(allocator, path);
 
-                  oc_str8_list_push(arena, &result.selection, result.path);
+                  oc_str8_list_push(allocator, &result.selection, result.path);
               }
               result.button = OC_FILE_DIALOG_OK;
           }

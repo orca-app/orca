@@ -31,8 +31,8 @@ wa_status wa_instance_resize_memory(wa_instance* instance, u32 n)
     if(n <= mem->limits.max
        && (n >= mem->limits.min))
     {
-        oc_base_allocator* allocator = oc_base_allocator_default();
-        oc_base_commit(allocator, mem->ptr, n * WA_PAGE_SIZE);
+        oc_platform_memory* allocator = oc_platform_memory_default();
+        oc_platform_memory_commit(allocator, mem->ptr, n * WA_PAGE_SIZE);
         mem->limits.min = n;
         return WA_OK;
     }

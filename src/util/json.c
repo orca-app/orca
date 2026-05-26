@@ -96,7 +96,7 @@ typedef struct json_lex
 
 typedef struct json_parser
 {
-    oc_arena* arena;
+    oc_allocator* allocator;
     oc_str8 contents;
     u64 offset;
 } json_parser;
@@ -383,7 +383,7 @@ void json_lex_error(json_parser* parser, json_lex* lex)
 
 json_node* json_node_alloc(json_parser* parser, json_node_kind kind)
 {
-    json_node* node = oc_arena_push_type(parser->arena, json_node);
+    json_node* node = oc_allocator_push_type(parser->allocator, json_node);
     node->kind = kind;
     return (node);
 }
@@ -395,10 +395,10 @@ void json_node_add_child(json_node* node, json_node* child)
     node->childCount++;
 }
 
-oc_str8 json_convert_escaped_string(oc_arena* arena, oc_str8 string)
+oc_str8 json_convert_escaped_string(oc_allocator* allocator, oc_str8 string)
 {
     oc_str8 result = {
-        .ptr = oc_arena_push(arena, string.len),
+        .ptr = oc_allocator_push(allocator, string.len),
         .len = 0,
     };
 
@@ -507,7 +507,7 @@ json_node* json_parse_object(json_parser* parser)
                 return 0;
             }
 
-            child->name = json_convert_escaped_string(parser->arena, name.string);
+            child->name = json_convert_escaped_string(parser->allocator, name.string);
             json_node_add_child(node, child);
 
             lex = json_lex_next(parser);
@@ -554,7 +554,7 @@ json_node* json_parse_list(json_parser* parser)
 
 json_node* json_make_from_lex(json_parser* parser, json_lex* lex)
 {
-    json_node* node = oc_arena_push_type(parser->arena, json_node);
+    json_node* node = oc_allocator_push_type(parser->allocator, json_node);
 
     switch(lex->kind)
     {
@@ -577,7 +577,7 @@ json_node* json_make_from_lex(json_parser* parser, json_lex* lex)
             break;
         case JSON_LEX_STRING:
             node->kind = JSON_STRING;
-            node->string = json_convert_escaped_string(parser->arena, lex->string);
+            node->string = json_convert_escaped_string(parser->allocator, lex->string);
             break;
 
         default:
@@ -616,10 +616,10 @@ json_node* json_parse_item(json_parser* parser)
     return (node);
 }
 
-json_node* json_parse_str8(oc_arena* arena, oc_str8 string)
+json_node* json_parse_str8(oc_allocator* allocator, oc_str8 string)
 {
     json_parser parser = {
-        .arena = arena,
+        .allocator = allocator,
         .contents = string,
         .offset = 0,
     };

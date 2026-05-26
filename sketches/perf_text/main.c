@@ -64,9 +64,9 @@ static const char* TEST_STRING =
 oc_font create_font(const char* path)
 {
     //NOTE(martin): create font
-    oc_arena_scope scratch = oc_scratch_begin();
-    oc_str8 fontPath = oc_path_executable_relative(scratch.arena, OC_STR8(path));
-    char* fontPathCString = oc_str8_to_cstring(scratch.arena, fontPath);
+    oc_scratch scratch = oc_scratch_begin();
+    oc_str8 fontPath = oc_path_executable_relative(scratch.allocator, OC_STR8(path));
+    char* fontPathCString = oc_str8_to_cstring(scratch.allocator, fontPath);
 
     FILE* fontFile = fopen(fontPathCString, "r");
     if(!fontFile)
@@ -180,7 +180,7 @@ int main()
     while(!oc_should_quit())
     {
         f64 startFrameTime = oc_clock_time(OC_CLOCK_MONOTONIC);
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
 
         oc_pump_events(0);
         oc_event* event = 0;
@@ -308,7 +308,7 @@ int main()
         oc_set_font_size(14);
         oc_move_to(10, contentRect.h - 10 - lineHeights[fontIndex]);
 
-        oc_str8 text = oc_str8_pushf(scratch.arena,
+        oc_str8 text = oc_str8_pushf(scratch.allocator,
                                      "Test program: %i glyphs, frame time = %fs, fps = %f",
                                      glyphCount,
                                      frameTime,

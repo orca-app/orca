@@ -381,7 +381,7 @@ wa_status wa_instance_initialize(wa_instance* instance)
         }
 
         //TODO: later take an interpreter as input of instantiate?
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         wa_interpreter* interpreter = wa_interpreter_create(scratch.arena);
         wa_status status = wa_interpreter_invoke(interpreter, instance, func, 0, 0, 0, 0);
         oc_scratch_end(scratch);
@@ -441,7 +441,7 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
     }
 
     //NOTE: allocate memories
-    oc_base_allocator* allocator = oc_base_allocator_default();
+    oc_platform_memory* allocator = oc_platform_memory_default();
 
     instance->memories = oc_arena_push_array(arena, wa_memory*, module->memoryCount);
 
@@ -459,8 +459,8 @@ wa_instance* wa_instance_create(oc_arena* arena, wa_module* module, wa_instance_
                             ? UINT32_MAX / WA_PAGE_SIZE
                             : limits->max;
 
-        mem->ptr = oc_base_reserve(allocator, mem->limits.max * WA_PAGE_SIZE);
-        oc_base_commit(allocator, mem->ptr, mem->limits.min * WA_PAGE_SIZE);
+        mem->ptr = oc_platform_memory_reserve(allocator, mem->limits.max * WA_PAGE_SIZE);
+        oc_platform_memory_commit(allocator, mem->ptr, mem->limits.min * WA_PAGE_SIZE);
 
         instance->memories[memIndex] = mem;
     }
@@ -487,7 +487,7 @@ wa_import_package wa_instance_exports(oc_arena* arena, wa_instance* instance, oc
     wa_module* module = instance->module;
 
     wa_import_package package = {
-        .name = oc_str8_push_copy(arena, name),
+        .name = oc_str8_push_copy(arena->allocator, name),
     };
 
     for(u32 exportIndex = 0; exportIndex < module->exportCount; exportIndex++)

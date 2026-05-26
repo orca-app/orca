@@ -9,7 +9,7 @@
 
 ORCA_EXPORT void oc_on_init(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
 
     oc_file_dialog_desc desc = {
         .kind = OC_FILE_DIALOG_SAVE,

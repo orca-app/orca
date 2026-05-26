@@ -289,7 +289,7 @@ int check_collision(oc_rect block)
 
 ORCA_EXPORT void oc_on_frame_refresh(void)
 {
-    oc_arena_scope scratch = oc_scratch_begin();
+    oc_scratch scratch = oc_scratch_begin();
     f32 aspect = frameSize.x / frameSize.y;
 
     if(leftDown)
@@ -425,7 +425,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
             oc_rounded_rectangle_stroke(r.x, r.y, r.w, r.h, 4);
 
             int fontSize = 18;
-            oc_str8 text = oc_str8_pushf(scratch.arena, "%d", blockHealth[i]);
+            oc_str8 text = oc_str8_pushf(scratch.allocator, "%d", blockHealth[i]);
             oc_rect textRect = oc_font_text_metrics(font, fontSize, text).ink;
 
             oc_vec2 textPos = {
@@ -460,7 +460,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
         // draw score text
         {
             oc_move_to(20, 20);
-            oc_str8 text = oc_str8_pushf(scratch.arena, "Destroy all %d blocks to win! Current score: %d", NUM_BLOCKS_TO_WIN, score);
+            oc_str8 text = oc_str8_pushf(scratch.allocator, "Destroy all %d blocks to win! Current score: %d", NUM_BLOCKS_TO_WIN, score);
             oc_vec2 textPos = { 20, 20 };
             oc_matrix_multiply_push(flip_y_at(textPos));
             {

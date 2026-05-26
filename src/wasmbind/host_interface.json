@@ -388,8 +388,8 @@
 },
 {
     "kind": "typename",
-    "name": "oc_arena",
-    "host": "oc_wasm_arena",
+    "name": "oc_allocator",
+    "host": "oc_wasm_allocator",
     "type": {
         "kind": "struct"
     }
@@ -403,12 +403,12 @@
     },
 	"params": [
         {
-            "name": "arena",
+            "name": "allocator",
             "type": {
                 "kind": "pointer",
                 "type": {
                     "kind": "namedType",
-                    "name": "oc_arena"
+                    "name": "oc_allocator"
                 }
             }
         },
@@ -581,12 +581,12 @@
     },
     "params": [
         {
-            "name": "arena",
+            "name": "allocator",
             "type": {
                 "kind": "pointer",
                 "type": {
                     "kind": "namedType",
-                    "name": "oc_arena"
+                    "name": "oc_allocator"
                 }
             }
         },
@@ -646,12 +646,12 @@
     },
     "params": [
         {
-            "name": "arena",
+            "name": "allocator",
             "type": {
                 "kind": "pointer",
                 "type": {
                     "kind": "namedType",
-                    "name": "oc_arena"
+                    "name": "oc_allocator"
                 }
             }
         },

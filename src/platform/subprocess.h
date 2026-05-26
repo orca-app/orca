@@ -33,7 +33,7 @@ typedef enum oc_subprocess_stdio_mode
 
 typedef struct oc_subprocess_run_options
 {
-    oc_arena* captureArena;
+    oc_allocator* captureAllocator;
     oc_subprocess_stdio_mode stdIn;
     oc_subprocess_stdio_mode stdOut;
     oc_subprocess_stdio_mode stdErr;
@@ -67,7 +67,7 @@ oc_subprocess_result oc_subprocess_run(int argc, char** argv, oc_subprocess_run_
 
 oc_subprocess_spawn_result oc_subprocess_spawn(int argc, char** argv, oc_subprocess_spawn_options* options);
 oc_subprocess_result oc_subprocess_wait(oc_subprocess subprocess);
-oc_subprocess_result oc_subprocess_read_and_wait(oc_arena* arena, oc_subprocess subprocess);
+oc_subprocess_result oc_subprocess_read_and_wait(oc_allocator* allocator, oc_subprocess subprocess);
 oc_subprocess_result oc_subprocess_kill(oc_subprocess subprocess);
 
 oc_str8 oc_subprocess_error_string(oc_subprocess_error error);

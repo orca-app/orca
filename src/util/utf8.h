@@ -59,8 +59,8 @@ ORCA_API oc_str8 oc_utf8_encode(char* dst, oc_utf32 codePoint);     //NOTE: enco
 ORCA_API oc_str32 oc_utf8_to_codepoints(u64 maxCount, oc_utf32* backing, oc_str8 string);
 ORCA_API oc_str8 oc_utf8_from_codepoints(u64 maxBytes, char* backing, oc_str32 codePoints);
 
-ORCA_API oc_str32 oc_utf8_push_to_codepoints(oc_arena* arena, oc_str8 string);
-ORCA_API oc_str8 oc_utf8_push_from_codepoints(oc_arena* arena, oc_str32 codePoints);
+ORCA_API oc_str32 oc_utf8_push_to_codepoints(oc_allocator* allocator, oc_str8 string);
+ORCA_API oc_str8 oc_utf8_push_from_codepoints(oc_allocator* allocator, oc_str32 codePoints);
 
 //-----------------------------------------------------------------
 // oc_utf8 range struct and X-macros for defining oc_utf8 ranges

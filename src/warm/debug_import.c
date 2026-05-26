@@ -38,7 +38,7 @@ wa_source_file_elt* wa_find_or_add_source_file(oc_arena* scratchArena, oc_arena*
     if(!file)
     {
         file = oc_arena_push_type(scratchArena, wa_source_file_elt);
-        file->file.fullPath = oc_str8_push_copy(pathArena, fullPath);
+        file->file.fullPath = oc_str8_push_copy(pathArena->allocator, fullPath);
         file->file.rootPath = oc_str8_slice(file->file.fullPath, 0, rootPath.len);
         file->index = *fileCount;
         oc_list_push_back(files, &file->listElt);
@@ -55,7 +55,7 @@ void wa_dwarf_error_callback(dw_parser* parser, u64 loc, oc_str8 message, void* 
 
     error->loc = loc;
     error->status = WA_PARSE_ERROR;
-    error->string = oc_str8_push_copy(module->arena, message);
+    error->string = oc_str8_push_copy(module->arena->allocator, message);
     oc_list_push_back(&module->errors, &error->listElt);
 }
 
@@ -220,7 +220,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                 if(oc_option_check(typeAttr))
                 {
                     type->type = wa_build_debug_type_from_dwarf(context, dwarf, oc_option_unwrap(typeAttr)->valU64);
-                    type->name = oc_str8_pushf(context->arena, "%.*s*", oc_str8_ip(type->type->name));
+                    type->name = oc_str8_pushf(context->arena->allocator, "%.*s*", oc_str8_ip(type->type->name));
                 }
                 else
                 {
@@ -314,7 +314,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         dw_attr_ptr_option memberName = dw_die_get_attr(child, DW_AT_name);
                         if(oc_option_check(memberName))
                         {
-                            member->name = oc_str8_push_copy(context->arena, oc_option_unwrap(memberName)->string);
+                            member->name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(memberName)->string);
                         }
 
                         dw_attr_ptr_option memberType = dw_die_get_attr(child, DW_AT_type);
@@ -367,7 +367,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
                         dw_attr_ptr_option name = dw_die_get_attr(child, DW_AT_name);
                         if(oc_option_check(name))
                         {
-                            enumerator->name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
+                            enumerator->name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(name)->string);
                         }
                         //TODO: extract const values
 
@@ -397,7 +397,7 @@ wa_type* wa_build_debug_type_from_dwarf(wa_import_context* context, dw_info* dwa
             dw_attr_ptr_option name = dw_die_get_attr(die, DW_AT_name);
             if(oc_option_check(name))
             {
-                type->name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
+                type->name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(name)->string);
             }
         }
     }
@@ -420,7 +420,7 @@ wa_debug_variable wa_debug_import_variable(wa_import_context* context, dw_die* v
     dw_attr_ptr_option name = dw_die_get_attr(varDie, DW_AT_name);
     if(oc_option_check(name))
     {
-        var.name = oc_str8_push_copy(context->arena, oc_option_unwrap(name)->string);
+        var.name = oc_str8_push_copy(context->arena->allocator, oc_option_unwrap(name)->string);
     }
 
     //TODO: consider not creating the variable if we don't have a name for it?
@@ -460,7 +460,7 @@ wa_debug_range_list wa_import_range_list(wa_import_context* context, dw_die* die
 
         //NOTE: allocate a scratch buffer of ranges. This is because we don't know the final count of ranges,
         // since some dwarf range entries are base selection entries that don't make it into the final range list
-        oc_arena_scope scratch = oc_scratch_begin();
+        oc_scratch scratch = oc_scratch_begin();
         wa_debug_range* ranges = oc_arena_push_array(scratch.arena, wa_debug_range, oc_option_unwrap(rangesAttr)->ranges.entryCount);
 
         for(u64 i = 0; i < oc_option_unwrap(rangesAttr)->ranges.entryCount; i++)
@@ -574,7 +574,7 @@ void wa_debug_info_import_variables(wa_module* module, wa_debug_info* info, dw_i
     info->functions = oc_arena_push_array(module->arena, wa_debug_function_ptr_option, info->functionCount);
 
     //NOTE: type import context to deduplicate types
-    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(module->arena);
 
     wa_import_context context = {
         .arena = module->arena,
@@ -728,7 +728,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
     info->wasmToLine = oc_arena_push_array(arena, wa_wasm_to_line_entry, info->wasmToLineCount);
 
     //NOTE: build a global file table and build wasm line map
-    oc_arena_scope scratch = oc_scratch_begin_next(arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(arena);
 
     wa_source_info* sourceInfo = &info->sourceInfo;
     oc_list files = { 0 };
@@ -795,9 +795,9 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
                 {
                     // dir path relative to current directory of compilation
                     rootPath = table->header.dirEntries[0].path;
-                    filePath = oc_path_append(scratch.arena, dirPath, filePath);
+                    filePath = oc_path_append(scratch.allocator, dirPath, filePath);
                 }
-                fullPath = oc_path_append(scratch.arena, rootPath, filePath);
+                fullPath = oc_path_append(scratch.allocator, rootPath, filePath);
 
                 //TODO: review this. this doesn't seem to be always the case.
                 OC_DEBUG_ASSERT(!oc_str8_cmp(rootPath, oc_str8_slice(fullPath, 0, rootPath.len)),
@@ -819,7 +819,7 @@ void wa_debug_info_import_line_table(oc_arena* arena, wa_debug_info* info, dw_in
             //      we'd get a duplicate. In this case, we prefer the root path put by the compiler
             if(file->index == fileIndices[0])
             {
-                file->file.fullPath = oc_str8_push_copy(arena, fullPath);
+                file->file.fullPath = oc_str8_push_copy(arena->allocator, fullPath);
                 file->file.rootPath = oc_str8_slice(file->file.fullPath, 0, rootPath.len);
             }
 
@@ -913,7 +913,7 @@ wa_debug_info* wa_debug_info_create(wa_module* module, oc_str8 contents)
     }
 
     //NOTE: parse dwarf info and process it
-    oc_arena_scope scratch = oc_scratch_begin_next(module->arena);
+    oc_scratch scratch = oc_scratch_begin_next_arena(module->arena);
 
     dw_parser parser = {
         .arena = scratch.arena,
