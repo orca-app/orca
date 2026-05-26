@@ -9,7 +9,7 @@ void copy_headers(oc_str8 src, oc_str8 dst, oc_str8_list ignore)
     {
         oc_log_error("couldn't open directory %.*s", oc_str8_ip(src));
     }
-    oc_file_list files = oc_file_listdir(scratch.arena, srcDir);
+    oc_file_list files = oc_file_listdir(scratch.allocator, srcDir);
     oc_file_close(srcDir);
 
     oc_file_list_for(files, elt)
