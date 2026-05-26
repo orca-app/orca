@@ -134,7 +134,7 @@ oc_str8 get_orca_home_dir(oc_allocator* allocator)
     oc_str8_list_push(scratch.allocator, &list, OC_STR8(home));
     oc_str8_list_push(scratch.allocator, &list, OC_STR8("AppData/orca"));
 
-    oc_str8 path = oc_path_join(arena, list);
+    oc_str8 path = oc_path_join(allocator, list);
 
     oc_scratch_end(scratch);
 
