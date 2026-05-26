@@ -27,24 +27,13 @@ typedef struct oc_allocator
     oc_allocator_push_proc push;
 } oc_allocator;
 
-#define oc_allocator_push_aligned_uninitialized(allocator, size, align) (allocator)->push(allocator, size, align)
-
-#define oc_allocator_push_aligned(allocator, size, align)      \
-    ({                                                         \
-        void* __p = (allocator)->push(allocator, size, align); \
-        if(size && __p)                                        \
-        {                                                      \
-            memset(__p, 0, size);                              \
-        }                                                      \
-        __p;                                                   \
-    })
-
-#define oc_allocator_push(allocator, size) oc_allocator_push_aligned(allocator, size, 1)
-#define oc_allocator_push_uninitialized(allocator, size) oc_allocator_push_aligned_uninitialized(allocator, size, 1)
+void* oc_allocator_push_aligned_uninitialized(oc_allocator* allocator, u64 size, u64 align);
+void* oc_allocator_push_aligned(oc_allocator* allocator, u64 size, u64 align);
+void* oc_allocator_push_uninitialized(oc_allocator* allocator, u64 size);
+void* oc_allocator_push(oc_allocator* allocator, u64 size);
 
 #define oc_allocator_push_type(allocator, type) oc_allocator_push_aligned(allocator, sizeof(type), _Alignof(type))
 #define oc_allocator_push_array(allocator, type, count) oc_allocator_push_aligned(allocator, sizeof(type) * count, _Alignof(type))
-
 #define oc_allocator_push_type_uninitialized(allocator, type) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type), _Alignof(type))
 #define oc_allocator_push_array_uninitialized(allocator, type, count) oc_allocator_push_aligned_uninitialized(allocator, sizeof(type) * count, _Alignof(type))
 

@@ -10,6 +10,39 @@
 #include "platform/platform.h"
 #include "platform/platform_memory.h"
 
+//--------------------------------------------------------------------------------
+//NOTE(martin): allocator interface
+//--------------------------------------------------------------------------------
+
+void* oc_allocator_push_aligned_uninitialized(oc_allocator* allocator, u64 size, u64 align)
+{
+    return allocator->push(allocator, size, align);
+}
+
+void* oc_allocator_push_aligned(oc_allocator* allocator, u64 size, u64 align)
+{
+    void* p = allocator->push(allocator, size, align);
+    if(size && p)
+    {
+        memset(p, 0, size);
+    }
+    return p;
+}
+
+void* oc_allocator_push_uninitialized(oc_allocator* allocator, u64 size)
+{
+    return oc_allocator_push_aligned_uninitialized(allocator, size, 1);
+}
+
+void* oc_allocator_push(oc_allocator* allocator, u64 size)
+{
+    return oc_allocator_push_aligned(allocator, size, 1);
+}
+
+//--------------------------------------------------------------------------------
+//NOTE(martin): memory arena
+//--------------------------------------------------------------------------------
+
 #if OC_PLATFORM_ORCA
 enum
 {
@@ -26,10 +59,6 @@ enum
 {
     OC_ARENA_COMMIT_ALIGNMENT = 4 << 10,
 };
-
-//--------------------------------------------------------------------------------
-//NOTE(martin): memory arena
-//--------------------------------------------------------------------------------
 
 oc_arena_chunk* oc_arena_chunk_alloc(oc_arena* arena, u64 chunkMinSize)
 {
