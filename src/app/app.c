@@ -36,7 +36,7 @@ oc_window oc_window_nil()
 
 oc_window_data* oc_window_alloc()
 {
-    return (oc_list_pop_front_entry(&oc_appData.windowFreeList, oc_window_data, freeListElt));
+    return (oc_list_pop_front_elt(&oc_appData.windowFreeList, oc_window_data, freeListElt));
 }
 
 oc_window_data* oc_window_ptr_from_handle(oc_window handle)

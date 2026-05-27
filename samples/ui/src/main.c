@@ -440,7 +440,7 @@ ORCA_EXPORT void oc_on_frame_refresh(void)
                             }
 
                             i32 i = 0;
-                            oc_list_for(logLines.list, logLine, oc_str8_elt, listElt)
+                            oc_typed_list_for(logLines.list, logLine)
                             {
                                 char id[15];
                                 snprintf(id, sizeof(id), "%d", i);

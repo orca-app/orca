@@ -42,7 +42,7 @@ wa_status wa_module_status(wa_module* module)
     }
     else
     {
-        wa_module_error* error = oc_list_last_entry(module->errors, wa_module_error, listElt);
+        wa_module_error* error = oc_list_last_elt(module->errors, wa_module_error, listElt);
         return error->status;
     }
 }

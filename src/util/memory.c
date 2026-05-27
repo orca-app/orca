@@ -149,7 +149,7 @@ void* oc_arena_push_aligned_uninitialized(oc_arena* arena, u64 size, u32 alignme
     u64 lastCap = chunk->cap;
     while(nextOffset > chunk->cap)
     {
-        chunk = oc_list_next_entry(chunk, oc_arena_chunk, listElt);
+        chunk = oc_list_next_elt(chunk, oc_arena_chunk, listElt);
         if(chunk)
         {
             alignedOffset = oc_align_up_pow2(chunk->offset, alignment);
@@ -193,7 +193,7 @@ void oc_arena_clear(oc_arena* arena)
     {
         chunk->offset = sizeof(oc_arena_chunk);
     }
-    arena->currentChunk = oc_list_first_entry(arena->chunks, oc_arena_chunk, listElt);
+    arena->currentChunk = oc_list_first_elt(arena->chunks, oc_arena_chunk, listElt);
 }
 
 //--------------------------------------------------------------------------------
@@ -276,7 +276,7 @@ void oc_scratch_end(oc_scratch scope)
 {
     for(oc_arena_chunk* chunk = scope.arena->currentChunk;
         chunk != 0 && chunk != scope.chunk;
-        chunk = oc_list_prev_entry(chunk, oc_arena_chunk, listElt))
+        chunk = oc_list_prev_elt(chunk, oc_arena_chunk, listElt))
     {
         chunk->offset = sizeof(oc_arena_chunk);
     }

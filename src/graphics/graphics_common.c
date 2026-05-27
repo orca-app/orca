@@ -161,7 +161,7 @@ u64 oc_graphics_handle_alloc(oc_graphics_handle_kind kind, void* data)
         oc_graphics_init();
     }
 
-    oc_graphics_handle_slot* slot = oc_list_pop_front_entry(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
+    oc_graphics_handle_slot* slot = oc_list_pop_front_elt(&oc_graphicsData.handleFreeList, oc_graphics_handle_slot, freeListElt);
     if(!slot && oc_graphicsData.handleNextIndex < OC_GRAPHICS_HANDLES_MAX_COUNT)
     {
         slot = &oc_graphicsData.handleArray[oc_graphicsData.handleNextIndex];
@@ -406,7 +406,7 @@ oc_font oc_font_create_from_memory(oc_str8 mem, u32 rangeCount, oc_unicode_range
     }
     oc_font fontHandle = oc_font_nil();
 
-    oc_font_data* font = oc_list_pop_front_entry(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
+    oc_font_data* font = oc_list_pop_front_elt(&oc_graphicsData.fontFreeList, oc_font_data, freeListElt);
     if(!font)
     {
         font = oc_arena_push_type_uninitialized(&oc_graphicsData.resourceArena, oc_font_data);
@@ -959,7 +959,7 @@ oc_canvas_context oc_canvas_context_create()
     }
 
     oc_canvas_context contextHandle = oc_canvas_context_nil();
-    oc_canvas_context_data* context = oc_list_pop_front_entry(&oc_graphicsData.canvasFreeList, oc_canvas_context_data, freeListElt);
+    oc_canvas_context_data* context = oc_list_pop_front_elt(&oc_graphicsData.canvasFreeList, oc_canvas_context_data, freeListElt);
     if(!context)
     {
         context = oc_arena_push_type_uninitialized(&oc_graphicsData.resourceArena, oc_canvas_context_data);

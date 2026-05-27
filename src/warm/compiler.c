@@ -1174,7 +1174,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
     //TODO: remove the need to pass instr -- this will break else checks if first instr is an "if"...
     /////////////////////////////////////////////////////////////////////////////////////////////////////////
     //TODO: this can break branches if first instr is a loop...?
-    wa_control_stack_push(context, oc_list_first_entry(instructions, wa_instr, listElt), type);
+    wa_control_stack_push(context, oc_list_first_elt(instructions, wa_instr, listElt), type);
 
     oc_scratch scratch = oc_scratch_begin();
 
@@ -1421,7 +1421,7 @@ void wa_compile_expression(wa_build_context* context, wa_func_type* type, wa_fun
                                      context->controlStackLen - block->scopeBase);
                 }
 
-                wa_instr* prev = oc_list_prev_entry(instr, wa_instr, listElt);
+                wa_instr* prev = oc_list_prev_elt(instr, wa_instr, listElt);
                 if(!prev || prev->op != WA_INSTR_return)
                 {
                     wa_compile_return(context, type, instr);

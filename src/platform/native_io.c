@@ -22,7 +22,7 @@ oc_file_table* oc_file_table_get_global()
 
 oc_file_slot* oc_file_slot_alloc(oc_file_table* table)
 {
-    oc_file_slot* slot = oc_list_pop_front_entry(&table->freeList, oc_file_slot, freeListElt);
+    oc_file_slot* slot = oc_list_pop_front_elt(&table->freeList, oc_file_slot, freeListElt);
     if(!slot && table->nextSlot < OC_IO_MAX_FILE_SLOTS)
     {
         slot = &table->slots[table->nextSlot];

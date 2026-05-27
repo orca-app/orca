@@ -2159,15 +2159,15 @@ dw_die_ptr_option dw_die_next(dw_die* root, dw_die* die)
 {
     if(!oc_list_empty(die->children))
     {
-        die = oc_list_first_entry(die->children, dw_die, parentElt);
+        die = oc_list_first_elt(die->children, dw_die, parentElt);
     }
     else if(die->parentElt.next)
     {
-        die = oc_list_entry(die->parentElt.next, dw_die, parentElt);
+        die = oc_list_elt(die->parentElt.next, dw_die, parentElt);
     }
     else if(die->parent && die->parent != root && die->parent->parentElt.next)
     {
-        die = oc_list_entry(die->parent->parentElt.next, dw_die, parentElt);
+        die = oc_list_elt(die->parent->parentElt.next, dw_die, parentElt);
     }
     else
     {
@@ -2196,15 +2196,15 @@ dw_die_ptr_option dw_die_find_next_with_tags(dw_die* root, dw_die* start, u64 co
 
         if(!oc_list_empty(die->children))
         {
-            die = oc_list_first_entry(die->children, dw_die, parentElt);
+            die = oc_list_first_elt(die->children, dw_die, parentElt);
         }
         else if(die->parentElt.next)
         {
-            die = oc_list_entry(die->parentElt.next, dw_die, parentElt);
+            die = oc_list_elt(die->parentElt.next, dw_die, parentElt);
         }
         else if(die->parent && die->parent != root && die->parent->parentElt.next)
         {
-            die = oc_list_entry(die->parent->parentElt.next, dw_die, parentElt);
+            die = oc_list_elt(die->parent->parentElt.next, dw_die, parentElt);
         }
         else
         {

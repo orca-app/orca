@@ -904,7 +904,7 @@ oc_ui_var* oc_ui_var_find(oc_str8 name)
     oc_ui_var* var = 0;
     if(stack)
     {
-        var = oc_list_first_entry(stack->vars, oc_ui_var, stackElt);
+        var = oc_list_first_elt(stack->vars, oc_ui_var, stackElt);
     }
 
     return var;
@@ -952,7 +952,7 @@ void oc_ui_var_push(oc_str8 name, oc_ui_value value, bool alwaysSet, oc_list* sc
 
     oc_list_push_front(scopeList, &var->boxElt);
 
-    oc_ui_var* prev = oc_list_next_entry(var, oc_ui_var, stackElt);
+    oc_ui_var* prev = oc_list_next_elt(var, oc_ui_var, stackElt);
 
     if(!alwaysSet && prev && prev->value.kind == value.kind)
     {
@@ -1626,7 +1626,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     if(!box)
     {
-        box = oc_list_pop_front_entry(&ui->boxFreeList, oc_ui_box, listElt);
+        box = oc_list_pop_front_elt(&ui->boxFreeList, oc_ui_box, listElt);
         if(!box)
         {
             box = oc_arena_push_type_uninitialized(&ui->boxArena, oc_ui_box);
@@ -2297,14 +2297,14 @@ bool oc_ui_style_selector_match(oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_se
 
 oc_ui_style_rule* oc_ui_style_rule_match(oc_ui_context* ui, oc_ui_box* box, oc_ui_style_rule* rule, oc_ui_pattern_specificity* specArray)
 {
-    oc_ui_selector* selector = oc_list_first_entry(rule->pattern.l, oc_ui_selector, listElt);
+    oc_ui_selector* selector = oc_list_first_elt(rule->pattern.l, oc_ui_selector, listElt);
     bool match = oc_ui_style_selector_match(box, rule, selector);
 
-    selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
+    selector = oc_list_next_elt(selector, oc_ui_selector, listElt);
     while(match && selector && selector->op == OC_UI_SEL_AND)
     {
         match = match && oc_ui_style_selector_match(box, rule, selector);
-        selector = oc_list_next_entry(selector, oc_ui_selector, listElt);
+        selector = oc_list_next_elt(selector, oc_ui_selector, listElt);
     }
 
     oc_ui_style_rule* derived = 0;
