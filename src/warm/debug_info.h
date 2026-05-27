@@ -40,7 +40,7 @@ typedef struct wa_wasm_to_line_entry
 
 typedef struct wa_bytecode_mapping
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     u32 funcIndex;
     u32 codeIndex;
@@ -96,7 +96,7 @@ typedef struct wa_type wa_type;
 
 typedef struct wa_type_field
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_str8 name;
     wa_type* type;
     u64 offset;
@@ -104,7 +104,7 @@ typedef struct wa_type_field
 
 typedef struct wa_type_enumerator
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_str8 name;
     //TODO value
 } wa_type_enumerator;
@@ -178,7 +178,7 @@ typedef struct wa_debug_scope wa_debug_scope;
 
 typedef struct wa_debug_scope
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_list children;
     wa_debug_scope* parent;
 

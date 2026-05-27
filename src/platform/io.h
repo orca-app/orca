@@ -322,7 +322,7 @@ ORCA_API oc_io_error oc_file_copy(oc_str8 src, oc_str8 dst, oc_file_copy_options
 
 typedef struct oc_file_listdir_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_str8 basename; // filename and extension, if any
     oc_file_type type;
 } oc_file_listdir_elt;

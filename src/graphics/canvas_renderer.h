@@ -12,7 +12,7 @@
 
 typedef struct oc_image_base
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     u32 generation;
     oc_canvas_renderer renderer;
     oc_vec2 size;

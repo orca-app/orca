@@ -67,7 +67,7 @@ oc_file_open_with_dialog_result oc_file_open_with_dialog_for_table(oc_allocator*
     if(dialogResult.button == OC_FILE_DIALOG_OK)
     {
         int i = 0;
-        oc_list_for(dialogResult.selection.list, elt, oc_str8_elt, listElt)
+        oc_typed_list_for(dialogResult.selection.list, elt)
         {
             oc_file file = oc_file_nil();
             if(elt->string.len)

@@ -170,7 +170,7 @@ int oc_tool_run(oc_tool_options* options)
 
 typedef struct oc_launcher_item
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_str8 name;
     oc_str8 path;
     oc_image thumbnail;

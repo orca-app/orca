@@ -16,7 +16,7 @@ extern "C" {
 
 typedef struct oc_file_open_with_dialog_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_file file;
 } oc_file_open_with_dialog_elt;
 

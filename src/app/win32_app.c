@@ -1455,7 +1455,7 @@ oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator, oc_file_
                 COMDLG_FILTERSPEC* filterSpecs = oc_allocator_push_array(scratch.allocator, COMDLG_FILTERSPEC, oc_typed_list_count(desc->filters.list));
 
                 int i = 0;
-                oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
+                oc_typed_list_for(desc->filters.list, elt)
                 {
                     oc_str8_list list = { 0 };
                     oc_str8_list_push(scratch.allocator, &list, OC_STR8("*."));
@@ -1562,7 +1562,7 @@ int oc_alert_popup(oc_str8 title,
     TASKDIALOG_BUTTON* buttons = oc_allocator_push_array(scratch.allocator, TASKDIALOG_BUTTON, oc_typed_list_count(options.list));
 
     int i = 0;
-    oc_list_for(options.list, elt, oc_str8_elt, listElt)
+    oc_typed_list_for(options.list, elt)
     {
         int textWideSize = MultiByteToWideChar(CP_UTF8, 0, elt->string.ptr, elt->string.len, NULL, 0);
         wchar_t* textWide = oc_allocator_push_array(scratch.allocator, wchar_t, textWideSize + 1);

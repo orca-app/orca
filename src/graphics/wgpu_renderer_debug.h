@@ -27,7 +27,7 @@ typedef struct oc_wgpu_canvas_record_options
 
 typedef struct oc_wgpu_canvas_batch_counters
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     u32 encodedPathCount;
     u32 encodedElementCount;
@@ -41,7 +41,7 @@ enum
 
 typedef struct oc_wgpu_canvas_frame_counters
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     u32 frameIndex;
 

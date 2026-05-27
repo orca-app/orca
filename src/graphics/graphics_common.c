@@ -50,7 +50,7 @@ enum
 
 typedef struct oc_font_data
 {
-    oc_list_elt freeListElt;
+    oc_list_links freeListElt;
 
     u32 rangeCount;
     u32 glyphCount;
@@ -79,7 +79,7 @@ typedef enum oc_graphics_handle_kind
 
 typedef struct oc_graphics_handle_slot
 {
-    oc_list_elt freeListElt;
+    oc_list_links freeListElt;
     u32 generation;
     oc_graphics_handle_kind kind;
 
@@ -108,7 +108,7 @@ typedef struct oc_graphics_data
 
 typedef struct oc_canvas_context_data
 {
-    oc_list_elt freeListElt;
+    oc_list_links freeListElt;
 
     oc_attributes attributes;
     bool textFlip;

@@ -9,90 +9,90 @@
 
 #include "lists.h"
 
-void oc_list_insert(oc_list* list, oc_list_elt* afterElt, oc_list_elt* elt)
+void oc_list_insert(oc_list* list, oc_list_links* after, oc_list_links* links)
 {
-    elt->prev = afterElt;
-    elt->next = afterElt->next;
-    if(afterElt->next)
+    links->prev = after;
+    links->next = after->next;
+    if(after->next)
     {
-        afterElt->next->prev = elt;
+        after->next->prev = links;
     }
     else
     {
-        list->last = elt;
+        list->last = links;
     }
-    afterElt->next = elt;
+    after->next = links;
     list->count++;
-    OC_DEBUG_ASSERT(elt->next != elt, "oc_list_insert(): can't insert an element into itself");
+    OC_DEBUG_ASSERT(links->next != links, "oc_list_insert(): can't insert an element into itself");
 }
 
-void oc_list_insert_before(oc_list* list, oc_list_elt* beforeElt, oc_list_elt* elt)
+void oc_list_insert_before(oc_list* list, oc_list_links* before, oc_list_links* links)
 {
-    elt->next = beforeElt;
-    elt->prev = beforeElt->prev;
+    links->next = before;
+    links->prev = before->prev;
 
-    if(beforeElt->prev)
+    if(before->prev)
     {
-        beforeElt->prev->next = elt;
+        before->prev->next = links;
     }
     else
     {
-        list->first = elt;
+        list->first = links;
     }
-    beforeElt->prev = elt;
+    before->prev = links;
     list->count++;
-    OC_DEBUG_ASSERT(elt->next != elt, "oc_list_insert_before(): can't insert an element into itself");
+    OC_DEBUG_ASSERT(links->next != links, "oc_list_insert_before(): can't insert an element into itself");
 }
 
-void oc_list_remove(oc_list* list, oc_list_elt* elt)
+void oc_list_remove(oc_list* list, oc_list_links* links)
 {
-    if(elt->prev)
+    if(links->prev)
     {
-        elt->prev->next = elt->next;
+        links->prev->next = links->next;
     }
     else
     {
-        OC_DEBUG_ASSERT(list->first == elt);
-        list->first = elt->next;
+        OC_DEBUG_ASSERT(list->first == links);
+        list->first = links->next;
     }
-    if(elt->next)
+    if(links->next)
     {
-        elt->next->prev = elt->prev;
+        links->next->prev = links->prev;
     }
     else
     {
-        OC_DEBUG_ASSERT(list->last == elt);
-        list->last = elt->prev;
+        OC_DEBUG_ASSERT(list->last == links);
+        list->last = links->prev;
     }
-    elt->prev = elt->next = 0;
+    links->prev = links->next = 0;
 
     OC_DEBUG_ASSERT(list->count);
     list->count--;
 }
 
-void oc_list_push_front(oc_list* list, oc_list_elt* elt)
+void oc_list_push_front(oc_list* list, oc_list_links* links)
 {
-    elt->next = list->first;
-    elt->prev = 0;
+    links->next = list->first;
+    links->prev = 0;
     if(list->first)
     {
-        list->first->prev = elt;
+        list->first->prev = links;
     }
     else
     {
-        list->last = elt;
+        list->last = links;
     }
-    list->first = elt;
+    list->first = links;
     list->count++;
 }
 
-oc_list_elt* oc_list_pop_front(oc_list* list)
+oc_list_links* oc_list_pop_front(oc_list* list)
 {
-    oc_list_elt* elt = oc_list_begin(*list);
-    if(elt != oc_list_end(*list))
+    oc_list_links* links = oc_list_begin(*list);
+    if(links != oc_list_end(*list))
     {
-        oc_list_remove(list, elt);
-        return (elt);
+        oc_list_remove(list, links);
+        return (links);
     }
     else
     {
@@ -100,29 +100,29 @@ oc_list_elt* oc_list_pop_front(oc_list* list)
     }
 }
 
-void oc_list_push_back(oc_list* list, oc_list_elt* elt)
+void oc_list_push_back(oc_list* list, oc_list_links* links)
 {
-    elt->prev = list->last;
-    elt->next = 0;
+    links->prev = list->last;
+    links->next = 0;
     if(list->last)
     {
-        list->last->next = elt;
+        list->last->next = links;
     }
     else
     {
-        list->first = elt;
+        list->first = links;
     }
-    list->last = elt;
+    list->last = links;
     list->count++;
 }
 
-oc_list_elt* oc_list_pop_back(oc_list* list)
+oc_list_links* oc_list_pop_back(oc_list* list)
 {
-    oc_list_elt* elt = oc_list_last(*list);
-    if(elt != oc_list_end(*list))
+    oc_list_links* links = oc_list_last(*list);
+    if(links != oc_list_end(*list))
     {
-        oc_list_remove(list, elt);
-        return (elt);
+        oc_list_remove(list, links);
+        return (links);
     }
     else
     {
@@ -141,58 +141,58 @@ bool oc_list_empty(oc_list list)
 #define oc_typed_list_entry_generic(links, linksOffset) \
     (links ? ((char*)links - linksOffset) : 0)
 
-#define oc_typed_list_links_generic(item, linksOffset) \
-    ((oc_typed_list_links*)((char*)item + linksOffset))
+#define oc_list_links_generic(item, linksOffset) \
+    ((oc_list_links*)((char*)item + linksOffset))
 
 void* oc_typed_list_next_generic(void* item, u64 linksOffset)
 {
-    oc_typed_list_links* links = oc_typed_list_links_generic(item, linksOffset);
+    oc_list_links* links = oc_list_links_generic(item, linksOffset);
     return oc_typed_list_entry_generic(links->next, linksOffset);
 }
 
 void* oc_typed_list_prev_generic(void* item, u64 linksOffset)
 {
-    oc_typed_list_links* links = oc_typed_list_links_generic(item, linksOffset);
+    oc_list_links* links = oc_list_links_generic(item, linksOffset);
     return oc_typed_list_entry_generic(links->prev, linksOffset);
 }
 
-void oc_typed_list_push_front_generic(oc_typed_list* list, void* item, oc_typed_list_links* elt)
+void oc_typed_list_push_front_generic(oc_list* list, void* item, oc_list_links* links)
 {
     (void)item;
 
-    elt->next = list->first;
-    elt->prev = 0;
+    links->next = list->first;
+    links->prev = 0;
     if(list->first)
     {
-        list->first->prev = elt;
+        list->first->prev = links;
     }
     else
     {
-        list->last = elt;
+        list->last = links;
     }
-    list->first = elt;
+    list->first = links;
     list->count++;
 }
 
-void oc_typed_list_push_back_generic(oc_typed_list* list, void* item, oc_typed_list_links* elt)
+void oc_typed_list_push_back_generic(oc_list* list, void* item, oc_list_links* links)
 {
     (void)item;
 
-    elt->prev = list->last;
-    elt->next = 0;
+    links->prev = list->last;
+    links->next = 0;
     if(list->last)
     {
-        list->last->next = elt;
+        list->last->next = links;
     }
     else
     {
-        list->first = elt;
+        list->first = links;
     }
-    list->last = elt;
+    list->last = links;
     list->count++;
 }
 
-void oc_typed_list_remove_generic(oc_typed_list* list, void* item, oc_typed_list_links* links)
+void oc_typed_list_remove_generic(oc_list* list, void* item, oc_list_links* links)
 {
     (void)item;
 
@@ -220,9 +220,9 @@ void oc_typed_list_remove_generic(oc_typed_list* list, void* item, oc_typed_list
     list->count--;
 }
 
-void* oc_typed_list_pop_front_generic(oc_typed_list* list, u64 linksOffset)
+void* oc_typed_list_pop_front_generic(oc_list* list, u64 linksOffset)
 {
-    oc_typed_list_links* links = list->first;
+    oc_list_links* links = list->first;
     if(links)
     {
         void* item = oc_typed_list_entry_generic(links, linksOffset);
@@ -235,9 +235,9 @@ void* oc_typed_list_pop_front_generic(oc_typed_list* list, u64 linksOffset)
     }
 }
 
-void* oc_typed_list_pop_back_generic(oc_typed_list* list, u64 linksOffset)
+void* oc_typed_list_pop_back_generic(oc_list* list, u64 linksOffset)
 {
-    oc_typed_list_links* links = list->last;
+    oc_list_links* links = list->last;
     if(links)
     {
         void* item = oc_typed_list_entry_generic(links, linksOffset);
@@ -250,7 +250,7 @@ void* oc_typed_list_pop_back_generic(oc_typed_list* list, u64 linksOffset)
     }
 }
 
-void oc_typed_list_insert_before_generic(oc_typed_list* list, void* item, oc_typed_list_links* before, oc_typed_list_links* links)
+void oc_typed_list_insert_before_generic(oc_list* list, void* item, oc_list_links* before, oc_list_links* links)
 {
     (void)item;
 
@@ -270,7 +270,7 @@ void oc_typed_list_insert_before_generic(oc_typed_list* list, void* item, oc_typ
     OC_DEBUG_ASSERT(links->next != links, "oc_typed_list_insert_before(): can't insert an element into itself");
 }
 
-void oc_typed_list_insert_after_generic(oc_typed_list* list, void* item, oc_typed_list_links* after, oc_typed_list_links* links)
+void oc_typed_list_insert_after_generic(oc_list* list, void* item, oc_list_links* after, oc_list_links* links)
 {
     (void)item;
 

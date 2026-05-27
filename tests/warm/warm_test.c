@@ -225,7 +225,7 @@ wa_typed_value test_parse_value(json_node* arg)
 
 typedef struct wa_test_instance
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_str8 name;
     oc_str8 registeredName;
     wa_instance* instance;

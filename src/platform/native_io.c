@@ -149,7 +149,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
                 - If there's an element that isn't / or .., pop it.
                 - If there's no last element, or the last element is .. or /, this is an error
             */
-            oc_str8_elt* last = oc_list_last_entry(normElements.list, oc_str8_elt, listElt);
+            oc_str8_elt* last = oc_typed_list_last(normElements.list);
             if(!last || !oc_str8_cmp(last->string, OC_STR8("..")) || !oc_str8_cmp(last->string, OC_STR8("/")))
             {
                 result.error = OC_IO_ERR_WALKOUT;
@@ -220,7 +220,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
                 oc_str8_list linkElements = oc_path_split(scratch.allocator, target);
 
                 //NOTE: push linkElements in front of pathElements
-                oc_list_for_reverse(linkElements.list, elt, oc_str8_elt, listElt)
+                oc_typed_list_for_reverse(linkElements.list, elt)
                 {
                     oc_str8_list_push_front(scratch.allocator, &pathElements, elt->string);
                 }

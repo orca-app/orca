@@ -32,7 +32,7 @@ int main(int argc, char** argv)
     //    oc_str8_list_push(scratch.allocator, &desc.filters, OC_STR8("txt"));
     //    oc_str8_list_push(scratch.allocator, &desc.filters, OC_STR8("sh"));
 
-    oc_file_dialog_result res = oc_file_dialog(scratch.arena, &desc);
+    oc_file_dialog_result res = oc_file_dialog(scratch.allocator, &desc);
 
     if(res.button == OC_FILE_DIALOG_CANCEL)
     {
@@ -41,7 +41,7 @@ int main(int argc, char** argv)
     else
     {
         oc_log_info("Selected files:\n");
-        oc_list_for(res.selection.list, elt, oc_str8_elt, listElt)
+        oc_typed_list_for(res.selection.list, elt)
         {
             oc_log_info("\t%.*s\n", (int)elt->string.len, elt->string.ptr);
         }
