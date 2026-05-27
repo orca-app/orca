@@ -25,7 +25,7 @@ typedef struct oc_ui_tag
 
 typedef struct oc_ui_tag_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_ui_tag tag;
 } oc_ui_tag_elt;
 
@@ -45,7 +45,7 @@ typedef enum
 
 typedef struct oc_ui_selector
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_ui_selector_kind kind;
     oc_ui_selector_op op;
 
@@ -73,8 +73,8 @@ typedef struct oc_ui_pattern
 
 typedef struct oc_ui_style_rule
 {
-    oc_list_elt boxElt;
-    oc_list_elt rulesetElt;
+    oc_list_links boxElt;
+    oc_list_links rulesetElt;
 
     oc_ui_box* owner;
     oc_ui_pattern pattern;
@@ -88,7 +88,7 @@ typedef struct oc_ui_style_rule
 
 typedef struct oc_ui_var_stack
 {
-    oc_list_elt bucketElt;
+    oc_list_links bucketElt;
     oc_str8 name;
     u64 hash;
     oc_list vars;
@@ -119,8 +119,8 @@ typedef struct oc_ui_value
 
 typedef struct oc_ui_var
 {
-    oc_list_elt boxElt;
-    oc_list_elt stackElt;
+    oc_list_links boxElt;
+    oc_list_links stackElt;
     oc_ui_var_stack* stack;
     oc_ui_value value;
 
@@ -415,7 +415,7 @@ oc_ui_key oc_ui_key_make_path(oc_str8_list path)
     {
         seed = parent->key.hash;
     }
-    oc_list_for(path.list, elt, oc_str8_elt, listElt)
+    oc_typed_list_for(path.list, elt)
     {
         seed = oc_hash_xx64_string_seed(elt->string, seed);
     }
@@ -1720,7 +1720,7 @@ oc_ui_box* oc_ui_box_begin_str8(oc_str8 string)
 
     //NOTE: clear overlay. This must be done _after_ mouse clip is computed, since it depends
     //      on last frame's value of overlay.
-    box->overlayElt = (oc_list_elt){ 0 };
+    box->overlayElt = (oc_list_links){ 0 };
     box->overlay = false;
 
     return (box);
@@ -2470,7 +2470,7 @@ oc_rect oc_rect_union(oc_rect r1, oc_rect r2)
 
 typedef struct oc_ui_layout_item
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_ui_box* box;
 
     bool wrapped;
@@ -2479,13 +2479,13 @@ typedef struct oc_ui_layout_item
 
 typedef struct oc_ui_layout_line_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_ui_box* box;
 } oc_ui_layout_line_elt;
 
 typedef struct oc_ui_layout_line
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_vec2 size;
     u32 itemCount;
     oc_list items;

@@ -31,7 +31,7 @@ typedef struct json_node json_node;
 
 typedef struct json_node
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_list children;
     u64 childCount;
     json_node* parent;

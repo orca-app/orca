@@ -21,9 +21,9 @@ typedef struct oc_card_group oc_card_group;
 
 typedef struct oc_card
 {
-    oc_list_elt listElt;
-    oc_list_elt groupElt;
-    oc_list_elt interactedElt;
+    oc_list_links listElt;
+    oc_list_links groupElt;
+    oc_list_links interactedElt;
     bool interacted;
 
     oc_card_group* group;
@@ -36,7 +36,7 @@ typedef struct oc_card
 
 typedef struct oc_card_group
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     u64 id;
     oc_list cards;
 } oc_card_group;

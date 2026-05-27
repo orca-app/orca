@@ -35,7 +35,7 @@ typedef struct oc_frame_stats
 
 typedef struct oc_window_data
 {
-    oc_list_elt freeListElt;
+    oc_list_links freeListElt;
     u32 generation;
 
     oc_window_style style;

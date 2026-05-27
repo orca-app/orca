@@ -67,7 +67,7 @@ void queue_event(oc_ringbuffer* queue, oc_event* event)
 
         if(event->type == OC_EVENT_PATHDROP)
         {
-            oc_list_for(event->paths.list, elt, oc_str8_elt, listElt)
+            oc_typed_list_for(event->paths.list, elt)
             {
                 oc_str8* path = &elt->string;
                 if(oc_ringbuffer_write_available(queue) < (sizeof(u64) + path->len))

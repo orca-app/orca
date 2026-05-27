@@ -68,7 +68,7 @@ ORCA_API char* oc_str8_to_cstring(oc_allocator* allocator, oc_str8 string);
 //----------------------------------------------------------------------------------
 typedef struct oc_str8_elt
 {
-    oc_typed_list_links listElt;
+    oc_list_links listElt;
     oc_str8 string;
 } oc_str8_elt;
 
@@ -115,7 +115,7 @@ ORCA_API oc_str16 oc_str16_push_slice(oc_allocator* allocator, oc_str16 s, u64 s
 
 typedef struct oc_str16_elt
 {
-    oc_typed_list_links listElt;
+    oc_list_links listElt;
     oc_str16 string;
 } oc_str16_elt;
 
@@ -152,7 +152,7 @@ ORCA_API oc_str32 oc_str32_push_slice(oc_allocator* allocator, oc_str32 s, u64 s
 
 typedef struct oc_str32_elt
 {
-    oc_typed_list_links listElt;
+    oc_list_links listElt;
     oc_str32 string;
 } oc_str32_elt;
 

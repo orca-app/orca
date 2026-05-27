@@ -1929,7 +1929,7 @@ ORCA_API oc_file_dialog_result oc_file_dialog_for_table(oc_allocator* allocator,
           {
               NSMutableArray* fileTypesArray = [NSMutableArray array];
 
-              oc_list_for(desc->filters.list, elt, oc_str8_elt, listElt)
+              oc_typed_list_for(desc->filters.list, elt)
               {
                   oc_str8 string = elt->string;
                   NSString* filter = [[NSString alloc] initWithBytes:string.ptr length:string.len encoding:NSUTF8StringEncoding];
@@ -2011,7 +2011,7 @@ int oc_alert_popup(oc_str8 title,
           NSAlert* alert = [[NSAlert alloc] init];
           NSString* string;
 
-          oc_list_for_reverse(options.list, elt, oc_str8_elt, listElt)
+          oc_typed_list_for_reverse(options.list, elt)
           {
               string = [[NSString alloc] initWithBytes:elt->string.ptr length:elt->string.len encoding:NSUTF8StringEncoding];
               [alert addButtonWithTitle:string];

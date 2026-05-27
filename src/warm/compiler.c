@@ -14,7 +14,7 @@
 
 typedef struct wa_jump_target
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     u64 offset;
 } wa_jump_target;
 
@@ -91,7 +91,7 @@ typedef struct wa_build_context
 
 typedef struct wa_register_range_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     wa_register_range range;
 } wa_register_range_elt;
 

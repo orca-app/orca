@@ -33,7 +33,7 @@ typedef struct oc_file_slot
     u32 generation;
     oc_io_error error;
     bool fatal;
-    oc_list_elt freeListElt;
+    oc_list_links freeListElt;
 
     oc_file_type type;
     oc_file_access rights;

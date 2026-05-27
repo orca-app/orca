@@ -2381,7 +2381,7 @@ void wa_print_stack_trace(wa_interpreter* interpreter)
 
 typedef struct wa_breakpoint
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     bool isLine;
     wa_line_loc lineLoc;
     wa_warm_loc warmLoc;
@@ -2390,7 +2390,7 @@ typedef struct wa_breakpoint
 
 typedef struct wa_trap
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     wa_warm_loc loc;
     wa_code savedOpcode;
     u64 count;

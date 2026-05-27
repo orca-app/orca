@@ -261,17 +261,17 @@ typedef struct oc_ui_key
 struct oc_ui_box
 {
     // hierarchy
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_list children;
     u32 childCount;
 
     oc_ui_box* parent;
 
-    oc_list_elt overlayElt;
+    oc_list_links overlayElt;
     bool overlay;
 
     // keying and caching
-    oc_list_elt bucketElt;
+    oc_list_links bucketElt;
     oc_ui_key key;
     u64 frameCounter;
 

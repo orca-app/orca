@@ -70,7 +70,7 @@ typedef struct param_desc
 
 typedef struct proc_desc
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     oc_str8 name;
     oc_str8 handler;

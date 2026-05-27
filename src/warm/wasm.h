@@ -182,7 +182,7 @@ typedef struct wa_import_binding
 
 typedef struct wa_import_package_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     wa_import_binding binding;
 } wa_import_package_elt;
 

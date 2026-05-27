@@ -127,7 +127,7 @@ typedef struct dw_line_machine
 
 typedef struct dw_file_entry_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     dw_file_entry entry;
 } dw_file_entry_elt;
 
@@ -676,14 +676,14 @@ void dw_line_machine_reset(dw_line_machine* m, bool defaultIsStmt)
 
 typedef struct dw_line_entry_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     dw_line_entry entry;
 
 } dw_line_entry_elt;
 
 typedef struct dw_line_table_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     dw_line_table table;
 
 } dw_line_table_elt;
@@ -1049,14 +1049,14 @@ dw_abbrev_table dw_load_abbrev_table(dw_parser* parser, dw_section section, u64 
 
     typedef struct dw_abbrev_entry_elt
     {
-        oc_list_elt listElt;
+        oc_list_links listElt;
         dw_abbrev_entry entry;
 
     } dw_abbrev_entry_elt;
 
     typedef struct dw_abbrev_attr_elt
     {
-        oc_list_elt listElt;
+        oc_list_links listElt;
         dw_abbrev_attr attr;
     } dw_abbrev_attr_elt;
 
@@ -1294,7 +1294,7 @@ dw_loc_option dw_parse_loclist(dw_parser* parser, dw_unit* unit, dw_section sect
 
         typedef struct dw_loc_entry_elt
         {
-            oc_list_elt listElt;
+            oc_list_links listElt;
             dw_loc_entry entry;
         } dw_loc_entry_elt;
 
@@ -1399,7 +1399,7 @@ dw_range_list_option dw_parse_range_list_at_offset(dw_parser* parser, dw_unit* u
 
         typedef struct dw_range_entry_elt
         {
-            oc_list_elt listElt;
+            oc_list_links listElt;
             dw_range_entry entry;
         } dw_range_entry_elt;
 
@@ -2006,7 +2006,7 @@ void dw_parse_info(dw_parser* parser, dw_sections* sections, dw_info* info)
 
     typedef struct dw_unit_elt
     {
-        oc_list_elt listElt;
+        oc_list_links listElt;
         dw_unit unit;
     } dw_unit_elt;
 

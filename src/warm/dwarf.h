@@ -895,7 +895,7 @@ typedef struct dw_die dw_die;
 
 typedef struct dw_die
 {
-    oc_list_elt parentElt;
+    oc_list_links parentElt;
     dw_die* parent;
     oc_list children;
 

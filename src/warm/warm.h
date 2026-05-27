@@ -49,7 +49,7 @@ typedef struct wa_instr wa_instr;
 
 typedef struct wa_instr
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     wa_instr_op op;
     u32 immCount;
@@ -181,7 +181,7 @@ typedef struct wa_export
 
 typedef struct wa_section
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     u64 id;
     u64 len;
     u64 offset;
@@ -216,7 +216,7 @@ typedef struct wa_module_toc
 
 typedef struct wa_module_error
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     u64 loc;
     wa_status status;

@@ -25,7 +25,7 @@ typedef enum oc_arg_parser_type
 
 typedef struct oc_arg_parser_arg
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     oc_str8 name;
     oc_arg_parser_arg_options options;
@@ -77,7 +77,7 @@ typedef struct oc_arg_parser_arg
 
 typedef struct oc_arg_parser_value_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
 
     union
     {

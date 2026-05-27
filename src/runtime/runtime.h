@@ -19,7 +19,7 @@
 
 typedef struct log_entry
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     u64 cap;
 
     oc_log_level level;
@@ -57,7 +57,7 @@ typedef struct wa_type wa_type;
 
 typedef struct oc_debugger_value
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_list children;
 
     oc_str8 name;
@@ -72,7 +72,7 @@ typedef struct wa_source_node wa_source_node;
 
 typedef struct wa_source_node
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_list children;
     wa_source_node* parent;
 
@@ -92,7 +92,7 @@ typedef enum oc_debugger_code_tab_mode
 
 typedef struct oc_debugger_code_tab
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_debugger_code_tab_mode mode;
     wa_source_node* selectedFile;
     i64 selectedFunction;

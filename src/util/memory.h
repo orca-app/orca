@@ -43,7 +43,7 @@ void* oc_allocator_push(oc_allocator* allocator, u64 size);
 
 typedef struct oc_arena_chunk
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     char* ptr;
     u64 offset;
     u64 committed;

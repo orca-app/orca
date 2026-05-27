@@ -71,7 +71,7 @@ typedef struct oc_arg_parser oc_arg_parser;
 
 typedef struct oc_arg_parser
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     oc_arg_parser* parent;
     oc_arena* arena;
 

@@ -15,7 +15,7 @@
 
 typedef struct wa_source_file_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     wa_source_file file;
     u64 index;
 } wa_source_file_elt;
@@ -65,7 +65,7 @@ void wa_dwarf_error_callback(dw_parser* parser, u64 loc, oc_str8 message, void* 
 
 typedef struct wa_type_elt
 {
-    oc_list_elt listElt;
+    oc_list_links listElt;
     u64 dwarfRef;
     wa_type* type;
 } wa_type_elt;
