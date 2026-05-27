@@ -554,7 +554,7 @@ void draw_breakpoint_cursor_proc(oc_ui_box* box, void* data)
 
 oc_debugger_code_tab* oc_debugger_code_tab_alloc(oc_debugger* debugger)
 {
-    oc_debugger_code_tab* tab = oc_list_pop_front_entry(&debugger->tabsFreeList, oc_debugger_code_tab, listElt);
+    oc_debugger_code_tab* tab = oc_list_pop_front_elt(&debugger->tabsFreeList, oc_debugger_code_tab, listElt);
     if(!tab)
     {
         tab = oc_arena_push_type(&debugger->tabsArena, oc_debugger_code_tab);

@@ -114,7 +114,7 @@ void oc_hostapi_log(oc_log_level level, i32 functionLen, char* function, i32 fil
     debug->entryCount++;
     if(debug->entryCount > debug->maxEntries)
     {
-        log_entry* e = oc_list_pop_front_entry(&debug->logEntries, log_entry, listElt);
+        log_entry* e = oc_list_pop_front_elt(&debug->logEntries, log_entry, listElt);
         if(e)
         {
             oc_list_push_front(&debug->logFreeList, &e->listElt);

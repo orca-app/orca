@@ -2456,7 +2456,7 @@ void wa_interpreter_add_trap(wa_interpreter* interpreter, wa_warm_loc* loc)
     wa_trap* trap = wa_interpreter_find_trap(interpreter, loc);
     if(!trap)
     {
-        trap = oc_list_pop_front_entry(&interpreter->trapFreeList, wa_trap, listElt);
+        trap = oc_list_pop_front_elt(&interpreter->trapFreeList, wa_trap, listElt);
         if(!trap)
         {
             trap = oc_arena_push_type(&interpreter->arena, wa_trap);
@@ -2497,7 +2497,7 @@ wa_breakpoint* wa_interpreter_add_breakpoint(wa_interpreter* interpreter, wa_war
     wa_breakpoint* bp = wa_interpreter_find_breakpoint(interpreter, loc);
     if(bp == 0)
     {
-        bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
+        bp = oc_list_pop_front_elt(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
         if(!bp)
         {
             bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);
@@ -2524,7 +2524,7 @@ wa_breakpoint* wa_interpreter_add_breakpoint_line(wa_interpreter* interpreter, w
         if(warmLoc.module)
         {
 
-            bp = oc_list_pop_front_entry(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
+            bp = oc_list_pop_front_elt(&interpreter->breakpointFreeList, wa_breakpoint, listElt);
             if(!bp)
             {
                 bp = oc_arena_push_type(&interpreter->arena, wa_breakpoint);

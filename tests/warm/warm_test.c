@@ -434,7 +434,7 @@ wa_instance* wa_test_get_instance(wa_test_env* env, json_node* action)
     }
     else
     {
-        wa_test_instance* item = oc_list_last_entry(env->instances, wa_test_instance, listElt);
+        wa_test_instance* item = oc_list_last_elt(env->instances, wa_test_instance, listElt);
         if(item)
         {
             instance = item->instance;
@@ -824,7 +824,7 @@ int test_file(oc_str8 testPath, oc_str8 testName, oc_str8 testDir, i32 filterLin
         else if(!oc_str8_cmp(type->string, OC_STR8("register")))
         {
             json_node* as = json_find_assert(command, "as", JSON_STRING);
-            wa_test_instance* mod = oc_list_last_entry(env->instances, wa_test_instance, listElt);
+            wa_test_instance* mod = oc_list_last_elt(env->instances, wa_test_instance, listElt);
             if(!mod || !mod->instance)
             {
                 wa_test_fail(env, testName, command);

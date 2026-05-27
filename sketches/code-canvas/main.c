@@ -87,7 +87,7 @@ void oc_code_canvas_init(oc_code_canvas* canvas)
 
 void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
 {
-    oc_card* card = oc_list_pop_front_entry(&canvas->cardFreeList, oc_card, listElt);
+    oc_card* card = oc_list_pop_front_elt(&canvas->cardFreeList, oc_card, listElt);
     if(!card)
     {
         card = oc_arena_push_type_uninitialized(&canvas->arena, oc_card);
@@ -105,7 +105,7 @@ void oc_code_canvas_create_card(oc_code_canvas* canvas, f32 x, f32 y)
 
 oc_card_group* oc_code_canvas_create_group(oc_code_canvas* canvas)
 {
-    oc_card_group* group = oc_list_pop_front_entry(&canvas->groupFreeList, oc_card_group, listElt);
+    oc_card_group* group = oc_list_pop_front_elt(&canvas->groupFreeList, oc_card_group, listElt);
     if(!group)
     {
         group = oc_arena_push_type_uninitialized(&canvas->arena, oc_card_group);
@@ -123,7 +123,7 @@ void oc_card_remove_from_group(oc_code_canvas* canvas, oc_card_group* group, oc_
 
     if(group->cards.first == group->cards.last)
     {
-        oc_card* lastCard = oc_list_first_entry(group->cards, oc_card, groupElt);
+        oc_card* lastCard = oc_list_first_elt(group->cards, oc_card, groupElt);
         OC_ASSERT(lastCard);
 
         oc_list_remove(&group->cards, &lastCard->groupElt);
@@ -414,9 +414,9 @@ void oc_canvas_compute_groups(oc_code_canvas* canvas)
     oc_scratch scratch = oc_scratch_begin();
 
     //NOTE: recycle previous groups
-    for(oc_card_group* group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt);
+    for(oc_card_group* group = oc_list_pop_front_elt(&canvas->groups, oc_card_group, listElt);
         group != 0;
-        group = oc_list_pop_front_entry(&canvas->groups, oc_card_group, listElt))
+        group = oc_list_pop_front_elt(&canvas->groups, oc_card_group, listElt))
     {
         oc_list_push_front(&canvas->groupFreeList, &group->listElt);
     }
@@ -432,9 +432,9 @@ void oc_canvas_compute_groups(oc_code_canvas* canvas)
             card->rect.w + 2 * OC_CARD_GROUPING_THRESHOLD,
             card->rect.h + 2 * OC_CARD_GROUPING_THRESHOLD,
         };
-        for(oc_card* other = oc_list_first_entry(canvas->cards, oc_card, listElt);
+        for(oc_card* other = oc_list_first_elt(canvas->cards, oc_card, listElt);
             other != card;
-            other = oc_list_next_entry(other, oc_card, listElt))
+            other = oc_list_next_elt(other, oc_card, listElt))
         {
             if(oc_rect_overlap(r, other->rect))
             {
