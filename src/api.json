@@ -3098,37 +3098,10 @@
                                         "kind": "union",
                                         "fields": [
                                             {
-                                                "name": "",
+                                                "name": "l",
                                                 "type": {
-                                                    "kind": "struct",
-                                                    "fields": [
-                                                        {
-                                                            "name": "first",
-                                                            "type": {
-                                                                "kind": "pointer",
-                                                                "type": {
-                                                                    "kind": "namedType",
-                                                                    "name": "oc_list_links"
-                                                                }
-                                                            }
-                                                        },
-                                                        {
-                                                            "name": "last",
-                                                            "type": {
-                                                                "kind": "pointer",
-                                                                "type": {
-                                                                    "kind": "namedType",
-                                                                    "name": "oc_list_links"
-                                                                }
-                                                            }
-                                                        },
-                                                        {
-                                                            "name": "count",
-                                                            "type": {
-                                                                "kind": "u64"
-                                                            }
-                                                        }
-                                                    ]
+                                                    "kind": "namedType",
+                                                    "name": "oc_list"
                                                 }
                                             },
                                             {
@@ -3695,37 +3668,10 @@
                                         "kind": "union",
                                         "fields": [
                                             {
-                                                "name": "",
+                                                "name": "l",
                                                 "type": {
-                                                    "kind": "struct",
-                                                    "fields": [
-                                                        {
-                                                            "name": "first",
-                                                            "type": {
-                                                                "kind": "pointer",
-                                                                "type": {
-                                                                    "kind": "namedType",
-                                                                    "name": "oc_list_links"
-                                                                }
-                                                            }
-                                                        },
-                                                        {
-                                                            "name": "last",
-                                                            "type": {
-                                                                "kind": "pointer",
-                                                                "type": {
-                                                                    "kind": "namedType",
-                                                                    "name": "oc_list_links"
-                                                                }
-                                                            }
-                                                        },
-                                                        {
-                                                            "name": "count",
-                                                            "type": {
-                                                                "kind": "u64"
-                                                            }
-                                                        }
-                                                    ]
+                                                    "kind": "namedType",
+                                                    "name": "oc_list"
                                                 }
                                             },
                                             {
@@ -4187,37 +4133,10 @@
                                         "kind": "union",
                                         "fields": [
                                             {
-                                                "name": "",
+                                                "name": "l",
                                                 "type": {
-                                                    "kind": "struct",
-                                                    "fields": [
-                                                        {
-                                                            "name": "first",
-                                                            "type": {
-                                                                "kind": "pointer",
-                                                                "type": {
-                                                                    "kind": "namedType",
-                                                                    "name": "oc_list_links"
-                                                                }
-                                                            }
-                                                        },
-                                                        {
-                                                            "name": "last",
-                                                            "type": {
-                                                                "kind": "pointer",
-                                                                "type": {
-                                                                    "kind": "namedType",
-                                                                    "name": "oc_list_links"
-                                                                }
-                                                            }
-                                                        },
-                                                        {
-                                                            "name": "count",
-                                                            "type": {
-                                                                "kind": "u64"
-                                                            }
-                                                        }
-                                                    ]
+                                                    "kind": "namedType",
+                                                    "name": "oc_list"
                                                 }
                                             },
                                             {
