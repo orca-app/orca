@@ -150,6 +150,7 @@ ORCA_API void oc_heap_free(oc_heap* heap, void* p);
 ORCA_API void oc_heap_clear(oc_heap* heap);
 
 void oc_heap_debug_print(oc_heap* heap);
+int oc_heap_debug_check_consistency(oc_heap* heap);
 
 #ifdef __cplusplus
 } // extern "C"

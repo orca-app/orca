@@ -336,6 +336,12 @@ oc_heap_chunk* oc_heap_new_region(oc_heap* heap)
 {
     u64 size = sizeof(oc_heap_region) + 2 * sizeof(oc_heap_chunk) + heap->nextChunkSize;
     oc_heap_region* region = (oc_heap_region*)oc_platform_memory_reserve(heap->base, size);
+
+    if(!region)
+    {
+        return 0;
+    }
+
     oc_platform_memory_commit(heap->base, (void*)region, size);
 
     region->size = size;
@@ -414,6 +420,7 @@ void* oc_heap_alloc(oc_heap* heap, u64 size)
         {
             if(candidate->sizeAndStatus >= size)
             {
+                oc_typed_list_remove(&heap->largeBins[largeStartIndex], candidate);
                 chunk = candidate;
                 break;
             }
@@ -437,7 +444,11 @@ void* oc_heap_alloc(oc_heap* heap, u64 size)
             chunk = oc_heap_new_region(heap);
         }
     }
-    OC_ASSERT(chunk);
+    if(!chunk)
+    {
+        //NOTE: exhaustion
+        return 0;
+    }
 
     if(chunk->sizeAndStatus > sizeUp8 + OC_HEAP_CHUNK_MIN_SIZE + OC_HEAP_CHUNK_OVERHEAD)
     {
@@ -514,7 +525,7 @@ void oc_heap_debug_print(oc_heap* heap)
         while(chunk->sizeAndStatus)
         {
             u64 size = chunk->sizeAndStatus & (~OC_HEAP_CHUNK_USED);
-            printf("\t* %p -> %p", (char*)chunk, (char*)chunk + size);
+            printf("\t* %p -> %p", (char*)chunk, (char*)chunk + sizeof(oc_heap_chunk) + size);
 
             if(chunk->sizeAndStatus == OC_HEAP_CHUNK_USED)
             {
@@ -533,4 +544,174 @@ void oc_heap_debug_print(oc_heap* heap)
         }
     }
     printf("\n");
+}
+
+int oc_heap_debug_check_consistency(oc_heap* heap)
+{
+    //NOTE: check regions
+    u64 prevSize = 0;
+
+    if(oc_typed_list_empty(heap->regions))
+    {
+    }
+
+    oc_typed_list_for(heap->regions, region)
+    {
+        oc_heap_chunk* chunk = (oc_heap_chunk*)(region->mem);
+        while(chunk->sizeAndStatus)
+        {
+            if((char*)chunk < region->mem)
+            {
+                oc_log_error("chunk not in region memory (chunk = %p, region->mem = %p)\n", chunk, region->mem);
+                return -1;
+            }
+            if((char*)chunk >= (char*)region + region->size)
+            {
+                oc_log_error("chunk outside region (chunk = %p, region start = %p, region end = %p)\n", chunk, region, (char*)region + region->size);
+                oc_log_info("might be missing sentinel chunk?\n");
+                return -1;
+            }
+
+            if((intptr_t)chunk % 8)
+            {
+                oc_log_error("chunk not aligned on 8 byte boundary (%p)\n", chunk);
+                return -1;
+            }
+
+            if((char*)chunk + sizeof(oc_heap_chunk) > (char*)region + region->size)
+            {
+                oc_log_error("chunk header overflows region (chunk start = %p, chunk end = %p, region start = %p, region end = %p)\n",
+                             chunk, (char*)chunk + sizeof(oc_heap_chunk),
+                             region,
+                             (char*)region + region->size);
+                return -1;
+            }
+
+            u64 size = chunk->sizeAndStatus & (~OC_HEAP_CHUNK_USED);
+
+            if(chunk->sizeAndStatus != OC_HEAP_CHUNK_USED && size < OC_HEAP_CHUNK_MIN_SIZE)
+            {
+                oc_log_error("chunk size less than minimum size (%llu <  %llu)\n", size, OC_HEAP_CHUNK_MIN_SIZE);
+                return -1;
+            }
+            if(size % 8)
+            {
+                oc_log_error("chunk size not a multiple of 8 (%llu)\n", size);
+                return -1;
+            }
+            if((char*)chunk + sizeof(oc_heap_chunk) + size > (char*)region + region->size)
+            {
+                oc_log_error("chunk overflows region (chunk start = %p, chunk end = %p, region start = %p, region end = %p)",
+                             chunk, (char*)chunk + sizeof(oc_heap_chunk) + size,
+                             region,
+                             (char*)region + region->size);
+                return -1;
+            }
+
+            if(chunk->prevSize != prevSize)
+            {
+                oc_log_error("inconsistent prevSize for chunk %p (expected %llu, got %llu)\n", chunk, prevSize, chunk->prevSize);
+                return -1;
+            }
+
+            if(!(chunk->sizeAndStatus & OC_HEAP_CHUNK_USED))
+            {
+                if(chunk->prevSize)
+                {
+                    oc_heap_chunk* prev = (oc_heap_chunk*)((char*)chunk - chunk->prevSize - sizeof(oc_heap_chunk));
+                    if(!(prev->sizeAndStatus & OC_HEAP_CHUNK_USED))
+                    {
+                        oc_log_error("contiguous free chunks %p and %p\n", prev, chunk);
+                        return -1;
+                    }
+                }
+
+                oc_heap_chunk_list* bin = oc_heap_get_bin_for_chunk(heap, chunk);
+                bool found = false;
+                oc_typed_list_for(*bin, it)
+                {
+                    if(it == chunk)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if(!found)
+                {
+                    oc_log_error("free chunk %p not in any bin\n", chunk);
+                    return -1;
+                }
+            }
+
+            if(chunk->sizeAndStatus == OC_HEAP_CHUNK_USED)
+            {
+                break;
+            }
+            prevSize = size;
+            chunk = (oc_heap_chunk*)((char*)chunk + sizeof(oc_heap_chunk) + size);
+        }
+    }
+
+    // check all bins
+    for(int i = 0; i < OC_HEAP_SMALL_BIN_COUNT; i++)
+    {
+        oc_heap_chunk_list* bin = &heap->smallBins[i];
+        oc_typed_list_for(*bin, chunk)
+        {
+            if(chunk->sizeAndStatus & OC_HEAP_CHUNK_USED)
+            {
+                oc_log_error("used chunk in free bin (%p)\n", chunk);
+                return -1;
+            }
+            oc_heap_chunk_list* expectedBin = oc_heap_get_bin_for_chunk(heap, chunk);
+            if(bin != expectedBin)
+            {
+                oc_log_error("chunk %p in wrong bin (expected %p, got %p)\n", chunk, expectedBin, bin);
+                return -1;
+            }
+        }
+    }
+
+    for(int i = 0; i < OC_HEAP_LARGE_BIN_COUNT; i++)
+    {
+        oc_heap_chunk_list* bin = &heap->largeBins[i];
+        oc_typed_list_for(*bin, chunk)
+        {
+            if(chunk->sizeAndStatus & OC_HEAP_CHUNK_USED)
+            {
+                oc_log_error("used chunk in free bin (%p)\n", chunk);
+                return -1;
+            }
+            oc_heap_chunk_list* expectedBin = oc_heap_get_bin_for_chunk(heap, chunk);
+            if(bin != expectedBin)
+            {
+                oc_log_error("chunk %p in wrong bin (expected %p, got %p)\n", chunk, expectedBin, bin);
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+
+bool oc_heap_debug_is_allocated(oc_heap* heap, void* p, u64 minSize)
+{
+    oc_typed_list_for(heap->regions, region)
+    {
+        oc_heap_chunk* chunk = (oc_heap_chunk*)(region->mem);
+        while(chunk->sizeAndStatus && chunk->sizeAndStatus != OC_HEAP_CHUNK_USED)
+        {
+            u64 size = chunk->sizeAndStatus & (~OC_HEAP_CHUNK_USED);
+
+            if((chunk->sizeAndStatus & OC_HEAP_CHUNK_USED)
+               && chunk->mem == (char*)p
+               && size >= minSize)
+            {
+                return true;
+            }
+
+            chunk = (oc_heap_chunk*)((char*)chunk + sizeof(oc_heap_chunk) + size);
+        }
+    }
+    return false;
 }
