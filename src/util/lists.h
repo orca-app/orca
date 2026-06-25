@@ -115,10 +115,10 @@ ORCA_API oc_list_links* oc_list_pop_back(oc_list* list);
 #define oc_typed_list_last(list) oc_typed_list_elt((list), (list).l.last)
 
 #define oc_typed_list_next(list, elt) \
-    ((typeof(list.t)(*)(typeof(list.t), u64))oc_typed_list_next_generic)(elt, oc_typed_list_get_links_offset(list))
+    ((typeof((list).t) (*)(typeof((list).t), u64))oc_typed_list_next_generic)(elt, oc_typed_list_get_links_offset(list))
 
 #define oc_typed_list_prev(list, elt) \
-    ((typeof(list.t)(*)(typeof(list.t), u64))oc_typed_list_prev_generic)(elt, oc_typed_list_get_links_offset(list))
+    ((typeof((list).t) (*)(typeof((list).t), u64))oc_typed_list_prev_generic)(elt, oc_typed_list_get_links_offset(list))
 
 #define oc_typed_list_push_front(list, elt) \
     ((void (*)(oc_list*, typeof((list)->t), oc_list_links*))oc_typed_list_push_front_generic)(&(list)->l, elt, oc_typed_list_get_links(*(list), elt))
@@ -130,21 +130,21 @@ ORCA_API oc_list_links* oc_list_pop_back(oc_list* list);
     ((void (*)(oc_list*, typeof((list)->t), oc_list_links*))oc_typed_list_remove_generic)(&(list)->l, elt, oc_typed_list_get_links(*(list), elt))
 
 #define oc_typed_list_pop_front(list) \
-    ((typeof((list)->t)(*)(oc_list*, u64))oc_typed_list_pop_front_generic)(&(list)->l, oc_typed_list_get_links_offset(*(list)))
+    ((typeof((list)->t) (*)(oc_list*, u64))oc_typed_list_pop_front_generic)(&(list)->l, oc_typed_list_get_links_offset(*(list)))
 
 #define oc_typed_list_pop_back(list) \
-    ((typeof((list)->t)(*)(oc_list*, u64))oc_typed_list_pop_back_generic)(&(list)->l, oc_typed_list_get_links_offset(*(list)))
+    ((typeof((list)->t) (*)(oc_list*, u64))oc_typed_list_pop_back_generic)(&(list)->l, oc_typed_list_get_links_offset(*(list)))
 
 #define oc_typed_list_insert_before(list, before, elt)                                                            \
     ((void (*)(oc_list*, typeof((list)->t), oc_list_links*, oc_list_links*))oc_typed_list_insert_before_generic)( \
-        list,                                                                                                     \
+        (oc_list*)list,                                                                                           \
         elt,                                                                                                      \
         oc_typed_list_get_links(*(list), before),                                                                 \
         oc_typed_list_get_links(*(list), elt))
 
 #define oc_typed_list_insert_after(list, after, elt)                                                             \
     ((void (*)(oc_list*, typeof((list)->t), oc_list_links*, oc_list_links*))oc_typed_list_insert_after_generic)( \
-        list,                                                                                                    \
+        (oc_list*)list,                                                                                          \
         elt,                                                                                                     \
         oc_typed_list_get_links(*(list), after),                                                                 \
         oc_typed_list_get_links(*(list), elt))
@@ -169,7 +169,7 @@ ORCA_API oc_list_links* oc_list_pop_back(oc_list* list);
 
 #define oc_typed_list_get_links_offset(list) sizeof(*((list).ofs))
 #define oc_typed_list_get_links(list, elt) ((oc_list_links*)(((char*)elt) + oc_typed_list_get_links_offset(list)))
-#define oc_typed_list_elt(list, links) ((typeof((list).t))(links - oc_typed_list_get_links_offset(list)))
+#define oc_typed_list_elt(list, links) ((typeof((list).t))(links ? links - oc_typed_list_get_links_offset(list) : 0))
 
 ORCA_API void* oc_typed_list_next_generic(void* elt, u64 linksOffset);
 ORCA_API void* oc_typed_list_prev_generic(void* elt, u64 linksOffset);
