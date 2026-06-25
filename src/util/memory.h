@@ -104,6 +104,53 @@ ORCA_API oc_scratch oc_scratch_begin_next_arena(oc_arena* used);
 
 ORCA_API void oc_scratch_end(oc_scratch scratch);
 
+//--------------------------------------------------------------------------------
+//NOTE(martin): arena-based heap
+//--------------------------------------------------------------------------------
+
+typedef struct oc_heap_region
+{
+    oc_list_links links;
+    u64 size;
+    char mem[];
+} oc_heap_region;
+
+typedef oc_typed_list(oc_heap_region, links) oc_heap_region_list;
+
+typedef struct oc_heap_chunk
+{
+    u64 prevSize;
+    u64 sizeAndStatus;
+    oc_list_links links;
+    char mem[];
+} oc_heap_chunk;
+
+typedef oc_typed_list(oc_heap_chunk, links) oc_heap_chunk_list;
+
+enum
+{
+    OC_HEAP_SMALL_BIN_COUNT = 61,
+    OC_HEAP_LARGE_BIN_COUNT = 16,
+};
+
+typedef struct oc_heap
+{
+    oc_platform_memory* base;
+    oc_heap_region_list regions;
+    oc_heap_chunk_list smallBins[OC_HEAP_SMALL_BIN_COUNT]; // fixed sizes from 16 to 504
+    oc_heap_chunk_list largeBins[OC_HEAP_LARGE_BIN_COUNT]; // pow2 sizes from 512 (2^9) to 16M (2^24)
+    u64 nextChunkSize;
+} oc_heap;
+
+ORCA_API void oc_heap_init(oc_heap* heap);
+ORCA_API void oc_heap_cleanup(oc_heap* heap);
+
+ORCA_API void* oc_heap_alloc(oc_heap* heap, u64 size);
+ORCA_API void oc_heap_free(oc_heap* heap, void* p);
+ORCA_API void oc_heap_clear(oc_heap* heap);
+
+void oc_heap_debug_print(oc_heap* heap);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

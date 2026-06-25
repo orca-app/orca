@@ -283,3 +283,254 @@ void oc_scratch_end(oc_scratch scope)
     scope.arena->currentChunk = scope.chunk;
     scope.arena->currentChunk->offset = scope.offset;
 }
+
+//--------------------------------------------------------------------------------
+//NOTE(martin): arena-based heap
+//--------------------------------------------------------------------------------
+enum
+{
+    OC_HEAP_CHUNK_USED = 1,
+    OC_HEAP_CHUNK_MIN_SIZE = 8,
+    OC_HEAP_CHUNK_MAX_SMALL_SIZE = 504,
+    OC_HEAP_CHUNK_MAX_LARGE_SIZE = 16 << 20,
+    OC_HEAP_CHUNK_OVERHEAD = sizeof(oc_heap_chunk),
+};
+
+oc_heap_chunk_list* oc_heap_get_bin_for_chunk(oc_heap* heap, oc_heap_chunk* chunk)
+{
+    oc_heap_chunk_list* bin = 0;
+    if(chunk->sizeAndStatus <= OC_HEAP_CHUNK_MAX_SMALL_SIZE)
+    {
+        u64 binIndex = chunk->sizeAndStatus / 8 - 2;
+        bin = &heap->smallBins[binIndex];
+    }
+    else
+    {
+        u64 binIndex = 63 - __builtin_clzl(chunk->sizeAndStatus) - 9;
+        bin = &heap->largeBins[binIndex];
+    }
+    return bin;
+}
+
+void oc_heap_bin_chunk(oc_heap* heap, oc_heap_chunk* chunk)
+{
+    oc_heap_chunk_list* bin = oc_heap_get_bin_for_chunk(heap, chunk);
+
+    bool found = false;
+    oc_typed_list_for(*bin, it)
+    {
+        if(it->sizeAndStatus >= chunk->sizeAndStatus)
+        {
+            oc_typed_list_insert_before(bin, it, chunk);
+            found = true;
+            break;
+        }
+    }
+    if(!found)
+    {
+        oc_typed_list_push_back(bin, chunk);
+    }
+}
+
+oc_heap_chunk* oc_heap_new_region(oc_heap* heap)
+{
+    u64 size = sizeof(oc_heap_region) + 2 * sizeof(oc_heap_chunk) + heap->nextChunkSize;
+    oc_heap_region* region = (oc_heap_region*)oc_platform_memory_reserve(heap->base, size);
+    oc_platform_memory_commit(heap->base, (void*)region, size);
+
+    region->size = size;
+    oc_typed_list_push_back(&heap->regions, region);
+
+    oc_heap_chunk* chunk = (oc_heap_chunk*)region->mem;
+    chunk->prevSize = 0;
+    chunk->sizeAndStatus = heap->nextChunkSize;
+
+    oc_heap_chunk* sentinel = (oc_heap_chunk*)(region->mem + sizeof(oc_heap_chunk) + heap->nextChunkSize);
+    sentinel->prevSize = heap->nextChunkSize;
+    sentinel->sizeAndStatus = OC_HEAP_CHUNK_USED;
+
+    heap->nextChunkSize *= 2;
+    return chunk;
+}
+
+void oc_heap_init(oc_heap* heap)
+{
+    memset(heap, 0, sizeof(oc_heap));
+
+    heap->base = oc_platform_memory_default();
+    heap->nextChunkSize = 1 << 10;
+
+    oc_heap_chunk* chunk = oc_heap_new_region(heap);
+    oc_heap_bin_chunk(heap, chunk);
+}
+
+void oc_heap_cleanup(oc_heap* heap)
+{
+    oc_typed_list_for_safe(heap->regions, region)
+    {
+        oc_platform_memory_release(heap->base, region, region->size);
+    }
+    memset(heap, 0, sizeof(oc_heap));
+}
+
+void* oc_heap_alloc(oc_heap* heap, u64 size)
+{
+    if(!size)
+    {
+        return 0;
+    }
+    u64 sizeUp8 = oc_align_up_pow2(oc_max(size, 16), 8);
+
+    oc_heap_chunk* chunk = 0;
+    u64 largeStartIndex = 0;
+
+    if(size <= OC_HEAP_CHUNK_MAX_SMALL_SIZE)
+    {
+        //NOTE: try to find suitable chunk in small bins
+        u64 startIndex = sizeUp8 / 8 - 2;
+
+        for(u64 binIndex = startIndex;
+            binIndex < OC_HEAP_SMALL_BIN_COUNT;
+            binIndex++)
+        {
+            oc_heap_chunk* front = oc_typed_list_pop_front(&heap->smallBins[binIndex]);
+            if(front)
+            {
+                chunk = front;
+                break;
+            }
+        }
+    }
+    else
+    {
+        largeStartIndex = 63 - __builtin_clzl(size) - 9;
+        OC_ASSERT(largeStartIndex < OC_HEAP_LARGE_BIN_COUNT);
+    }
+
+    if(!chunk)
+    {
+        //NOTE: try to find suitable chunk in first large bin
+        oc_typed_list_for(heap->largeBins[largeStartIndex], candidate)
+        {
+            if(candidate->sizeAndStatus >= size)
+            {
+                chunk = candidate;
+                break;
+            }
+        }
+
+        if(!chunk)
+        {
+            //NOTE: try to find suitable chunk in larger bins
+            for(u64 binIndex = largeStartIndex + 1;
+                chunk == 0 && binIndex < OC_HEAP_LARGE_BIN_COUNT;
+                binIndex++)
+            {
+                oc_heap_chunk_list* bin = &heap->largeBins[binIndex];
+                chunk = oc_typed_list_pop_front(bin);
+            }
+        }
+
+        if(!chunk)
+        {
+            //NOTE: allocate new region and large chunk
+            chunk = oc_heap_new_region(heap);
+        }
+    }
+    OC_ASSERT(chunk);
+
+    if(chunk->sizeAndStatus > sizeUp8 + OC_HEAP_CHUNK_MIN_SIZE + OC_HEAP_CHUNK_OVERHEAD)
+    {
+        //split chunk
+        oc_heap_chunk* newChunk = (oc_heap_chunk*)((char*)chunk + OC_HEAP_CHUNK_OVERHEAD + sizeUp8);
+        newChunk->prevSize = sizeUp8;
+        newChunk->sizeAndStatus = chunk->sizeAndStatus - sizeUp8 - OC_HEAP_CHUNK_OVERHEAD;
+        chunk->sizeAndStatus = sizeUp8;
+
+        oc_heap_chunk* nextChunk = (oc_heap_chunk*)((char*)newChunk + sizeof(oc_heap_chunk) + newChunk->sizeAndStatus);
+        nextChunk->prevSize = newChunk->sizeAndStatus;
+
+        oc_heap_bin_chunk(heap, newChunk);
+    }
+
+    chunk->sizeAndStatus |= OC_HEAP_CHUNK_USED;
+    return &chunk->mem;
+}
+
+void oc_heap_free(oc_heap* heap, void* p)
+{
+    if(!p)
+    {
+        return;
+    }
+    oc_heap_chunk* chunk = (oc_heap_chunk*)((char*)p - sizeof(oc_heap_chunk));
+    chunk->sizeAndStatus &= ~OC_HEAP_CHUNK_USED;
+
+    //NOTE: coalesce backward
+    while(chunk->prevSize)
+    {
+        oc_heap_chunk* prevChunk = (oc_heap_chunk*)((char*)chunk - chunk->prevSize - sizeof(oc_heap_chunk));
+        if(prevChunk->sizeAndStatus & OC_HEAP_CHUNK_USED)
+        {
+            break;
+        }
+        else
+        {
+            oc_heap_chunk_list* bin = oc_heap_get_bin_for_chunk(heap, prevChunk);
+            oc_typed_list_remove(bin, prevChunk);
+
+            prevChunk->sizeAndStatus += sizeof(oc_heap_chunk) + chunk->sizeAndStatus;
+            chunk = prevChunk;
+        }
+    }
+
+    //NOTE: coalesce forward
+    oc_heap_chunk* nextChunk = (oc_heap_chunk*)((char*)chunk + sizeof(oc_heap_chunk) + chunk->sizeAndStatus);
+    while(!(nextChunk->sizeAndStatus & OC_HEAP_CHUNK_USED))
+    {
+        oc_heap_chunk_list* bin = oc_heap_get_bin_for_chunk(heap, nextChunk);
+        oc_typed_list_remove(bin, nextChunk);
+
+        chunk->sizeAndStatus += sizeof(oc_heap_chunk) + nextChunk->sizeAndStatus;
+        nextChunk = (oc_heap_chunk*)((char*)chunk + sizeof(oc_heap_chunk) + chunk->sizeAndStatus);
+    }
+    nextChunk->prevSize = chunk->sizeAndStatus;
+
+    oc_heap_bin_chunk(heap, chunk);
+}
+
+void oc_heap_clear(oc_heap* heap)
+{
+    //TODO
+}
+
+void oc_heap_debug_print(oc_heap* heap)
+{
+    printf("Heap:\n");
+    oc_typed_list_for(heap->regions, region)
+    {
+        printf("* region %p - %p\n", (char*)region->mem, (char*)region->mem + region->size);
+        oc_heap_chunk* chunk = (oc_heap_chunk*)(region->mem);
+        while(chunk->sizeAndStatus)
+        {
+            u64 size = chunk->sizeAndStatus & (~OC_HEAP_CHUNK_USED);
+            printf("\t* %p -> %p", (char*)chunk, (char*)chunk + size);
+
+            if(chunk->sizeAndStatus == OC_HEAP_CHUNK_USED)
+            {
+                printf(" (sentinel)");
+            }
+            printf("\n");
+
+            printf("\t\tprevSize: %llu\n", chunk->prevSize);
+            printf("\t\tsizeAndStatus: %llu %s\n", size, (chunk->sizeAndStatus & OC_HEAP_CHUNK_USED) ? "Used" : "Free");
+
+            if(chunk->sizeAndStatus == OC_HEAP_CHUNK_USED)
+            {
+                break;
+            }
+            chunk = (oc_heap_chunk*)((char*)chunk + sizeof(oc_heap_chunk) + size);
+        }
+    }
+    printf("\n");
+}
