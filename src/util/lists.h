@@ -169,7 +169,7 @@ ORCA_API oc_list_links* oc_list_pop_back(oc_list* list);
 
 #define oc_typed_list_get_links_offset(list) sizeof(*((list).ofs))
 #define oc_typed_list_get_links(list, elt) ((oc_list_links*)(((char*)elt) + oc_typed_list_get_links_offset(list)))
-#define oc_typed_list_elt(list, links) ((typeof((list).t))(links ? links - oc_typed_list_get_links_offset(list) : 0))
+#define oc_typed_list_elt(list, links) ((typeof((list).t))(links ? ((char*)links) - oc_typed_list_get_links_offset(list) : 0))
 
 ORCA_API void* oc_typed_list_next_generic(void* elt, u64 linksOffset);
 ORCA_API void* oc_typed_list_prev_generic(void* elt, u64 linksOffset);
