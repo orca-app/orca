@@ -332,9 +332,11 @@ void oc_heap_bin_chunk(oc_heap* heap, oc_heap_chunk* chunk)
     }
 }
 
-oc_heap_chunk* oc_heap_new_region(oc_heap* heap)
+oc_heap_chunk* oc_heap_new_region(oc_heap* heap, u64 size)
 {
-    u64 size = sizeof(oc_heap_region) + 2 * sizeof(oc_heap_chunk) + heap->nextChunkSize;
+    heap->nextChunkSize = oc_max(heap->nextChunkSize, size);
+
+    size = sizeof(oc_heap_region) + 2 * sizeof(oc_heap_chunk) + heap->nextChunkSize;
     oc_heap_region* region = (oc_heap_region*)oc_platform_memory_reserve(heap->base, size);
 
     if(!region)
@@ -366,7 +368,7 @@ void oc_heap_init(oc_heap* heap)
     heap->base = oc_platform_memory_default();
     heap->nextChunkSize = 1 << 10;
 
-    oc_heap_chunk* chunk = oc_heap_new_region(heap);
+    oc_heap_chunk* chunk = oc_heap_new_region(heap, 0);
     oc_heap_bin_chunk(heap, chunk);
 }
 
@@ -441,7 +443,7 @@ void* oc_heap_alloc(oc_heap* heap, u64 size)
         if(!chunk)
         {
             //NOTE: allocate new region and large chunk
-            chunk = oc_heap_new_region(heap);
+            chunk = oc_heap_new_region(heap, sizeUp8);
         }
     }
     if(!chunk)
@@ -549,14 +551,17 @@ void oc_heap_debug_print(oc_heap* heap)
 int oc_heap_debug_check_consistency(oc_heap* heap)
 {
     //NOTE: check regions
-    u64 prevSize = 0;
 
     if(oc_typed_list_empty(heap->regions))
     {
+        oc_log_error("no regions");
+        return -1;
     }
 
     oc_typed_list_for(heap->regions, region)
     {
+        u64 prevSize = 0;
+
         oc_heap_chunk* chunk = (oc_heap_chunk*)(region->mem);
         while(chunk->sizeAndStatus)
         {

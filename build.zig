@@ -2052,4 +2052,41 @@ pub fn build(b: *Build) !void {
         test_path.dependOn(&run_test.step);
     }
     tests.dependOn(test_path);
+
+    const test_heap = b.step("test-heap", "Test path API");
+    {
+        const test_heap_exe = b.addExecutable(.{
+            .name = "test_heap",
+            .root_module = b.createModule(.{
+                .target = target,
+                .optimize = optimize,
+                .link_libc = true,
+            }),
+        });
+        test_heap_exe.addIncludePath(b.path("src"));
+        test_heap_exe.addCSourceFiles(.{
+            .files = &.{"tests/heap/main.c"},
+            .flags = &.{},
+        });
+        test_heap_exe.linkLibrary(orca_platform_lib);
+
+        const tests_install_opts: Build.Step.InstallArtifact.Options = .{
+            .dest_dir = .{ .override = .{ .custom = "tests" } },
+        };
+
+        const install: *Build.Step.InstallArtifact = b.addInstallArtifact(test_heap_exe, tests_install_opts);
+
+        const install_orca_platform_tests: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, tests_install_opts);
+
+        const test_dir_heap = b.path("tests/path");
+
+        const run_test = b.addRunArtifact(test_heap_exe);
+        run_test.addPrefixedFileArg("--test-dir=", test_dir_heap); // allows tests to access their data files
+
+        run_test.step.dependOn(&install_orca_platform_tests.step);
+        run_test.step.dependOn(&install.step); // causes test exe working dir to be build\tests\ instead of zig-cache
+
+        test_heap.dependOn(&run_test.step);
+    }
+    tests.dependOn(test_heap);
 }
