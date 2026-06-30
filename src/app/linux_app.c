@@ -29,9 +29,15 @@ static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) <= U32_MAX,
 // TODO(pld): file dialog
 // TODO(pld): mouse cursor
 
-static inline void* memz(void* buf, size_t n)
+static inline void* memz(void* buf, usize n)
 {
     return (memset(buf, 0, n));
+}
+static inline void* memdup(void* buf, usize n)
+{
+    void* p = malloc(n);
+    memcpy(p, buf, n);
+    return (p);
 }
 
 void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
@@ -55,7 +61,12 @@ void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
         cmd->cmd == OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_GET_PROPERTY ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT ||
-        cmd->cmd == OC_X11_CLIENT_MESSAGE_CLIPBOARD_GET_STRING)
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_GET_CLIPBOARD ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD_TARGET ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_GET_SELECTION_OWNER ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_INTERN_ATOM ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY)
     {
         int ok = oc_mutex_lock(linux->appCmdUserPoolMutex);
         OC_ASSERT(ok == 0);
@@ -548,7 +559,7 @@ static void log_event(xcb_generic_event_t* ev)
     if((ev->response_type & 0x7f) < oc_array_size(names)) {
         name = names[ev->response_type & 0x7f];
     }
-    oc_str8_list_pushf(scratch.arena, &s, "response_type: %s (%u", name, ev->response_type & 0x7f);
+    oc_str8_list_pushf(scratch.arena, &s, "  response_type: %s (%u", name, ev->response_type & 0x7f);
     if(ev->response_type & 0x80)
     {
         oc_str8_list_pushf(scratch.arena, &s, ", synthetic");
@@ -899,6 +910,42 @@ static void oc_pump_events_main_thread(f64 timeout)
         {
             // TODO(pld): use timestamp?
             xcb_property_notify_event_t* noti = (xcb_property_notify_event_t*)ev;
+            u64 clipboardRequestorIndex = 0;
+            for(; clipboardRequestorIndex < linux->x11.ownClipboard.requestorsLen; clipboardRequestorIndex++)
+            {
+                if(linux->x11.ownClipboard.requestors[clipboardRequestorIndex].requestor == noti->window &&
+                    linux->x11.ownClipboard.requestors[clipboardRequestorIndex].property == noti->atom)
+                {
+                    break;
+                }
+            }
+            if(clipboardRequestorIndex < linux->x11.ownClipboard.requestorsLen)
+            {
+                if(noti->state == XCB_PROPERTY_DELETE)
+                {
+                    /* Transfer is complete, remove requestor. */
+                    memmove(&linux->x11.ownClipboard.requestors[clipboardRequestorIndex],
+                        &linux->x11.ownClipboard.requestors[clipboardRequestorIndex + 1],
+                        linux->x11.ownClipboard.requestorsLen - clipboardRequestorIndex - 1);
+                    linux->x11.ownClipboard.requestorsLen--;
+
+                    xcb_change_window_attributes_value_list_t cwa = {0};
+                    xcb_change_window_attributes_aux(conn, noti->window, XCB_CW_EVENT_MASK, &cwa);
+
+                    if(linux->x11.ownClipboard.requestorsLen == 0 &&
+                        linux->x11.ownClipboard.hasPendingContent)
+                    {
+                        /* No more requestors, requeue pending set-clipboard action. */
+                        oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                            .cmd = OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD,
+                            .user.setClipboard.content = linux->x11.ownClipboard.pendingContent,
+                        });
+                        linux->x11.ownClipboard.pendingContent = (oc_str8){0};
+                        linux->x11.ownClipboard.hasPendingContent = false;
+                    }
+                }
+                break;
+            }
             oc_window window = {0};
             oc_window_data* windowData = NULL;
             if(noti->window != linux->x11.rootWinId)
@@ -907,14 +954,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                 windowData = oc_window_ptr_from_handle(window);
                 if(!windowData)  break;
             }
-            enum {
-                X11_PROPERTY_NOTIFY_NEW_VALUE = 0,
-                X11_PROPERTY_NOTIFY_DELETED = 1,
-            };
             if(noti->atom == linux->x11.atoms.WM_STATE)
             {
                 OC_ASSERT(windowData);
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = xcb_get_property(conn,
                         false, windowData->linux.x11Id, linux->x11.atoms.WM_STATE,
@@ -926,7 +969,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                         .user.getProperty.cookie = cookie,
                     });
                 }
-                else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
+                else if(noti->state == XCB_PROPERTY_DELETE)
                 {
                     x11_window_state oldState = windowData->linux.state;
                     windowData->linux.state = X11_WINDOW_STATE_WITHDRAWN;
@@ -947,7 +990,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             else if(noti->atom == linux->x11.atoms._NET_WM_STATE)
             {
                 OC_ASSERT(windowData);
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = xcb_get_property(conn,
                         false, windowData->linux.x11Id, linux->x11.atoms._NET_WM_STATE,
@@ -959,7 +1002,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                         .user.getProperty.cookie = cookie,
                     });
                 }
-                else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
+                else if(noti->state == XCB_PROPERTY_DELETE)
                 {
                     /* ignored */
                 }
@@ -977,14 +1020,14 @@ static void oc_pump_events_main_thread(f64 timeout)
                  * without needing any keyboard/pointer input beforehand.
                  * Keyboard and pointer input being the only ways this
                  * timestamp updates otherwise. */
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     if(windowData->linux.netWmUserTime == 0)
                     {
                         window_update_last_user_activity(conn, window, noti->time);
                     }
                 }
-                else if(noti->state == X11_PROPERTY_NOTIFY_DELETED)
+                else if(noti->state == XCB_PROPERTY_DELETE)
                 {
                     windowData->linux.netWmUserTime = 0;
                 }
@@ -996,7 +1039,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             else if(noti->atom == linux->x11.atoms._NET_FRAME_EXTENTS)
             {
                 OC_ASSERT(windowData);
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = {0};
                     cookie = xcb_get_property(conn, false, windowData->linux.x11Id,
@@ -1017,7 +1060,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             {
                 OC_ASSERT(!windowData);
                 OC_ASSERT(noti->window == linux->x11.rootWinId);
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = {0};
                     cookie = xcb_get_property(conn, false, linux->x11.rootWinId,
@@ -1037,7 +1080,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             {
                 OC_ASSERT(!windowData);
                 OC_ASSERT(noti->window == linux->x11.rootWinId);
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = {0};
                     u32 n = oc_array_size(linux->x11.netWorkarea) * 4;
@@ -1057,7 +1100,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             else if(noti->atom == linux->x11.atoms._NET_WM_DESKTOP)
             {
                 OC_ASSERT(windowData);
-                if(noti->state == X11_PROPERTY_NOTIFY_NEW_VALUE)
+                if(noti->state == XCB_PROPERTY_NEW_VALUE)
                 {
                     xcb_get_property_cookie_t cookie = {0};
                     cookie = xcb_get_property(conn, false, windowData->linux.x11Id,
@@ -1076,15 +1119,124 @@ static void oc_pump_events_main_thread(f64 timeout)
             }
         } break;
         case XCB_SELECTION_CLEAR:
-            break;
+        {
+            xcb_selection_clear_event_t* noti = (xcb_selection_clear_event_t*)ev;
+            OC_ASSERT(noti->selection == linux->x11.atoms.CLIPBOARD);
+            OC_ASSERT(noti->owner == linux->x11.controlWinId);
+            OC_ASSERT(linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_ACQUIRING ||
+                linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_OWNED);
+            linux->x11.ownClipboard.relinquishedAt = noti->time;
+            linux->x11.ownClipboard.status = OC_X11_CLIPBOARD_STATUS_NOT_OWNED;
+        } break;
         case XCB_SELECTION_REQUEST:
-            break;
+        {
+            xcb_selection_request_event_t* noti = (xcb_selection_request_event_t*)ev;
+            OC_ASSERT(noti->selection == linux->x11.atoms.CLIPBOARD);
+            OC_ASSERT(noti->owner == linux->x11.controlWinId);
+            bool afterAcquired = linux->x11.ownClipboard.acquiredAt <= noti->time || noti->time == XCB_CURRENT_TIME;
+            bool beforeRelinquished = noti->time < linux->x11.ownClipboard.relinquishedAt || noti->time == XCB_CURRENT_TIME;
+            bool owning =
+                (linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_ACQUIRING ||
+                 linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_OWNED) &&
+                afterAcquired;
+            bool owned =
+                linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_NOT_OWNED &&
+                afterAcquired && beforeRelinquished;
+            xcb_selection_notify_event_t reply =
+            {
+                .response_type = XCB_SELECTION_NOTIFY,
+                .time = noti->time,
+                .requestor = noti->requestor,
+                .selection = noti->selection,
+                .target = noti->target,
+                .property = XCB_ATOM_NONE,
+            };
+            if(owning || owned)
+            {
+                xcb_atom_t prop = noti->property;
+                if(prop == XCB_ATOM_NONE)  prop = noti->target;
+                bool supportedTarget = true;
+                if(noti->target == linux->x11.atoms.TEXT || noti->target == linux->x11.atoms.UTF8_STRING)
+                {
+                    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                        noti->requestor, prop, linux->x11.atoms.UTF8_STRING, 8,
+                        linux->x11.ownClipboard.content.len,
+                        linux->x11.ownClipboard.content.ptr);
+                }
+                else if(noti->target == linux->x11.atoms.TIMESTAMP)
+                {
+                    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                        noti->requestor, prop, XCB_ATOM_INTEGER, 32,
+                        1, &linux->x11.ownClipboard.acquiredAt);
+                }
+                else if(noti->target == linux->x11.atoms.TARGETS)
+                {
+                    OC_STATIC_ASSERT(sizeof(xcb_atom_t) == sizeof(u32));
+                    xcb_atom_t targets[] = {
+                        linux->x11.atoms.TARGETS,
+                        linux->x11.atoms.TEXT,
+                        linux->x11.atoms.TIMESTAMP,
+                        linux->x11.atoms.UTF8_STRING,
+                    };
+                    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                        noti->requestor, prop, XCB_ATOM_ATOM, 32,
+                        oc_array_size(targets), targets);
+                    xcb_change_property(conn, XCB_PROP_MODE_APPEND,
+                        noti->requestor, prop, XCB_ATOM_ATOM, 32,
+                        linux->x11.ownClipboard.targetsLen,
+                        linux->x11.ownClipboard.targets);
+                }
+                else
+                {
+                    usize i = 0;
+                    for(; i < linux->x11.ownClipboard.targetsLen; i++)
+                    {
+                        if(linux->x11.ownClipboard.targets[i] == noti->target)  break;
+                    }
+                    if(i < linux->x11.ownClipboard.targetsLen)
+                    {
+                        /* Chromium reuses the target as the property type,
+                         * let's do the same and not bother guessing further. */
+                        xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                            noti->requestor, prop, noti->target, 8,
+                            oc_str8_lp(linux->x11.ownClipboard.targetData[i]));
+                    }
+                    else
+                    {
+                        supportedTarget = false;
+                    }
+                }
+                if(supportedTarget)
+                {
+                    xcb_change_window_attributes_value_list_t cwa =
+                    {
+                        .event_mask = XCB_EVENT_MASK_PROPERTY_CHANGE,
+                    };
+                    xcb_change_window_attributes_aux(conn, noti->requestor, XCB_CW_EVENT_MASK, &cwa);
+                    usize i = linux->x11.ownClipboard.requestorsLen;
+                    OC_ASSERT(i < oc_array_size(linux->x11.ownClipboard.requestors));
+                    linux->x11.ownClipboard.requestors[i].requestor = noti->requestor;
+                    linux->x11.ownClipboard.requestors[i].property = prop;
+                    linux->x11.ownClipboard.requestorsLen++;
+
+                    reply.property = prop;
+                }
+                else
+                {
+                    oc_log_info("Failed to convert clipboard to target %d,"
+                        " either clipboard tag is missing or not a built-in"
+                        " target\n", noti->target);
+                }
+            }
+            xcb_send_event(conn, false, noti->requestor, 0, (const char*)&reply);
+        } break;
         case XCB_SELECTION_NOTIFY:
         {
             xcb_selection_notify_event_t* noti = (xcb_selection_notify_event_t*)ev;
             OC_ASSERT(noti->requestor == linux->x11.controlWinId);
             OC_ASSERT(noti->selection == linux->x11.atoms.CLIPBOARD);
-            OC_ASSERT(noti->target == linux->x11.atoms.TEXT);
+            OC_ASSERT(linux->x11.getClipboard.init);
+            OC_ASSERT(noti->target == linux->x11.getClipboard.target);
             OC_ASSERT(noti->time == linux->x11.getClipboard.time);
             if(noti->property == linux->x11.atoms.OC_X11_CLIPBOARD_DEST)
             {
@@ -1098,13 +1250,15 @@ static void oc_pump_events_main_thread(f64 timeout)
                     .user.getProperty.cookie = cookie,
                 });
             }
-            else
+            else if(noti->property == XCB_ATOM_NONE)
             {
-                OC_ASSERT(noti->property == XCB_ATOM_NONE);
-                OC_ASSERT(linux->x11.getClipboard.init);
-                *linux->x11.getClipboard.result = (oc_str8){0};
+                *linux->x11.getClipboard.result = OC_STR8("");
                 *linux->x11.getClipboard.done = true;
                 memz(&linux->x11.getClipboard, sizeof(linux->x11.getClipboard));
+            }
+            else
+            {
+                oc_notpossible();
             }
         } break;
         case XCB_COLORMAP_NOTIFY:
@@ -1617,15 +1771,38 @@ static void oc_pump_events_main_thread(f64 timeout)
                     else if(prop == linux->x11.atoms.OC_X11_CLIPBOARD_DEST)
                     {
                         OC_ASSERT(!windowData);
-                        if(reply->type != linux->x11.atoms.UTF8_STRING)
+                        if(reply->type == linux->x11.atoms.UTF8_STRING)
+                        {
+                            OC_ASSERT(reply->format == 8);
+                        }
+                        else if(reply->type == XCB_ATOM_INTEGER || reply->type == XCB_ATOM_ATOM)
+                        {
+                            // FIXME(pld): This ends up with the oc_clipboard
+                            // API overloading strings as integer arrays...
+                            OC_ASSERT(reply->format == 32);
+                        }
+                        else
                         {
                             oc_log_warning("Unsupported clipboard content type: %d\n", reply->type);
+                            OC_ASSERT(reply->format == 8 || reply->format == 16 || reply->format == 32);
                         }
-                        OC_ASSERT(reply->format == 8);
                         OC_ASSERT(reply->bytes_after == 0);
-                        u32 clipboardLen = reply->value_len;
+                        u32 clipboardLen = reply->value_len * (reply->format / 8);
                         OC_ASSERT(linux->x11.getClipboard.init);
-                        *linux->x11.getClipboard.result = oc_str8_push_buffer(linux->x11.getClipboard.arena, clipboardLen, p);
+                        if(linux->x11.getClipboard.arena)
+                        {
+                            *linux->x11.getClipboard.result = oc_str8_push_buffer(linux->x11.getClipboard.arena, clipboardLen, p);
+                        }
+                        else
+                        {
+                            OC_ASSERT(linux->x11.getClipboard.result->len > 0);
+                            OC_ASSERT(linux->x11.getClipboard.result->ptr);
+                            usize backingLen = linux->x11.getClipboard.result->len - 1;
+                            backingLen = oc_min(backingLen, clipboardLen);
+                            memcpy(linux->x11.getClipboard.result->ptr, p, backingLen);
+                            linux->x11.getClipboard.result->ptr[backingLen] = '\0';
+                            linux->x11.getClipboard.result->len = backingLen;
+                        }
                         *linux->x11.getClipboard.done = true;
                         memz(&linux->x11.getClipboard, sizeof(linux->x11.getClipboard));
                     }
@@ -1689,19 +1866,142 @@ static void oc_pump_events_main_thread(f64 timeout)
                         });
                     }
                 } break;
-                case OC_X11_CLIENT_MESSAGE_CLIPBOARD_GET_STRING:
+                case OC_X11_CLIENT_MESSAGE_GET_CLIPBOARD:
                 {
                     OC_ASSERT(!windowData);
                     OC_ASSERT(!linux->x11.getClipboard.init);
                     xcb_timestamp_t ts = linux->x11.latestUserTime;
-                    linux->x11.getClipboard.result = u->clipboardGetString.result;
-                    linux->x11.getClipboard.arena = u->clipboardGetString.arena;
-                    linux->x11.getClipboard.done = u->clipboardGetString.done;
+                    xcb_atom_t target = u->getClipboard.target;
+                    linux->x11.getClipboard.result = u->getClipboard.result;
+                    linux->x11.getClipboard.arena = u->getClipboard.arena;
+                    linux->x11.getClipboard.target = target;
+                    linux->x11.getClipboard.done = u->getClipboard.done;
                     linux->x11.getClipboard.time = ts;
                     linux->x11.getClipboard.init = true;
                     xcb_convert_selection(conn, linux->x11.controlWinId,
-                        linux->x11.atoms.CLIPBOARD, linux->x11.atoms.TEXT,
+                        linux->x11.atoms.CLIPBOARD, target,
                         linux->x11.atoms.OC_X11_CLIPBOARD_DEST, ts);
+                } break;
+                case OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD:
+                {
+                    OC_ASSERT(!windowData);
+                    if(linux->x11.ownClipboard.requestorsLen > 0)
+                    {
+                        /* Transfers in progress, wait for them to complete. */
+                        linux->x11.ownClipboard.pendingContent = u->setClipboard.content;
+                        linux->x11.ownClipboard.hasPendingContent = true;
+                        break;
+                    }
+                    if(linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_OWNED &&
+                        oc_str8_eq(linux->x11.ownClipboard.content, u->setClipboard.content))
+                    {
+                        /* Same content and owning clipboard, leave as is. From
+                         * ICCCM, page 9:
+                         * > If the selection value is modified, but can still
+                         * > reasonably be viewed as the same selected object,
+                         * > the owner should take no action. */
+                        free(u->setClipboard.content.ptr);
+                        u->setClipboard.content = (oc_str8){0};
+                        break;
+                    }
+                    xcb_timestamp_t ts = linux->x11.latestUserTime;
+                    free(linux->x11.ownClipboard.content.ptr);
+                    for(usize i = 0; i < linux->x11.ownClipboard.targetsLen; i++)
+                    {
+                        free(linux->x11.ownClipboard.targetData[i].ptr);
+                    }
+                    linux->x11.ownClipboard.targetsLen = 0;
+                    memz(linux->x11.ownClipboard.targets, sizeof(linux->x11.ownClipboard.targets));
+                    memz(linux->x11.ownClipboard.targetData, sizeof(linux->x11.ownClipboard.targetData));
+                    linux->x11.ownClipboard.content = u->setClipboard.content;
+                    linux->x11.ownClipboard.acquiredAt = ts;
+                    linux->x11.ownClipboard.relinquishedAt = UINT32_MAX;
+                    linux->x11.ownClipboard.status = OC_X11_CLIPBOARD_STATUS_ACQUIRING;
+                    xcb_set_selection_owner(conn, linux->x11.controlWinId, linux->x11.atoms.CLIPBOARD, ts);
+                    xcb_get_selection_owner_cookie_t cookie = {0};
+                    cookie = xcb_get_selection_owner(conn, linux->x11.atoms.CLIPBOARD);
+                    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                        .cmd = OC_X11_CLIENT_MESSAGE_GET_SELECTION_OWNER,
+                        .user.getSelectionOwner.selection = linux->x11.atoms.CLIPBOARD,
+                        .user.getSelectionOwner.cookie = cookie,
+                    });
+                } break;
+                case OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD_TARGET:
+                {
+                    OC_ASSERT(!windowData);
+                    usize i = 0;
+                    for(; i < linux->x11.ownClipboard.targetsLen; i++)
+                    {
+                        if(linux->x11.ownClipboard.targets[i] == u->setClipboardTarget.target)  break;
+                    }
+                    OC_ASSERT(i < oc_array_size(linux->x11.ownClipboard.targets));
+                    free(linux->x11.ownClipboard.targetData[i].ptr);
+                    linux->x11.ownClipboard.targets[i] = u->setClipboardTarget.target;
+                    linux->x11.ownClipboard.targetData[i] = u->setClipboardTarget.data;
+                    if(i == linux->x11.ownClipboard.targetsLen)  linux->x11.ownClipboard.targetsLen++;
+                } break;
+                case OC_X11_CLIENT_MESSAGE_GET_SELECTION_OWNER:
+                {
+                    OC_ASSERT(!windowData);
+                    xcb_atom_t selection = u->getSelectionOwner.selection;
+                    xcb_get_selection_owner_cookie_t cookie = u->getSelectionOwner.cookie;
+                    xcb_get_selection_owner_reply_t* reply = NULL;
+                    reply = xcb_get_selection_owner_reply(conn, cookie, NULL);
+                    OC_ASSERT(reply);
+                    OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+                    if(selection == linux->x11.atoms.CLIPBOARD)
+                    {
+                        if(linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_ACQUIRING)
+                        {
+                            if(reply->owner == linux->x11.controlWinId)
+                            {
+                                linux->x11.ownClipboard.status = OC_X11_CLIPBOARD_STATUS_OWNED;
+                            }
+                            else
+                            {
+                                linux->x11.ownClipboard.status = OC_X11_CLIPBOARD_STATUS_NOT_OWNED;
+                                linux->x11.ownClipboard.relinquishedAt = linux->x11.ownClipboard.acquiredAt;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        oc_notpossible();
+                    }
+                    free(reply);
+                } break;
+                case OC_X11_CLIENT_MESSAGE_CLIPBOARD_CLEAR:
+                {
+                    OC_ASSERT(!windowData);
+                    if(linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_ACQUIRING ||
+                        linux->x11.ownClipboard.status == OC_X11_CLIPBOARD_STATUS_OWNED)
+                    {
+                        xcb_set_selection_owner(conn, XCB_WINDOW_NONE, linux->x11.atoms.CLIPBOARD,
+                            linux->x11.ownClipboard.acquiredAt);
+                    }
+                } break;
+                case OC_X11_CLIENT_MESSAGE_INTERN_ATOM:
+                {
+                    OC_ASSERT(!windowData);
+                    xcb_intern_atom_cookie_t cookie = {0};
+                    cookie = xcb_intern_atom(conn, u->internAtom.onlyIfExists,
+                        u->internAtom.name.len, u->internAtom.name.ptr);
+                    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                        .cmd = OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY,
+                        .user.internAtomReply.cookie = cookie,
+                        .user.internAtomReply.atom = u->internAtom.atom,
+                        .user.internAtomReply.done = u->internAtom.done,
+                    });
+                } break;
+                case OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY:
+                {
+                    OC_ASSERT(!windowData);
+                    xcb_intern_atom_reply_t* reply = NULL;
+                    reply = xcb_intern_atom_reply(conn, u->internAtomReply.cookie, NULL);
+                    OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+                    *u->internAtomReply.atom = reply->atom;
+                    *u->internAtomReply.done = true;
+                    free(reply);
                 } break;
                 default:
                 {
@@ -2554,54 +2854,179 @@ void oc_pump_events(f64 timeout)
     }
 }
 
-void oc_clipboard_clear(void)
-{
-    oc_unimplemented();
-    return;
-}
-void oc_clipboard_set_string(oc_str8 string)
-{
-    oc_unimplemented();
-    return;
-}
-static i32 oc_clipboard_get_string_dispatched(void* user)
+static i32 oc_linux_x11_intern_atom_dispatched(void* user)
 {
     bool* done = user;
     return *done;
 }
-oc_str8 oc_clipboard_get_string(oc_arena* arena)
+static xcb_atom_t oc_linux_x11_intern_atom(oc_str8 name, bool onlyIfExists)
 {
-    oc_str8 s = {0};
+    xcb_atom_t atom = XCB_ATOM_NONE;
     bool done = false;
     oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
-        .cmd = OC_X11_CLIENT_MESSAGE_CLIPBOARD_GET_STRING,
-        .user.clipboardGetString.result = &s,
-        .user.clipboardGetString.arena = arena,
-        .user.clipboardGetString.done = &done,
+        .cmd = OC_X11_CLIENT_MESSAGE_INTERN_ATOM,
+        .user.internAtom.name = name,
+        .user.internAtom.onlyIfExists = onlyIfExists,
+        .user.internAtom.atom = &atom,
+        .user.internAtom.done = &done,
     });
-    while(!oc_dispatch_on_main_thread_sync(oc_clipboard_get_string_dispatched, &done));
+    while(!oc_dispatch_on_main_thread_sync(oc_linux_x11_intern_atom_dispatched, &done));
+    return (atom);
+}
+
+// TODO(pld): clipboard: history of selections to handle late requestors?
+// TODO(pld): clipboard: handle large transfers (xorg handles up to ~16MiB...)
+// TODO(pld): clipboard: other built-in targets to support?
+// - CLASS
+// - CHARACTER_POSITION
+// - COLUMN_NUMBER
+// - CLIENT_WINDOW
+// - HOST_NAME
+// - LINE_NUMBER
+// - MULTIPLE
+// - NAME
+// - OWNER_OS
+// - PROCESS
+// - TASK
+// - USER
+// - DELETE
+// - INSERT_PROPERTY
+// - INSERT_SELECTION
+// - text/plain
+// - text/plain;charset=utf-8
+// won't support:
+// - ADOBE_PORTABLE_DOCUMENT_FORMAT
+// - APPLE_PICT
+// - BACKGROUND
+// - BITMAP
+// - COLORMAP
+// - DRAWABLE
+// - ENCAPSULATED_POSTSCRIPT
+// - ENCAPSULATED_POSTSCRIPT_INTERCHANGE
+// - FILE_NAME
+// - FOREGROUND
+// - LIST_LENGTH
+// - MODULE
+// - ODIF
+// - PIXMAP
+// - POSTSCRIPT
+// - PROCEDURE
+// - STRING
+// - COMPOUND_TEXT
+// - LENGTH (deprecated)
+// to read up:
+// - TEXT
+// - INCR
+// - DRAWABLE
+// - SPAN
+// - manager selections
+void oc_clipboard_clear(void)
+{
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_CLIPBOARD_CLEAR,
+    });
+}
+
+static i32 oc_linux_get_clipboard_dispatched(void* user)
+{
+    bool* done = user;
+    return *done;
+}
+static oc_str8 oc_linux_get_clipboard(oc_arena* arena, oc_str8 backing, xcb_atom_t target)
+{
+    if(arena)  OC_ASSERT(!backing.ptr && backing.len == 0);
+    else  OC_ASSERT(backing.ptr && backing.len > 0);
+    OC_ASSERT(target != XCB_ATOM_NONE);
+    oc_str8 s = {0};
+    if(!arena)  s = backing;
+    bool done = false;
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_GET_CLIPBOARD,
+        .user.getClipboard.result = &s,
+        .user.getClipboard.arena = arena,
+        .user.getClipboard.target = target,
+        .user.getClipboard.done = &done,
+    });
+    while(!oc_dispatch_on_main_thread_sync(oc_linux_get_clipboard_dispatched, &done));
     return (s);
 }
+
+oc_str8 oc_clipboard_get_string(oc_arena* arena)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    return (oc_linux_get_clipboard(arena, (oc_str8){0}, linux->x11.atoms.TEXT));
+}
+
+/* Backing comprises a NUL terminator */
+// TODO(pld): what if backing.len is 0, we can't guarantee the nul terminator?
 oc_str8 oc_clipboard_copy_string(oc_str8 backing)
 {
-    oc_unimplemented();
-    return ((oc_str8){0});
+    oc_linux_app_data* linux = &oc_appData.linux;
+    return (oc_linux_get_clipboard(NULL, backing, linux->x11.atoms.TEXT));
 }
-bool oc_clipboard_has_tag(const char* tag)
-{
-    oc_unimplemented();
-    return (false);
-}
-void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data)
-{
-    oc_unimplemented();
-    return;
-}
+
 oc_str8 oc_clipboard_get_data_for_tag(oc_arena* arena, const char* tag)
 {
-    oc_unimplemented();
-    return ((oc_str8){0});
+    OC_ASSERT(tag);
+    xcb_atom_t target = oc_linux_x11_intern_atom(OC_STR8(tag), true);
+    if(target == XCB_ATOM_NONE)  return (OC_STR8(""));
+    return (oc_linux_get_clipboard(arena, (oc_str8){0}, target));
 }
+
+bool oc_clipboard_has_tag(const char* tag)
+{
+    OC_ASSERT(tag);
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_atom_t target = oc_linux_x11_intern_atom(OC_STR8(tag), true);
+    if(target == XCB_ATOM_NONE)  return (false);
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 s = oc_linux_get_clipboard(scratch.arena, (oc_str8){0}, linux->x11.atoms.TARGETS);
+    OC_ASSERT(s.len % sizeof(xcb_atom_t) == 0);
+    bool found = false;
+    for(usize i = 0; i < s.len; i += sizeof(xcb_atom_t))
+    {
+        /* May be misaligned (triggers UBSAN), we need to load the value via memcpy. */
+        xcb_atom_t target0;
+        memcpy(&target0, &s.ptr[i], sizeof(target0));
+        found = target0 == target;
+        if(found)  break;
+    }
+    oc_scratch_end(scratch);
+    return (found);
+}
+
+void oc_clipboard_set_string(oc_str8 string)
+{
+    OC_ASSERT(string.ptr && string.len > 0);
+    char* buf = memdup(string.ptr, string.len);
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD,
+        .user.setClipboard.content = oc_str8_from_buffer(string.len, buf),
+    });
+}
+
+void oc_clipboard_set_data_for_tag(const char* tag, oc_str8 data)
+{
+    OC_ASSERT(tag);
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_atom_t target = oc_linux_x11_intern_atom(OC_STR8(tag), false);
+    OC_ASSERT(target != XCB_ATOM_NONE);
+    if(target == linux->x11.atoms.TARGETS ||
+        target == linux->x11.atoms.TEXT ||
+        target == linux->x11.atoms.UTF8_STRING ||
+        target == linux->x11.atoms.TIMESTAMP)
+    {
+        oc_log_error("Clipboard tag \"%s\" cannot be set on Linux hosts, it is already implicitly set via oc_clipboard_set_string\n", tag);
+        return;
+    }
+    char* buf = memdup(data.ptr, data.len);
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD_TARGET,
+        .user.setClipboardTarget.target = target,
+        .user.setClipboardTarget.data = oc_str8_from_buffer(data.len, buf),
+    });
+}
+
 oc_file_dialog_result oc_file_dialog_for_table(oc_arena* arena, oc_file_dialog_desc* desc, oc_file_table* table)
 {
     oc_unimplemented();

@@ -12,7 +12,6 @@
 #include <sched.h>
 #include <errno.h>
 typedef ssize_t isize;
-typedef size_t usize;
 
 // FIXME(pld): clock meanings?
 // FIXME(pld): audit all implicit u64->i64 conversions
@@ -602,7 +601,7 @@ int main(int argc, char** argv)
 
     OC_ASSERT(oc_window_is_hidden(win));
 
-    #define CHECK3(expr, stat, kill)  \
+    #define CHECK4(expr, stat, post, kill)  \
         do  \
         { \
             f64 timeout = 1.0;  \
@@ -615,10 +614,12 @@ int main(int argc, char** argv)
                 timeout -= elapsed;  \
                 (stat);  \
                 ok = (expr);  \
+                (post);  \
             }  \
             if(kill)  OC_ASSERT(ok);  \
         }  \
         while(0)
+    #define CHECK3(expr, stat, kill)  CHECK4((expr), (stat), (void)0, (kill))
     #define CHECK2(expr, stat)  CHECK3((expr), (stat), true)
     #define CHECK(expr)  CHECK2((expr), (void)0)
 
@@ -1104,8 +1105,74 @@ int main(int argc, char** argv)
 
     /* Clipboard */
     {
-        oc_str8 s = oc_clipboard_get_string(scratch.arena);
-        OC_ASSERT(oc_str8_eq(s, OC_STR8("hello")));
+        oc_str8 s = OC_STR8("test orca linux");
+        oc_clipboard_set_string(s);
+        oc_arena_scope scratch2 = {0};
+        oc_str8 s2 = {0};
+        CHECK4(oc_str8_eq(s, s2),
+            (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_string(scratch2.arena)),
+            oc_arena_scope_end(scratch2),
+            true);
+        s = OC_STR8("test orc");
+        char buf[64] = {0};
+        CHECK2(oc_str8_eq(s, s2), (s2 = oc_clipboard_copy_string(oc_str8_from_buffer(9, buf))));
+        OC_ASSERT(s2.ptr[s2.len] == '\0');
+        s = OC_STR8("another test for orca linux");
+        oc_clipboard_set_string(s);
+        CHECK2(oc_str8_eq(s, s2), (s2 = oc_clipboard_copy_string(oc_str8_from_buffer(sizeof(buf), buf))));
+        OC_ASSERT(s2.ptr[s2.len] == '\0');
+        OC_ASSERT(oc_clipboard_has_tag("TARGETS"));
+        OC_ASSERT(oc_clipboard_has_tag("TIMESTAMP"));
+        OC_ASSERT(oc_clipboard_has_tag("TEXT"));
+        OC_ASSERT(oc_clipboard_has_tag("UTF8_STRING"));
+        OC_ASSERT(!oc_clipboard_has_tag("OC_INVALID_TAG_12345678"));
+        OC_ASSERT(!oc_clipboard_has_tag("CLIPBOARD"));  /* valid atom but invalid target */
+        s2 = oc_clipboard_get_data_for_tag(scratch.arena, "TEXT");
+        OC_ASSERT(oc_str8_eq(s, s2));
+        s2 = oc_clipboard_get_data_for_tag(scratch.arena, "UTF8_STRING");
+        OC_ASSERT(oc_str8_eq(s, s2));
+        s2 = oc_clipboard_get_data_for_tag(scratch.arena, "TIMESTAMP");
+        OC_ASSERT(s2.len == 4 && *(u32*)s2.ptr > 0);
+        //oc_log_info("try copy now\n");
+        //pump_events_for_secs(10);
+        oc_clipboard_clear();
+        s = OC_STR8("");
+        CHECK2(oc_str8_eq(s, s2), (s2 = oc_clipboard_copy_string(oc_str8_from_buffer(sizeof(buf), buf))));
+        OC_ASSERT(s2.ptr[s2.len] == '\0');
+
+        s = OC_STR8("third test for orca linux clipboard");
+        oc_clipboard_set_string(s);
+        CHECK4(oc_str8_eq(s, s2),
+            (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_string(scratch2.arena)),
+            oc_arena_scope_end(scratch2),
+            true);
+        oc_clipboard_set_data_for_tag("UTF8_STRING", OC_STR8("should emit a warning"));
+        oc_clipboard_set_data_for_tag("text/html", OC_STR8("<p>some html</p>"));
+        oc_clipboard_set_data_for_tag("text/plain;charset=utf-8", OC_STR8("فلسطين حرة"));
+        s = OC_STR8("<p>some html</p>");
+        CHECK4(oc_str8_eq(s, s2),
+            (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_data_for_tag(scratch2.arena, "text/html")),
+            oc_arena_scope_end(scratch2),
+            true);
+        s = OC_STR8("فلسطين حرة");
+        CHECK4(oc_str8_eq(s, s2),
+            (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_data_for_tag(scratch2.arena, "text/plain;charset=utf-8")),
+            oc_arena_scope_end(scratch2),
+            true);
+        s = OC_STR8("<p>some html 2</p>");
+        oc_clipboard_set_data_for_tag("text/html", s);
+        CHECK4(oc_str8_eq(s, s2),
+            (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_data_for_tag(scratch2.arena, "text/html")),
+            oc_arena_scope_end(scratch2),
+            true);
+        oc_clipboard_clear();
+        s = OC_STR8("");
+        CHECK2(oc_str8_eq(s, s2), (s2 = oc_clipboard_copy_string(oc_str8_from_buffer(sizeof(buf), buf))));
+        OC_ASSERT(s2.ptr[s2.len] == '\0');
+        s2 = oc_clipboard_get_data_for_tag(scratch.arena, "text/html");
+        OC_ASSERT(oc_str8_eq(s, s2));
+        s2 = oc_clipboard_get_data_for_tag(scratch.arena, "text/plain;charset=utf-8");
+        OC_ASSERT(oc_str8_eq(s, s2));
     }
 
     oc_request_quit();
@@ -1123,14 +1190,6 @@ int main(int argc, char** argv)
     // - test oc_dispatch_on_main_thread_sync
     // - get_content_rect / get_frame_rect should return stable rectangle, do not wait for it to stabilise
     //
-    // - oc_clipboard_clear
-    // - oc_clipboard_set_string
-    // - oc_clipboard_get_string
-    // - oc_clipboard_copy_string
-    // - oc_clipboard_has_tag
-    // - oc_clipboard_set_data_for_tag
-    // - oc_clipboard_get_data_for_tag
-    //
     // - check _net_wm_allowed_actions?
     // - set _net_wm_bypass_compositor?
     // - set _net_wm_full_placement?
@@ -1143,11 +1202,9 @@ int main(int argc, char** argv)
     //   - OC_EVENT_MOUSE_WHEEL
     //   - OC_EVENT_MOUSE_ENTER
     //   - OC_EVENT_MOUSE_LEAVE
-    //   - OC_EVENT_CLIPBOARD_PASTE
     //   - OC_EVENT_PATHDROP
     //   - OC_EVENT_FRAME
     //
-    // later:
     // - oc_scancode_to_keycode
     //   - fill table with x11 values
     //   - char events?
@@ -1155,6 +1212,11 @@ int main(int argc, char** argv)
     //   - other layouts
     //   - (later) virtual keyboards
     //   - (later) input methods
+    // TODO(pld): graphics
+    // - x11 surface base
+    // - x11 webgpu surface create/destroy/get/present
+    // - x11 egl / gles surface
+    // later:
     // - oc_file_dialog (os native)
     // - oc_file_dialog_for_table (os native)
     // - oc_alert_popup (os native)
@@ -1162,10 +1224,6 @@ int main(int argc, char** argv)
     //   - do all surfaces vsync themselves if one syncs?
     // - oc_vsync_wait
     // - multiple desktops?
-    // TODO(pld): graphics
-    // - x11 surface base
-    // - x11 webgpu surface create/destroy/get/present
-    // - x11 egl / gles surface
     // TODO(pld): text: just test, should work out of the box
     // TODO(pld): ui: just test, should work out of the box
     // TODO(pld): io

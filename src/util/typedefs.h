@@ -22,6 +22,7 @@ typedef uint32_t u32;
 _Static_assert(sizeof(unsigned long long) == 8, "");
 typedef unsigned long long u64;
 typedef intptr_t uptr;
+typedef size_t usize;
 
 typedef int8_t i8;
 typedef int16_t i16;

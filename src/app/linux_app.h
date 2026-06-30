@@ -40,6 +40,18 @@ typedef struct x11_win_id_to_handle
   oc_window handle;
 } x11_win_id_to_handle;
 
+/* "Acquiring" and "Owned" are differentiated to respect this convention in
+ * the ICCCM:
+ * > Clients are expected to provide some visible confirmation of selection
+ * > ownership.
+ * We do not expose it to applications yet, but we could. */
+typedef enum oc_x11_clipboard_status
+{
+    OC_X11_CLIPBOARD_STATUS_NOT_OWNED,
+    OC_X11_CLIPBOARD_STATUS_ACQUIRING,
+    OC_X11_CLIPBOARD_STATUS_OWNED,
+} oc_x11_clipboard_status;
+
 typedef struct oc_linux_x11
 {
     Display* display;
@@ -50,7 +62,9 @@ typedef struct oc_linux_x11
             V(CLIPBOARD, 0)  \
             V(OC_X11_CLIENT_MESSAGE, 0)  \
             V(OC_X11_CLIPBOARD_DEST, 0)  \
+            V(TARGETS, 0)  \
             V(TEXT, 0)  \
+            V(TIMESTAMP, 0)  \
             V(UTF8_STRING, 0)  \
             V(WM_CHANGE_STATE, 0)  \
             V(WM_DELETE_WINDOW, 0)  \
@@ -102,10 +116,30 @@ typedef struct oc_linux_x11
         bool init;
         oc_str8* result;
         oc_arena* arena;
+        xcb_atom_t target;
         bool *done;
         xcb_timestamp_t time;
     } getClipboard;
+    struct
+    {
+        oc_x11_clipboard_status status;
+        oc_str8 content;
+        xcb_timestamp_t acquiredAt;
+        xcb_timestamp_t relinquishedAt;
+        u64 targetsLen;
+        xcb_atom_t targets[16];
+        oc_str8 targetData[16];
+        u64 requestorsLen;
+        struct
+        {
+            xcb_window_t requestor;
+            xcb_atom_t property;
+        } requestors[16];
+        oc_str8 pendingContent;
+        bool hasPendingContent;
+    } ownClipboard;
 } oc_linux_x11;
+OC_STATIC_ASSERT(oc_array_size_of_member(oc_linux_x11, ownClipboard.targets) == oc_array_size_of_member(oc_linux_x11, ownClipboard.targetData));
 
 typedef enum oc_x11_client_message
 {
@@ -130,7 +164,13 @@ typedef enum oc_x11_client_message
   OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
   OC_X11_CLIENT_MESSAGE_GET_PROPERTY,
   OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT,
-  OC_X11_CLIENT_MESSAGE_CLIPBOARD_GET_STRING,
+  OC_X11_CLIENT_MESSAGE_GET_CLIPBOARD,
+  OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD,
+  OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD_TARGET,
+  OC_X11_CLIENT_MESSAGE_CLIPBOARD_CLEAR,
+  OC_X11_CLIENT_MESSAGE_GET_SELECTION_OWNER,
+  OC_X11_CLIENT_MESSAGE_INTERN_ATOM,
+  OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY,
 
   OC_X11_CLIENT_MESSAGE_MAX,
 } oc_x11_client_message;
@@ -146,7 +186,12 @@ typedef struct oc_linux_app_cmd_user
         struct { oc_linux_dispatch_sync_request* req; u64 reqId; } dispatchOnMainThreadSync;
         struct { xcb_atom_t prop; xcb_get_property_cookie_t cookie; } getProperty;
         struct { xcb_translate_coordinates_cookie_t cookie; u16 since; } translateCoordinatesToRoot;
-        struct { oc_str8* result; oc_arena* arena; bool* done; } clipboardGetString;
+        struct { oc_str8* result; oc_arena* arena; xcb_atom_t target; bool* done; } getClipboard;
+        struct { oc_str8 content; } setClipboard;
+        struct { xcb_atom_t target; oc_str8 data; } setClipboardTarget;
+        struct { xcb_atom_t selection; xcb_get_selection_owner_cookie_t cookie; } getSelectionOwner;
+        struct { oc_str8 name; bool onlyIfExists; xcb_atom_t* atom; bool* done; } internAtom;
+        struct { xcb_intern_atom_cookie_t cookie; xcb_atom_t* atom; bool* done; } internAtomReply;
     };
 } oc_linux_app_cmd_user;
 typedef struct oc_linux_app_cmd
