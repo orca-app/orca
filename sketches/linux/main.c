@@ -1102,6 +1102,12 @@ int main(int argc, char** argv)
     rect = oc_window_get_content_rect(win);
     OC_ASSERT(oc_rect_equal(rect, rect2));
 
+    /* Clipboard */
+    {
+        oc_str8 s = oc_clipboard_get_string(scratch.arena);
+        OC_ASSERT(oc_str8_eq(s, OC_STR8("hello")));
+    }
+
     oc_request_quit();
     CHECK(oc_should_quit());
     oc_cancel_quit();
@@ -1112,8 +1118,10 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
+    // - document weird behaviours
     // - test tls destructors
     // - test oc_dispatch_on_main_thread_sync
+    // - get_content_rect / get_frame_rect should return stable rectangle, do not wait for it to stabilise
     //
     // - oc_clipboard_clear
     // - oc_clipboard_set_string

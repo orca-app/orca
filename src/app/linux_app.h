@@ -43,10 +43,14 @@ typedef struct x11_win_id_to_handle
 typedef struct oc_linux_x11
 {
     Display* display;
-    struct {
+    struct
+    {
         /* name, required */
         #define ATOM_LIST(V)  \
+            V(CLIPBOARD, 0)  \
             V(OC_X11_CLIENT_MESSAGE, 0)  \
+            V(OC_X11_CLIPBOARD_DEST, 0)  \
+            V(TEXT, 0)  \
             V(UTF8_STRING, 0)  \
             V(WM_CHANGE_STATE, 0)  \
             V(WM_DELETE_WINDOW, 0)  \
@@ -92,6 +96,15 @@ typedef struct oc_linux_x11
     u32 netNumberOfDesktops;
     oc_rect netWorkarea[16];
     u64 netWorkareaLen;
+    xcb_timestamp_t latestUserTime;
+    struct
+    {
+        bool init;
+        oc_str8* result;
+        oc_arena* arena;
+        bool *done;
+        xcb_timestamp_t time;
+    } getClipboard;
 } oc_linux_x11;
 
 typedef enum oc_x11_client_message
@@ -117,6 +130,7 @@ typedef enum oc_x11_client_message
   OC_X11_CLIENT_MESSAGE_DISPATCH_ON_MAIN_THREAD_SYNC,
   OC_X11_CLIENT_MESSAGE_GET_PROPERTY,
   OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT,
+  OC_X11_CLIENT_MESSAGE_CLIPBOARD_GET_STRING,
 
   OC_X11_CLIENT_MESSAGE_MAX,
 } oc_x11_client_message;
@@ -132,6 +146,7 @@ typedef struct oc_linux_app_cmd_user
         struct { oc_linux_dispatch_sync_request* req; u64 reqId; } dispatchOnMainThreadSync;
         struct { xcb_atom_t prop; xcb_get_property_cookie_t cookie; } getProperty;
         struct { xcb_translate_coordinates_cookie_t cookie; u16 since; } translateCoordinatesToRoot;
+        struct { oc_str8* result; oc_arena* arena; bool* done; } clipboardGetString;
     };
 } oc_linux_app_cmd_user;
 typedef struct oc_linux_app_cmd
