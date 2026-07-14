@@ -1229,6 +1229,48 @@ int main(int argc, char** argv)
         }
     }
 
+    /* Mouse input */
+    {
+        // - mouse enter/leave
+        // - mouse motion
+        // - mouse buttons
+        // - mouse wheel
+
+        rect = (oc_rect){ 100, 100, 533, 300 };
+        oc_window_set_frame_rect(win, rect);
+        oc_log_info("mouse mouse around now now\n");
+        pump_events_for_secs(30);
+        oc_event* ev = NULL;
+        while((ev = oc_next_event(scratch.arena)))
+        {
+            if(ev->type == OC_EVENT_MOUSE_BUTTON)
+            {
+                oc_log_info("event: type=%d (button), window=0x%x, action=%d, button=%d, clickCount=%d\n",
+                    ev->type, ev->window, ev->key.action, ev->key.button, ev->key.clickCount);
+            }
+            else if(ev->type == OC_EVENT_MOUSE_WHEEL)
+            {
+                oc_log_info("event: type=%d (wheel), window=0x%x, delta=%f/%f\n",
+                    ev->type, ev->window, ev->mouse.deltaX, ev->mouse.deltaY);
+            }
+            else if(ev->type == OC_EVENT_MOUSE_MOVE)
+            {
+                oc_log_info("event: type=%d (move), window=0x%x, pos=%f/%f, delta=%f/%f\n",
+                    ev->type, ev->window, ev->mouse.x, ev->mouse.y, ev->mouse.deltaX, ev->mouse.deltaY);
+            }
+            else if(ev->type == OC_EVENT_MOUSE_ENTER)
+            {
+                oc_log_info("event: type=%d (enter), window=0x%x, pos=%f/%f\n",
+                    ev->type, ev->window, ev->mouse.x, ev->mouse.y);
+            }
+            else if(ev->type == OC_EVENT_MOUSE_LEAVE)
+            {
+                oc_log_info("event: type=%d (leave), window=0x%x\n",
+                    ev->type, ev->window);
+            }
+        }
+    }
+
     oc_request_quit();
     CHECK(oc_should_quit());
     oc_cancel_quit();
@@ -1239,7 +1281,17 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - text/html, image/png mime clipboard
+    // - keyboard input
+    //   - oc_scancode_to_keycode
+    //     - fill table with x11 values
+    //     - char events?
+    //     - qwerty
+    //     - other layouts
+    //   - (later) virtual keyboards
+    //   - (later) input methods
+    //   - OC_EVENT_KEYBOARD_MODS
+    //   - OC_EVENT_KEYBOARD_KEY
+    //   - OC_EVENT_KEYBOARD_CHAR
     //
     // - document weird behaviours
     // - test tls destructors
@@ -1250,24 +1302,9 @@ int main(int argc, char** argv)
     // - set _net_wm_bypass_compositor?
     // - set _net_wm_full_placement?
     // - send app events:
-    //   - OC_EVENT_KEYBOARD_MODS
-    //   - OC_EVENT_KEYBOARD_KEY
-    //   - OC_EVENT_KEYBOARD_CHAR
-    //   - OC_EVENT_MOUSE_BUTTON
-    //   - OC_EVENT_MOUSE_MOVE
-    //   - OC_EVENT_MOUSE_WHEEL
-    //   - OC_EVENT_MOUSE_ENTER
-    //   - OC_EVENT_MOUSE_LEAVE
     //   - OC_EVENT_PATHDROP
     //   - OC_EVENT_FRAME
     //
-    // - oc_scancode_to_keycode
-    //   - fill table with x11 values
-    //   - char events?
-    //   - qwerty
-    //   - other layouts
-    //   - (later) virtual keyboards
-    //   - (later) input methods
     // TODO(pld): graphics
     // - x11 surface base
     // - x11 webgpu surface create/destroy/get/present
@@ -1293,6 +1330,7 @@ int main(int argc, char** argv)
     //   - oc_directory_create
     // clipboard: get/set timeout, handle if owner/requestor dies
     // clipboard: handle alloc errors
+    // clipboard: text/html, image/png mime targets
 
     oc_scratch_end(scratch);
     return (0);

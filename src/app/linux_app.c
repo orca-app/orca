@@ -285,6 +285,14 @@ void oc_init(void)
         OC_ASSERT(required_len == 0, "Window manager is missing required hints");
     }
 
+    /* XSettings */
+    {
+        x11->xsettings.doubleClickTime = 250;
+        x11->xsettings.doubleClickDistance = 5 * 5;  // squared
+
+        // TODO(pld): https://specifications.freedesktop.org/xsettings/0.5/
+    }
+
     /* Control window. For events that don't need to target a specific client
      * window. */
     {
@@ -498,17 +506,57 @@ static oc_window window_handle_from_x11_id(u32 winId)
     return (window);
 }
 
-static void window_update_last_user_activity(xcb_connection_t* conn, oc_window window, xcb_timestamp_t ts)
+static void window_update_last_user_activity_x(xcb_connection_t* conn, oc_window_data* windowData, xcb_timestamp_t ts)
 {
     oc_linux_x11* x11 = &oc_appData.linux.x11;
+    OC_ASSERT(windowData);
+    xcb_change_property(conn, XCB_PROP_MODE_REPLACE, windowData->linux.x11Id,
+        x11->atoms._NET_WM_USER_TIME, XCB_ATOM_CARDINAL, 32, 1, &ts);
+    windowData->linux.netWmUserTime = ts;
+    if (x11->latestUserTime < ts)  x11->latestUserTime = ts;
+}
+
+static void window_update_last_user_activity(xcb_connection_t* conn, oc_window window, xcb_timestamp_t ts)
+{
     oc_window_data* windowData = oc_window_ptr_from_handle(window);
-    if(windowData)
+    if(windowData)  window_update_last_user_activity_x(conn, windowData, ts);
+}
+
+typedef struct oc_convert_x11_button_res
+{
+    bool ok;
+    oc_mouse_button button;
+} oc_convert_x11_button_res;
+static oc_convert_x11_button_res oc_convert_x11_button(xcb_button_t button)
+{
+    OC_ASSERT(button > 0);
+    static const oc_mouse_button toMouseButton[] =
     {
-        xcb_change_property(conn, XCB_PROP_MODE_REPLACE, windowData->linux.x11Id,
-            x11->atoms._NET_WM_USER_TIME, XCB_ATOM_CARDINAL, 32, 1, &ts);
-        windowData->linux.netWmUserTime = ts;
-        if (x11->latestUserTime < ts)  x11->latestUserTime = ts;
+        [1] = OC_MOUSE_LEFT,
+        [2] = OC_MOUSE_MIDDLE,
+        [3] = OC_MOUSE_RIGHT,
+    };
+    oc_convert_x11_button_res res = {0};
+    if(button < oc_array_size(toMouseButton))
+    {
+        res.ok = true;
+        res.button = toMouseButton[button];
     }
+    return res;
+}
+
+static oc_keymod_flags oc_convert_x11_mods(xcb_key_but_mask_t m)
+{
+    oc_keymod_flags mods = 0;
+    if(m & XCB_KEY_BUT_MASK_SHIFT)  mods |= OC_KEYMOD_SHIFT;
+    if(m & XCB_KEY_BUT_MASK_CONTROL)  mods |= OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER;
+    if(m & XCB_KEY_BUT_MASK_MOD_1)  mods |= OC_KEYMOD_ALT;
+    if(m & XCB_KEY_BUT_MASK_MOD_4)  mods |= OC_KEYMOD_CMD;
+    // XCB_KEY_BUT_MASK_LOCK -> caps lock
+    // XCB_KEY_BUT_MASK_MOD_2 -> num lock
+    // XCB_KEY_BUT_MASK_MOD_3
+    // XCB_KEY_BUT_MASK_MOD_5 -> alt gr
+    return mods;
 }
 
 static void oc_linux_dispatch_sync_request_refcount_dec(oc_linux_dispatch_sync_request* req)
@@ -612,6 +660,7 @@ static void log_event(xcb_generic_event_t* ev)
     oc_log_info("%.*s", oc_str8_lp(msg));
     oc_arena_scope_end(scratch);
 }
+enum { X11_BUTTON_WHEEL_UP = 4, X11_BUTTON_WHEEL_DOWN = 5, X11_BUTTON_WHEEL_LEFT = 6, X11_BUTTON_WHEEL_RIGHT = 7 };
 static void oc_pump_events_main_thread(f64 timeout)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
@@ -686,20 +735,182 @@ static void oc_pump_events_main_thread(f64 timeout)
         {
             xcb_button_press_event_t* noti = (xcb_button_press_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->event);
+            OC_ASSERT(!oc_window_is_nil(window));
             window_update_last_user_activity(conn, window, noti->time);
+
+            oc_log_info("button press: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+
+            if(noti->detail == X11_BUTTON_WHEEL_UP || noti->detail == X11_BUTTON_WHEEL_DOWN ||
+                noti->detail == X11_BUTTON_WHEEL_LEFT || noti->detail == X11_BUTTON_WHEEL_RIGHT)
+            {
+                // See https://source.chromium.org/chromium/chromium/src/+/main:ui/events/x/events_x_utils.cc;l=40;drc=fb19e42e9bcf7a8a675e8691ee6f2de9792b8718
+                oc_vec2 delta = {0};
+                f32 n = 120.0f;
+                if(noti->detail == X11_BUTTON_WHEEL_UP)  delta.y = -n;
+                else if(noti->detail == X11_BUTTON_WHEEL_DOWN)  delta.y = n;
+                else if(noti->detail == X11_BUTTON_WHEEL_LEFT)  delta.x = -n;
+                else if(noti->detail == X11_BUTTON_WHEEL_RIGHT)  delta.x = n;
+                else  oc_unreachable();
+
+                oc_event event;
+                memz(&event, sizeof(event));
+                event.type = OC_EVENT_MOUSE_WHEEL;
+                event.window = window;
+                event.mouse.deltaX = delta.x;
+                event.mouse.deltaY = delta.y;
+                event.mouse.mods = oc_convert_x11_mods(noti->state);
+                oc_linux_queue_event(&event);
+                break;
+            }
+
+            oc_convert_x11_button_res converted = oc_convert_x11_button(noti->detail);
+            if(!converted.ok)  break;
+
+            OC_ASSERT(noti->same_screen);
+            oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
+
+            xcb_timestamp_t elapsed = noti->time - linux->x11.lastClickTime;
+            f32 distance = 0.0;
+            {
+                f32 x = linux->x11.lastClickPos.x - pos.x;
+                f32 y = linux->x11.lastClickPos.y - pos.y;
+                distance = (x * x) + (y * y);
+            }
+            if(noti->event != linux->x11.lastClickWinId ||
+                noti->detail != linux->x11.lastClickButton ||
+                elapsed > linux->x11.xsettings.doubleClickTime ||
+                distance > linux->x11.xsettings.doubleClickDistance)
+            {
+                linux->x11.clickCount = 0;
+            }
+            linux->x11.lastClickWinId = noti->event;
+            linux->x11.lastClickButton = noti->detail;
+            linux->x11.lastClickTime = noti->time;
+            linux->x11.lastClickPos = pos;
+            linux->x11.clickCount++;
+
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_MOUSE_BUTTON;
+            event.window = window;
+            event.key.action = OC_KEY_PRESS;
+            event.key.button = converted.button;
+            event.key.mods = oc_convert_x11_mods(noti->state);
+            event.key.clickCount = linux->x11.clickCount;
+            oc_linux_queue_event(&event);
         } break;
         case XCB_BUTTON_RELEASE:
-            break;
+        {
+            xcb_button_release_event_t* noti = (xcb_button_release_event_t*)ev;
+            oc_window window = window_handle_from_x11_id(noti->event);
+            OC_ASSERT(!oc_window_is_nil(window));
+
+            oc_log_info("button release: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+
+            oc_convert_x11_button_res converted = oc_convert_x11_button(noti->detail);
+            if(!converted.ok)  break;
+
+            OC_ASSERT(noti->same_screen);
+            oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
+
+            xcb_timestamp_t elapsed = noti->time - linux->x11.lastClickTime;
+            f32 distance = 0.0;
+            {
+                f32 x = linux->x11.lastClickPos.x - pos.x;
+                f32 y = linux->x11.lastClickPos.y - pos.y;
+                distance = (x * x) + (y * y);
+            }
+            OC_ASSERT(noti->detail == linux->x11.lastClickButton);
+            if(noti->event != linux->x11.lastClickWinId ||
+                elapsed > linux->x11.xsettings.doubleClickTime ||
+                distance > linux->x11.xsettings.doubleClickDistance)
+            {
+                linux->x11.clickCount = 0;
+            }
+
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_MOUSE_BUTTON;
+            event.window = window;
+            event.key.action = OC_KEY_RELEASE;
+            event.key.button = converted.button;
+            event.key.mods = oc_convert_x11_mods(noti->state);
+            event.key.clickCount = linux->x11.clickCount;
+            oc_linux_queue_event(&event);
+        } break;
         case XCB_MOTION_NOTIFY:
         {
             xcb_motion_notify_event_t* noti = (xcb_motion_notify_event_t*)ev;
+            OC_ASSERT(noti->root == linux->x11.rootWinId);
+            OC_ASSERT(noti->detail == XCB_MOTION_NORMAL);
             oc_window window = window_handle_from_x11_id(noti->event);
-            window_update_last_user_activity(conn, window, noti->time);
+            oc_window_data* windowData = oc_window_ptr_from_handle(window);
+            OC_ASSERT(windowData);
+            window_update_last_user_activity_x(conn, windowData, noti->time);
+
+            OC_ASSERT(noti->same_screen);
+            oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
+
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_MOUSE_MOVE;
+            event.window = window;
+            event.mouse.x = pos.x;
+            event.mouse.y = pos.y;
+            event.mouse.deltaX = pos.x - windowData->linux.pointerPos.x;
+            event.mouse.deltaY = pos.y - windowData->linux.pointerPos.y;
+            event.mouse.mods = oc_convert_x11_mods(noti->state);
+            oc_linux_queue_event(&event);
+
+            windowData->linux.pointerPos = pos;
+
+            oc_log_info("motion: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
         } break;
         case XCB_ENTER_NOTIFY:
-            break;
+        {
+            xcb_enter_notify_event_t* noti = (xcb_enter_notify_event_t*)ev;
+            OC_ASSERT(noti->root == linux->x11.rootWinId);
+            oc_window window = window_handle_from_x11_id(noti->event);
+            oc_window_data* windowData = oc_window_ptr_from_handle(window);
+            OC_ASSERT(windowData);
+            window_update_last_user_activity_x(conn, windowData, noti->time);
+
+            OC_ASSERT(noti->same_screen_focus);
+            oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
+
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_MOUSE_ENTER;
+            event.window = window;
+            event.mouse.x = pos.x;
+            event.mouse.y = pos.y;
+            oc_linux_queue_event(&event);
+
+            windowData->linux.pointerPos = pos;
+
+            oc_log_info("enter: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+        } break;
         case XCB_LEAVE_NOTIFY:
-            break;
+        {
+            xcb_leave_notify_event_t* noti = (xcb_leave_notify_event_t*)ev;
+            OC_ASSERT(noti->root == linux->x11.rootWinId);
+            oc_window window = window_handle_from_x11_id(noti->event);
+            OC_ASSERT(!oc_window_is_nil(window));
+            window_update_last_user_activity(conn, window, noti->time);
+
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_MOUSE_LEAVE;
+            event.window = window;
+            oc_linux_queue_event(&event);
+
+            oc_log_info("leave: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+        } break;
         case XCB_FOCUS_IN:
         {
             xcb_focus_in_event_t* noti = (xcb_focus_in_event_t*)ev;
@@ -1099,7 +1310,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                 {
                     if(windowData->linux.netWmUserTime == 0)
                     {
-                        window_update_last_user_activity(conn, window, noti->time);
+                        window_update_last_user_activity_x(conn, windowData, noti->time);
                     }
                 }
                 else if(noti->state == XCB_PROPERTY_DELETE)
@@ -2273,7 +2484,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                 xcb_timestamp_t ts = noti->data.data32[1];
                 if(protocol == linux->x11.atoms.WM_DELETE_WINDOW)
                 {
-                    window_update_last_user_activity(conn, window, ts);
+                    window_update_last_user_activity_x(conn, windowData, ts);
                     windowData->shouldClose = true;
                     oc_event event;
                     memz(&event, sizeof(event));
@@ -2406,11 +2617,11 @@ oc_window oc_window_create_linux(oc_rect contentRect, oc_str8 title, oc_window_s
         .save_under = false,
         .event_mask =
             XCB_EVENT_MASK_KEY_PRESS |
-            //XCB_EVENT_MASK_KEY_RELEASE |
+            XCB_EVENT_MASK_KEY_RELEASE |
             XCB_EVENT_MASK_BUTTON_PRESS |
-            //XCB_EVENT_MASK_BUTTON_RELEASE |
-            //XCB_EVENT_MASK_ENTER_WINDOW |
-            //XCB_EVENT_MASK_LEAVE_WINDOW |
+            XCB_EVENT_MASK_BUTTON_RELEASE |
+            XCB_EVENT_MASK_ENTER_WINDOW |
+            XCB_EVENT_MASK_LEAVE_WINDOW |
             XCB_EVENT_MASK_POINTER_MOTION |
             //XCB_EVENT_MASK_POINTER_MOTION_HINT |
             //XCB_EVENT_MASK_BUTTON_1_MOTION |

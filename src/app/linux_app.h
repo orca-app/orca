@@ -65,6 +65,12 @@ typedef struct oc_x11_clipboard_requestor
     u64 incrOff;
 } oc_x11_clipboard_requestor;
 
+typedef struct x11_xsettings
+{
+    u32 doubleClickTime;
+    u32 doubleClickDistance;
+} x11_xsettings;
+
 typedef struct oc_linux_x11
 {
     Display* display;
@@ -153,9 +159,13 @@ typedef struct oc_linux_x11
         oc_x11_clipboard_requestor requestors[16];
         oc_str8 pendingContent;
         bool hasPendingContent;
-        bool incr;
-        u64 incrOff;
     } ownClipboard;
+    xcb_window_t lastClickWinId;
+    xcb_button_t lastClickButton;
+    xcb_timestamp_t lastClickTime;
+    oc_vec2 lastClickPos;
+    u8 clickCount;
+    x11_xsettings xsettings;
 } oc_linux_x11;
 OC_STATIC_ASSERT(oc_array_size_of_member(oc_linux_x11, ownClipboard.targets) == oc_array_size_of_member(oc_linux_x11, ownClipboard.targetData));
 
@@ -399,6 +409,7 @@ typedef struct oc_linux_window_data
     u64 netWmSyncRequestUpdateValue;
     u32 netWmDesktop;
     xcb_generic_event_t* pendingConfigureNotify;
+    oc_vec2 pointerPos;
 } oc_linux_window_data;
 
 #define OC_PLATFORM_WINDOW_DATA oc_linux_window_data linux;
