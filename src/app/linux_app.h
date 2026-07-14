@@ -60,6 +60,7 @@ typedef struct oc_linux_x11
         /* name, required */
         #define ATOM_LIST(V)  \
             V(CLIPBOARD, 0)  \
+            V(INCR, 0)  \
             V(OC_X11_CLIENT_MESSAGE, 0)  \
             V(OC_X11_CLIPBOARD_DEST, 0)  \
             V(TARGETS, 0)  \
@@ -119,7 +120,12 @@ typedef struct oc_linux_x11
         xcb_atom_t target;
         bool *done;
         xcb_timestamp_t time;
+        bool incr;
+        oc_str8_list incrParts;
+        oc_arena incrArena;
+        xcb_atom_t incrType;
     } getClipboard;
+    oc_list getClipboardQueue;
     struct
     {
         oc_x11_clipboard_status status;

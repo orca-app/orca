@@ -207,6 +207,19 @@ static void pump_events_for_secs(f64 secs)
     }
 }
 
+
+static _Atomic(u64) getClipboardThreadDone = 0;
+i32 get_clipboard_thread(void* user)
+{
+    oc_str8* s = user;
+    oc_arena_scope scratch = oc_scratch_begin();
+    oc_str8 s2 = oc_clipboard_get_string(scratch.arena);
+    OC_ASSERT(oc_str8_eq(*s, s2));
+    oc_scratch_end(scratch);
+    atomic_fetch_add(&getClipboardThreadDone, 1);
+    return 0;
+}
+
 int main(int argc, char** argv)
 {
     // platform_debug
@@ -1165,6 +1178,8 @@ int main(int argc, char** argv)
             (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_data_for_tag(scratch2.arena, "text/html")),
             oc_arena_scope_end(scratch2),
             true);
+        OC_ASSERT(oc_clipboard_has_tag("text/html"));
+        OC_ASSERT(oc_clipboard_has_tag("text/plain;charset=utf-8"));
         oc_clipboard_clear();
         s = OC_STR8("");
         CHECK2(oc_str8_eq(s, s2), (s2 = oc_clipboard_copy_string(oc_str8_from_buffer(sizeof(buf), buf))));
@@ -1173,6 +1188,31 @@ int main(int argc, char** argv)
         OC_ASSERT(oc_str8_eq(s, s2));
         s2 = oc_clipboard_get_data_for_tag(scratch.arena, "text/plain;charset=utf-8");
         OC_ASSERT(oc_str8_eq(s, s2));
+        OC_ASSERT(!oc_clipboard_has_tag("text/html"));
+        OC_ASSERT(!oc_clipboard_has_tag("text/plain;charset=utf-8"));
+
+        s = OC_STR8("orca racy clipboard test");
+        oc_clipboard_set_string(s);
+        CHECK4(oc_str8_eq(s, s2),
+            (scratch2 = oc_arena_scope_begin(scratch.arena), s2 = oc_clipboard_get_string(scratch2.arena)),
+            oc_arena_scope_end(scratch2),
+            true);
+        oc_thread* threads[16] = {0};
+        for(usize i = 0; i < oc_array_size(threads); i++)
+        {
+            threads[i] = oc_thread_create(get_clipboard_thread, &s);
+        }
+        CHECK(atomic_load(&getClipboardThreadDone) == oc_array_size(threads));
+        for(usize i = 0; i < oc_array_size(threads); i++)
+        {
+            i64 res = 0;
+            oc_thread_join(threads[i], &res);
+            OC_ASSERT(res == 0);
+        }
+
+        // - clipboard large data transfers support get
+        s2 = oc_clipboard_get_string(scratch.arena);
+        OC_ASSERT(s2.len > 0);
     }
 
     oc_request_quit();
@@ -1185,6 +1225,10 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
+    // - clipboard large data transfers support set
+    // - clipboard handle alloc errors
+    // - text/html, image/png mime clipboard
+    //
     // - document weird behaviours
     // - test tls destructors
     // - test oc_dispatch_on_main_thread_sync
