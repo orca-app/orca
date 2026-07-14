@@ -15,6 +15,7 @@
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
 #include <xcb/sync.h>
+#include <xcb/bigreq.h>
 
 static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) == OC_APP_MAX_WINDOWS,
   "Must match OC_APP_MAX_WINDOWS");
@@ -166,6 +167,22 @@ void oc_init(void)
         OC_ASSERT(iter.rem > 0);
         xcb_screen_t* screen = iter.data;
         x11->rootWinId = screen->root;
+        x11->maximumRequestSize = setup->maximum_request_length * 4;
+    }
+
+    /* Enable big requests */
+    {
+        OC_ASSERT(XCB_BIGREQUESTS_MAJOR_VERSION == 0);
+        OC_ASSERT(XCB_BIGREQUESTS_MINOR_VERSION == 0);
+        xcb_big_requests_enable_cookie_t cookie = xcb_big_requests_enable(conn);
+        xcb_flush(conn);
+        xcb_big_requests_enable_reply_t* reply = xcb_big_requests_enable_reply(conn, cookie, NULL);
+        OC_ASSERT(reply);
+        OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+        u64 n = reply->maximum_request_length * 4;
+        OC_ASSERT(n > x11->maximumRequestSize);
+        x11->maximumRequestSize = n;
+        free(reply);
     }
 
     /* Initialize XSync extension */
@@ -917,7 +934,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             u64 clipboardRequestorIndex = 0;
             for(; clipboardRequestorIndex < linux->x11.ownClipboard.requestorsLen; clipboardRequestorIndex++)
             {
-                if(linux->x11.ownClipboard.requestors[clipboardRequestorIndex].requestor == noti->window &&
+                if(linux->x11.ownClipboard.requestors[clipboardRequestorIndex].window == noti->window &&
                     linux->x11.ownClipboard.requestors[clipboardRequestorIndex].property == noti->atom)
                 {
                     break;
@@ -925,7 +942,55 @@ static void oc_pump_events_main_thread(f64 timeout)
             }
             if(clipboardRequestorIndex < linux->x11.ownClipboard.requestorsLen)
             {
+                bool completed = false;
                 if(noti->state == XCB_PROPERTY_DELETE)
+                {
+                    oc_x11_clipboard_requestor* requestor = &linux->x11.ownClipboard.requestors[clipboardRequestorIndex];
+                    if(requestor->incr)
+                    {
+                        u64 len = 0;
+                        for(u64 i = 0; i < requestor->contentVecLen; i++)  len += requestor->contentVec[i].len;
+                        u64 rem = len - requestor->incrOff;
+                        if(rem > 0)
+                        {
+                            u64 chunkSize = linux->x11.maximumRequestSize - sizeof(xcb_change_property_request_t) - 4;
+                            if(rem < chunkSize)  chunkSize = rem;
+                            u64 i = 0;
+                            u64 off = requestor->incrOff;
+                            u64 chunkRem = chunkSize;
+                            while(i < requestor->contentVecLen && off > requestor->contentVec[i].len)
+                            {
+                                off -= requestor->contentVec[i].len, i++;
+                            }
+                            xcb_prop_mode_t mode = XCB_PROP_MODE_REPLACE;
+                            while(i < requestor->contentVecLen && chunkRem > 0)
+                            {
+                                u64 n = oc_min(requestor->contentVec[i].len - off, chunkRem);
+                                xcb_change_property(conn, mode, requestor->window,
+                                    requestor->property, requestor->type,
+                                    requestor->format, n / (requestor->format / 8),
+                                    &requestor->contentVec[i].ptr[off]);
+                                mode = XCB_PROP_MODE_APPEND;
+                                off = 0;
+                                chunkRem -= n;
+                                i++;
+                            }
+                            requestor->incrOff += chunkSize;
+                        }
+                        else
+                        {
+                            xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                                requestor->window, requestor->property,
+                                requestor->type, requestor->format, 0, NULL);
+                            completed = true;
+                        }
+                    }
+                    else
+                    {
+                        completed = true;
+                    }
+                }
+                if(completed)
                 {
                     /* Transfer is complete, remove requestor. */
                     memmove(&linux->x11.ownClipboard.requestors[clipboardRequestorIndex],
@@ -951,7 +1016,10 @@ static void oc_pump_events_main_thread(f64 timeout)
                         linux->x11.ownClipboard.hasPendingContent = false;
                     }
                 }
-                break;
+                if(noti->window != linux->x11.controlWinId)
+                {
+                    break;
+                }
             }
             oc_window window = {0};
             oc_window_data* windowData = NULL;
@@ -1175,35 +1243,52 @@ static void oc_pump_events_main_thread(f64 timeout)
                 xcb_atom_t prop = noti->property;
                 if(prop == XCB_ATOM_NONE)  prop = noti->target;
                 bool supportedTarget = true;
+                oc_str8 contentVec[2] = {0};
+                u64 contentVecLen = 0;
+                xcb_atom_t type = XCB_ATOM_NONE;
+                u8 format = 0;
                 if(noti->target == linux->x11.atoms.TEXT || noti->target == linux->x11.atoms.UTF8_STRING)
                 {
-                    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-                        noti->requestor, prop, linux->x11.atoms.UTF8_STRING, 8,
-                        linux->x11.ownClipboard.content.len,
-                        linux->x11.ownClipboard.content.ptr);
+                    contentVec[contentVecLen++] = linux->x11.ownClipboard.content;
+                    type = linux->x11.atoms.UTF8_STRING;
+                    format = 8;
                 }
                 else if(noti->target == linux->x11.atoms.TIMESTAMP)
                 {
-                    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-                        noti->requestor, prop, XCB_ATOM_INTEGER, 32,
-                        1, &linux->x11.ownClipboard.acquiredAt);
+                    contentVec[contentVecLen++] =
+                    (oc_str8){
+                        .ptr = (char*)&linux->x11.ownClipboard.acquiredAt,
+                        .len = sizeof(linux->x11.ownClipboard.acquiredAt),
+                    };
+                    type = XCB_ATOM_INTEGER;
+                    format = 32;
                 }
                 else if(noti->target == linux->x11.atoms.TARGETS)
                 {
+                    static xcb_atom_t builtInTargets[4] = {0};
+                    if(builtInTargets[0] == XCB_ATOM_NONE)
+                    {
+                        u64 i = 0;
+                        builtInTargets[i++] = linux->x11.atoms.TARGETS;
+                        builtInTargets[i++] = linux->x11.atoms.TEXT;
+                        builtInTargets[i++] = linux->x11.atoms.TIMESTAMP;
+                        builtInTargets[i++] = linux->x11.atoms.UTF8_STRING;
+                        OC_ASSERT(i == oc_array_size(builtInTargets));
+                    }
                     OC_STATIC_ASSERT(sizeof(xcb_atom_t) == sizeof(u32));
-                    xcb_atom_t targets[] = {
-                        linux->x11.atoms.TARGETS,
-                        linux->x11.atoms.TEXT,
-                        linux->x11.atoms.TIMESTAMP,
-                        linux->x11.atoms.UTF8_STRING,
+                    OC_STATIC_ASSERT(sizeof(xcb_atom_t) == sizeof(*linux->x11.ownClipboard.targets));
+                    contentVec[contentVecLen++] =
+                    (oc_str8){
+                        .ptr = (char*)builtInTargets,
+                        .len = sizeof(builtInTargets),
                     };
-                    xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-                        noti->requestor, prop, XCB_ATOM_ATOM, 32,
-                        oc_array_size(targets), targets);
-                    xcb_change_property(conn, XCB_PROP_MODE_APPEND,
-                        noti->requestor, prop, XCB_ATOM_ATOM, 32,
-                        linux->x11.ownClipboard.targetsLen,
-                        linux->x11.ownClipboard.targets);
+                    contentVec[contentVecLen++] =
+                    (oc_str8){
+                        .ptr = (char*)linux->x11.ownClipboard.targets,
+                        .len = linux->x11.ownClipboard.targetsLen * sizeof(*linux->x11.ownClipboard.targets),
+                    };
+                    type = XCB_ATOM_ATOM;
+                    format = 32;
                 }
                 else
                 {
@@ -1214,11 +1299,11 @@ static void oc_pump_events_main_thread(f64 timeout)
                     }
                     if(i < linux->x11.ownClipboard.targetsLen)
                     {
+                        contentVec[contentVecLen++] = linux->x11.ownClipboard.targetData[i];
                         /* Chromium reuses the target as the property type,
                          * let's do the same and not bother guessing further. */
-                        xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
-                            noti->requestor, prop, noti->target, 8,
-                            oc_str8_lp(linux->x11.ownClipboard.targetData[i]));
+                        type = noti->target;
+                        format = 8;
                     }
                     else
                     {
@@ -1227,6 +1312,40 @@ static void oc_pump_events_main_thread(f64 timeout)
                 }
                 if(supportedTarget)
                 {
+                    OC_STATIC_ASSERT(sizeof(xcb_change_property_request_t) == sizeof(xcb_get_property_request_t));
+                    u64 maximumPayloadSize = linux->x11.maximumRequestSize - sizeof(xcb_change_property_request_t) - 4;
+                    u64 totalLen = 0;
+                    for(u64 i = 0; i < contentVecLen; i++)  totalLen += contentVec[i].len;
+                    bool isLarge = totalLen > maximumPayloadSize;
+                    oc_x11_clipboard_requestor requestor =
+                    {
+                        .window = noti->requestor,
+                        .property = prop,
+                        .incr = isLarge,
+                    };
+                    if(requestor.incr)
+                    {
+                        u32 n = linux->x11.ownClipboard.content.len;
+                        xcb_change_property(conn, XCB_PROP_MODE_REPLACE,
+                            noti->requestor, prop, linux->x11.atoms.INCR, 32, 1, &n);
+
+                        OC_STATIC_ASSERT(sizeof(requestor.contentVec) == sizeof(contentVec));
+                        memcpy(requestor.contentVec, contentVec, contentVecLen * sizeof(*contentVec));
+                        requestor.contentVecLen = contentVecLen;
+                        requestor.type = type;
+                        requestor.format = format;
+                    }
+                    else
+                    {
+                        xcb_prop_mode_t mode = XCB_PROP_MODE_REPLACE;
+                        for(u64 i = 0; i < contentVecLen; i++)
+                        {
+                            xcb_change_property(conn, mode, noti->requestor,
+                                prop, type, format, contentVec[i].len / (format / 8),
+                                contentVec[i].ptr);
+                            mode = XCB_PROP_MODE_APPEND;
+                        }
+                    }
                     if(noti->requestor != linux->x11.controlWinId)
                     {
                         xcb_change_window_attributes_value_list_t cwa =
@@ -1237,8 +1356,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     }
                     usize i = linux->x11.ownClipboard.requestorsLen;
                     OC_ASSERT(i < oc_array_size(linux->x11.ownClipboard.requestors));
-                    linux->x11.ownClipboard.requestors[i].requestor = noti->requestor;
-                    linux->x11.ownClipboard.requestors[i].property = prop;
+                    linux->x11.ownClipboard.requestors[i] = requestor;
                     linux->x11.ownClipboard.requestorsLen++;
 
                     reply.property = prop;

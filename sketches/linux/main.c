@@ -1210,9 +1210,23 @@ int main(int argc, char** argv)
             OC_ASSERT(res == 0);
         }
 
-        // - clipboard large data transfers support get
-        s2 = oc_clipboard_get_string(scratch.arena);
-        OC_ASSERT(s2.len > 0);
+        /* Large data transfers support */
+        {
+            scratch2 = oc_arena_scope_begin(scratch.arena);
+            u64 largeLen = 1 << 30;
+            char* largeBuf = oc_arena_push(scratch2.arena, largeLen);
+            u64 n = 0xDEADBEEFDEADBEEF;
+            for(u64 i = 0; i < largeLen; i += 8)  *(u64*)&largeBuf[i] = n;
+            s = oc_str8_from_buffer(largeLen, largeBuf);
+            oc_clipboard_set_string(s);
+            s2 = (oc_str8){0};
+            oc_arena_scope scratch3 = {0};
+            CHECK4(oc_str8_eq(s, s2),
+                (scratch3 = oc_arena_scope_begin(scratch2.arena), s2 = oc_clipboard_get_string(scratch3.arena)),
+                oc_arena_scope_end(scratch3),
+                true);
+            oc_arena_scope_end(scratch2);
+        }
     }
 
     oc_request_quit();
@@ -1225,8 +1239,6 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - clipboard large data transfers support set
-    // - clipboard handle alloc errors
     // - text/html, image/png mime clipboard
     //
     // - document weird behaviours
@@ -1279,6 +1291,8 @@ int main(int argc, char** argv)
     //   - oc_file_move
     //   - oc_file_remove
     //   - oc_directory_create
+    // clipboard: get/set timeout, handle if owner/requestor dies
+    // clipboard: handle alloc errors
 
     oc_scratch_end(scratch);
     return (0);

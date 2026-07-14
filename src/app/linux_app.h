@@ -52,6 +52,19 @@ typedef enum oc_x11_clipboard_status
     OC_X11_CLIPBOARD_STATUS_OWNED,
 } oc_x11_clipboard_status;
 
+typedef struct oc_x11_clipboard_requestor
+{
+    xcb_window_t window;
+    xcb_atom_t property;
+
+    bool incr;
+    oc_str8 contentVec[2];
+    u64 contentVecLen;
+    xcb_atom_t type;
+    u8 format;
+    u64 incrOff;
+} oc_x11_clipboard_requestor;
+
 typedef struct oc_linux_x11
 {
     Display* display;
@@ -102,6 +115,7 @@ typedef struct oc_linux_x11
     } atoms;
     xcb_window_t rootWinId;
     xcb_window_t controlWinId;
+    u64 maximumRequestSize;
     u32 winIdToHandleLen;
     x11_win_id_to_handle winIdToHandle[128];
     u8* wmClass;
@@ -136,13 +150,11 @@ typedef struct oc_linux_x11
         xcb_atom_t targets[16];
         oc_str8 targetData[16];
         u64 requestorsLen;
-        struct
-        {
-            xcb_window_t requestor;
-            xcb_atom_t property;
-        } requestors[16];
+        oc_x11_clipboard_requestor requestors[16];
         oc_str8 pendingContent;
         bool hasPendingContent;
+        bool incr;
+        u64 incrOff;
     } ownClipboard;
 } oc_linux_x11;
 OC_STATIC_ASSERT(oc_array_size_of_member(oc_linux_x11, ownClipboard.targets) == oc_array_size_of_member(oc_linux_x11, ownClipboard.targetData));
