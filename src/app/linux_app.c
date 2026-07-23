@@ -14,8 +14,15 @@
 #include <poll.h>
 #include <X11/Xlib-xcb.h>
 #include <xcb/xcb.h>
+#include <xcb/xcbext.h>
 #include <xcb/sync.h>
 #include <xcb/bigreq.h>
+#include <xcb/xkb.h>
+#include <xcb/xtest.h>
+#include <xcb/xinput.h>
+#include <xkbcommon/xkbcommon.h>
+#include <xkbcommon/xkbcommon-compose.h>
+#include <xkbcommon/xkbcommon-x11.h>
 
 static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) == OC_APP_MAX_WINDOWS,
   "Must match OC_APP_MAX_WINDOWS");
@@ -23,8 +30,6 @@ static_assert(oc_array_size_of_member(oc_linux_x11, winIdToHandle) <= U32_MAX,
   "winIdToHandle's length must fit in winIdToHandleLen");
 
 // TODO(pld): surface callbacks
-// TODO(pld): kb/mouse events
-// TODO(pld): clipboard
 // TODO(pld): file move
 // TODO(pld): alert
 // TODO(pld): file dialog
@@ -45,6 +50,11 @@ static void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    cmd->user.queued++;
+    if(cmd->user.queued > 1)
+    {
+        oc_log_warning("requeued: cmd=%d, window=%llu, queued=%llu\n", cmd->cmd, cmd->window.h, cmd->user.queued);
+    }
     xcb_client_message_event_t msg =
     {
         .response_type = XCB_CLIENT_MESSAGE,
@@ -67,7 +77,9 @@ static void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
         cmd->cmd == OC_X11_CLIENT_MESSAGE_SET_CLIPBOARD_TARGET ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_GET_SELECTION_OWNER ||
         cmd->cmd == OC_X11_CLIENT_MESSAGE_INTERN_ATOM ||
-        cmd->cmd == OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY)
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_FRAME_RECT_FOR_CONTENT_RECT ||
+        cmd->cmd == OC_X11_CLIENT_MESSAGE_WINDOW_GET_FRAME_RECT)
     {
         int ok = oc_mutex_lock(linux->appCmdUserPoolMutex);
         OC_ASSERT(ok == 0);
@@ -80,6 +92,84 @@ static void oc_linux_enqueue_app_cmd(oc_linux_app_cmd* cmd)
         memcpy(&msg.data.data32[3], &u, 8);
     }
     xcb_send_event(conn, false, linux->x11.controlWinId, 0, (const char*)&msg);
+}
+
+struct oc_linux_app_cmd_completion
+{
+    u64 threadId;
+    oc_mutex* mutex;
+    oc_condition* cond;
+};
+
+static oc_linux_app_cmd_completion oc_linux_app_cmd_completion_create(void)
+{
+    oc_linux_app_cmd_completion c =
+    {
+        .threadId = oc_thread_self_id(),
+        .mutex = oc_mutex_create(),
+        .cond = oc_condition_create(),
+    };
+    OC_ASSERT(c.mutex);
+    OC_ASSERT(c.cond);
+    int ok = oc_mutex_lock(c.mutex);
+    OC_ASSERT(ok == 0);
+    return (c);
+}
+
+static void oc_linux_app_cmd_completion_wait(oc_linux_app_cmd_completion* c)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    OC_ASSERT(c->threadId == oc_thread_self_id());
+    if(c->threadId == linux->mainThreadId)
+    {
+        while(!linux->mainThreadAppCmdCompletionSignaled)
+        {
+            oc_pump_events(-1);
+        }
+        linux->mainThreadAppCmdCompletionSignaled = false;
+    }
+    else
+    {
+        int ok = oc_condition_wait(c->cond, c->mutex);
+        OC_ASSERT(ok == 0);
+    }
+}
+
+static void oc_linux_app_cmd_completion_signal(oc_linux_app_cmd_completion* c)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    OC_ASSERT(linux->mainThreadId == oc_thread_self_id());
+    if(c->threadId == linux->mainThreadId)
+    {
+        OC_ASSERT(!linux->mainThreadAppCmdCompletionSignaled);
+        linux->mainThreadAppCmdCompletionSignaled = true;
+    }
+    else
+    {
+        int ok = oc_mutex_lock(c->mutex);
+        OC_ASSERT(ok == 0);
+        ok = oc_condition_signal(c->cond);
+        OC_ASSERT(ok == 0);
+        ok = oc_mutex_unlock(c->mutex);
+        OC_ASSERT(ok == 0);
+    }
+}
+
+static void oc_linux_app_cmd_completion_destroy(oc_linux_app_cmd_completion* c)
+{
+    OC_ASSERT(c->threadId == oc_thread_self_id());
+    int ok = oc_mutex_unlock(c->mutex);
+    OC_ASSERT(ok == 0);
+    ok = oc_mutex_destroy(c->mutex);
+    OC_ASSERT(ok == 0);
+    ok = oc_condition_destroy(c->cond);
+    OC_ASSERT(ok == 0);
+}
+
+static void ensure_xcb_flush(xcb_connection_t* conn)
+{
+    int ok = xcb_flush(conn);
+    OC_ASSERT(ok > 0);
 }
 
 static void oc_linux_queue_event(oc_event* event)
@@ -133,6 +223,16 @@ void oc_init(void)
     XSetEventQueueOwner(x11->display, XCBOwnsEventQueue);
 
     xcb_connection_t* conn = XGetXCBConnection(x11->display);
+
+    /* Prefetch extensions we need into XCB's cache */
+    {
+        xcb_prefetch_extension_data(conn, &xcb_big_requests_id);
+        xcb_prefetch_extension_data(conn, &xcb_sync_id);
+        xcb_prefetch_extension_data(conn, &xcb_input_id);
+        xcb_prefetch_extension_data(conn, &xcb_xkb_id);
+    }
+
+    /* Intern atoms */
     struct {
         const oc_str8 s;
         xcb_intern_atom_cookie_t cookie;
@@ -148,7 +248,7 @@ void oc_init(void)
     {
         atoms[i].cookie = xcb_intern_atom(conn, false, oc_str8_lp(atoms[i].s));
     }
-    xcb_flush(conn);
+    ensure_xcb_flush(conn);
     for(u64 i = 0; i < oc_array_size(atoms); i++)
     {
         xcb_intern_atom_reply_t* reply = NULL;
@@ -172,10 +272,13 @@ void oc_init(void)
 
     /* Enable big requests */
     {
-        OC_ASSERT(XCB_BIGREQUESTS_MAJOR_VERSION == 0);
-        OC_ASSERT(XCB_BIGREQUESTS_MINOR_VERSION == 0);
+        const xcb_query_extension_reply_t* ext = xcb_get_extension_data(conn, &xcb_big_requests_id);
+        OC_ASSERT(ext);
+        OC_ASSERT(ext->present);
+        OC_STATIC_ASSERT(XCB_BIGREQUESTS_MAJOR_VERSION == 0);
+        OC_STATIC_ASSERT(XCB_BIGREQUESTS_MINOR_VERSION == 0);
         xcb_big_requests_enable_cookie_t cookie = xcb_big_requests_enable(conn);
-        xcb_flush(conn);
+        ensure_xcb_flush(conn);
         xcb_big_requests_enable_reply_t* reply = xcb_big_requests_enable_reply(conn, cookie, NULL);
         OC_ASSERT(reply);
         OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
@@ -187,11 +290,14 @@ void oc_init(void)
 
     /* Initialize XSync extension */
     {
-        OC_ASSERT(XCB_SYNC_MAJOR_VERSION == 3);
-        OC_ASSERT(XCB_SYNC_MINOR_VERSION == 1);
+        const xcb_query_extension_reply_t* ext = xcb_get_extension_data(conn, &xcb_sync_id);
+        OC_ASSERT(ext);
+        OC_ASSERT(ext->present);
+        OC_STATIC_ASSERT(XCB_SYNC_MAJOR_VERSION == 3);
+        OC_STATIC_ASSERT(XCB_SYNC_MINOR_VERSION == 1);
         xcb_sync_initialize_cookie_t cookie =
             xcb_sync_initialize(conn, XCB_SYNC_MAJOR_VERSION, XCB_SYNC_MINOR_VERSION);
-        xcb_flush(conn);
+        ensure_xcb_flush(conn);
         xcb_sync_initialize_reply_t* reply = xcb_sync_initialize_reply(conn, cookie, NULL);
         OC_ASSERT(reply);
         OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
@@ -206,7 +312,7 @@ void oc_init(void)
         xcb_get_property_cookie_t cookie = {0};
         cookie = xcb_get_property(conn, false, x11->rootWinId,
             x11->atoms._NET_SUPPORTING_WM_CHECK, XCB_ATOM_WINDOW, 0, 1);
-        xcb_flush(conn);
+        ensure_xcb_flush(conn);
         xcb_get_property_reply_t* reply = NULL;
         reply = xcb_get_property_reply(conn, cookie, NULL);
         OC_ASSERT(reply);
@@ -218,7 +324,7 @@ void oc_init(void)
         free(reply);
         cookie = xcb_get_property(conn, false, child,
             x11->atoms._NET_SUPPORTING_WM_CHECK, XCB_ATOM_WINDOW, 0, 1);
-        xcb_flush(conn);
+        ensure_xcb_flush(conn);
         reply = xcb_get_property_reply(conn, cookie, NULL);
         OC_ASSERT(reply);
         OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
@@ -245,7 +351,7 @@ void oc_init(void)
             xcb_get_property_cookie_t cookie = {0};
             cookie = xcb_get_property(conn, false, x11->rootWinId,
                 x11->atoms._NET_SUPPORTED, XCB_ATOM_ATOM, offset, 64);
-            xcb_flush(conn);
+            ensure_xcb_flush(conn);
             xcb_get_property_reply_t* reply = xcb_get_property_reply(conn, cookie, NULL);
             OC_ASSERT(reply);
             OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
@@ -305,7 +411,7 @@ void oc_init(void)
         xcb_void_cookie_t cookie =
             xcb_create_window_aux_checked(conn, 0, winId, parentId, 0, 0, 1, 1, 0,
                 XCB_WINDOW_CLASS_INPUT_ONLY, XCB_COPY_FROM_PARENT, XCB_CW_EVENT_MASK, &cwa);
-        xcb_flush(conn);
+        ensure_xcb_flush(conn);
         xcb_generic_error_t* e = xcb_request_check(conn, cookie);
         OC_ASSERT(!e);
         x11->controlWinId = winId;
@@ -333,6 +439,284 @@ void oc_init(void)
             .user.getProperty.prop = x11->atoms._NET_WORKAREA,
             .user.getProperty.cookie = cookie,
         });
+    }
+
+    /* Initialize X Input Extension */
+    {
+        const xcb_query_extension_reply_t* ext = xcb_get_extension_data(conn, &xcb_input_id);
+        OC_ASSERT(ext);
+        OC_ASSERT(ext->present);
+        OC_STATIC_ASSERT(XCB_INPUT_MAJOR_VERSION == 2);
+        OC_STATIC_ASSERT(XCB_INPUT_MINOR_VERSION == 3);
+        xcb_input_xi_query_version_cookie_t cookie = xcb_input_xi_query_version(conn, XCB_INPUT_MAJOR_VERSION, XCB_INPUT_MINOR_VERSION);
+        ensure_xcb_flush(conn);
+        xcb_input_xi_query_version_reply_t* reply = xcb_input_xi_query_version_reply(conn, cookie, NULL);
+        OC_ASSERT(reply);
+        OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+        OC_ASSERT(reply->major_version == 2);
+        OC_ASSERT(reply->minor_version == 3);
+        free(reply);
+    }
+
+    /* Keyboard and mouse */
+    {
+        // TODO(pld): use XInput extension for key press/relase and mouse events
+        const xcb_query_extension_reply_t* ext = xcb_get_extension_data(conn, &xcb_xkb_id);
+        OC_ASSERT(ext);
+        OC_ASSERT(ext->present);
+        OC_STATIC_ASSERT(XCB_XKB_MAJOR_VERSION == 1);
+        OC_STATIC_ASSERT(XCB_XKB_MINOR_VERSION == 0);
+        xcb_xkb_use_extension_cookie_t useExtensionCookie = xcb_xkb_use_extension(conn, XCB_XKB_MAJOR_VERSION, XCB_XKB_MINOR_VERSION);
+        ensure_xcb_flush(conn);
+        xcb_xkb_use_extension_reply_t* useExtensionReply = xcb_xkb_use_extension_reply(conn, useExtensionCookie, NULL);
+        OC_ASSERT(useExtensionReply);
+        OC_ASSERT(useExtensionReply->response_type == X11_RESPONSE_TYPE_REPLY);
+        OC_ASSERT(useExtensionReply->supported);
+        OC_ASSERT(useExtensionReply->serverMajor == XCB_XKB_MAJOR_VERSION);
+        OC_ASSERT(useExtensionReply->serverMinor == XCB_XKB_MINOR_VERSION);
+        free(useExtensionReply);
+
+        x11->keyboard.xkbFirstEventCode = ext->first_event;
+        x11->keyboard.ctx = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+        OC_ASSERT(x11->keyboard.ctx);
+        x11->keyboard.deviceId = xkb_x11_get_core_keyboard_device_id(conn);
+        OC_ASSERT(x11->keyboard.deviceId != -1);
+
+        u32 change = XCB_XKB_PER_CLIENT_FLAG_DETECTABLE_AUTO_REPEAT;
+        u32 value = change;
+        xcb_xkb_per_client_flags_cookie_t perClientFlagsCookie = xcb_xkb_per_client_flags(conn, x11->keyboard.deviceId,
+            change, value, 0, 0, 0);
+        /* XCB's helper for XkbSelectEvents is buggy wrt * padding. Let's
+         * implement it ourselves. */
+        xcb_void_cookie_t selectEventsCookie = {0};
+        {
+            xcb_xkb_select_events_request_t req =
+            {
+                .major_opcode = ext->major_opcode,
+                .minor_opcode = XCB_XKB_SELECT_EVENTS,
+                .length = 0,
+                .deviceSpec = x11->keyboard.deviceId,
+                .affectWhich =
+                    XCB_XKB_EVENT_TYPE_NEW_KEYBOARD_NOTIFY |
+                    XCB_XKB_EVENT_TYPE_MAP_NOTIFY |
+                    XCB_XKB_EVENT_TYPE_STATE_NOTIFY |
+                    XCB_XKB_EVENT_TYPE_CONTROLS_NOTIFY |
+                    XCB_XKB_EVENT_TYPE_INDICATOR_MAP_NOTIFY |
+                    XCB_XKB_EVENT_TYPE_NAMES_NOTIFY |
+                    XCB_XKB_EVENT_TYPE_COMPAT_MAP_NOTIFY,
+                .clear = 0,
+                .selectAll = 0,
+                .affectMap = -1,
+                .map = XCB_XKB_MAP_PART_KEY_TYPES |
+                    XCB_XKB_MAP_PART_KEY_SYMS |
+                    XCB_XKB_MAP_PART_MODIFIER_MAP |
+                    XCB_XKB_MAP_PART_EXPLICIT_COMPONENTS |
+                    XCB_XKB_MAP_PART_KEY_ACTIONS |
+                    XCB_XKB_MAP_PART_VIRTUAL_MODS |
+                    XCB_XKB_MAP_PART_VIRTUAL_MOD_MAP,
+            };
+            u8 details[52] = {0};
+            usize off = 0;
+            union { u8 c8; u16 c16; u32 c32; } affect, values;
+            usize size = 0;
+            /* XkbNewKeyboardNotify */
+            affect.c16 =
+                XCB_XKB_NKN_DETAIL_KEYCODES |
+                XCB_XKB_NKN_DETAIL_GEOMETRY |
+                XCB_XKB_NKN_DETAIL_DEVICE_ID;
+            values.c16 =
+                XCB_XKB_NKN_DETAIL_KEYCODES |
+                XCB_XKB_NKN_DETAIL_DEVICE_ID;
+            size = 2;
+            OC_ASSERT(size * 2 <= sizeof(details) - off);
+            memcpy(&details[off], &affect.c16, size), off += size;
+            memcpy(&details[off], &values.c16, size), off += size;
+
+            /* XkbStateNotify */
+            affect.c16 =
+                 XCB_XKB_STATE_PART_MODIFIER_STATE |
+                 XCB_XKB_STATE_PART_MODIFIER_BASE |
+                 XCB_XKB_STATE_PART_MODIFIER_LATCH |
+                 XCB_XKB_STATE_PART_MODIFIER_LOCK |
+                 XCB_XKB_STATE_PART_GROUP_STATE |
+                 XCB_XKB_STATE_PART_GROUP_BASE |
+                 XCB_XKB_STATE_PART_GROUP_LATCH |
+                 XCB_XKB_STATE_PART_GROUP_LOCK |
+                 XCB_XKB_STATE_PART_COMPAT_STATE |
+                 XCB_XKB_STATE_PART_GRAB_MODS |
+                 XCB_XKB_STATE_PART_COMPAT_GRAB_MODS |
+                 XCB_XKB_STATE_PART_LOOKUP_MODS |
+                 XCB_XKB_STATE_PART_COMPAT_LOOKUP_MODS |
+                 XCB_XKB_STATE_PART_POINTER_BUTTONS;
+            values.c16 =
+                XCB_XKB_STATE_PART_MODIFIER_BASE |
+                XCB_XKB_STATE_PART_MODIFIER_LATCH |
+                XCB_XKB_STATE_PART_MODIFIER_LOCK |
+                XCB_XKB_STATE_PART_GROUP_BASE |
+                XCB_XKB_STATE_PART_GROUP_LATCH |
+                XCB_XKB_STATE_PART_GROUP_LOCK;
+            size = 2;
+            OC_ASSERT(size * 2 <= sizeof(details) - off);
+            memcpy(&details[off], &affect.c16, size), off += size;
+            memcpy(&details[off], &values.c16, size), off += size;
+
+            /* XkbControlsNotify */
+            affect.c32 =
+                XCB_XKB_BOOL_CTRL_REPEAT_KEYS |
+                XCB_XKB_BOOL_CTRL_SLOW_KEYS |
+                XCB_XKB_BOOL_CTRL_BOUNCE_KEYS |
+                XCB_XKB_BOOL_CTRL_STICKY_KEYS |
+                XCB_XKB_BOOL_CTRL_MOUSE_KEYS |
+                XCB_XKB_BOOL_CTRL_MOUSE_KEYS_ACCEL |
+                XCB_XKB_BOOL_CTRL_ACCESS_X_KEYS |
+                XCB_XKB_BOOL_CTRL_ACCESS_X_TIMEOUT_MASK |
+                XCB_XKB_BOOL_CTRL_ACCESS_X_FEEDBACK_MASK |
+                XCB_XKB_BOOL_CTRL_AUDIBLE_BELL_MASK |
+                XCB_XKB_BOOL_CTRL_OVERLAY_1_MASK |
+                XCB_XKB_BOOL_CTRL_OVERLAY_2_MASK |
+                XCB_XKB_BOOL_CTRL_IGNORE_GROUP_LOCK_MASK |
+                XCB_XKB_CONTROL_GROUPS_WRAP |
+                XCB_XKB_CONTROL_INTERNAL_MODS |
+                XCB_XKB_CONTROL_IGNORE_LOCK_MODS |
+                XCB_XKB_CONTROL_PER_KEY_REPEAT |
+                XCB_XKB_CONTROL_CONTROLS_ENABLED;
+            values.c32 =
+                XCB_XKB_CONTROL_PER_KEY_REPEAT |
+                XCB_XKB_CONTROL_CONTROLS_ENABLED;
+            size = 4;
+            OC_ASSERT(size * 2 <= sizeof(details) - off);
+            memcpy(&details[off], &affect.c32, size), off += size;
+            memcpy(&details[off], &values.c32, size), off += size;
+
+            /* XkbIndicatorMapNotify */
+            affect.c32 = -1;
+            values.c32 = -1;
+            size = 4;
+            OC_ASSERT(size * 2 <= sizeof(details) - off);
+            memcpy(&details[off], &affect.c32, size), off += size;
+            memcpy(&details[off], &values.c32, size), off += size;
+
+            /* XkbNamesNotify */
+            affect.c16 =
+                XCB_XKB_NAME_DETAIL_KEYCODES |
+                XCB_XKB_NAME_DETAIL_GEOMETRY |
+                XCB_XKB_NAME_DETAIL_SYMBOLS |
+                XCB_XKB_NAME_DETAIL_PHYS_SYMBOLS |
+                XCB_XKB_NAME_DETAIL_TYPES |
+                XCB_XKB_NAME_DETAIL_COMPAT |
+                XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES |
+                XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES |
+                XCB_XKB_NAME_DETAIL_INDICATOR_NAMES |
+                XCB_XKB_NAME_DETAIL_KEY_NAMES |
+                XCB_XKB_NAME_DETAIL_KEY_ALIASES |
+                XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES |
+                XCB_XKB_NAME_DETAIL_GROUP_NAMES |
+                XCB_XKB_NAME_DETAIL_RG_NAMES;
+            values.c16 =
+                XCB_XKB_NAME_DETAIL_KEYCODES |
+                XCB_XKB_NAME_DETAIL_SYMBOLS |
+                XCB_XKB_NAME_DETAIL_TYPES |
+                XCB_XKB_NAME_DETAIL_COMPAT |
+                XCB_XKB_NAME_DETAIL_KEY_TYPE_NAMES |
+                XCB_XKB_NAME_DETAIL_KT_LEVEL_NAMES |
+                XCB_XKB_NAME_DETAIL_INDICATOR_NAMES |
+                XCB_XKB_NAME_DETAIL_KEY_NAMES |
+                XCB_XKB_NAME_DETAIL_KEY_ALIASES |
+                XCB_XKB_NAME_DETAIL_VIRTUAL_MOD_NAMES |
+                XCB_XKB_NAME_DETAIL_GROUP_NAMES;
+            size = 2;
+            OC_ASSERT(size * 2 <= sizeof(details) - off);
+            memcpy(&details[off], &affect.c16, size), off += size;
+            memcpy(&details[off], &values.c16, size), off += size;
+
+            /* XkbCompatMapNotify */
+            affect.c8 =
+                XCB_XKB_CM_DETAIL_SYM_INTERP |
+                XCB_XKB_CM_DETAIL_GROUP_COMPAT;
+            values.c8 =
+                XCB_XKB_CM_DETAIL_SYM_INTERP;
+            size = 1;
+            OC_ASSERT(size * 2 <= sizeof(details) - off);
+            memcpy(&details[off], &affect.c8, size), off += size;
+            memcpy(&details[off], &values.c8, size), off += size;
+
+            u8 pad[3] = {0};
+            OC_STATIC_ASSERT((-sizeof(req) & 3) == 0);
+            struct iovec vec[3] =
+            {
+                { .iov_base = &req, .iov_len = sizeof(req) },
+                { .iov_base = details, .iov_len = off },
+                { .iov_base = pad, .iov_len = -off & 3 },
+            };
+            for(usize i = 0; i < oc_array_size(vec); i++)  req.length += vec[i].iov_len;
+            req.length /= 4;
+            xcb_protocol_request_t desc = { .count = oc_array_size(vec), .isvoid = true };
+            int flags = XCB_REQUEST_RAW | XCB_REQUEST_CHECKED;
+            u32 seq = xcb_send_request(conn, flags, vec, &desc);
+            OC_ASSERT(seq);
+            selectEventsCookie.sequence = seq;
+        }
+        ensure_xcb_flush(conn);
+        xcb_xkb_per_client_flags_reply_t* perClientFlagsReply = xcb_xkb_per_client_flags_reply(conn, perClientFlagsCookie, NULL);
+        OC_ASSERT(perClientFlagsReply);
+        OC_ASSERT(perClientFlagsReply->response_type == X11_RESPONSE_TYPE_REPLY);
+        //OC_ASSERT(perClientFlagsReply->deviceID == x11->keyboard.deviceId);
+        OC_ASSERT(perClientFlagsReply->supported & value);
+        OC_ASSERT(perClientFlagsReply->value & value);
+        OC_ASSERT(perClientFlagsReply->autoCtrls == 0);
+        OC_ASSERT(perClientFlagsReply->autoCtrlsValues == 0);
+        xcb_generic_error_t* err = xcb_request_check(conn, selectEventsCookie);
+        OC_ASSERT(!err);
+        x11->keyboard.reloadKeymap = true;
+
+        /* Compose table and state for dead keys support. */
+        const char* locale = getenv("LC_ALL");
+        if(!locale || !locale[0])  locale = getenv("LC_CTYPE");
+        if(!locale || !locale[0])  locale = getenv("LANG");
+        if(!locale || !locale[0])  locale = "C";
+        x11->keyboard.composeTable = xkb_compose_table_new_from_locale(x11->keyboard.ctx, locale, XKB_COMPOSE_COMPILE_NO_FLAGS);
+        if(x11->keyboard.composeTable)
+        {
+            x11->keyboard.composeState = xkb_compose_state_new(x11->keyboard.composeTable, XKB_COMPOSE_STATE_NO_FLAGS);
+            OC_ASSERT(x11->keyboard.composeState);
+        }
+    }
+
+    /* X Test extension */
+    {
+        {
+            xcb_query_extension_cookie_t cookie = xcb_query_extension(conn, sizeof(X11_XTEST_NAME) - 1, X11_XTEST_NAME);
+            ensure_xcb_flush(conn);
+            xcb_query_extension_reply_t* reply = xcb_query_extension_reply(conn, cookie, NULL);
+            OC_ASSERT(reply);
+            OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
+            OC_ASSERT(reply->present);
+            x11->xtestMajorCode = reply->major_opcode;
+            free(reply);
+        }
+        {
+            OC_STATIC_ASSERT(X11_XTEST_MAJOR_VERSION == 2);
+            OC_STATIC_ASSERT(X11_XTEST_MINOR_VERSION == 2);
+            x11_xtest_get_version_req req =
+            {
+                .majorCode = x11->xtestMajorCode,
+                .minorCode = X11_XTEST_REQUEST_GET_VERSION,
+                .len = 2,
+                .clientMajor = X11_XTEST_MAJOR_VERSION,
+                .clientMinor = X11_XTEST_MINOR_VERSION,
+            };
+            struct iovec vec = { .iov_base = &req, .iov_len = sizeof(req) };
+            xcb_protocol_request_t desc = { .count = 1 };
+            u32 seq = xcb_send_request(conn, XCB_REQUEST_RAW, &vec, &desc);
+            OC_ASSERT(seq);
+            ensure_xcb_flush(conn);
+            x11_xtest_get_version_res* reply = xcb_wait_for_reply(conn, seq, NULL);
+            OC_ASSERT(reply);
+            OC_ASSERT(reply->code == X11_RESPONSE_TYPE_REPLY);
+            OC_ASSERT(reply->serverMajor == X11_XTEST_MAJOR_VERSION);
+            OC_ASSERT(reply->serverMinor == X11_XTEST_MINOR_VERSION);
+            free(reply);
+        }
     }
 
     int argc = oc_get_argc();
@@ -425,10 +809,7 @@ void oc_init(void)
     //
     // TODO(pld): clang-format
     // TODO(pld): build w/ gcc instead of clang?
-    // TODO(pld): debug why gdb gets very confused when debugging runtime, while lldb doesn't
 
-    // TODO(pld): init keys
-    //
     oc_scratch_end(scratch);
 
     oc_appData.init = true;
@@ -441,6 +822,11 @@ void oc_terminate(void)
     oc_linux_x11* x11 = &linux->x11;
     int ok = 0;
 
+    xkb_compose_state_unref(x11->keyboard.composeState);
+    xkb_compose_table_unref(x11->keyboard.composeTable);
+    xkb_state_unref(x11->keyboard.state);
+    xkb_keymap_unref(x11->keyboard.keymap);
+    xkb_context_unref(x11->keyboard.ctx);
     XCloseDisplay(x11->display);
     oc_pool_cleanup(&linux->appCmdUserPool);
     ok = oc_mutex_destroy(linux->appCmdUserPoolMutex);
@@ -506,6 +892,8 @@ static oc_window window_handle_from_x11_id(u32 winId)
     return (window);
 }
 
+static oc_window oc_window_create_linux(oc_rect contentRect, oc_str8 title, oc_window_style style, bool emitEvents);
+
 static void window_update_last_user_activity_x(xcb_connection_t* conn, oc_window_data* windowData, xcb_timestamp_t ts)
 {
     oc_linux_x11* x11 = &oc_appData.linux.x11;
@@ -513,7 +901,7 @@ static void window_update_last_user_activity_x(xcb_connection_t* conn, oc_window
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, windowData->linux.x11Id,
         x11->atoms._NET_WM_USER_TIME, XCB_ATOM_CARDINAL, 32, 1, &ts);
     windowData->linux.netWmUserTime = ts;
-    if (x11->latestUserTime < ts)  x11->latestUserTime = ts;
+    if(x11->latestUserTime < ts)  x11->latestUserTime = ts;
 }
 
 static void window_update_last_user_activity(xcb_connection_t* conn, oc_window window, xcb_timestamp_t ts)
@@ -530,11 +918,14 @@ typedef struct oc_convert_x11_button_res
 static oc_convert_x11_button_res oc_convert_x11_button(xcb_button_t button)
 {
     OC_ASSERT(button > 0);
+    // TODO(pld): EXT1, EXT2?
     static const oc_mouse_button toMouseButton[] =
     {
         [1] = OC_MOUSE_LEFT,
         [2] = OC_MOUSE_MIDDLE,
         [3] = OC_MOUSE_RIGHT,
+        [8] = OC_MOUSE_EXT1,
+        [9] = OC_MOUSE_EXT2,
     };
     oc_convert_x11_button_res res = {0};
     if(button < oc_array_size(toMouseButton))
@@ -542,21 +933,410 @@ static oc_convert_x11_button_res oc_convert_x11_button(xcb_button_t button)
         res.ok = true;
         res.button = toMouseButton[button];
     }
-    return res;
+    return (res);
 }
 
-static oc_keymod_flags oc_convert_x11_mods(xcb_key_but_mask_t m)
+static oc_keymod_flags oc_mods_from_xkb_state(void)
 {
+    oc_linux_app_data* linux = &oc_appData.linux;
+    OC_ASSERT(!linux->x11.keyboard.reloadKeymap);
+    xkb_state* state = linux->x11.keyboard.state;
+    xkb_mod_index_t shift = linux->x11.keyboard.shiftModIndex;
+    xkb_mod_index_t ctrl = linux->x11.keyboard.ctrlModIndex;
+    xkb_mod_index_t alt = linux->x11.keyboard.altModIndex;
+    xkb_mod_index_t cmd = linux->x11.keyboard.cmdModIndex;
+    xkb_state_component c = XKB_STATE_MODS_EFFECTIVE;
     oc_keymod_flags mods = 0;
-    if(m & XCB_KEY_BUT_MASK_SHIFT)  mods |= OC_KEYMOD_SHIFT;
-    if(m & XCB_KEY_BUT_MASK_CONTROL)  mods |= OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER;
-    if(m & XCB_KEY_BUT_MASK_MOD_1)  mods |= OC_KEYMOD_ALT;
-    if(m & XCB_KEY_BUT_MASK_MOD_4)  mods |= OC_KEYMOD_CMD;
-    // XCB_KEY_BUT_MASK_LOCK -> caps lock
-    // XCB_KEY_BUT_MASK_MOD_2 -> num lock
-    // XCB_KEY_BUT_MASK_MOD_3
-    // XCB_KEY_BUT_MASK_MOD_5 -> alt gr
-    return mods;
+    if(xkb_state_mod_index_is_active(state, shift, c)) mods |= OC_KEYMOD_SHIFT;
+    if(xkb_state_mod_index_is_active(state, ctrl, c)) mods |= OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER;
+    if(xkb_state_mod_index_is_active(state, alt, c)) mods |= OC_KEYMOD_ALT;
+    if(xkb_state_mod_index_is_active(state, cmd, c)) mods |= OC_KEYMOD_CMD;
+    return (mods);
+}
+
+static oc_scan_code oc_scan_code_from_xkb_keycode(xkb_keycode_t key)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    OC_ASSERT(key >= xkb_keymap_min_keycode(linux->x11.keyboard.keymap) &&
+        key <= xkb_keymap_max_keycode(linux->x11.keyboard.keymap));
+    return (oc_appData.scanCodes[key]);
+}
+
+// This is synchronous but should occur rarely enough that we don't care.
+static void reload_x11_keymap(void)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+
+    xkb_state_unref(linux->x11.keyboard.state), linux->x11.keyboard.state = NULL;
+    xkb_keymap_unref(linux->x11.keyboard.keymap), linux->x11.keyboard.keymap = NULL;
+
+    linux->x11.keyboard.keymap = xkb_x11_keymap_new_from_device(linux->x11.keyboard.ctx, conn,
+        linux->x11.keyboard.deviceId, XKB_KEYMAP_COMPILE_NO_FLAGS);
+    OC_ASSERT(linux->x11.keyboard.keymap);
+    linux->x11.keyboard.state = xkb_x11_state_new_from_device(linux->x11.keyboard.keymap, conn,
+        linux->x11.keyboard.deviceId);
+    OC_ASSERT(linux->x11.keyboard.state);
+
+    for(u64 i = 0; i < oc_array_size(oc_appData.scanCodes); i++)
+    {
+        oc_appData.scanCodes[i] = OC_SCANCODE_UNKNOWN;
+    }
+    static const char* xkbCodeNames[] =
+    {
+        [OC_SCANCODE_GRAVE_ACCENT] = "TLDE",
+        [OC_SCANCODE_1] = "AE01",
+        [OC_SCANCODE_2] = "AE02",
+        [OC_SCANCODE_3] = "AE03",
+        [OC_SCANCODE_4] = "AE04",
+        [OC_SCANCODE_5] = "AE05",
+        [OC_SCANCODE_6] = "AE06",
+        [OC_SCANCODE_7] = "AE07",
+        [OC_SCANCODE_8] = "AE08",
+        [OC_SCANCODE_9] = "AE09",
+        [OC_SCANCODE_0] = "AE10",
+        [OC_SCANCODE_MINUS] = "AE11",
+        [OC_SCANCODE_EQUAL] = "AE12",
+        [OC_SCANCODE_BACKSPACE] = "BKSP",
+
+        [OC_SCANCODE_TAB] = "TAB",
+        [OC_SCANCODE_Q] = "AD01",
+        [OC_SCANCODE_W] = "AD02",
+        [OC_SCANCODE_E] = "AD03",
+        [OC_SCANCODE_R] = "AD04",
+        [OC_SCANCODE_T] = "AD05",
+        [OC_SCANCODE_Y] = "AD06",
+        [OC_SCANCODE_U] = "AD07",
+        [OC_SCANCODE_I] = "AD08",
+        [OC_SCANCODE_O] = "AD09",
+        [OC_SCANCODE_P] = "AD10",
+        [OC_SCANCODE_LEFT_BRACKET] = "AD11",
+        [OC_SCANCODE_RIGHT_BRACKET] = "AD12",
+        [OC_SCANCODE_BACKSLASH] = "BKSL",  // aka WORLD_3
+
+        [OC_SCANCODE_CAPS_LOCK] = "CAPS",
+        [OC_SCANCODE_A] = "AC01",
+        [OC_SCANCODE_S] = "AC02",
+        [OC_SCANCODE_D] = "AC03",
+        [OC_SCANCODE_F] = "AC04",
+        [OC_SCANCODE_G] = "AC05",
+        [OC_SCANCODE_H] = "AC06",
+        [OC_SCANCODE_J] = "AC07",
+        [OC_SCANCODE_K] = "AC08",
+        [OC_SCANCODE_L] = "AC09",
+        [OC_SCANCODE_SEMICOLON] = "AC10",
+        [OC_SCANCODE_APOSTROPHE] = "AC11",
+        [OC_SCANCODE_ENTER] = "RTRN",
+
+        [OC_SCANCODE_LEFT_SHIFT] = "LFSH",
+        [OC_SCANCODE_WORLD_1] = "LSGT",
+        [OC_SCANCODE_Z] = "AB01",
+        [OC_SCANCODE_X] = "AB02",
+        [OC_SCANCODE_C] = "AB03",
+        [OC_SCANCODE_V] = "AB04",
+        [OC_SCANCODE_B] = "AB05",
+        [OC_SCANCODE_N] = "AB06",
+        [OC_SCANCODE_M] = "AB07",
+        [OC_SCANCODE_COMMA] = "AB08",
+        [OC_SCANCODE_PERIOD] = "AB09",
+        [OC_SCANCODE_SLASH] = "AB10",
+        [OC_SCANCODE_WORLD_2] = "AB11",
+        [OC_SCANCODE_RIGHT_SHIFT] = "RTSH",
+
+        [OC_SCANCODE_LEFT_CONTROL] = "LCTL",
+        [OC_SCANCODE_LEFT_SUPER] = "LWIN",
+        [OC_SCANCODE_LEFT_ALT] = "LALT",
+        [OC_SCANCODE_SPACE] = "SPCE",
+        [OC_SCANCODE_RIGHT_ALT] = "RALT",
+        [OC_SCANCODE_RIGHT_SUPER] = "RWIN",
+        [OC_SCANCODE_MENU] = "MENU",
+        [OC_SCANCODE_RIGHT_CONTROL] = "RCTL",
+
+        [OC_SCANCODE_ESCAPE] = "ESC",
+        [OC_SCANCODE_F1] = "FK01",
+        [OC_SCANCODE_F2] = "FK02",
+        [OC_SCANCODE_F3] = "FK03",
+        [OC_SCANCODE_F4] = "FK04",
+        [OC_SCANCODE_F5] = "FK05",
+        [OC_SCANCODE_F6] = "FK06",
+        [OC_SCANCODE_F7] = "FK07",
+        [OC_SCANCODE_F8] = "FK08",
+        [OC_SCANCODE_F9] = "FK09",
+        [OC_SCANCODE_F10] = "FK10",
+        [OC_SCANCODE_F11] = "FK11",
+        [OC_SCANCODE_F12] = "FK12",
+        [OC_SCANCODE_F13] = "FK13",
+        [OC_SCANCODE_F14] = "FK14",
+        [OC_SCANCODE_F15] = "FK15",
+        [OC_SCANCODE_F16] = "FK16",
+        [OC_SCANCODE_F17] = "FK17",
+        [OC_SCANCODE_F18] = "FK18",
+        [OC_SCANCODE_F19] = "FK19",
+        [OC_SCANCODE_F20] = "FK20",
+        [OC_SCANCODE_F21] = "FK21",
+        [OC_SCANCODE_F22] = "FK22",
+        [OC_SCANCODE_F23] = "FK23",
+        [OC_SCANCODE_F24] = "FK24",
+        [OC_SCANCODE_F25] = "FK25",
+
+        [OC_SCANCODE_PRINT_SCREEN] = "PRSC",
+        [OC_SCANCODE_SCROLL_LOCK] = "SCLK",
+        [OC_SCANCODE_PAUSE] = "PAUS",
+
+        [OC_SCANCODE_INSERT] = "INS",
+        [OC_SCANCODE_HOME] = "HOME",
+        [OC_SCANCODE_PAGE_UP] = "PGUP",
+        [OC_SCANCODE_DELETE] = "DELE",
+        [OC_SCANCODE_END] = "END",
+        [OC_SCANCODE_PAGE_DOWN] = "PGDN",
+
+        [OC_SCANCODE_UP] = "UP",
+        [OC_SCANCODE_LEFT] = "LEFT",
+        [OC_SCANCODE_DOWN] = "DOWN",
+        [OC_SCANCODE_RIGHT] = "RGHT",
+
+        [OC_SCANCODE_NUM_LOCK] = "NMLK",
+        [OC_SCANCODE_KP_DIVIDE] = "KPDV",
+        [OC_SCANCODE_KP_MULTIPLY] = "KPMU",
+        [OC_SCANCODE_KP_SUBTRACT] = "KPSU",
+        [OC_SCANCODE_KP_0] = "KP0",
+        [OC_SCANCODE_KP_1] = "KP1",
+        [OC_SCANCODE_KP_2] = "KP2",
+        [OC_SCANCODE_KP_3] = "KP3",
+        [OC_SCANCODE_KP_4] = "KP4",
+        [OC_SCANCODE_KP_5] = "KP5",
+        [OC_SCANCODE_KP_6] = "KP6",
+        [OC_SCANCODE_KP_7] = "KP7",
+        [OC_SCANCODE_KP_8] = "KP8",
+        [OC_SCANCODE_KP_9] = "KP9",
+        [OC_SCANCODE_KP_ADD] = "KPAD",
+        [OC_SCANCODE_KP_DECIMAL] = "KPPT",  // or KPDC?
+        [OC_SCANCODE_KP_ENTER] = "KPEN",
+        [OC_SCANCODE_KP_EQUAL] = "KPEQ",
+    };
+    xkb_keycode_t minXkbCode = xkb_keymap_min_keycode(linux->x11.keyboard.keymap);
+    xkb_keycode_t maxXkbCode = xkb_keymap_max_keycode(linux->x11.keyboard.keymap);
+    OC_ASSERT(maxXkbCode < oc_array_size(oc_appData.scanCodes));
+    for(oc_scan_code i = 0; i < oc_array_size(xkbCodeNames); i++)
+    {
+        const char* name = xkbCodeNames[i];
+        if(name)
+        {
+            xkb_keycode_t xkbCode = xkb_keymap_key_by_name(linux->x11.keyboard.keymap, name);
+            if(xkbCode != XKB_KEYCODE_INVALID)
+            {
+                OC_ASSERT(xkbCode > 0 && xkbCode <= maxXkbCode);
+                oc_appData.scanCodes[xkbCode] = i;
+            }
+            else
+            {
+                oc_log_warning("X11 keycode not found in current keymap: %s\n", name);
+            }
+        }
+    }
+
+    //NOTE: default US layout
+    memcpy(oc_appData.keyMap, oc_defaultKeyMap, sizeof(oc_key_code) * OC_SCANCODE_COUNT);
+
+    static const struct { xkb_keysym_t keysym; oc_key_code keyCode; } keysymToKeyCode[] =
+    {
+        { XKB_KEY_space, OC_KEY_SPACE },
+        { XKB_KEY_apostrophe, OC_KEY_APOSTROPHE },
+        { XKB_KEY_comma, OC_KEY_COMMA },
+        { XKB_KEY_minus, OC_KEY_MINUS },
+        { XKB_KEY_period, OC_KEY_PERIOD },
+        { XKB_KEY_slash, OC_KEY_SLASH },
+        { XKB_KEY_0, OC_KEY_0 },
+        { XKB_KEY_1, OC_KEY_1 },
+        { XKB_KEY_2, OC_KEY_2 },
+        { XKB_KEY_3, OC_KEY_3 },
+        { XKB_KEY_4, OC_KEY_4 },
+        { XKB_KEY_5, OC_KEY_5 },
+        { XKB_KEY_6, OC_KEY_6 },
+        { XKB_KEY_7, OC_KEY_7 },
+        { XKB_KEY_8, OC_KEY_8 },
+        { XKB_KEY_9, OC_KEY_9 },
+        { XKB_KEY_semicolon, OC_KEY_SEMICOLON },
+        { XKB_KEY_equal, OC_KEY_EQUAL },
+        { XKB_KEY_bracketleft, OC_KEY_LEFT_BRACKET },
+        { XKB_KEY_backslash, OC_KEY_BACKSLASH },
+        { XKB_KEY_bracketright, OC_KEY_RIGHT_BRACKET },
+        { XKB_KEY_grave, OC_KEY_GRAVE_ACCENT },
+        { XKB_KEY_a, OC_KEY_A },
+        { XKB_KEY_b, OC_KEY_B },
+        { XKB_KEY_c, OC_KEY_C },
+        { XKB_KEY_d, OC_KEY_D },
+        { XKB_KEY_e, OC_KEY_E },
+        { XKB_KEY_f, OC_KEY_F },
+        { XKB_KEY_g, OC_KEY_G },
+        { XKB_KEY_h, OC_KEY_H },
+        { XKB_KEY_i, OC_KEY_I },
+        { XKB_KEY_j, OC_KEY_J },
+        { XKB_KEY_k, OC_KEY_K },
+        { XKB_KEY_l, OC_KEY_L },
+        { XKB_KEY_m, OC_KEY_M },
+        { XKB_KEY_n, OC_KEY_N },
+        { XKB_KEY_o, OC_KEY_O },
+        { XKB_KEY_p, OC_KEY_P },
+        { XKB_KEY_q, OC_KEY_Q },
+        { XKB_KEY_r, OC_KEY_R },
+        { XKB_KEY_s, OC_KEY_S },
+        { XKB_KEY_t, OC_KEY_T },
+        { XKB_KEY_u, OC_KEY_U },
+        { XKB_KEY_v, OC_KEY_V },
+        { XKB_KEY_w, OC_KEY_W },
+        { XKB_KEY_x, OC_KEY_X },
+        { XKB_KEY_y, OC_KEY_Y },
+        { XKB_KEY_z, OC_KEY_Z },
+        { XKB_KEY_less, OC_KEY_WORLD_1 },
+        { XKB_KEY_underscore, OC_KEY_WORLD_2 },
+        { XKB_KEY_Escape, OC_KEY_ESCAPE },
+        { XKB_KEY_Return, OC_KEY_ENTER },
+        { XKB_KEY_Tab, OC_KEY_TAB },
+        { XKB_KEY_BackSpace, OC_KEY_BACKSPACE },
+        { XKB_KEY_Insert, OC_KEY_INSERT },
+        { XKB_KEY_Delete, OC_KEY_DELETE },
+        { XKB_KEY_Right, OC_KEY_RIGHT },
+        { XKB_KEY_Left, OC_KEY_LEFT },
+        { XKB_KEY_Down, OC_KEY_DOWN },
+        { XKB_KEY_Up, OC_KEY_UP },
+        { XKB_KEY_Page_Up, OC_KEY_PAGE_UP },
+        { XKB_KEY_Page_Down, OC_KEY_PAGE_DOWN },
+        { XKB_KEY_Home, OC_KEY_HOME },
+        { XKB_KEY_End, OC_KEY_END },
+        { XKB_KEY_Caps_Lock, OC_KEY_CAPS_LOCK },
+        { XKB_KEY_Scroll_Lock, OC_KEY_SCROLL_LOCK },
+        { XKB_KEY_Num_Lock, OC_KEY_NUM_LOCK },
+        { XKB_KEY_Print, OC_KEY_PRINT_SCREEN },
+        { XKB_KEY_Pause, OC_KEY_PAUSE },
+        { XKB_KEY_F1, OC_KEY_F1 },
+        { XKB_KEY_F2, OC_KEY_F2 },
+        { XKB_KEY_F3, OC_KEY_F3 },
+        { XKB_KEY_F4, OC_KEY_F4 },
+        { XKB_KEY_F5, OC_KEY_F5 },
+        { XKB_KEY_F6, OC_KEY_F6 },
+        { XKB_KEY_F7, OC_KEY_F7 },
+        { XKB_KEY_F8, OC_KEY_F8 },
+        { XKB_KEY_F9, OC_KEY_F9 },
+        { XKB_KEY_F10, OC_KEY_F10 },
+        { XKB_KEY_F11, OC_KEY_F11 },
+        { XKB_KEY_F12, OC_KEY_F12 },
+        { XKB_KEY_F13, OC_KEY_F13 },
+        { XKB_KEY_F14, OC_KEY_F14 },
+        { XKB_KEY_F15, OC_KEY_F15 },
+        { XKB_KEY_F16, OC_KEY_F16 },
+        { XKB_KEY_F17, OC_KEY_F17 },
+        { XKB_KEY_F18, OC_KEY_F18 },
+        { XKB_KEY_F19, OC_KEY_F19 },
+        { XKB_KEY_F20, OC_KEY_F20 },
+        { XKB_KEY_F21, OC_KEY_F21 },
+        { XKB_KEY_F22, OC_KEY_F22 },
+        { XKB_KEY_F23, OC_KEY_F23 },
+        { XKB_KEY_F24, OC_KEY_F24 },
+        { XKB_KEY_F25, OC_KEY_F25 },
+        { XKB_KEY_KP_0, OC_KEY_KP_0 },
+        { XKB_KEY_KP_1, OC_KEY_KP_1 },
+        { XKB_KEY_KP_2, OC_KEY_KP_2 },
+        { XKB_KEY_KP_3, OC_KEY_KP_3 },
+        { XKB_KEY_KP_4, OC_KEY_KP_4 },
+        { XKB_KEY_KP_5, OC_KEY_KP_5 },
+        { XKB_KEY_KP_6, OC_KEY_KP_6 },
+        { XKB_KEY_KP_7, OC_KEY_KP_7 },
+        { XKB_KEY_KP_8, OC_KEY_KP_8 },
+        { XKB_KEY_KP_9, OC_KEY_KP_9 },
+        { XKB_KEY_KP_Decimal, OC_KEY_KP_DECIMAL },
+        { XKB_KEY_KP_Divide, OC_KEY_KP_DIVIDE },
+        { XKB_KEY_KP_Multiply, OC_KEY_KP_MULTIPLY },
+        { XKB_KEY_KP_Subtract, OC_KEY_KP_SUBTRACT },
+        { XKB_KEY_KP_Add, OC_KEY_KP_ADD },
+        { XKB_KEY_KP_Enter, OC_KEY_KP_ENTER },
+        { XKB_KEY_KP_Equal, OC_KEY_KP_EQUAL },
+        { XKB_KEY_Shift_L, OC_KEY_LEFT_SHIFT },
+        { XKB_KEY_Control_L, OC_KEY_LEFT_CONTROL },
+        { XKB_KEY_Alt_L, OC_KEY_LEFT_ALT },
+        { XKB_KEY_Super_L, OC_KEY_LEFT_SUPER },
+        { XKB_KEY_Shift_R, OC_KEY_RIGHT_SHIFT },
+        { XKB_KEY_Control_R, OC_KEY_RIGHT_CONTROL },
+        { XKB_KEY_Alt_R, OC_KEY_RIGHT_ALT },
+        { XKB_KEY_Super_R, OC_KEY_RIGHT_SUPER },
+        { XKB_KEY_Menu, OC_KEY_MENU },
+    };
+    for(i32 xkbCode = minXkbCode; xkbCode < maxXkbCode; xkbCode++)
+    {
+        oc_key_code keyCode = OC_KEY_UNKNOWN;
+        oc_scan_code scanCode = oc_appData.scanCodes[xkbCode];
+        if(scanCode != OC_SCANCODE_UNKNOWN)
+        {
+            const xkb_keysym_t* syms = NULL;
+            int symsLen = 0;
+            symsLen = xkb_keymap_key_get_syms_by_level(linux->x11.keyboard.keymap, xkbCode, 0, 0, &syms);
+            if(symsLen > 0)
+            {
+                OC_ASSERT(syms);
+                xkb_keysym_t keysym = syms[0];
+                for(usize i = 0; i < oc_array_size(keysymToKeyCode); i++)
+                {
+                    if(keysymToKeyCode[i].keysym == keysym)
+                    {
+                        oc_appData.keyMap[scanCode] = keysymToKeyCode[i].keyCode;
+                    }
+                }
+            }
+        }
+
+        //NOTE fix digit row for azerty keyboards
+        bool azerty = true;
+        for(int scanCode = OC_SCANCODE_0; scanCode <= OC_SCANCODE_9; scanCode++)
+        {
+            if(oc_appData.keyMap[scanCode] >= OC_KEY_0 && oc_appData.keyMap[scanCode] <= OC_KEY_9)
+            {
+                azerty = false;
+                break;
+            }
+        }
+        if(azerty)
+        {
+            for(int scanCode = OC_SCANCODE_0; scanCode <= OC_SCANCODE_9; scanCode++)
+            {
+                oc_appData.keyMap[scanCode] = OC_KEY_0 + (scanCode - OC_SCANCODE_0);
+            }
+        }
+    }
+
+    linux->x11.keyboard.shiftModIndex = xkb_keymap_mod_get_index(linux->x11.keyboard.keymap, XKB_MOD_NAME_SHIFT);
+    linux->x11.keyboard.ctrlModIndex = xkb_keymap_mod_get_index(linux->x11.keyboard.keymap, XKB_MOD_NAME_CTRL);
+    // FIXME(pld): requires xkbcommon >=1.8
+    //linux->x11.keyboard.altModIndex = xkb_keymap_mod_get_index(linux->x11.keyboard.keymap, XKB_VMOD_NAME_ALT);
+    //linux->x11.keyboard.cmdModIndex = xkb_keymap_mod_get_index(linux->x11.keyboard.keymap, XKB_VMOD_NAME_SUPER);
+    linux->x11.keyboard.altModIndex = xkb_keymap_mod_get_index(linux->x11.keyboard.keymap, XKB_MOD_NAME_ALT);
+    linux->x11.keyboard.cmdModIndex = xkb_keymap_mod_get_index(linux->x11.keyboard.keymap, XKB_MOD_NAME_LOGO);
+}
+
+static void reload_x11_keymap_if_needed(void)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    if(linux->x11.keyboard.reloadKeymap)
+    {
+        reload_x11_keymap();
+        linux->x11.keyboard.reloadKeymap = false;
+    }
+}
+
+static bool oc_linux_is_scan_code_depressed(oc_scan_code scanCode)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    OC_ASSERT(!linux->x11.keyboard.reloadKeymap);
+    OC_ASSERT(scanCode >= 0 && scanCode < OC_SCANCODE_COUNT);
+    return (linux->x11.keyboard.depressedScanCodes[scanCode / 8]) & (1 << scanCode % 8);
+}
+
+static void oc_linux_set_scan_code_depressed(oc_scan_code scanCode, bool set)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    OC_ASSERT(!linux->x11.keyboard.reloadKeymap);
+    OC_ASSERT(scanCode >= 0 && scanCode < OC_SCANCODE_COUNT);
+    if(set)  linux->x11.keyboard.depressedScanCodes[scanCode / 8] |= (1 << scanCode % 8);
+    else  linux->x11.keyboard.depressedScanCodes[scanCode / 8] &= ~(1 << scanCode % 8);
 }
 
 static void oc_linux_dispatch_sync_request_refcount_dec(oc_linux_dispatch_sync_request* req)
@@ -582,6 +1362,7 @@ static void oc_linux_dispatch_sync_request_refcount_dec(oc_linux_dispatch_sync_r
 
 static void log_event(xcb_generic_event_t* ev)
 {
+    if(0 && (ev->response_type & 0x7f) == XCB_CLIENT_MESSAGE)  return;
     oc_arena_scope scratch = oc_scratch_begin();
     oc_str8_list s;
     oc_str8_list_init(&s);
@@ -668,12 +1449,10 @@ static void oc_pump_events_main_thread(f64 timeout)
 
     OC_ASSERT(oc_thread_self_id() == linux->mainThreadId);
 
-    {
-        int ok = xcb_flush(conn);
-        OC_ASSERT(ok > 0);
-    }
+    ensure_xcb_flush(conn);
 
-    xcb_generic_event_t* ev = NULL;
+    xcb_generic_event_t* ev = xcb_poll_for_event(conn);
+    if(!ev && timeout != 0.0)
     {
         int fd = xcb_get_file_descriptor(conn);
         struct pollfd fds = { .fd = fd, .events = POLLIN };
@@ -719,18 +1498,140 @@ static void oc_pump_events_main_thread(f64 timeout)
     xcb_generic_event_t* forceNextEvent = NULL;
     while(ev)
     {
-        const char* type = "(unk)";
         bool synthetic = ev->response_type & 0x80;
-        switch(ev->response_type & 0x7f)
+        u8 eventCode = ev->response_type & 0x7f;
+        switch(eventCode)
         {
         case XCB_KEY_PRESS:
         {
             xcb_key_press_event_t* noti = (xcb_key_press_event_t*)ev;
             oc_window window = window_handle_from_x11_id(noti->event);
             window_update_last_user_activity(conn, window, noti->time);
+
+            if(0) oc_log_info("key press: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+
+            reload_x11_keymap_if_needed();
+
+            oc_key_action action = OC_KEY_PRESS;
+            oc_scan_code scanCode = oc_scan_code_from_xkb_keycode(noti->detail);
+            bool depressed = oc_linux_is_scan_code_depressed(scanCode);
+            if(depressed && xkb_keymap_key_repeats(linux->x11.keyboard.keymap, noti->detail))
+            {
+                action = OC_KEY_REPEAT;
+            }
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_KEYBOARD_KEY;
+            event.window = window;
+            event.key.action = action;
+            event.key.scanCode = scanCode;
+            event.key.keyCode = oc_scancode_to_keycode(scanCode);
+            event.key.mods = oc_mods_from_xkb_state();
+            oc_linux_queue_event(&event);
+
+            // FIXME(pld): This does Control keysym transformation (e.g. Ctrl-h
+            // will translate to backspace. Do we want it?
+            char seqBuf[64];
+            int seqLen = 0;
+            bool composeDidConsume = false;
+            if(linux->x11.keyboard.composeState)
+            {
+                xkb_keysym_t keysym = xkb_state_key_get_one_sym(linux->x11.keyboard.state, noti->detail);
+                xkb_compose_feed_result feed = xkb_compose_state_feed(linux->x11.keyboard.composeState, keysym);
+                xkb_compose_status status = xkb_compose_state_get_status(linux->x11.keyboard.composeState);
+                if(feed == XKB_COMPOSE_FEED_ACCEPTED)
+                {
+                    if(status == XKB_COMPOSE_NOTHING)
+                    {
+                        composeDidConsume = false;
+                    }
+                    else if(status == XKB_COMPOSE_COMPOSING)
+                    {
+                        composeDidConsume = true;
+                    }
+                    else if(status == XKB_COMPOSE_COMPOSED)
+                    {
+                        seqLen = xkb_compose_state_get_utf8(linux->x11.keyboard.composeState, seqBuf, sizeof(seqBuf));
+                        xkb_compose_state_reset(linux->x11.keyboard.composeState);
+                        composeDidConsume = true;
+                    }
+                    else if(status == XKB_COMPOSE_CANCELLED)
+                    {
+                        /* We swallow the cancelling keysym, to match libX11's
+                         * behaviour. In contrast, Windows replays the entire
+                         * sequence, e.g. ^ then b will produce ^b. */
+                        xkb_compose_state_reset(linux->x11.keyboard.composeState);
+                        composeDidConsume = true;
+                    }
+                    else
+                    {
+                        oc_unreachable();
+                    }
+                }
+                else if(feed == XKB_COMPOSE_FEED_IGNORED)
+                {
+                    OC_ASSERT(status != XKB_COMPOSE_COMPOSED && status != XKB_COMPOSE_CANCELLED);
+                    composeDidConsume = status == XKB_COMPOSE_COMPOSING;
+                }
+                else
+                {
+                    oc_unreachable();
+                }
+            }
+            if(!composeDidConsume)
+            {
+                seqLen = xkb_state_key_get_utf8(linux->x11.keyboard.state, noti->detail, seqBuf, sizeof(seqBuf));
+            }
+            OC_ASSERT(seqLen >= 0);
+            OC_ASSERT(seqLen < sizeof(seqBuf));
+            oc_str8 seq = oc_str8_from_buffer(seqLen, seqBuf);
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_KEYBOARD_CHAR;
+            event.window = window;
+            for(u32 off = 0; off < seq.len;)
+            {
+                oc_utf8_dec dec = oc_utf8_decode_at(seq, off);
+                OC_ASSERT(dec.status == OC_UTF8_OK);
+                OC_ASSERT(dec.size <= sizeof(event.character.sequence));
+
+                event.character.codepoint = dec.codepoint;
+                memcpy(event.character.sequence, &seq.ptr[off], dec.size);
+                memz(&event.character.sequence[dec.size], sizeof(event.character.sequence) - dec.size);
+                event.character.seqLen = dec.size;
+                oc_linux_queue_event(&event);
+
+                off += dec.size;
+            }
+
+            oc_linux_set_scan_code_depressed(scanCode, true);
         } break;
         case XCB_KEY_RELEASE:
-            break;
+        {
+            xcb_key_release_event_t* noti = (xcb_key_release_event_t*)ev;
+            oc_window window = window_handle_from_x11_id(noti->event);
+
+            oc_log_info("key release: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+
+            reload_x11_keymap_if_needed();
+
+            oc_scan_code scanCode = oc_scan_code_from_xkb_keycode(noti->detail);
+            oc_event event;
+            memz(&event, sizeof(event));
+            event.type = OC_EVENT_KEYBOARD_KEY;
+            event.window = window;
+            event.key.action = OC_KEY_RELEASE;
+            event.key.scanCode = scanCode;
+            event.key.keyCode = oc_scancode_to_keycode(scanCode);
+            // TODO(pld): When releasing a modifier, we receive the KeyRelease
+            // event before the XkbStateNotify one. The event mods will include
+            // it, do we want it in or exclude it?
+            event.key.mods = oc_mods_from_xkb_state();
+            oc_linux_queue_event(&event);
+
+            oc_linux_set_scan_code_depressed(scanCode, false);
+        } break;
         case XCB_BUTTON_PRESS:
         {
             xcb_button_press_event_t* noti = (xcb_button_press_event_t*)ev;
@@ -740,6 +1641,8 @@ static void oc_pump_events_main_thread(f64 timeout)
 
             oc_log_info("button press: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
                 noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+
+            reload_x11_keymap_if_needed();
 
             if(noti->detail == X11_BUTTON_WHEEL_UP || noti->detail == X11_BUTTON_WHEEL_DOWN ||
                 noti->detail == X11_BUTTON_WHEEL_LEFT || noti->detail == X11_BUTTON_WHEEL_RIGHT)
@@ -759,7 +1662,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                 event.window = window;
                 event.mouse.deltaX = delta.x;
                 event.mouse.deltaY = delta.y;
-                event.mouse.mods = oc_convert_x11_mods(noti->state);
+                event.mouse.mods = oc_mods_from_xkb_state();
                 oc_linux_queue_event(&event);
                 break;
             }
@@ -770,25 +1673,30 @@ static void oc_pump_events_main_thread(f64 timeout)
             OC_ASSERT(noti->same_screen);
             oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
 
-            xcb_timestamp_t elapsed = noti->time - linux->x11.lastClickTime;
+            xcb_timestamp_t elapsed = noti->time - linux->x11.mouse.lastClickTime;
             f32 distance = 0.0;
             {
-                f32 x = linux->x11.lastClickPos.x - pos.x;
-                f32 y = linux->x11.lastClickPos.y - pos.y;
+                f32 x = linux->x11.mouse.lastClickPos.x - pos.x;
+                f32 y = linux->x11.mouse.lastClickPos.y - pos.y;
                 distance = (x * x) + (y * y);
+                if(0) oc_log_info("button press: lastClickPos=%f/%f, pos=%f/%f, distance=%f\n",
+                    (double)linux->x11.mouse.lastClickPos.x,
+                    (double)linux->x11.mouse.lastClickPos.y,
+                    (double)pos.x, (double)pos.y, (double)distance);
             }
-            if(noti->event != linux->x11.lastClickWinId ||
-                noti->detail != linux->x11.lastClickButton ||
+            if(noti->event != linux->x11.mouse.lastClickWinId ||
+                noti->detail != linux->x11.mouse.lastClickButton ||
                 elapsed > linux->x11.xsettings.doubleClickTime ||
                 distance > linux->x11.xsettings.doubleClickDistance)
             {
-                linux->x11.clickCount = 0;
+                if(0) oc_log_info("button press: reset clickCount\n");
+                linux->x11.mouse.clickCount = 0;
             }
-            linux->x11.lastClickWinId = noti->event;
-            linux->x11.lastClickButton = noti->detail;
-            linux->x11.lastClickTime = noti->time;
-            linux->x11.lastClickPos = pos;
-            linux->x11.clickCount++;
+            linux->x11.mouse.lastClickWinId = noti->event;
+            linux->x11.mouse.lastClickButton = noti->detail;
+            linux->x11.mouse.lastClickTime = noti->time;
+            linux->x11.mouse.lastClickPos = pos;
+            linux->x11.mouse.clickCount++;
 
             oc_event event;
             memz(&event, sizeof(event));
@@ -796,8 +1704,8 @@ static void oc_pump_events_main_thread(f64 timeout)
             event.window = window;
             event.key.action = OC_KEY_PRESS;
             event.key.button = converted.button;
-            event.key.mods = oc_convert_x11_mods(noti->state);
-            event.key.clickCount = linux->x11.clickCount;
+            event.key.mods = oc_mods_from_xkb_state();
+            event.key.clickCount = linux->x11.mouse.clickCount;
             oc_linux_queue_event(&event);
         } break;
         case XCB_BUTTON_RELEASE:
@@ -809,25 +1717,38 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_log_info("button release: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
                 noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
 
+            reload_x11_keymap_if_needed();
+
+            if(noti->detail == X11_BUTTON_WHEEL_UP || noti->detail == X11_BUTTON_WHEEL_DOWN ||
+                noti->detail == X11_BUTTON_WHEEL_LEFT || noti->detail == X11_BUTTON_WHEEL_RIGHT)
+            {
+                break;
+            }
+
             oc_convert_x11_button_res converted = oc_convert_x11_button(noti->detail);
             if(!converted.ok)  break;
 
             OC_ASSERT(noti->same_screen);
             oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
 
-            xcb_timestamp_t elapsed = noti->time - linux->x11.lastClickTime;
+            xcb_timestamp_t elapsed = noti->time - linux->x11.mouse.lastClickTime;
             f32 distance = 0.0;
             {
-                f32 x = linux->x11.lastClickPos.x - pos.x;
-                f32 y = linux->x11.lastClickPos.y - pos.y;
+                f32 x = linux->x11.mouse.lastClickPos.x - pos.x;
+                f32 y = linux->x11.mouse.lastClickPos.y - pos.y;
                 distance = (x * x) + (y * y);
+                if(0) oc_log_info("button release: lastClickPos=%f/%f, pos=%f/%f, distance=%f\n",
+                    (double)linux->x11.mouse.lastClickPos.x,
+                    (double)linux->x11.mouse.lastClickPos.y,
+                    (double)pos.x, (double)pos.y, (double)distance);
             }
-            OC_ASSERT(noti->detail == linux->x11.lastClickButton);
-            if(noti->event != linux->x11.lastClickWinId ||
+            OC_ASSERT(noti->detail == linux->x11.mouse.lastClickButton);
+            if(noti->event != linux->x11.mouse.lastClickWinId ||
                 elapsed > linux->x11.xsettings.doubleClickTime ||
                 distance > linux->x11.xsettings.doubleClickDistance)
             {
-                linux->x11.clickCount = 0;
+                if(0) oc_log_info("button release: reset clickCount\n");
+                linux->x11.mouse.clickCount = 0;
             }
 
             oc_event event;
@@ -836,8 +1757,8 @@ static void oc_pump_events_main_thread(f64 timeout)
             event.window = window;
             event.key.action = OC_KEY_RELEASE;
             event.key.button = converted.button;
-            event.key.mods = oc_convert_x11_mods(noti->state);
-            event.key.clickCount = linux->x11.clickCount;
+            event.key.mods = oc_mods_from_xkb_state();
+            event.key.clickCount = linux->x11.mouse.clickCount;
             oc_linux_queue_event(&event);
         } break;
         case XCB_MOTION_NOTIFY:
@@ -850,6 +1771,11 @@ static void oc_pump_events_main_thread(f64 timeout)
             OC_ASSERT(windowData);
             window_update_last_user_activity_x(conn, windowData, noti->time);
 
+            if(0) oc_log_info("motion: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
+
+            reload_x11_keymap_if_needed();
+
             OC_ASSERT(noti->same_screen);
             oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
 
@@ -861,13 +1787,10 @@ static void oc_pump_events_main_thread(f64 timeout)
             event.mouse.y = pos.y;
             event.mouse.deltaX = pos.x - windowData->linux.pointerPos.x;
             event.mouse.deltaY = pos.y - windowData->linux.pointerPos.y;
-            event.mouse.mods = oc_convert_x11_mods(noti->state);
+            event.mouse.mods = oc_mods_from_xkb_state();
             oc_linux_queue_event(&event);
 
             windowData->linux.pointerPos = pos;
-
-            oc_log_info("motion: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
-                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
         } break;
         case XCB_ENTER_NOTIFY:
         {
@@ -877,6 +1800,9 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             OC_ASSERT(windowData);
             window_update_last_user_activity_x(conn, windowData, noti->time);
+
+            oc_log_info("enter: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
+                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
 
             OC_ASSERT(noti->same_screen_focus);
             oc_vec2 pos = { .x = (f32)noti->event_x, .y = (f32)noti->event_y };
@@ -890,9 +1816,6 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_linux_queue_event(&event);
 
             windowData->linux.pointerPos = pos;
-
-            oc_log_info("enter: root=%d/%d, event=%d/%d, detail=%d, state=%d, time=%d\n",
-                noti->root_x, noti->root_y, noti->event_x, noti->event_y, noti->detail, noti->state, noti->time);
         } break;
         case XCB_LEAVE_NOTIFY:
         {
@@ -957,6 +1880,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             }
         } break;
         case XCB_KEYMAP_NOTIFY:
+            oc_notpossible();
             break;
         case XCB_EXPOSE:
             oc_notpossible();
@@ -980,6 +1904,20 @@ static void oc_pump_events_main_thread(f64 timeout)
             oc_window_data* windowData = oc_window_ptr_from_handle(window);
             if(windowData)
             {
+                free(windowData->linux.pendingConfigureNotify);
+                OC_ASSERT(!windowData->linux.queued.frameRectForContentRect.queued);
+                if(!oc_list_empty(windowData->linux.queued.getFrameRectQueue))
+                {
+                    int ok = oc_mutex_lock(linux->appCmdUserPoolMutex);
+                    OC_ASSERT(ok == 0);
+                    while(!oc_list_empty(windowData->linux.queued.getFrameRectQueue))
+                    {
+                        oc_linux_app_cmd_user* queued = oc_list_pop_front_entry(&windowData->linux.queued.getFrameRectQueue, __typeof__(*queued), listElt);
+                        oc_pool_recycle(&linux->appCmdUserPool, queued);
+                    }
+                    ok = oc_mutex_unlock(linux->appCmdUserPoolMutex);
+                    OC_ASSERT(ok == 0);
+                }
                 //TODO(pld): clean up the window's other resources
                 int ok = oc_mutex_lock(linux->windowPoolMutex);
                 OC_ASSERT(ok == 0);
@@ -1015,11 +1953,11 @@ static void oc_pump_events_main_thread(f64 timeout)
             }
         } break;
         case XCB_UNMAP_NOTIFY:
-        {
-        } break;
+            /* ignored */
+            break;
         case XCB_MAP_NOTIFY:
-        {
-        } break;
+            /* ignored */
+            break;
         case XCB_MAP_REQUEST:
             oc_notpossible();
             break;
@@ -1086,6 +2024,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             windowData->linux.rect.h = noti->height;
             windowData->linux.rectSince = ev->sequence;
             OC_ASSERT(noti->border_width == 0);
+            // TODO: queued get frame rect
 
             if(windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN)
             {
@@ -1124,19 +2063,36 @@ static void oc_pump_events_main_thread(f64 timeout)
                     };
                     xcb_sync_set_counter(conn, id, val);
                 }
+                while(!oc_list_empty(windowData->linux.queued.getFrameRectQueue))
+                {
+                    oc_linux_app_cmd_user* queued = oc_list_pop_front_entry(&windowData->linux.queued.getFrameRectQueue, __typeof__(*queued), listElt);
+                    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                        .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_GET_FRAME_RECT,
+                        .window = window,
+                        .user = *queued,
+                    });
+                    int ok = oc_mutex_lock(linux->appCmdUserPoolMutex);
+                    OC_ASSERT(ok == 0);
+                    oc_pool_recycle(&linux->appCmdUserPool, queued);
+                    ok = oc_mutex_unlock(linux->appCmdUserPoolMutex);
+                    OC_ASSERT(ok == 0);
+                }
             }
         } break;
         case XCB_CONFIGURE_REQUEST:
             oc_notpossible();
             break;
         case XCB_GRAVITY_NOTIFY:
+            /* ignored */
             break;
         case XCB_RESIZE_REQUEST:
             oc_notpossible();
             break;
         case XCB_CIRCULATE_NOTIFY:
+            /* ignored */
             break;
         case XCB_CIRCULATE_REQUEST:
+            oc_notpossible();
             break;
         case XCB_PROPERTY_NOTIFY:
         {
@@ -1603,7 +2559,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             else if(noti->property == XCB_ATOM_NONE)
             {
                 *linux->x11.getClipboard.result = OC_STR8("");
-                *linux->x11.getClipboard.done = true;
+                oc_linux_app_cmd_completion_signal(linux->x11.getClipboard.completion);
                 memz(&linux->x11.getClipboard, sizeof(linux->x11.getClipboard));
                 oc_linux_app_cmd_user* queued = oc_list_pop_front_entry(&linux->x11.getClipboardQueue, __typeof__(*queued), listElt);
                 if(queued)
@@ -1625,6 +2581,7 @@ static void oc_pump_events_main_thread(f64 timeout)
             }
         } break;
         case XCB_COLORMAP_NOTIFY:
+            oc_notpossible();
             break;
         case XCB_CLIENT_MESSAGE:
         {
@@ -1910,6 +2867,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     }
                     else
                     {
+                        // TODO(pld): do not requeue spuriously?
                         /* Requeue until we get the frame extents. */
                         oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
                             .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_SET_FRAME_RECT,
@@ -1944,6 +2902,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     }
                     else
                     {
+                        // TODO(pld): do not requeue spuriously?
                         /* Requeue until we get the frame extents. */
                         oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
                             .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_SET_CONTENT_RECT,
@@ -1987,6 +2946,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     }
                     else
                     {
+                        // TODO(pld): do not requeue spuriously?
                         /* Requeue until we get the frame extents. */
                         oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
                             .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_CENTER,
@@ -2042,8 +3002,27 @@ static void oc_pump_events_main_thread(f64 timeout)
                         windowData->linux.frameTop = (f32)widths[2];
                         windowData->linux.frameBottom = (f32)widths[3];
                         windowData->linux.flags |= OC_LINUX_WINDOW_X11_FRAME_EXTENTS;
-                        forceNextEvent = windowData->linux.pendingConfigureNotify;
-                        windowData->linux.pendingConfigureNotify = NULL;
+                        if(windowData->linux.queued.frameRectForContentRect.queued)
+                        {
+                            f32 c = windowData->linux.queued.frameRectForContentRect.user.frameRectForContentRect.c;
+                            if(c == 0.0f)  c = 1.0f;
+                            oc_rect contentRect = windowData->linux.queued.frameRectForContentRect.user.frameRectForContentRect.contentRect;
+                            oc_rect* frameRect = windowData->linux.queued.frameRectForContentRect.user.frameRectForContentRect.frameRect;
+                            oc_linux_app_cmd_completion* completion = windowData->linux.queued.frameRectForContentRect.user.frameRectForContentRect.completion;
+                            frameRect->x = contentRect.x - windowData->linux.frameLeft * c;
+                            frameRect->y = contentRect.y - windowData->linux.frameTop * c;
+                            frameRect->w = contentRect.w + (windowData->linux.frameLeft + windowData->linux.frameRight) * c;
+                            frameRect->h = contentRect.h + (windowData->linux.frameTop + windowData->linux.frameBottom) * c;
+                            oc_linux_app_cmd_completion_signal(completion);
+                            windowData->linux.queued.frameRectForContentRect.queued = false;
+                            oc_window_destroy(window);
+                            /* We most surely have a pendingConfigureNotify, which will be freed upon destroy. */
+                        }
+                        else
+                        {
+                            forceNextEvent = windowData->linux.pendingConfigureNotify;
+                            windowData->linux.pendingConfigureNotify = NULL;
+                        }
                     }
                     else if(prop == linux->x11.atoms._NET_NUMBER_OF_DESKTOPS)
                     {
@@ -2236,7 +3215,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                                 linux->x11.getClipboard.result->ptr[backingLen] = '\0';
                                 linux->x11.getClipboard.result->len = backingLen;
                             }
-                            *linux->x11.getClipboard.done = true;
+                            oc_linux_app_cmd_completion_signal(linux->x11.getClipboard.completion);
                             if(linux->x11.getClipboard.incr)
                             {
                                 oc_arena_cleanup(&linux->x11.getClipboard.incrArena);
@@ -2304,11 +3283,26 @@ static void oc_pump_events_main_thread(f64 timeout)
                                 };
                                 xcb_sync_set_counter(conn, id, val);
                             }
+                            while(!oc_list_empty(windowData->linux.queued.getFrameRectQueue))
+                            {
+                                oc_linux_app_cmd_user* queued = oc_list_pop_front_entry(&windowData->linux.queued.getFrameRectQueue, __typeof__(*queued), listElt);
+                                oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+                                    .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_GET_FRAME_RECT,
+                                    .window = window,
+                                    .user = *queued,
+                                });
+                                int ok = oc_mutex_lock(linux->appCmdUserPoolMutex);
+                                OC_ASSERT(ok == 0);
+                                oc_pool_recycle(&linux->appCmdUserPool, queued);
+                                ok = oc_mutex_unlock(linux->appCmdUserPoolMutex);
+                                OC_ASSERT(ok == 0);
+                            }
                         }
                         free(reply);
                     }
                     else
                     {
+                        // TODO(pld): do not requeue spuriously?
                         /* Requeue until we get the frame extents. */
                         oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
                             .cmd = OC_X11_CLIENT_MESSAGE_TRANSLATE_COORDINATES_TO_ROOT,
@@ -2332,7 +3326,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                     linux->x11.getClipboard.result = u->getClipboard.result;
                     linux->x11.getClipboard.arena = u->getClipboard.arena;
                     linux->x11.getClipboard.target = target;
-                    linux->x11.getClipboard.done = u->getClipboard.done;
+                    linux->x11.getClipboard.completion = u->getClipboard.completion;
                     linux->x11.getClipboard.time = ts;
                     linux->x11.getClipboard.init = true;
                     xcb_convert_selection(conn, linux->x11.controlWinId,
@@ -2447,7 +3441,7 @@ static void oc_pump_events_main_thread(f64 timeout)
                         .cmd = OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY,
                         .user.internAtomReply.cookie = cookie,
                         .user.internAtomReply.atom = u->internAtom.atom,
-                        .user.internAtomReply.done = u->internAtom.done,
+                        .user.internAtomReply.completion = u->internAtom.completion,
                     });
                 } break;
                 case OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY:
@@ -2455,10 +3449,44 @@ static void oc_pump_events_main_thread(f64 timeout)
                     OC_ASSERT(!windowData);
                     xcb_intern_atom_reply_t* reply = NULL;
                     reply = xcb_intern_atom_reply(conn, u->internAtomReply.cookie, NULL);
+                    OC_ASSERT(reply);
                     OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
                     *u->internAtomReply.atom = reply->atom;
-                    *u->internAtomReply.done = true;
+                    oc_linux_app_cmd_completion_signal(u->internAtomReply.completion);
                     free(reply);
+                } break;
+                case OC_X11_CLIENT_MESSAGE_FRAME_RECT_FOR_CONTENT_RECT:
+                {
+                    OC_ASSERT(!windowData);
+                    window = oc_window_create_linux((oc_rect){0,0,1,1}, OC_STR8("Orca - Measuring window"), u->frameRectForContentRect.style, false);
+                    windowData = oc_window_ptr_from_handle(window);
+                    windowData->linux.queued.frameRectForContentRect.user = *u;
+                    windowData->linux.queued.frameRectForContentRect.queued = true;
+                } break;
+                case OC_X11_CLIENT_MESSAGE_WINDOW_GET_FRAME_RECT:
+                {
+                    // FIXME(pld): what if window handle is invalid?
+                    OC_ASSERT(windowData);
+                    if(windowData->linux.rectSince >= windowData->linux.rectNext &&
+                        windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN &&
+                        windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
+                    {
+                        OC_ASSERT(!windowData->linux.pendingConfigureNotify);
+                        oc_rect rect = windowData->linux.rect;
+                        f32 c = u->getFrameRect.c;
+                        rect.x -= windowData->linux.frameLeft * c;
+                        rect.y -= windowData->linux.frameTop * c;
+                        rect.w += (windowData->linux.frameLeft + windowData->linux.frameRight) * c;
+                        rect.h += (windowData->linux.frameTop + windowData->linux.frameBottom) * c;
+                        *u->getFrameRect.rect = rect;
+                        oc_linux_app_cmd_completion_signal(u->getFrameRect.completion);
+                    }
+                    else
+                    {
+                        /* Requeue to run once pre-conditions are fulfilled. */
+                        oc_list_push_back(&windowData->linux.queued.getFrameRectQueue, &u->listElt);
+                        u = NULL;
+                    }
                 } break;
                 default:
                 {
@@ -2517,11 +3545,100 @@ static void oc_pump_events_main_thread(f64 timeout)
             }
         } break;
         case XCB_MAPPING_NOTIFY:
+            /* ignored */
+            break;
+        default:
+        if(eventCode == linux->x11.keyboard.xkbFirstEventCode)
+        {
+            u32 xkbEventCode = ev->pad0;
+            switch(xkbEventCode)
+            {
+            case XCB_XKB_NEW_KEYBOARD_NOTIFY:
+            {
+                xcb_xkb_new_keyboard_notify_event_t* noti = (xcb_xkb_new_keyboard_notify_event_t*)ev;
+                oc_log_info("xkb new keyboard: dev=%hhu->%hhu, changed=%hu, minkeycode=%hhu->%hhu, maxkeycode=%hhu->%hhu, req=%hhu/%hhu, time=%u\n",
+                    noti->oldDeviceID, noti->deviceID, noti->changed, noti->oldMinKeyCode, noti->minKeyCode,
+                    noti->oldMaxKeyCode, noti->maxKeyCode, noti->requestMajor, noti->requestMinor, noti->time);
+                if(noti->oldDeviceID == linux->x11.keyboard.deviceId)
+                {
+                    linux->x11.keyboard.reloadKeymap = true;
+                }
+            } break;
+            case XCB_XKB_MAP_NOTIFY:
+            {
+                xcb_xkb_map_notify_event_t* noti = (xcb_xkb_map_notify_event_t*)ev;
+                oc_log_info("xkb map: dev=%hhu, changed=%hu, time=%u\n", noti->deviceID, noti->changed, noti->time);
+                if(noti->deviceID == linux->x11.keyboard.deviceId)
+                {
+                    linux->x11.keyboard.reloadKeymap = true;
+                }
+            } break;
+            case XCB_XKB_STATE_NOTIFY:
+            {
+                xcb_xkb_state_notify_event_t* noti = (xcb_xkb_state_notify_event_t*)ev;
+                oc_log_info("xkb state: dev=%hhu, changed=%hu, ptr=%hu, time=%u\n",
+                    noti->deviceID, noti->changed, noti->ptrBtnState, noti->time);
+                reload_x11_keymap_if_needed();
+                xkb_state_update_mask(linux->x11.keyboard.state,
+                    noti->baseMods, noti->latchedMods, noti->lockedMods,
+                    noti->baseGroup, noti->latchedGroup, noti->lockedGroup);
+            } break;
+            case XCB_XKB_CONTROLS_NOTIFY:
+            {
+                xcb_xkb_controls_notify_event_t* noti = (xcb_xkb_controls_notify_event_t*)ev;
+                oc_log_info("xkb controls: dev=%hhu, numGroups=%hhu, changedControls=%u, enabledControls=%u,"
+                    " enabledControlChanges=%u, keycode=%hhu, eventType=%hhu, requestMajor=%hhu, requestMinor=%hhu, time=%u\n",
+                    noti->deviceID, noti->numGroups, noti->changedControls, noti->enabledControls, noti->enabledControlChanges,
+                    noti->keycode, noti->eventType, noti->requestMajor, noti->requestMinor, noti->time);
+                if(noti->deviceID == linux->x11.keyboard.deviceId)
+                {
+                    linux->x11.keyboard.reloadKeymap = true;
+                }
+            } break;
+            case XCB_XKB_INDICATOR_MAP_NOTIFY:
+            {
+                xcb_xkb_indicator_map_notify_event_t* noti = (xcb_xkb_indicator_map_notify_event_t*)ev;
+                oc_log_info("xkb indicator map: dev=%hhu, state=%u, mapChanged=%u, time=%u\n",
+                    noti->deviceID, noti->state, noti->mapChanged, noti->time);
+                if(noti->deviceID == linux->x11.keyboard.deviceId)
+                {
+                    linux->x11.keyboard.reloadKeymap = true;
+                }
+            } break;
+            case XCB_XKB_NAMES_NOTIFY:
+            {
+                xcb_xkb_names_notify_event_t* noti = (xcb_xkb_names_notify_event_t*)ev;
+                oc_log_info("xkb names: dev=%hhu, changed=%hu, time=%u\n",
+                    noti->deviceID, noti->changed, noti->time);
+                if(noti->deviceID == linux->x11.keyboard.deviceId)
+                {
+                    linux->x11.keyboard.reloadKeymap = true;
+                }
+            } break;
+            case XCB_XKB_COMPAT_MAP_NOTIFY:
+            {
+                xcb_xkb_compat_map_notify_event_t* noti = (xcb_xkb_compat_map_notify_event_t*)ev;
+                oc_log_info("xkb compat map: dev=%hhu, changedGroups=%hhu, firstSI=%hu, nSI=%hu, nTotalSI=%hu\n",
+                    noti->deviceID, noti->changedGroups, noti->firstSI, noti->nSI, noti->nTotalSI);
+                if(noti->deviceID == linux->x11.keyboard.deviceId)
+                {
+                    linux->x11.keyboard.reloadKeymap = true;
+                }
+            } break;
+            default:
+                oc_notpossible();
+                break;
+            }
+        }
+        break;
+        }
+        if(0 && ev)  log_event(ev);
+        free(ev);
+        if(linux->mainThreadAppCmdCompletionSignaled)
+        {
             break;
         }
-        if(ev)  log_event(ev);
-        free(ev);
-        if(forceNextEvent)
+        else if(forceNextEvent)
         {
             ev = forceNextEvent, forceNextEvent = NULL;
         }
@@ -2544,7 +3661,7 @@ static void oc_pump_events_main_thread(f64 timeout)
 }
 
 //FIXME(pld): contentRect.wh can't be zero
-oc_window oc_window_create_linux(oc_rect contentRect, oc_str8 title, oc_window_style style, bool emitEvents)
+static oc_window oc_window_create_linux(oc_rect contentRect, oc_str8 title, oc_window_style style, bool emitEvents)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
@@ -2714,7 +3831,8 @@ oc_window oc_window_create_linux(oc_rect contentRect, oc_str8 title, oc_window_s
     xcb_change_property(conn, XCB_PROP_MODE_REPLACE, winId, linux->x11.atoms._NET_WM_SYNC_REQUEST_COUNTER,
         XCB_ATOM_CARDINAL, 32, 1, &counterId);
     // TODO(pld): test _NET_WM_ALLOWED_ACTIONS?
-    xcb_client_message_event_t msg = {
+    xcb_client_message_event_t msg =
+    {
         .response_type = XCB_CLIENT_MESSAGE,
         .format = 32,
         .window = winId,
@@ -2991,7 +4109,7 @@ void oc_window_bring_to_front(oc_window window)
     });
 }
 
-u64 oc_window_debug_stack_pos(oc_window window)
+u64 oc_linux_debug_window_stack_pos(oc_window window)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
@@ -2999,7 +4117,7 @@ u64 oc_window_debug_stack_pos(oc_window window)
     OC_ASSERT(windowData);
 
     xcb_query_tree_cookie_t cookie = xcb_query_tree(conn, windowData->linux.x11Id);
-    xcb_flush(conn);
+    ensure_xcb_flush(conn);
     xcb_query_tree_reply_t* reply = NULL;
     reply = xcb_query_tree_reply(conn, cookie, NULL);
     OC_ASSERT(reply);
@@ -3010,7 +4128,7 @@ u64 oc_window_debug_stack_pos(oc_window window)
     free(reply);
 
     cookie = xcb_query_tree(conn, linux->x11.rootWinId);
-    xcb_flush(conn);
+    ensure_xcb_flush(conn);
     reply = xcb_query_tree_reply(conn, cookie, NULL);
     OC_ASSERT(reply);
     OC_ASSERT(reply->response_type == X11_RESPONSE_TYPE_REPLY);
@@ -3025,10 +4143,11 @@ u64 oc_window_debug_stack_pos(oc_window window)
     {
         if(children[i] == windowData->linux.x11Id || children[i] == parent)  break;
     }
+    free(reply);
     return (i);
 }
 
-oc_rect oc_window_debug_workarea(oc_window window)
+oc_rect oc_linux_debug_window_workarea(oc_window window)
 {
     oc_linux_app_data* linux = &oc_appData.linux;
     xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
@@ -3040,42 +4159,25 @@ oc_rect oc_window_debug_workarea(oc_window window)
     return (linux->x11.netWorkarea[windowData->linux.netWmDesktop]);
 }
 
-typedef struct oc_window_get_frame_rect_dispatched_user
+static oc_rect oc_linux_window_get_frame_rect(oc_window window, f32 c)
 {
-    oc_window window;
-    oc_rect rect;
-} oc_window_get_frame_rect_dispatched_user;
-static i32 oc_window_get_frame_rect_dispatched(void* user)
-{
-    oc_window_get_frame_rect_dispatched_user* u = user;
-    oc_window_data* windowData = oc_window_ptr_from_handle(u->window);
-    if(windowData)
-    {
-        if(windowData->linux.rectSince >= windowData->linux.rectNext &&
-            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN &&
-            windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
-        {
-            OC_ASSERT(!windowData->linux.pendingConfigureNotify);
-            oc_rect rect = windowData->linux.rect;
-            rect.x -= windowData->linux.frameLeft;
-            rect.y -= windowData->linux.frameTop;
-            rect.w += windowData->linux.frameLeft + windowData->linux.frameRight;
-            rect.h += windowData->linux.frameTop + windowData->linux.frameBottom;
-            u->rect = rect;
-            return (1);
-        }
-        else
-        {
-            return (0);
-        }
-    }
-    return (1);
+    oc_linux_app_cmd_completion completion = oc_linux_app_cmd_completion_create();
+    oc_rect rect = {0};
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_WINDOW_GET_FRAME_RECT,
+        .window = window,
+        .user.getFrameRect.rect = &rect,
+        .user.getFrameRect.c = c,
+        .user.getFrameRect.completion = &completion,
+    });
+    oc_linux_app_cmd_completion_wait(&completion);
+    oc_linux_app_cmd_completion_destroy(&completion);
+    return (rect);
 }
+
 oc_rect oc_window_get_frame_rect(oc_window window)
 {
-    oc_window_get_frame_rect_dispatched_user u = { .window = window };
-    while(!oc_dispatch_on_main_thread_sync(oc_window_get_frame_rect_dispatched, &u));
-    return (u.rect);
+    return (oc_linux_window_get_frame_rect(window, 1.0f));
 }
 
 void oc_window_set_frame_rect(oc_window window, oc_rect rect)
@@ -3087,37 +4189,9 @@ void oc_window_set_frame_rect(oc_window window, oc_rect rect)
     });
 }
 
-typedef struct oc_window_get_content_rect_dispatched_user
-{
-    oc_window window;
-    oc_rect rect;
-} oc_window_get_content_rect_dispatched_user;
-static i32 oc_window_get_content_rect_dispatched(void* user)
-{
-    oc_window_get_content_rect_dispatched_user* u = user;
-    oc_window_data* windowData = oc_window_ptr_from_handle(u->window);
-    if(windowData)
-    {
-        if(windowData->linux.rectSince >= windowData->linux.rectNext &&
-            windowData->linux.flags & OC_LINUX_WINDOW_X11_POS_KNOWN &&
-            windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
-        {
-            OC_ASSERT(!windowData->linux.pendingConfigureNotify);
-            u->rect = windowData->linux.rect;
-            return (1);
-        }
-        else
-        {
-            return (0);
-        }
-    }
-    return (1);
-}
 oc_rect oc_window_get_content_rect(oc_window window)
 {
-    oc_window_get_content_rect_dispatched_user u = { .window = window };
-    while(!oc_dispatch_on_main_thread_sync(oc_window_get_content_rect_dispatched, &u));
-    return (u.rect);
+    return (oc_linux_window_get_frame_rect(window, 0.0f));
 }
 
 void oc_window_set_content_rect(oc_window window, oc_rect rect)
@@ -3139,50 +4213,36 @@ void oc_window_center(oc_window window)
     });
 }
 
-typedef struct oc_window_frame_rect_for_content_rect_dispatched_user
-{
-    oc_window window;
-    oc_rect rect;
-    f64 c;
-} oc_window_frame_rect_for_content_rect_dispatched_user;
-static i32 oc_window_frame_rect_for_content_rect_dispatched(void* user)
-{
-    oc_window_frame_rect_for_content_rect_dispatched_user* u = user;
-    oc_window_data* windowData = oc_window_ptr_from_handle(u->window);
-    if(windowData)
-    {
-        if(windowData->linux.flags & OC_LINUX_WINDOW_X11_FRAME_EXTENTS)
-        {
-            f64 c = u->c;
-            if(c == 0.0)  c = 1.0;
-            u->rect.x -= windowData->linux.frameLeft * c;
-            u->rect.y -= windowData->linux.frameTop * c;
-            u->rect.w += (windowData->linux.frameLeft + windowData->linux.frameRight) * c;
-            u->rect.h += (windowData->linux.frameTop + windowData->linux.frameBottom) * c;
-            return (1);
-        }
-        else
-        {
-            return (0);
-        }
-    }
-    return (1);
-}
 oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_style style)
 {
-    oc_window window = oc_window_create_linux((oc_rect){0,0,1,1}, OC_STR8("Orca - Measuring window"), style, false);
-    oc_window_frame_rect_for_content_rect_dispatched_user u = { .window = window, .rect = contentRect };
-    while(!oc_dispatch_on_main_thread_sync(oc_window_frame_rect_for_content_rect_dispatched, &u));
-    oc_window_destroy(window);
-    return (u.rect);
+    oc_linux_app_cmd_completion completion = oc_linux_app_cmd_completion_create();
+    oc_rect frameRect = {0};
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_FRAME_RECT_FOR_CONTENT_RECT,
+        .user.frameRectForContentRect.style = style,
+        .user.frameRectForContentRect.contentRect = contentRect,
+        .user.frameRectForContentRect.frameRect = &frameRect,
+        .user.frameRectForContentRect.completion = &completion,
+    });
+    oc_linux_app_cmd_completion_wait(&completion);
+    oc_linux_app_cmd_completion_destroy(&completion);
+    return (frameRect);
 }
 oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_window_style style)
 {
-    oc_window window = oc_window_create_linux((oc_rect){0,0,1,1}, OC_STR8("Orca - Measuring window"), style, false);
-    oc_window_frame_rect_for_content_rect_dispatched_user u = { .window = window, .rect = frameRect, .c = -1.0 };
-    while(!oc_dispatch_on_main_thread_sync(oc_window_frame_rect_for_content_rect_dispatched, &u));
-    oc_window_destroy(window);
-    return (u.rect);
+    oc_linux_app_cmd_completion completion = oc_linux_app_cmd_completion_create();
+    oc_rect contentRect = {0};
+    oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
+        .cmd = OC_X11_CLIENT_MESSAGE_FRAME_RECT_FOR_CONTENT_RECT,
+        .user.frameRectForContentRect.style = style,
+        .user.frameRectForContentRect.contentRect = frameRect,
+        .user.frameRectForContentRect.frameRect = &contentRect,
+        .user.frameRectForContentRect.c = -1.0f,
+        .user.frameRectForContentRect.completion = &completion,
+    });
+    oc_linux_app_cmd_completion_wait(&completion);
+    oc_linux_app_cmd_completion_destroy(&completion);
+    return (contentRect);
 }
 
 static void oc_linux_dispatch_sync_request_tls_destructor(void* user)
@@ -3289,7 +4349,7 @@ void oc_pump_events(f64 timeout)
     {
         int ok = oc_mutex_lock(linux->pumpedEventsMutex);
         OC_ASSERT(ok == 0);
-        if (timeout > 0.0)
+        if(timeout < 0.0)
         {
             ok = oc_condition_wait(linux->pumpedEventsCond, linux->pumpedEventsMutex);
             OC_ASSERT(ok == 0);
@@ -3311,28 +4371,23 @@ void oc_pump_events(f64 timeout)
     }
 }
 
-static i32 oc_linux_x11_intern_atom_dispatched(void* user)
-{
-    bool* done = user;
-    return *done;
-}
 static xcb_atom_t oc_linux_x11_intern_atom(oc_str8 name, bool onlyIfExists)
 {
     xcb_atom_t atom = XCB_ATOM_NONE;
-    bool done = false;
+    oc_linux_app_cmd_completion completion = oc_linux_app_cmd_completion_create();
     oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
         .cmd = OC_X11_CLIENT_MESSAGE_INTERN_ATOM,
         .user.internAtom.name = name,
         .user.internAtom.onlyIfExists = onlyIfExists,
         .user.internAtom.atom = &atom,
-        .user.internAtom.done = &done,
+        .user.internAtom.completion = &completion,
     });
-    while(!oc_dispatch_on_main_thread_sync(oc_linux_x11_intern_atom_dispatched, &done));
+    oc_linux_app_cmd_completion_wait(&completion);
+    oc_linux_app_cmd_completion_destroy(&completion);
     return (atom);
 }
 
 // TODO(pld): clipboard: history of selections to handle late requestors?
-// TODO(pld): clipboard: handle large transfers (xorg handles up to ~16MiB...)
 // TODO(pld): clipboard: handle X11 Alloc errors?
 // TODO(pld): clipboard: other built-in targets to support?
 // - CLASS
@@ -3352,6 +4407,7 @@ static xcb_atom_t oc_linux_x11_intern_atom(oc_str8 name, bool onlyIfExists)
 // - INSERT_SELECTION
 // - text/plain
 // - text/plain;charset=utf-8
+// - other mime types
 // won't support:
 // - ADOBE_PORTABLE_DOCUMENT_FORMAT
 // - APPLE_PICT
@@ -3385,11 +4441,6 @@ void oc_clipboard_clear(void)
     });
 }
 
-static i32 oc_linux_get_clipboard_dispatched(void* user)
-{
-    bool* done = user;
-    return *done;
-}
 static oc_str8 oc_linux_get_clipboard(oc_arena* arena, oc_str8 backing, xcb_atom_t target)
 {
     if(arena)  OC_ASSERT(!backing.ptr && backing.len == 0);
@@ -3397,15 +4448,16 @@ static oc_str8 oc_linux_get_clipboard(oc_arena* arena, oc_str8 backing, xcb_atom
     OC_ASSERT(target != XCB_ATOM_NONE);
     oc_str8 s = {0};
     if(!arena)  s = backing;
-    bool done = false;
+    oc_linux_app_cmd_completion completion = oc_linux_app_cmd_completion_create();
     oc_linux_enqueue_app_cmd(&(oc_linux_app_cmd){
         .cmd = OC_X11_CLIENT_MESSAGE_GET_CLIPBOARD,
         .user.getClipboard.result = &s,
         .user.getClipboard.arena = arena,
         .user.getClipboard.target = target,
-        .user.getClipboard.done = &done,
+        .user.getClipboard.completion = &completion,
     });
-    while(!oc_dispatch_on_main_thread_sync(oc_linux_get_clipboard_dispatched, &done));
+    oc_linux_app_cmd_completion_wait(&completion);
+    oc_linux_app_cmd_completion_destroy(&completion);
     return (s);
 }
 
@@ -3509,6 +4561,112 @@ int oc_directory_create(oc_str8 path)
 {
     oc_unimplemented();
     return (-1);
+}
+
+static void x11_xtest_send_void_request(void* req, usize len)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_connection_t* conn = XGetXCBConnection(linux->x11.display);
+    struct iovec vec = { .iov_base = req, .iov_len = len };
+    xcb_protocol_request_t desc = { .count = 1, .isvoid = true };
+    int flags = XCB_REQUEST_RAW | XCB_REQUEST_CHECKED;
+    u32 seq = xcb_send_request(conn, flags, &vec, &desc);
+    OC_ASSERT(seq);
+    ensure_xcb_flush(conn);
+    xcb_generic_error_t* e = xcb_request_check(conn, (xcb_void_cookie_t){ seq });
+    OC_ASSERT(!e);
+}
+
+void oc_linux_debug_fake_key(oc_scan_code scanCode, bool depressed)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_keycode_t kc = 0;
+    for (usize i = 0; i < oc_array_size(oc_appData.scanCodes); i++)
+    {
+        if(oc_appData.scanCodes[i] == scanCode)
+        {
+            kc = i;
+            break;
+        }
+    }
+    OC_ASSERT(kc);
+    x11_xtest_fake_input_req req =
+    {
+        .majorCode = linux->x11.xtestMajorCode,
+        .minorCode = X11_XTEST_REQUEST_FAKE_INPUT,
+        .len = sizeof(req) / 4,
+        .eventType = depressed ? X11_XTEST_EVENT_KEY_PRESS : X11_XTEST_EVENT_KEY_RELEASE,
+        .detail = kc,
+    };
+    x11_xtest_send_void_request(&req, sizeof(req));
+}
+
+void oc_linux_debug_fake_mouse_move(i16 x, i16 y, bool absolute)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    x11_xtest_fake_input_req req =
+    {
+        .majorCode = linux->x11.xtestMajorCode,
+        .minorCode = X11_XTEST_REQUEST_FAKE_INPUT,
+        .len = sizeof(req) / 4,
+        .eventType = X11_XTEST_EVENT_MOTION_NOTIFY,
+        .detail = !absolute,
+        .motionWindow = linux->x11.rootWinId,
+        .motionX = x,
+        .motionY = y,
+    };
+    x11_xtest_send_void_request(&req, sizeof(req));
+}
+
+void oc_linux_debug_fake_mouse_button(oc_mouse_button button, bool depressed)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    xcb_button_t buttons[] =
+    {
+        [OC_MOUSE_LEFT] = 1,
+        [OC_MOUSE_MIDDLE] = 2,
+        [OC_MOUSE_RIGHT] = 3,
+        [OC_MOUSE_EXT1] = 8,
+        [OC_MOUSE_EXT2] = 9,
+    };
+    OC_ASSERT(button >= 0 && button < OC_MOUSE_BUTTON_COUNT);
+    x11_xtest_fake_input_req req =
+    {
+        .majorCode = linux->x11.xtestMajorCode,
+        .minorCode = X11_XTEST_REQUEST_FAKE_INPUT,
+        .len = sizeof(req) / 4,
+        .eventType = depressed ? X11_XTEST_EVENT_BUTTON_PRESS : X11_XTEST_EVENT_BUTTON_RELEASE,
+        .detail = buttons[button],
+    };
+    x11_xtest_send_void_request(&req, sizeof(req));
+}
+
+void oc_linux_debug_fake_mouse_wheel(oc_linux_debug_wheel_direction direction, usize n)
+{
+    oc_linux_app_data* linux = &oc_appData.linux;
+    u8 wheelDirections[] =
+    {
+        [OC_LINUX_DEBUG_WHEEL_UP] = X11_BUTTON_WHEEL_UP,
+        [OC_LINUX_DEBUG_WHEEL_DOWN] = X11_BUTTON_WHEEL_DOWN,
+        [OC_LINUX_DEBUG_WHEEL_LEFT] = X11_BUTTON_WHEEL_LEFT,
+        [OC_LINUX_DEBUG_WHEEL_RIGHT] = X11_BUTTON_WHEEL_RIGHT,
+    };
+    OC_ASSERT(direction >= 0 && direction < oc_array_size(wheelDirections));
+    x11_xtest_fake_input_req req =
+    {
+        .majorCode = linux->x11.xtestMajorCode,
+        .minorCode = X11_XTEST_REQUEST_FAKE_INPUT,
+        .len = sizeof(req) / 4,
+        .detail = wheelDirections[direction],
+    };
+    int seq = 0;
+    for(usize i = 0; i < n; i++)
+    {
+        req.eventType = X11_XTEST_EVENT_BUTTON_PRESS;
+        x11_xtest_send_void_request(&req, sizeof(req));
+        req.eventType = X11_XTEST_EVENT_BUTTON_RELEASE;
+        x11_xtest_send_void_request(&req, sizeof(req));
+    }
 }
 
 /*

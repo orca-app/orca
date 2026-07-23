@@ -917,7 +917,11 @@ pub fn build(b: *Build) !void {
         orca_platform_lib.linkSystemLibrary("X11");
         orca_platform_lib.linkSystemLibrary("xcb");
         orca_platform_lib.linkSystemLibrary("xcb-sync");
+        orca_platform_lib.linkSystemLibrary("xcb-xkb");
+        orca_platform_lib.linkSystemLibrary("xcb-xinput");
         orca_platform_lib.linkSystemLibrary("X11-xcb");
+        orca_platform_lib.linkSystemLibrary("xkbcommon");
+        orca_platform_lib.linkSystemLibrary("xkbcommon-x11");
         orca_platform_lib.linkSystemLibrary("c");
         orca_platform_lib.addIncludePath(LazyPath{ .cwd_relative = "/usr/include" });
         orca_platform_lib.addLibraryPath(LazyPath{ .cwd_relative = "/usr/lib/x86_64-linux-gnu" });

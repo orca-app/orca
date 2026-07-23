@@ -372,8 +372,20 @@ ORCA_API oc_rect oc_window_content_rect_for_frame_rect(oc_rect frameRect, oc_win
 ORCA_API oc_rect oc_window_frame_rect_for_content_rect(oc_rect contentRect, oc_window_style style);
 
 //FIXME(pld): Debug for tests
-u64 oc_window_debug_stack_pos(oc_window window);
-oc_rect oc_window_debug_workarea(oc_window window);
+u64 oc_linux_debug_window_stack_pos(oc_window window);
+oc_rect oc_linux_debug_window_workarea(oc_window window);
+void oc_linux_debug_fake_key(oc_scan_code scanCode, bool depressed);
+void oc_linux_debug_fake_mouse_move(i16 x, i16 y, bool absolute);
+void oc_linux_debug_fake_mouse_button(oc_mouse_button button, bool depressed);
+typedef enum oc_linux_debug_wheel_direction
+{
+    OC_LINUX_DEBUG_WHEEL_UP,
+    OC_LINUX_DEBUG_WHEEL_DOWN,
+    OC_LINUX_DEBUG_WHEEL_LEFT,
+    OC_LINUX_DEBUG_WHEEL_RIGHT,
+} oc_linux_debug_wheel_direction;
+void oc_linux_debug_fake_mouse_wheel(oc_linux_debug_wheel_direction direction, usize n);
+void oc_linux_debug_pointer_grab_mods(oc_window window, bool grabbed);
 
 //------------------------------------------------------------------------------------------
 //SECTION: vsync

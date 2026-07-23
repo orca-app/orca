@@ -10,8 +10,7 @@
 
 bool oc_vec2_equal(oc_vec2 v0, oc_vec2 v1)
 {
-    return (fabsf(v0.x - v1.x) < FLT_EPSILON &&
-        fabsf(v0.y - v1.y) < FLT_EPSILON);
+    return (v0.x == v1.x && v0.y == v1.y);
 }
 
 oc_vec2 oc_vec2_mul(f32 f, oc_vec2 v)

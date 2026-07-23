@@ -71,6 +71,18 @@ typedef struct x11_xsettings
     u32 doubleClickDistance;
 } x11_xsettings;
 
+typedef struct xkb_context xkb_context;
+typedef struct xkb_keymap xkb_keymap;
+typedef struct xkb_state xkb_state;
+typedef enum xkb_state_component xkb_state_component;
+typedef uint32_t xkb_mod_index_t;
+typedef struct xkb_compose_table xkb_compose_table;
+typedef struct xkb_compose_state xkb_compose_state;
+typedef enum xkb_compose_status xkb_compose_status;
+typedef enum xkb_compose_feed_result xkb_compose_feed_result;
+
+typedef struct oc_linux_app_cmd_completion oc_linux_app_cmd_completion;
+
 typedef struct oc_linux_x11
 {
     Display* display;
@@ -138,7 +150,7 @@ typedef struct oc_linux_x11
         oc_str8* result;
         oc_arena* arena;
         xcb_atom_t target;
-        bool *done;
+        oc_linux_app_cmd_completion* completion;
         xcb_timestamp_t time;
         bool incr;
         oc_str8_list incrParts;
@@ -160,12 +172,29 @@ typedef struct oc_linux_x11
         oc_str8 pendingContent;
         bool hasPendingContent;
     } ownClipboard;
-    xcb_window_t lastClickWinId;
-    xcb_button_t lastClickButton;
-    xcb_timestamp_t lastClickTime;
-    oc_vec2 lastClickPos;
-    u8 clickCount;
     x11_xsettings xsettings;
+    struct
+    {
+        xcb_window_t lastClickWinId;
+        xcb_button_t lastClickButton;
+        xcb_timestamp_t lastClickTime;
+        oc_vec2 lastClickPos;
+        u8 clickCount;
+    } mouse;
+    struct
+    {
+        u8 xkbFirstEventCode;
+        xkb_context* ctx;
+        i32 deviceId;
+        xkb_keymap* keymap;
+        xkb_state* state;
+        xkb_compose_table* composeTable;
+        xkb_compose_state* composeState;
+        bool reloadKeymap;
+        xkb_mod_index_t shiftModIndex, ctrlModIndex, altModIndex, cmdModIndex;
+        u8 depressedScanCodes[OC_SCANCODE_COUNT / 8];
+    } keyboard;
+    u8 xtestMajorCode;
 } oc_linux_x11;
 OC_STATIC_ASSERT(oc_array_size_of_member(oc_linux_x11, ownClipboard.targets) == oc_array_size_of_member(oc_linux_x11, ownClipboard.targetData));
 
@@ -199,6 +228,8 @@ typedef enum oc_x11_client_message
   OC_X11_CLIENT_MESSAGE_GET_SELECTION_OWNER,
   OC_X11_CLIENT_MESSAGE_INTERN_ATOM,
   OC_X11_CLIENT_MESSAGE_INTERN_ATOM_REPLY,
+  OC_X11_CLIENT_MESSAGE_FRAME_RECT_FOR_CONTENT_RECT,
+  OC_X11_CLIENT_MESSAGE_WINDOW_GET_FRAME_RECT,
 
   OC_X11_CLIENT_MESSAGE_MAX,
 } oc_x11_client_message;
@@ -206,6 +237,7 @@ typedef enum oc_x11_client_message
 typedef struct oc_linux_app_cmd_user
 {
     oc_list_elt listElt;
+    u64 queued;
     union {
         struct { oc_str8 title; } setTitle;
         struct { oc_rect rect; } setFrameRect;
@@ -214,12 +246,14 @@ typedef struct oc_linux_app_cmd_user
         struct { oc_linux_dispatch_sync_request* req; u64 reqId; } dispatchOnMainThreadSync;
         struct { xcb_atom_t prop; xcb_get_property_cookie_t cookie; } getProperty;
         struct { xcb_translate_coordinates_cookie_t cookie; u16 since; } translateCoordinatesToRoot;
-        struct { oc_str8* result; oc_arena* arena; xcb_atom_t target; bool* done; } getClipboard;
+        struct { oc_str8* result; oc_arena* arena; xcb_atom_t target; oc_linux_app_cmd_completion* completion; } getClipboard;
         struct { oc_str8 content; } setClipboard;
         struct { xcb_atom_t target; oc_str8 data; } setClipboardTarget;
         struct { xcb_atom_t selection; xcb_get_selection_owner_cookie_t cookie; } getSelectionOwner;
-        struct { oc_str8 name; bool onlyIfExists; xcb_atom_t* atom; bool* done; } internAtom;
-        struct { xcb_intern_atom_cookie_t cookie; xcb_atom_t* atom; bool* done; } internAtomReply;
+        struct { oc_str8 name; bool onlyIfExists; xcb_atom_t* atom; oc_linux_app_cmd_completion* completion; } internAtom;
+        struct { xcb_intern_atom_cookie_t cookie; xcb_atom_t* atom; oc_linux_app_cmd_completion* completion; } internAtomReply;
+        struct { oc_rect contentRect; f32 c; oc_window_style style; oc_rect* frameRect; oc_linux_app_cmd_completion* completion; } frameRectForContentRect;
+        struct { oc_rect* rect; f32 c; oc_linux_app_cmd_completion* completion; } getFrameRect;
     };
 } oc_linux_app_cmd_user;
 typedef struct oc_linux_app_cmd
@@ -239,6 +273,7 @@ typedef struct oc_linux_app_data
     oc_mutex* appCmdUserPoolMutex;
     oc_condition* pumpedEventsCond;
     oc_mutex* pumpedEventsMutex;
+    bool mainThreadAppCmdCompletionSignaled;
 } oc_linux_app_data;
 
 typedef enum x11_reponse_type {
@@ -410,6 +445,11 @@ typedef struct oc_linux_window_data
     u32 netWmDesktop;
     xcb_generic_event_t* pendingConfigureNotify;
     oc_vec2 pointerPos;
+    struct
+    {
+        struct { bool queued; oc_linux_app_cmd_user user; } frameRectForContentRect;
+        oc_list getFrameRectQueue;
+    } queued;
 } oc_linux_window_data;
 
 #define OC_PLATFORM_WINDOW_DATA oc_linux_window_data linux;
@@ -419,6 +459,65 @@ typedef struct oc_layer
 {
     u32 x11WinId;
 } oc_layer;
+
+/* XTest extension. Let's not bother linking with libxcb-test. */
+#define X11_XTEST_NAME  "XTEST"
+#define X11_XTEST_MAJOR_VERSION  2
+#define X11_XTEST_MINOR_VERSION  2
+
+typedef enum x11_xtest_request_code
+{
+    X11_XTEST_REQUEST_GET_VERSION = 0,
+    X11_XTEST_REQUEST_COMPARE_CURSOR = 1,
+    X11_XTEST_REQUEST_FAKE_INPUT = 2,
+    X11_XTEST_REQUEST_GRAB_CONTROL = 3,
+} x11_xtest_request_code;
+
+typedef enum x11_xtest_event_type
+{
+    X11_XTEST_EVENT_KEY_PRESS = 2,
+    X11_XTEST_EVENT_KEY_RELEASE = 3,
+    X11_XTEST_EVENT_BUTTON_PRESS = 4,
+    X11_XTEST_EVENT_BUTTON_RELEASE = 5,
+    X11_XTEST_EVENT_MOTION_NOTIFY = 6,
+} x11_xtest_event_type;
+
+typedef struct x11_xtest_get_version_req
+{
+    u8 majorCode;
+    u8 minorCode;
+    u16 len;
+    u8 clientMajor;
+    u8 pad;
+    u16 clientMinor;
+} x11_xtest_get_version_req;
+
+typedef struct x11_xtest_get_version_res
+{
+    u8 code;
+    u8 serverMajor;
+    u16 sequence;
+    u32 len;
+    u16 serverMinor;
+    u8 pad[22];
+} x11_xtest_get_version_res;
+
+typedef struct x11_xtest_fake_input_req
+{
+    u8 majorCode;
+    u8 minorCode;
+    u16 len;
+    u8 eventType;
+    u8 detail;
+    u16 pad0;
+    u32 delayMs;
+    xcb_window_t motionWindow;
+    u8 pad1[8];
+    i16 motionX;
+    i16 motionY;
+    u8 pad2[8];
+} x11_xtest_fake_input_req;
+OC_STATIC_ASSERT(sizeof(xcb_window_t) == 4);
 
 #endif // __LINUX_APP_H_
 

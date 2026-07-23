@@ -11,6 +11,7 @@
 #include <sys/random.h>
 #include <sched.h>
 #include <errno.h>
+#include <pthread.h>
 typedef ssize_t isize;
 
 // FIXME(pld): clock meanings?
@@ -208,7 +209,8 @@ static void pump_events_for_secs(f64 secs)
 }
 
 
-static _Atomic(u64) getClipboardThreadDone = 0;
+static pthread_barrier_t getClipboardBarrier = {0};
+static _Atomic(bool) getClipboardDone = false;
 i32 get_clipboard_thread(void* user)
 {
     oc_str8* s = user;
@@ -216,8 +218,47 @@ i32 get_clipboard_thread(void* user)
     oc_str8 s2 = oc_clipboard_get_string(scratch.arena);
     OC_ASSERT(oc_str8_eq(*s, s2));
     oc_scratch_end(scratch);
-    atomic_fetch_add(&getClipboardThreadDone, 1);
+    int serial = pthread_barrier_wait(&getClipboardBarrier);
+    OC_ASSERT(serial == 0 || serial == PTHREAD_BARRIER_SERIAL_THREAD);
+    if(serial == PTHREAD_BARRIER_SERIAL_THREAD)
+    {
+        atomic_store(&getClipboardDone, true);
+    }
     return 0;
+}
+
+static pthread_barrier_t getFrameRectBarrier = {0};
+static _Atomic(bool) getFrameRectDone = false;
+typedef struct get_frame_rect_thread_user
+{
+    oc_window window;
+    oc_rect expectedFrameRect;
+} get_frame_rect_thread_user;
+i32 get_frame_rect_thread(void* user)
+{
+    get_frame_rect_thread_user* u = user;
+    oc_rect rect = oc_window_get_frame_rect(u->window);
+    OC_ASSERT(oc_rect_equal(rect, u->expectedFrameRect));
+    int serial = pthread_barrier_wait(&getFrameRectBarrier);
+    OC_ASSERT(serial == 0 || serial == PTHREAD_BARRIER_SERIAL_THREAD);
+    if(serial == PTHREAD_BARRIER_SERIAL_THREAD)
+    {
+        atomic_store(&getFrameRectDone, true);
+    }
+    return 0;
+}
+
+static i32 dispatch_test(void* user)
+{
+    oc_log_info("running dispatch");
+    return 0;
+}
+
+static void reset_keymap()
+{
+    char buf[128];
+    snprintf(buf, sizeof(buf), "xkbcomp /tmp/orca-linux.xkbcomp :0");
+    OC_ASSERT(system(buf) == 0);
 }
 
 int main(int argc, char** argv)
@@ -614,34 +655,38 @@ int main(int argc, char** argv)
 
     OC_ASSERT(oc_window_is_hidden(win));
 
+    f64 baseTimeout = 5.0;
     #define CHECK4(expr, stat, post, kill)  \
         do  \
         { \
-            f64 timeout = 1.0;  \
+            f64 timeout = baseTimeout;  \
             bool ok = false;  \
+            bool first = true;  \
             while(!ok && timeout > 0.0)  \
             {  \
                 f64 start = oc_clock_time(OC_CLOCK_MONOTONIC);  \
-                oc_pump_events(timeout);  \
+                oc_pump_events(first ? 0.0 : timeout);  \
                 f64 elapsed = oc_clock_time(OC_CLOCK_MONOTONIC) - start;  \
                 timeout -= elapsed;  \
                 (stat);  \
                 ok = (expr);  \
                 (post);  \
+                first = false;  \
             }  \
+            oc_log_info("CHECK\n  expr: %s\n  stat: %s\n  post: %s\n  kill: %s\n  took: %fs\n", #expr, #stat, #post, #kill, baseTimeout - timeout);  \
             if(kill)  OC_ASSERT(ok);  \
         }  \
         while(0)
-    #define CHECK3(expr, stat, kill)  CHECK4((expr), (stat), (void)0, (kill))
-    #define CHECK2(expr, stat)  CHECK3((expr), (stat), true)
-    #define CHECK(expr)  CHECK2((expr), (void)0)
+    #define CHECK3(expr, stat, kill)  CHECK4(expr, stat, (void)0, kill)
+    #define CHECK2(expr, stat)  CHECK3(expr, stat, true)
+    #define CHECK(expr)  CHECK2(expr, (void)0)
 
     #define CHECK_EV2(exp_type, exp_win, kill)  \
         __extension__({  \
             oc_event* _ev = NULL;  \
             while(!(_ev && _ev->type == (exp_type) && _ev->window.h == (exp_win).h) && (_ev = oc_next_event(scratch.arena)))  \
             {  \
-                if(0)  oc_log_info("CHECK_EV: got ev: type=%d, win=%llx\n", _ev->type, _ev->window.h);  \
+                if(1)  oc_log_info("CHECK_EV: got ev: type=%d, win=%llx\n", _ev->type, _ev->window.h);  \
             }  \
             if(kill)  OC_ASSERT(_ev);  \
             _ev;  \
@@ -817,25 +862,25 @@ int main(int argc, char** argv)
         OC_ASSERT(!got);
     }
 
-    u64 stack_pos0 = oc_window_debug_stack_pos(win), stack_pos = U64_MAX;
+    u64 stack_pos0 = oc_linux_debug_window_stack_pos(win), stack_pos = U64_MAX;
     // ? -> back
     oc_window_send_to_back(win);
-    CHECK2(stack_pos < stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
+    CHECK2(stack_pos < stack_pos0, stack_pos = oc_linux_debug_window_stack_pos(win));
     stack_pos0 = stack_pos;
 
     // back -> front
     oc_window_bring_to_front(win);
-    CHECK2(stack_pos > stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
+    CHECK2(stack_pos > stack_pos0, stack_pos = oc_linux_debug_window_stack_pos(win));
     stack_pos0 = stack_pos;
 
     // front -> back
     oc_window_send_to_back(win);
-    CHECK2(stack_pos < stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
+    CHECK2(stack_pos < stack_pos0, stack_pos = oc_linux_debug_window_stack_pos(win));
     stack_pos0 = stack_pos;
 
     // back -> front, again
     oc_window_bring_to_front(win);
-    CHECK2(stack_pos > stack_pos0, stack_pos = oc_window_debug_stack_pos(win));
+    CHECK2(stack_pos > stack_pos0, stack_pos = oc_linux_debug_window_stack_pos(win));
     stack_pos0 = stack_pos;
 
     rect.x += rect.w;
@@ -847,6 +892,7 @@ int main(int argc, char** argv)
 
     oc_window_show(win2);
     oc_window_unfocus(win2);
+    oc_window_unfocus(win);
     {
         oc_event* ev = NULL;
         CHECK3(ev, ev = oc_next_event(scratch.arena), false);
@@ -855,8 +901,7 @@ int main(int argc, char** argv)
     // ? -> 1st focused
     oc_window_focus(win);
     CHECK(oc_window_has_focus(win) && !oc_window_has_focus(win2));
-    //FIXME(pld): sometimes fails
-    if(0) CHECK_EV(OC_EVENT_WINDOW_FOCUS, win);
+    CHECK_EV(OC_EVENT_WINDOW_FOCUS, win);
 
     // 1st focused -> unfocused
     oc_window_unfocus(win);
@@ -1047,7 +1092,7 @@ int main(int argc, char** argv)
     rect = (oc_rect){100, 100, 100, 100};
     oc_window_set_frame_rect(win, rect);
     oc_window_center(win);
-    oc_rect workarea = oc_window_debug_workarea(win);
+    oc_rect workarea = oc_linux_debug_window_workarea(win);
     oc_rect centered_rect = rect;
     centered_rect.x = workarea.x + (workarea.w - rect.w) / 2;
     centered_rect.y = workarea.y + (workarea.h - rect.h) / 2;
@@ -1058,10 +1103,44 @@ int main(int argc, char** argv)
     ev = CHECK_EV(OC_EVENT_WINDOW_MOVE, win);
     OC_ASSERT(oc_rect_equal(centered_rect, ev->move.frame));
 
+    {
+        rect = (oc_rect){300, 500, 150, 300};
+        oc_window_set_frame_rect(win, rect);
+
+        oc_thread* threads[16] = {0};
+        OC_ASSERT(pthread_barrier_init(&getFrameRectBarrier, NULL, oc_array_size(threads)) == 0);
+        get_frame_rect_thread_user u =
+        {
+            .window = win,
+            .expectedFrameRect = rect,
+        };
+        for(usize i = 0; i < oc_array_size(threads); i++)
+        {
+            threads[i] = oc_thread_create(get_frame_rect_thread, &u);
+        }
+        {
+            struct timespec end = {0};
+            OC_ASSERT(clock_gettime(CLOCK_REALTIME, &end) == 0);
+            end.tv_sec += 3;
+            while(!atomic_load(&getFrameRectDone))
+            {
+                oc_pump_events(0);
+                struct timespec ts;
+                OC_ASSERT(clock_gettime(CLOCK_REALTIME, &ts) == 0);
+                OC_ASSERT(ts.tv_sec < end.tv_sec || (ts.tv_sec == end.tv_sec && ts.tv_nsec <= end.tv_nsec));
+            }
+        }
+        for(usize i = 0; i < oc_array_size(threads); i++)
+        {
+            i64 res = 0;
+            res = oc_thread_join(threads[i], &res);
+            OC_ASSERT(res == 0);
+        }
+    }
+
     oc_window_request_close(win);
     CHECK(oc_window_should_close(win));
     CHECK_EV(OC_EVENT_WINDOW_CLOSE, win);
-    CHECK(oc_window_should_close(win));
     oc_window_cancel_close(win);
     CHECK(!oc_window_should_close(win));
 
@@ -1198,19 +1277,32 @@ int main(int argc, char** argv)
             oc_arena_scope_end(scratch2),
             true);
         oc_thread* threads[16] = {0};
+        OC_ASSERT(pthread_barrier_init(&getClipboardBarrier, NULL, oc_array_size(threads)) == 0);
         for(usize i = 0; i < oc_array_size(threads); i++)
         {
             threads[i] = oc_thread_create(get_clipboard_thread, &s);
         }
-        CHECK(atomic_load(&getClipboardThreadDone) == oc_array_size(threads));
+        {
+            struct timespec end = {0};
+            OC_ASSERT(clock_gettime(CLOCK_REALTIME, &end) == 0);
+            end.tv_sec += 3;
+            while(!atomic_load(&getClipboardDone))
+            {
+                oc_pump_events(0);
+                struct timespec ts;
+                OC_ASSERT(clock_gettime(CLOCK_REALTIME, &ts) == 0);
+                OC_ASSERT(ts.tv_sec < end.tv_sec || (ts.tv_sec == end.tv_sec && ts.tv_nsec <= end.tv_nsec));
+            }
+        }
         for(usize i = 0; i < oc_array_size(threads); i++)
         {
             i64 res = 0;
-            oc_thread_join(threads[i], &res);
+            res = oc_thread_join(threads[i], &res);
             OC_ASSERT(res == 0);
         }
 
         /* Large data transfers support */
+        if(0)
         {
             scratch2 = oc_arena_scope_begin(scratch.arena);
             u64 largeLen = 1 << 30;
@@ -1229,46 +1321,1179 @@ int main(int argc, char** argv)
         }
     }
 
-    /* Mouse input */
+    /* Mouse and keyboard playground */
+    if(0)
     {
-        // - mouse enter/leave
-        // - mouse motion
-        // - mouse buttons
-        // - mouse wheel
-
         rect = (oc_rect){ 100, 100, 533, 300 };
         oc_window_set_frame_rect(win, rect);
         oc_log_info("mouse mouse around now now\n");
-        pump_events_for_secs(30);
-        oc_event* ev = NULL;
-        while((ev = oc_next_event(scratch.arena)))
+        bool done = false;
+        while(!done)
         {
-            if(ev->type == OC_EVENT_MOUSE_BUTTON)
+            oc_pump_events(-1);
+            while(!done && (ev = oc_next_event(scratch.arena)))
             {
-                oc_log_info("event: type=%d (button), window=0x%x, action=%d, button=%d, clickCount=%d\n",
-                    ev->type, ev->window, ev->key.action, ev->key.button, ev->key.clickCount);
-            }
-            else if(ev->type == OC_EVENT_MOUSE_WHEEL)
-            {
-                oc_log_info("event: type=%d (wheel), window=0x%x, delta=%f/%f\n",
-                    ev->type, ev->window, ev->mouse.deltaX, ev->mouse.deltaY);
-            }
-            else if(ev->type == OC_EVENT_MOUSE_MOVE)
-            {
-                oc_log_info("event: type=%d (move), window=0x%x, pos=%f/%f, delta=%f/%f\n",
-                    ev->type, ev->window, ev->mouse.x, ev->mouse.y, ev->mouse.deltaX, ev->mouse.deltaY);
-            }
-            else if(ev->type == OC_EVENT_MOUSE_ENTER)
-            {
-                oc_log_info("event: type=%d (enter), window=0x%x, pos=%f/%f\n",
-                    ev->type, ev->window, ev->mouse.x, ev->mouse.y);
-            }
-            else if(ev->type == OC_EVENT_MOUSE_LEAVE)
-            {
-                oc_log_info("event: type=%d (leave), window=0x%x\n",
-                    ev->type, ev->window);
+                if(ev->type == OC_EVENT_MOUSE_BUTTON)
+                {
+                    oc_log_info("event: type=%d (button), window=0x%x, action=%d, button=%d, clickCount=%d\n",
+                        ev->type, ev->window, ev->key.action, ev->key.button, ev->key.clickCount);
+                }
+                else if(ev->type == OC_EVENT_MOUSE_WHEEL)
+                {
+                    oc_log_info("event: type=%d (wheel), window=0x%x, delta=%f/%f\n",
+                        ev->type, ev->window, ev->mouse.deltaX, ev->mouse.deltaY);
+                }
+                else if(0 && ev->type == OC_EVENT_MOUSE_MOVE)
+                {
+                    oc_log_info("event: type=%d (move), window=0x%x, pos=%f/%f, delta=%f/%f\n",
+                        ev->type, ev->window, ev->mouse.x, ev->mouse.y, ev->mouse.deltaX, ev->mouse.deltaY);
+                }
+                else if(ev->type == OC_EVENT_MOUSE_ENTER)
+                {
+                    oc_log_info("event: type=%d (enter), window=0x%x, pos=%f/%f\n",
+                        ev->type, ev->window, ev->mouse.x, ev->mouse.y);
+                }
+                else if(ev->type == OC_EVENT_MOUSE_LEAVE)
+                {
+                    oc_log_info("event: type=%d (leave), window=0x%x\n",
+                        ev->type, ev->window);
+                }
+                else if(ev->type == OC_EVENT_KEYBOARD_KEY)
+                {
+                    oc_log_info("event: type=%d (key), window=0x%x, action=%d, scanCode=%d, keyCode=%d, mods=%d\n",
+                        ev->type, ev->window, ev->key.action, ev->key.scanCode, ev->key.keyCode, ev->key.mods);
+                    if(ev->key.action == OC_KEY_PRESS && ev->key.keyCode == OC_KEY_Q && ev->key.mods & OC_KEYMOD_CTRL)
+                    {
+                        done = true;
+                    }
+                }
+                else if(ev->type == OC_EVENT_KEYBOARD_CHAR)
+                {
+                    oc_log_info("event: type=%d (char), window=0x%x, codepoint=%d, seq=%.*s\n",
+                        ev->type, ev->window, ev->character.codepoint, ev->character.seqLen, ev->character.sequence);
+                }
+                else if(ev->type == OC_EVENT_KEYBOARD_MODS)
+                {
+                    oc_log_info("event: type=%d (mods), window=0x%x, mods=%d\n",
+                        ev->type, ev->window, ev->key.mods);
+                }
             }
         }
+    }
+
+
+    /* Mouse & keyboard input */
+    {
+        rect = (oc_rect){ 100, 100, 533, 300 };
+        oc_window_set_frame_rect(win, rect);
+        oc_linux_debug_fake_mouse_move(0, 0, true);
+        rect = oc_window_get_content_rect(win);
+        do { ev = oc_next_event(scratch.arena); } while(ev);
+        ev = NULL;
+        OC_ASSERT(system("xkbcomp :0 /tmp/orca-linux.xkbcomp") == 0);
+        atexit(reset_keymap);
+
+        /* Mouse enter */
+        oc_linux_debug_fake_mouse_move(rect.x + rect.w - 1, rect.y + 100, true);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_ENTER);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.x == rect.w - 1);
+        OC_ASSERT(ev->mouse.y == 100);
+        OC_ASSERT(ev->mouse.deltaX == 0);
+        OC_ASSERT(ev->mouse.deltaY == 0);
+        OC_ASSERT(ev->mouse.mods == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_MOVE);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.x == rect.w - 1);
+        OC_ASSERT(ev->mouse.y == 100);
+        OC_ASSERT(ev->mouse.deltaX == 0);
+        OC_ASSERT(ev->mouse.deltaY == 0);
+        OC_ASSERT(ev->mouse.mods == 0);
+        OC_ASSERT(oc_window_has_focus(win));
+
+        /* Mouse move */
+        oc_linux_debug_fake_mouse_move(-100, -50, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_MOVE);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.x == rect.w - 1 - 100);
+        OC_ASSERT(ev->mouse.y == 50);
+        OC_ASSERT(ev->mouse.deltaX == -100);
+        OC_ASSERT(ev->mouse.deltaY == -50);
+        OC_ASSERT(ev->mouse.mods == 0);
+
+        /* Mouse left click */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == 0);
+        OC_ASSERT(ev->key.keyCode == 0);
+        OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == 0);
+        OC_ASSERT(ev->key.keyCode == 0);
+        OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 1);
+
+        /* Mouse right click */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == 0);
+        OC_ASSERT(ev->key.keyCode == 0);
+        OC_ASSERT(ev->key.button == OC_MOUSE_RIGHT);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == 0);
+        OC_ASSERT(ev->key.keyCode == 0);
+        OC_ASSERT(ev->key.button == OC_MOUSE_RIGHT);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 1);
+
+        /* Mouse middle click */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == 0);
+        OC_ASSERT(ev->key.keyCode == 0);
+        OC_ASSERT(ev->key.button == OC_MOUSE_MIDDLE);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == 0);
+        OC_ASSERT(ev->key.keyCode == 0);
+        OC_ASSERT(ev->key.button == OC_MOUSE_MIDDLE);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 1);
+
+        /* Double left click */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        for(usize i = 1; i <= 2; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == i);
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == i);
+        }
+
+        /* Mouse triple right click (and implicitly cancel ongoing left click count) */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_RIGHT, false);
+        for (usize i = 1; i <= 3; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_RIGHT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == i);
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_RIGHT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == i);
+        }
+
+        /* Mouse quadruple middle click (and implicitly cancel ongoing right click count) */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_MIDDLE, false);
+        for (usize i = 1; i <= 4; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_MIDDLE);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == i);
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_MIDDLE);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == i);
+        }
+
+        /* Mouse double left click canceled by timeout */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        oc_sleep_nano(300e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        for(usize i = 1; i <= 2; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == 1);
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == 1);
+        }
+        oc_sleep_nano(300e6);
+
+        /* Mouse double left click canceled by move */
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_move(5, 5, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+        oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_move(-5, -5, false);
+        for(usize i = 1; i <= 2; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == 1);
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == 0);
+            OC_ASSERT(ev->key.clickCount == 1);
+            if(i == 1)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_MOUSE_MOVE);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->mouse.x == rect.w - 1 - 100 + 5);
+                OC_ASSERT(ev->mouse.y == 50 + 5);
+                OC_ASSERT(ev->mouse.deltaX == 5);
+                OC_ASSERT(ev->mouse.deltaY == 5);
+                OC_ASSERT(ev->mouse.mods == 0);
+            }
+            else if(i == 2)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_MOUSE_MOVE);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->mouse.x == rect.w - 1 - 100);
+                OC_ASSERT(ev->mouse.y == 50);
+                OC_ASSERT(ev->mouse.deltaX == -5);
+                OC_ASSERT(ev->mouse.deltaY == -5);
+                OC_ASSERT(ev->mouse.mods == 0);
+            }
+            else
+            {
+                oc_unreachable();
+            }
+        }
+
+        /* Mouse wheel up */
+        oc_linux_debug_fake_mouse_wheel(OC_LINUX_DEBUG_WHEEL_UP, 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_WHEEL);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.deltaX == 0);
+        OC_ASSERT(ev->mouse.deltaY == -120);
+        OC_ASSERT(ev->mouse.mods == 0);
+
+        /* Mouse wheel down x2 */
+        oc_linux_debug_fake_mouse_wheel(OC_LINUX_DEBUG_WHEEL_DOWN, 2);
+        for(usize i = 0; i < 2; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_WHEEL);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->mouse.deltaX == 0);
+            OC_ASSERT(ev->mouse.deltaY == 120);
+            OC_ASSERT(ev->mouse.mods == 0);
+        }
+
+        /* Mouse wheel left x3 */
+        oc_linux_debug_fake_mouse_wheel(OC_LINUX_DEBUG_WHEEL_LEFT, 3);
+        for(usize i = 0; i < 3; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_WHEEL);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->mouse.deltaX == -120);
+            OC_ASSERT(ev->mouse.deltaY == 0);
+            OC_ASSERT(ev->mouse.mods == 0);
+        }
+
+        /* Mouse wheel right x10 */
+        oc_linux_debug_fake_mouse_wheel(OC_LINUX_DEBUG_WHEEL_RIGHT, 10);
+        for(usize i = 0; i < 10; i++)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_WHEEL);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->mouse.deltaX == 120);
+            OC_ASSERT(ev->mouse.deltaY == 0);
+            OC_ASSERT(ev->mouse.mods == 0);
+        }
+
+        OC_ASSERT(system("setxkbmap us") == 0);
+
+        /* Mouse click with mods */
+        // TODO(pld): On my OpenBox config, the following happen when pressing
+        // the Alt modifier and clicking:
+        // 1. press left alt
+        // 2. xkb state update
+        // 3. mouse leave
+        // 4. mouse enter
+        // 5. release left alt
+        // 6. xkb state update
+        // In effect, mouse buttons pressed with the Alt modifier are grabbed
+        // by the window manager for its actions (move, resize, lower). Should
+        // be the expected behaviour in applications to get the click
+        // regardless of the window manager's functioning?
+        oc_keymod_flags mods[] =
+        {
+            OC_KEYMOD_SHIFT,
+            OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER,
+            //OC_KEYMOD_ALT,
+            OC_KEYMOD_CMD,
+            OC_KEYMOD_SHIFT | OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER,
+            //OC_KEYMOD_SHIFT | OC_KEYMOD_ALT,
+            OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER | OC_KEYMOD_CMD,
+            OC_KEYMOD_SHIFT | /*OC_KEYMOD_ALT |*/ OC_KEYMOD_CMD | OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER,
+        };
+        for(usize i = 0; i < oc_array_size(mods); i++)
+        {
+            if(mods[i] & OC_KEYMOD_SHIFT) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, true);
+            if(mods[i] & OC_KEYMOD_CTRL) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_CONTROL, true);
+            if(mods[i] & OC_KEYMOD_ALT) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_ALT, true);
+            if(mods[i] & OC_KEYMOD_CMD) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SUPER, true);
+            oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, true);
+            oc_linux_debug_fake_mouse_button(OC_MOUSE_LEFT, false);
+            if(mods[i] & OC_KEYMOD_SHIFT) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, false);
+            if(mods[i] & OC_KEYMOD_CTRL) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_CONTROL, false);
+            if(mods[i] & OC_KEYMOD_ALT) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_ALT, false);
+            if(mods[i] & OC_KEYMOD_CMD) oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SUPER, false);
+
+            if(mods[i] & OC_KEYMOD_SHIFT)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & 0));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            if(mods[i] & OC_KEYMOD_CTRL)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_CONTROL);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_CONTROL);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & OC_KEYMOD_SHIFT));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            if(mods[i] & OC_KEYMOD_ALT)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_ALT);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_ALT);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & (OC_KEYMOD_SHIFT | OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER)));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            if(mods[i] & OC_KEYMOD_CMD)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SUPER);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SUPER);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & (OC_KEYMOD_SHIFT | OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER | OC_KEYMOD_ALT)));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == mods[i]);
+            OC_ASSERT(ev->key.clickCount == i + 1);
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_MOUSE_BUTTON);
+            OC_ASSERT(ev->window.h == win.h);
+            OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+            OC_ASSERT(ev->key.scanCode == 0);
+            OC_ASSERT(ev->key.keyCode == 0);
+            OC_ASSERT(ev->key.button == OC_MOUSE_LEFT);
+            OC_ASSERT(ev->key.mods == mods[i]);
+            OC_ASSERT(ev->key.clickCount == i + 1);
+            if(mods[i] & OC_KEYMOD_SHIFT)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & (OC_KEYMOD_SHIFT | OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER | OC_KEYMOD_ALT | OC_KEYMOD_CMD)));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            if(mods[i] & OC_KEYMOD_CTRL)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_CONTROL);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_CONTROL);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & (OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER | OC_KEYMOD_ALT | OC_KEYMOD_CMD)));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            if(mods[i] & OC_KEYMOD_ALT)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_ALT);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_ALT);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & (OC_KEYMOD_ALT | OC_KEYMOD_CMD)));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+            if(mods[i] & OC_KEYMOD_CMD)
+            {
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SUPER);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SUPER);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == (mods[i] & OC_KEYMOD_CMD));
+                OC_ASSERT(ev->key.clickCount == 0);
+            }
+        }
+
+        /* Mouse wheel up with mods */
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_CONTROL, true);
+        oc_linux_debug_fake_mouse_wheel(OC_LINUX_DEBUG_WHEEL_UP, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_CONTROL, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_CONTROL);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_CONTROL);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_WHEEL);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.deltaX == 0);
+        OC_ASSERT(ev->mouse.deltaY == -120);
+        OC_ASSERT(ev->mouse.mods == (OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER));
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_CONTROL);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_CONTROL);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == (OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER));
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* Mouse move with mods */
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_ALT, true);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_SHIFT, true);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_move(10, 10, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_ALT, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_mouse_move(-10, -10, false);
+        oc_sleep_nano(50e6);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_SHIFT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_ALT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_ALT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_ALT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_MOVE);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.x == rect.w - 1 - 100 + 10);
+        OC_ASSERT(ev->mouse.y == 50 + 10);
+        OC_ASSERT(ev->mouse.deltaX == 10);
+        OC_ASSERT(ev->mouse.deltaY == 10);
+        OC_ASSERT(ev->mouse.mods == (OC_KEYMOD_ALT | OC_KEYMOD_SHIFT));
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_ALT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_ALT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == (OC_KEYMOD_ALT | OC_KEYMOD_SHIFT));
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_MOVE);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->mouse.x == rect.w - 1 - 100);
+        OC_ASSERT(ev->mouse.y == 50);
+        OC_ASSERT(ev->mouse.deltaX == -10);
+        OC_ASSERT(ev->mouse.deltaY == -10);
+        OC_ASSERT(ev->mouse.mods == OC_KEYMOD_SHIFT);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* US Keyboard q */
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_Q);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'q');
+        OC_ASSERT(!strncmp(ev->character.sequence, "q", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_Q);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* US Keyboard Q */
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_Q);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'Q');
+        OC_ASSERT(!strncmp(ev->character.sequence, "Q", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_Q);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* US keyboard w repeat */
+        oc_linux_debug_fake_key(OC_SCANCODE_W, true);
+        oc_sleep_nano(1e9);
+        oc_linux_debug_fake_key(OC_SCANCODE_W, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_W);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_W);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'w');
+        OC_ASSERT(!strncmp(ev->character.sequence, "w", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        while(true)
+        {
+            CHECK(ev = oc_next_event(scratch.arena));
+            OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+            OC_ASSERT(ev->window.h == win.h);
+            if(ev->key.action == OC_KEY_REPEAT)
+            {
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_W);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_W);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == 0);
+                OC_ASSERT(ev->key.clickCount == 0);
+                CHECK(ev = oc_next_event(scratch.arena));
+                OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+                OC_ASSERT(ev->window.h == win.h);
+                OC_ASSERT(ev->character.codepoint == U'w');
+                OC_ASSERT(!strncmp(ev->character.sequence, "w", 1));
+                OC_ASSERT(ev->character.seqLen == 1);
+            }
+            else if(ev->key.action == OC_KEY_RELEASE)
+            {
+                OC_ASSERT(ev->key.scanCode == OC_SCANCODE_W);
+                OC_ASSERT(ev->key.keyCode == OC_KEY_W);
+                OC_ASSERT(ev->key.button == 0);
+                OC_ASSERT(ev->key.mods == 0);
+                OC_ASSERT(ev->key.clickCount == 0);
+                break;
+            }
+            else
+            {
+                OC_ASSERT(0);
+            }
+        }
+
+        /* US keyboard 2 */
+        oc_linux_debug_fake_key(OC_SCANCODE_2, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_2, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'2');
+        OC_ASSERT(!strncmp(ev->character.sequence, "2", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* US keyboard control code C-h */
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_CONTROL, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_H, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_H, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_CONTROL, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_CONTROL);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_CONTROL);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_H);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_H);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == (OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER));
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == '\b');
+        OC_ASSERT(!strncmp(ev->character.sequence, "\b", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_H);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_H);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == (OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER));
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_CONTROL);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_CONTROL);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == (OC_KEYMOD_CTRL | OC_KEYMOD_MAIN_MODIFIER));
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        OC_ASSERT(system("setxkbmap fr") == 0);
+
+        /* FR Keyboard a */
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_A);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'a');
+        OC_ASSERT(!strncmp(ev->character.sequence, "a", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_A);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* FR keyboard A */
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_Q, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_A);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'A');
+        OC_ASSERT(!strncmp(ev->character.sequence, "A", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_Q);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_A);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* FR keyboard é */
+        oc_linux_debug_fake_key(OC_SCANCODE_2, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_2, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'é');
+        OC_ASSERT(!strncmp(ev->character.sequence, "é", 2));
+        OC_ASSERT(ev->character.seqLen == 2);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* FR keyboard 2 */
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_2, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_2, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'2');
+        OC_ASSERT(!strncmp(ev->character.sequence, "2", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* FR keyboard ~ */
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_ALT, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_2, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_2, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_ALT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_ALT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_ALT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'~');
+        OC_ASSERT(!strncmp(ev->character.sequence, "~", 1));
+        OC_ASSERT(ev->character.seqLen == 1);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_2);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_2);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_ALT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_ALT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* FR keyboard ¢ */
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_ALT, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_E, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_E, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_SHIFT, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_RIGHT_ALT, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_ALT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_ALT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_E);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_E);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'¢');
+        OC_ASSERT(!strncmp(ev->character.sequence, "¢", 2));
+        OC_ASSERT(ev->character.seqLen == 2);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_E);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_E);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_SHIFT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_SHIFT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == OC_KEYMOD_SHIFT);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_RIGHT_ALT);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_RIGHT_ALT);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* FR keyboard dead key ê */
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_BRACKET, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_LEFT_BRACKET, false);
+        oc_linux_debug_fake_key(OC_SCANCODE_E, true);
+        oc_linux_debug_fake_key(OC_SCANCODE_E, false);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_BRACKET);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_BRACKET);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_LEFT_BRACKET);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_LEFT_BRACKET);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_PRESS);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_E);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_E);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_CHAR);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->character.codepoint == U'ê');
+        OC_ASSERT(!strncmp(ev->character.sequence, "ê", 2));
+        OC_ASSERT(ev->character.seqLen == 2);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_KEYBOARD_KEY);
+        OC_ASSERT(ev->window.h == win.h);
+        OC_ASSERT(ev->key.action == OC_KEY_RELEASE);
+        OC_ASSERT(ev->key.scanCode == OC_SCANCODE_E);
+        OC_ASSERT(ev->key.keyCode == OC_KEY_E);
+        OC_ASSERT(ev->key.button == 0);
+        OC_ASSERT(ev->key.mods == 0);
+        OC_ASSERT(ev->key.clickCount == 0);
+
+        /* Mouse leave */
+        oc_linux_debug_fake_mouse_move(rect.x + 10, rect.y + rect.h, true);
+        CHECK(ev = oc_next_event(scratch.arena));
+        OC_ASSERT(ev->type == OC_EVENT_MOUSE_LEAVE);
+        OC_ASSERT(ev->window.h == win.h);
+
+        reset_keymap();
     }
 
     oc_request_quit();
@@ -1281,17 +2506,15 @@ int main(int argc, char** argv)
     oc_terminate();
 
     // TODO(pld): test app.h
-    // - keyboard input
-    //   - oc_scancode_to_keycode
-    //     - fill table with x11 values
-    //     - char events?
-    //     - qwerty
-    //     - other layouts
-    //   - (later) virtual keyboards
-    //   - (later) input methods
-    //   - OC_EVENT_KEYBOARD_MODS
-    //   - OC_EVENT_KEYBOARD_KEY
-    //   - OC_EVENT_KEYBOARD_CHAR
+    // - graphics: x11 surface base
+    // - graphics: x11 webgpu surface create/destroy/get/present
+    // - graphics: x11 egl / gles surface
+    // - graphics: oc_vsync_init
+    //   - do all surfaces vsync themselves if one syncs?
+    // - graphics: oc_vsync_wait
+    // - graphics: OC_EVENT_FRAME
+    // - text: just test, should work out of the box
+    // - ui: just test, should work out of the box
     //
     // - document weird behaviours
     // - test tls destructors
@@ -1303,34 +2526,63 @@ int main(int argc, char** argv)
     // - set _net_wm_full_placement?
     // - send app events:
     //   - OC_EVENT_PATHDROP
-    //   - OC_EVENT_FRAME
     //
-    // TODO(pld): graphics
-    // - x11 surface base
-    // - x11 webgpu surface create/destroy/get/present
-    // - x11 egl / gles surface
-    // later:
     // - oc_file_dialog (os native)
     // - oc_file_dialog_for_table (os native)
     // - oc_alert_popup (os native)
-    // - oc_vsync_init
-    //   - do all surfaces vsync themselves if one syncs?
-    // - oc_vsync_wait
     // - multiple desktops?
-    // TODO(pld): text: just test, should work out of the box
-    // TODO(pld): ui: just test, should work out of the box
     // TODO(pld): io
     // TODO(pld): clock
     // - _net_wm_user_time_window?
-    // - oc_set_cursor
+    //
+    // debug other WM/DE (w/ Xorg or XWayland where relevant):
+    // - X11 KDE/KWin
+    // - X11 Xfce/Xfwm
+    // - X11 i3
+    // - X11 dwm
+    // - X11 LXQt
+    // - X11 GNOME/Metacity
+    // - XWayland KDE/KWin
+    // - XWayland Xfce/Xfwl
+    // - XWayland LXQt
+    // - XWayland Sway
+    // - XWayland Hyprland
+    // - XWayland Mango
+    // - XWayland Weston
+    // - XWayland dwl
+    // - XWayland COSMIC
+    // - XWayland River-based WM
+    // - XWayland Wayfire
+    // - XWayland GNOME/Mutter
+    // - MATE Desktop/Marco/Compiz
+    // - Cinnamon
+    // - Budgie
+    // - Miracle
+    // - Kylin
+    // - Enlightenment
     //
     // - do not implement, part of io:
     //   - oc_file_move
     //   - oc_file_remove
     //   - oc_directory_create
-    // clipboard: get/set timeout, handle if owner/requestor dies
-    // clipboard: handle alloc errors
-    // clipboard: text/html, image/png mime targets
+    //
+    // later:
+    // - oc_set_cursor
+    // - clipboard: get/set timeout, handle if owner/requestor dies
+    // - clipboard: handle alloc errors
+    // - clipboard: text/html, image/png mime targets
+    // - keyboard: not convinced with OC_KEY values on non-qwerty layouts
+    // - keyboard: integrate w/ X Input Extension
+    // - keyboard: helper to select and only use XTEST keyboard, so we don't mess up
+    //   with the core keymap when testing
+    // - keyboard: should not receive xkb state when not focused?
+    // - keyboard: altgr mod?
+    // - keyboard: grab mods?
+    // - keyboard: virtual keyboards
+    // - keyboard: input methods
+    // - keyboard: layouts to thoroughly test: greek, russian, ???
+    // - xsettings & X Resources
+    // - avoid requeueing app cmds
 
     oc_scratch_end(scratch);
     return (0);
