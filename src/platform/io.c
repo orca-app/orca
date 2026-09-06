@@ -362,6 +362,7 @@ oc_io_error oc_file_copy_recursive(oc_str8 srcPath, oc_str8 dstPath, oc_file_cop
     else
     {
         //NOTE: if src is not a directory, we copy file to file
+        oc_file_close(src);
         return oc_file_copy(srcPath, dstPath, options);
     }
 }
