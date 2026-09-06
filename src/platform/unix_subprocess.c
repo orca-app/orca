@@ -212,7 +212,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_allocator* allocator, oc_sub
                 }
                 else if(nOut)
                 {
-                    oc_str8_list_push(scratch.allocator, &outList, oc_str8_from_buffer(nOut, chunk));
+                    oc_str8_list_push(scratch.allocator, &outList, oc_str8_push_buffer(scratch.allocator, nOut, chunk));
                 }
             }
 
@@ -228,7 +228,7 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_allocator* allocator, oc_sub
                 }
                 else if(nErr)
                 {
-                    oc_str8_list_push(scratch.allocator, &errList, oc_str8_from_buffer(nErr, chunk));
+                    oc_str8_list_push(scratch.allocator, &errList, oc_str8_push_buffer(scratch.allocator, nErr, chunk));
                 }
             }
 
@@ -256,38 +256,38 @@ oc_subprocess_result oc_subprocess_read_and_wait(oc_allocator* allocator, oc_sub
     }
 
     int stat = 0;
-    if(waitpid(subprocess->pid, &stat, 0) == subprocess->pid)
+
+    while(1)
     {
-        if(WIFEXITED(stat))
+        if(waitpid(subprocess->pid, &stat, 0) == subprocess->pid)
         {
-            completion.returnCode = (int)(signed char)WEXITSTATUS(stat);
+            if(WIFEXITED(stat))
+            {
+                completion.returnCode = (int)(signed char)WEXITSTATUS(stat);
+            }
+            if(WIFSIGNALED(stat))
+            {
+                completion.signal = WTERMSIG(stat);
+            }
+            result = oc_result_value(oc_subprocess_result, completion);
+            break;
         }
-        if(WIFSIGNALED(stat))
+        else if(errno != EINTR)
         {
-            completion.signal = WTERMSIG(stat);
-        }
+            oc_subprocess_error err = 0;
+            switch(errno)
+            {
+                case ECHILD:
+                    err = OC_SUBPROCESS_NO_CHILD;
+                    break;
 
-        result = oc_result_value(oc_subprocess_result, completion);
+                default:
+                    err = OC_SUBPROCESS_UNKNOWN;
+            }
+            result = oc_result_error(oc_subprocess_result, err);
+            break;
+        }
     }
-    else
-    {
-        oc_subprocess_error err = 0;
-        switch(errno)
-        {
-            case ECHILD:
-                err = OC_SUBPROCESS_NO_CHILD;
-                break;
-
-            case EINTR:
-                err = OC_SUBPROCESS_INTERRUPTED;
-                break;
-
-            default:
-                err = OC_SUBPROCESS_UNKNOWN;
-        }
-        result = oc_result_error(oc_subprocess_result, err);
-    }
-
 end:
     if(subprocess->stdInFd >= 0)
     {
