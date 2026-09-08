@@ -79,6 +79,7 @@
         "resources",
         "sketches",
         "src",
+        "samples",
         "tests",
     },
 }
