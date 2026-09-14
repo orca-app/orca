@@ -512,7 +512,7 @@ oc_io_error oc_fd_makedir_at(oc_file_desc dirFd, oc_str8 path)
     oc_scratch scratch = oc_scratch_begin();
     char* pathCStr = oc_str8_to_cstring(scratch.allocator, path);
 
-    int r = mkdirat(dirFd, pathCStr, 0700);
+    int r = mkdirat(dirFd, pathCStr, 0755);
     if(r)
     {
         error = oc_fd_convert_errno();
