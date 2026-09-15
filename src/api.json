@@ -10365,17 +10365,17 @@
                                 }
                             },
                             {
-                                "name": "flags",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_file_open_flags"
-                                }
-                            },
-                            {
                                 "name": "resolve",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file_resolve_flags"
+                                }
+                            },
+                            {
+                                "name": "flags",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_open_flags"
                                 }
                             }
                         ]
@@ -10940,17 +10940,17 @@
                                 }
                             },
                             {
-                                "name": "flags",
-                                "type": {
-                                    "kind": "namedType",
-                                    "name": "oc_file_makedir_flags"
-                                }
-                            },
-                            {
                                 "name": "resolve",
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file_resolve_flags"
+                                }
+                            },
+                            {
+                                "name": "flags",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_makedir_flags"
                                 }
                             }
                         ]
@@ -11022,6 +11022,13 @@
                                 "type": {
                                     "kind": "namedType",
                                     "name": "oc_file"
+                                }
+                            },
+                            {
+                                "name": "resolve",
+                                "type": {
+                                    "kind": "namedType",
+                                    "name": "oc_file_resolve_flags"
                                 }
                             },
                             {
