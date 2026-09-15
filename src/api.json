@@ -9710,6 +9710,12 @@
                                 "name": "OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW",
                                 "doc": "If the path contains a symlink, the call to open will fail.",
                                 "value": 2
+                            },
+                            {
+                                "kind": "enum-constant",
+                                "name": "OC_FILE_RESOLVE_RESTRICT",
+                                "doc": "Restrict path resolution to the subtree of the root",
+                                "value": 3
                             }
                         ]
                     }
