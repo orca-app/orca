@@ -402,6 +402,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
 
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_NO_ENTRY)
@@ -421,6 +422,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
 
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
@@ -440,6 +442,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
         {
@@ -459,6 +462,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
         {
@@ -476,6 +480,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
         {
@@ -493,6 +498,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_WALKOUT)
         {
@@ -528,6 +534,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_ARG)
         {
@@ -549,6 +556,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         oc_file f = oc_catch(openRes)
         {
@@ -569,6 +577,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         oc_file f = oc_catch(openRes)
         {
@@ -591,6 +600,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = jail,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               });
         oc_file f = oc_catch(openRes)
         {
@@ -603,6 +613,7 @@ void test_jail(oc_test_info* info, oc_arena* arena)
                                                OC_FILE_ACCESS_READ,
                                                &(oc_file_open_options){
                                                    .root = f,
+                                                   .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                }))
             {
                 oc_test_fail(info, "Couldn't open test.txt");
@@ -640,6 +651,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                                   OC_FILE_ACCESS_READ,
                                                   &(oc_file_open_options){
                                                       .root = dir,
+                                                      .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                   });
             if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
             {
@@ -667,6 +679,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                                   OC_FILE_ACCESS_WRITE,
                                                   &(oc_file_open_options){
                                                       .root = dir,
+                                                      .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                   });
             if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
             {
@@ -678,6 +691,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = dir,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               }))
             {
                 oc_test_fail(info, "Couldn't open file with read access in dir with read access");
@@ -719,6 +733,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                                   OC_FILE_ACCESS_READ,
                                                   &(oc_file_open_options){
                                                       .root = dir,
+                                                      .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                   });
             if(oc_result_check(openRes) || openRes.error != OC_IO_ERR_PERM)
             {
@@ -730,6 +745,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_WRITE,
                                               &(oc_file_open_options){
                                                   .root = dir,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               }))
             {
                 oc_test_fail(info, "Couldn't open file with write access in dir with write access");
@@ -769,6 +785,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                               OC_FILE_ACCESS_READ,
                                               &(oc_file_open_options){
                                                   .root = dir,
+                                                  .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               }))
             {
                 oc_test_fail(info, "Incorrect check when opening file with read access in dir with read/write access");
@@ -780,6 +797,7 @@ void test_rights(oc_test_info* info, oc_arena* arena)
                                       OC_FILE_ACCESS_WRITE,
                                       &(oc_file_open_options){
                                           .root = dir,
+                                          .resolve = OC_FILE_RESOLVE_RESTRICT,
                                       }))
             {
                 oc_test_fail(info, "Couldn't open file with write access in dir with read/write access");
@@ -796,7 +814,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
     {
 #if OC_PLATFORM_MACOS
         oc_str8 path = OC_STR8("/usr/bin");
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("/usr/bin")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -806,7 +824,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 #elif OC_PLATFORM_WINDOWS
 
         oc_str8 path = OC_STR8("C:\\Users");
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("C:\\Users")))
         {
             oc_test_fail(info, "Bad path resolution (%.*s).", oc_str8_ip(r.path));
@@ -819,7 +837,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
     {
         oc_str8 path = OC_STR8("tests/files/data/regular.txt");
 
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/regular.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -830,7 +848,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
     oc_test(info, "relative path with ..")
     {
         oc_str8 path = OC_STR8("tests/files/data/directory/../regular.txt");
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/regular.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -842,7 +860,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
     oc_test(info, "relative path with symlink")
     {
         oc_str8 path = OC_STR8("tests/files/data/symlink");
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("tests/files/data/regular.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -854,7 +872,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
     oc_test(info, "relative path wit non-existing end")
     {
         oc_str8 path = OC_STR8("tests/files/data/directory/foo/../bar");
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error != OC_IO_ERR_NO_ENTRY)
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -865,7 +883,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
     oc_test(info, "relative path with file inside the path")
     {
         oc_str8 path = OC_STR8("tests/files/data/regular.txt/foo/bar");
-        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, oc_file_desc_nil(), path, OC_FILE_RESOLVE_RESTRICT);
         if(r.error != OC_IO_ERR_NOT_DIR)
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -887,7 +905,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 
     oc_test(info, "relative path inside root")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/test.txt"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/test.txt"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("directory/test.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -897,7 +915,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 
     oc_test(info, "absolute path inside root")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("/directory/test.txt"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("/directory/test.txt"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("directory/test.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -907,7 +925,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 #ifndef OC_PLATFORM_WINDOWS
     oc_test(info, "path with symlink inside root")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("symlink"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("symlink"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("regular.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -918,7 +936,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 
     oc_test(info, "path with valid .. inside root")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/../regular.txt"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/../regular.txt"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error || oc_str8_cmp(r.path, OC_STR8("regular.txt")))
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -928,7 +946,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 
     oc_test(info, "path with non existing end inside root")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/foo/../test.txt"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/foo/../test.txt"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error != OC_IO_ERR_NO_ENTRY)
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -937,7 +955,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 
     oc_test(info, "try escaping with ..")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/../../foo"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/../../foo"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error != OC_IO_ERR_WALKOUT)
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -952,6 +970,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
                                      OC_FILE_ACCESS_READ,
                                      &(oc_file_open_options){
                                          .root = dir,
+                                         .resolve = OC_FILE_RESOLVE_RESTRICT,
                                      }))
         {
             oc_test_fail(info, "Couldn't open jail directory");
@@ -961,7 +980,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 #ifndef OC_PLATFORM_WINDOWS
     oc_test(info, "escape with symlink to file")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, jailSlot->fd, OC_STR8("file_escape"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, jailSlot->fd, OC_STR8("file_escape"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error != OC_IO_ERR_WALKOUT)
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -970,7 +989,7 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
 
     oc_test(info, "escape with symlink to dir")
     {
-        oc_io_resolve_result r = oc_io_resolve(arena, jailSlot->fd, OC_STR8("dir_escape"), 0);
+        oc_io_resolve_result r = oc_io_resolve(arena, jailSlot->fd, OC_STR8("dir_escape"), OC_FILE_RESOLVE_RESTRICT);
         if(r.error != OC_IO_ERR_WALKOUT)
         {
             oc_test_fail(info, "Bad path resolution.");
@@ -1016,6 +1035,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("test"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             });
         if(error != OC_IO_OK)
         {
@@ -1025,6 +1045,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
                                             OC_FILE_ACCESS_READ | OC_FILE_ACCESS_WRITE,
                                             &(oc_file_open_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             }))
         {
             oc_test_fail(info, "Can't open created directory.");
@@ -1040,6 +1061,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("test"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             });
         if(error != OC_IO_ERR_EXISTS)
         {
@@ -1052,6 +1074,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("test"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                 .flags = OC_FILE_MAKEDIR_IGNORE_EXISTING,
                                             });
         if(error != OC_IO_OK)
@@ -1065,6 +1088,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             });
         if(error != OC_IO_ERR_NO_ENTRY)
         {
@@ -1077,6 +1101,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                 .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
                                             });
         if(error != OC_IO_OK)
@@ -1090,6 +1115,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("foo/./bar/baz"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                 .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
                                             });
         if(error != OC_IO_OK)
@@ -1104,6 +1130,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
                                             OC_FILE_ACCESS_READ,
                                             &(oc_file_open_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             }))
         {
             oc_test_fail(info, "Can't open directory in read-only mode.");
@@ -1112,6 +1139,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("a"),
                                             &(oc_file_makedir_options){
                                                 .root = dir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             });
         if(error != OC_IO_ERR_PERM)
         {
@@ -1126,6 +1154,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
                                             OC_FILE_ACCESS_WRITE,
                                             &(oc_file_open_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             }))
         {
             oc_test_fail(info, "Can't open directory in write-only mode.");
@@ -1134,6 +1163,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("b"),
                                             &(oc_file_makedir_options){
                                                 .root = dir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             });
         if(error != OC_IO_OK)
         {
@@ -1148,6 +1178,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
                                             OC_FILE_ACCESS_WRITE,
                                             &(oc_file_open_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             }))
         {
             oc_test_fail(info, "Can't open directory in write-only mode.");
@@ -1156,6 +1187,7 @@ void test_makedir(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("c/d/e"),
                                             &(oc_file_makedir_options){
                                                 .root = dir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                 .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
                                             });
         if(error != OC_IO_OK)
@@ -1191,6 +1223,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_makedir(OC_STR8("foo/bar/baz"),
                                             &(oc_file_makedir_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                 .flags = OC_FILE_MAKEDIR_CREATE_PARENTS,
                                             });
         if(error != OC_IO_OK)
@@ -1202,6 +1235,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
                                           OC_FILE_ACCESS_NONE,
                                           &(oc_file_open_options){
                                               .root = tmpDir,
+                                              .resolve = OC_FILE_RESOLVE_RESTRICT,
                                               .flags = OC_FILE_OPEN_CREATE,
                                           }))
         {
@@ -1213,6 +1247,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
                                   OC_FILE_ACCESS_NONE,
                                   &(oc_file_open_options){
                                       .root = tmpDir,
+                                      .resolve = OC_FILE_RESOLVE_RESTRICT,
                                       .flags = OC_FILE_OPEN_CREATE,
                                   }))
         {
@@ -1224,6 +1259,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
                                   OC_FILE_ACCESS_NONE,
                                   &(oc_file_open_options){
                                       .root = tmpDir,
+                                      .resolve = OC_FILE_RESOLVE_RESTRICT,
                                       .flags = OC_FILE_OPEN_CREATE,
                                   }))
         {
@@ -1234,6 +1270,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
                                   OC_FILE_ACCESS_NONE,
                                   &(oc_file_open_options){
                                       .root = tmpDir,
+                                      .resolve = OC_FILE_RESOLVE_RESTRICT,
                                       .flags = OC_FILE_OPEN_CREATE,
                                   }))
         {
@@ -1249,6 +1286,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
                                             OC_FILE_ACCESS_READ,
                                             &(oc_file_open_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             }))
         {
             oc_test_fail(info, "Can't open tmpDir in read-only access.");
@@ -1257,6 +1295,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("a.txt"),
                                            &(oc_file_remove_options){
                                                .root = dir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                            });
         if(error != OC_IO_ERR_PERM)
         {
@@ -1271,6 +1310,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
                                             OC_FILE_ACCESS_WRITE,
                                             &(oc_file_open_options){
                                                 .root = tmpDir,
+                                                .resolve = OC_FILE_RESOLVE_RESTRICT,
                                             }))
         {
             oc_test_fail(info, "Can't open tmpDir in write-only access.");
@@ -1279,6 +1319,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("b.txt"),
                                            &(oc_file_remove_options){
                                                .root = dir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                            });
 
         if(error != OC_IO_OK)
@@ -1286,7 +1327,10 @@ void test_remove(oc_test_info* info, oc_arena* arena)
             oc_test_fail(info, "Removing in a root with write-only access failed.");
         }
 
-        oc_result_if(oc_file_open(OC_STR8("b.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        oc_result_if(oc_file_open(OC_STR8("b.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){
+                                                                             .root = tmpDir,
+                                                                             .resolve = OC_FILE_RESOLVE_RESTRICT,
+                                                                         }))
         {
             oc_test_fail(info, "File wasn't actually removed.");
         }
@@ -1302,12 +1346,16 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("a.txt"),
                                            &(oc_file_remove_options){
                                                .root = tmpDir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                            });
         if(error != OC_IO_OK)
         {
             oc_test_fail(info, "Failed to remove file.");
         }
-        oc_result_if(oc_file_open(OC_STR8("a.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        oc_result_if(oc_file_open(OC_STR8("a.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){
+                                                                             .root = tmpDir,
+                                                                             .resolve = OC_FILE_RESOLVE_RESTRICT,
+                                                                         }))
         {
             oc_test_fail(info, "File wasn't actually removed.");
         }
@@ -1322,13 +1370,17 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("foo/bar/c.txt"),
                                            &(oc_file_remove_options){
                                                .root = tmpDir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                .flags = OC_FILE_REMOVE_DIR,
                                            });
         if(error != OC_IO_OK)
         {
             oc_test_fail(info, "Failed to remove file.");
         }
-        oc_result_if(oc_file_open(OC_STR8("foo/bar/c.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        oc_result_if(oc_file_open(OC_STR8("foo/bar/c.txt"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){
+                                                                                     .root = tmpDir,
+                                                                                     .resolve = OC_FILE_RESOLVE_RESTRICT,
+                                                                                 }))
         {
             oc_test_fail(info, "File wasn't actually removed.");
         }
@@ -1343,6 +1395,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("foo/bar/baz"),
                                            &(oc_file_remove_options){
                                                .root = tmpDir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                            });
         if(error != OC_IO_ERR_DIR)
         {
@@ -1355,13 +1408,17 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("foo/bar/baz"),
                                            &(oc_file_remove_options){
                                                .root = tmpDir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                .flags = OC_FILE_REMOVE_DIR,
                                            });
         if(error != OC_IO_OK)
         {
             oc_test_fail(info, "Failed to remove directory.");
         }
-        oc_result_if(oc_file_open(OC_STR8("foo/bar/baz"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        oc_result_if(oc_file_open(OC_STR8("foo/bar/baz"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){
+                                                                                   .root = tmpDir,
+                                                                                   .resolve = OC_FILE_RESOLVE_RESTRICT,
+                                                                               }))
         {
             oc_test_fail(info, "Directory wasn't actually removed.");
         }
@@ -1376,6 +1433,7 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("foo"),
                                            &(oc_file_remove_options){
                                                .root = tmpDir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                .flags = OC_FILE_REMOVE_DIR,
                                            });
         if(error != OC_IO_ERR_NOT_EMPTY)
@@ -1389,13 +1447,17 @@ void test_remove(oc_test_info* info, oc_arena* arena)
         oc_io_error error = oc_file_remove(OC_STR8("foo"),
                                            &(oc_file_remove_options){
                                                .root = tmpDir,
+                                               .resolve = OC_FILE_RESOLVE_RESTRICT,
                                                .flags = OC_FILE_REMOVE_DIR | OC_FILE_REMOVE_RECURSIVE,
                                            });
         if(error != OC_IO_OK)
         {
             oc_test_fail(info, "Failed to remove directory.");
         }
-        oc_result_if(oc_file_open(OC_STR8("foo"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){ .root = tmpDir }))
+        oc_result_if(oc_file_open(OC_STR8("foo"), OC_FILE_ACCESS_NONE, &(oc_file_open_options){
+                                                                           .root = tmpDir,
+                                                                           .resolve = OC_FILE_RESOLVE_RESTRICT,
+                                                                       }))
         {
             oc_test_fail(info, "Directory wasn't actually removed.");
         }
@@ -1446,6 +1508,7 @@ void test_copy(oc_test_info* info, oc_arena* arena)
                                              OC_FILE_ACCESS_READ,
                                              &(oc_file_open_options){
                                                  .root = tmpDir,
+                                                 .resolve = OC_FILE_RESOLVE_RESTRICT,
                                              }))
         {
             oc_test_fail(info, "Couldn't open copied file.");

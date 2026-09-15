@@ -245,7 +245,7 @@ oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* optionsPtr)
     return cmp.error;
 }
 
-oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
+oc_io_error oc_file_remove_recursive(oc_file root, oc_file_resolve_flags resolve, oc_str8 path)
 {
     oc_io_error error = OC_IO_OK;
     oc_file_result openRes = oc_file_open(path,
@@ -267,7 +267,7 @@ oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
         oc_file_list_for(list, elt)
         {
             oc_str8 childPath = oc_path_append(scratch.allocator, path, elt->basename);
-            error = oc_file_remove_recursive(root, childPath);
+            error = oc_file_remove_recursive(root, resolve, childPath);
             if(error)
             {
                 break;
@@ -282,6 +282,7 @@ oc_io_error oc_file_remove_recursive(oc_file root, oc_str8 path)
         error = oc_file_remove(path,
                                &(oc_file_remove_options){
                                    .root = root,
+                                   .resolve = resolve,
                                    .flags = OC_FILE_REMOVE_DIR,
                                });
     }
@@ -296,7 +297,7 @@ oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* optionsPtr)
 
     if(options.flags & OC_FILE_REMOVE_RECURSIVE)
     {
-        return oc_file_remove_recursive(options.root, path);
+        return oc_file_remove_recursive(options.root, options.resolve, path);
     }
     else
     {
@@ -306,6 +307,7 @@ oc_io_error oc_file_remove(oc_str8 path, oc_file_remove_options* optionsPtr)
             .size = path.len,
             .buffer = path.ptr,
             .removeFlags = options.flags,
+            .resolveFlags = options.resolve,
         };
 
         oc_io_cmp cmp = oc_io_wait_single_req(&req);

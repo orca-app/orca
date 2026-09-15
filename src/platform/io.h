@@ -45,6 +45,7 @@ typedef enum oc_file_resolve_flags
     OC_FILE_RESOLVE_DEFAULT = 0,
     OC_FILE_RESOLVE_SYMLINK_OPEN_LAST = 1,
     OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW = 1 << 1,
+    OC_FILE_RESOLVE_RESTRICT = 1 << 2,
 } oc_file_resolve_flags;
 
 typedef enum oc_file_whence
@@ -176,8 +177,8 @@ ORCA_API bool oc_file_is_nil(oc_file handle);
 typedef struct oc_file_open_options
 {
     oc_file root;
-    oc_file_open_flags flags;
     oc_file_resolve_flags resolve;
+    oc_file_open_flags flags;
 } oc_file_open_options;
 
 typedef oc_result_type(oc_file, oc_io_error) oc_file_result;
@@ -269,8 +270,8 @@ typedef enum oc_file_makedir_flags
 typedef struct oc_file_makedir_options
 {
     oc_file root;
-    oc_file_makedir_flags flags;
     oc_file_resolve_flags resolve;
+    oc_file_makedir_flags flags;
 } oc_file_makedir_options;
 
 ORCA_API oc_io_error oc_file_makedir(oc_str8 path, oc_file_makedir_options* options);
@@ -285,6 +286,7 @@ typedef enum oc_file_remove_flags
 typedef struct oc_file_remove_options
 {
     oc_file root;
+    oc_file_resolve_flags resolve;
     oc_file_remove_flags flags;
 } oc_file_remove_options;
 

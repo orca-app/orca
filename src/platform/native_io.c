@@ -150,7 +150,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
                 - If there's no last element, or the last element is .. or /, this is an error
             */
             oc_str8_elt* last = oc_typed_list_last(normElements.list);
-            if(!last || !oc_str8_cmp(last->string, OC_STR8("..")) || !oc_str8_cmp(last->string, OC_STR8("/")))
+            if((resolveFlags & OC_FILE_RESOLVE_RESTRICT) && (!last || !oc_str8_cmp(last->string, OC_STR8("..")) || !oc_str8_cmp(last->string, OC_STR8("/"))))
             {
                 result.error = OC_IO_ERR_WALKOUT;
                 break;
@@ -256,7 +256,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
                         break;
                     }
 
-                    if(status.type != OC_FILE_DIRECTORY)
+                    if((resolveFlags & OC_FILE_RESOLVE_RESTRICT) && status.type != OC_FILE_DIRECTORY)
                     {
                         //NOTE: if we got anything other than a directory here, the file changed
                         // under our feet, so we could be walking out root dir.

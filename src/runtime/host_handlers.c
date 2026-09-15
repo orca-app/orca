@@ -380,6 +380,7 @@ void oc_hostapi_io_wait_single_req(oc_io_req* wasmReq, oc_io_cmp* returnPointer)
 
     oc_io_cmp cmp = { 0 };
     oc_io_req req = *wasmReq;
+    req.resolveFlags |= OC_FILE_RESOLVE_RESTRICT;
 
     //TODO: lookup if operation needs a buffer in a compile-time table
     oc_io_op op = wasmReq->op;
