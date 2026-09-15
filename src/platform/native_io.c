@@ -159,17 +159,33 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
             {
                 //NOTE: here we need to recompute fd from path. We can't just openat ".." because the directory
                 // associated with fd could have been moved, and we could potentially escape the root
-                oc_str8 normPath = oc_path_join(scratch.allocator, normElements);
-                oc_io_resolve_result r = oc_io_resolve(scratch.allocator, rootFd, normPath, OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW);
-                if(r.error != OC_IO_OK)
-                {
-                    result.error = r.error;
-                    break;
-                }
-                oc_fd_close(fd);
-                fd = r.fd;
 
-                oc_str8_list_pop_back(&normElements);
+                if(oc_typed_list_count(normElements.list))
+                {
+                    oc_str8_list_pop_back(&normElements);
+                    oc_str8 normPath = oc_path_join(scratch.allocator, normElements);
+                    oc_io_resolve_result r = oc_io_resolve(scratch.allocator, rootFd, normPath, OC_FILE_RESOLVE_SYMLINK_DONT_FOLLOW);
+                    if(r.error != OC_IO_OK)
+                    {
+                        result.error = r.error;
+                        break;
+                    }
+                    oc_fd_close(fd);
+                    fd = r.fd;
+                }
+                else
+                {
+                    //NOTE: if '..' legally walks out, we must get parent from current fd using open_at on '..'
+                    OC_ASSERT(!(resolveFlags & OC_FILE_RESOLVE_RESTRICT));
+                    oc_file_desc newFd = oc_catch(oc_fd_open_at(fd, OC_STR8(".."), OC_FILE_ACCESS_NONE, OC_FILE_OPEN_DEFAULT))
+                    {
+                        result.error = oc_last_error();
+                        break;
+                    }
+                    oc_fd_close(fd);
+                    fd = newFd;
+                    oc_str8_list_push(scratch.allocator, &normElements, OC_STR8(".."));
+                }
             }
         }
         else

@@ -944,6 +944,16 @@ void test_resolve(oc_test_info* info, oc_arena* arena)
         oc_fd_close(r.fd);
     }
 
+    oc_test(info, "path with valid .. outside root")
+    {
+        oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("../data/directory/test.txt"), 0);
+        if(r.error || oc_str8_cmp(r.path, OC_STR8("../data/directory/test.txt")))
+        {
+            oc_test_fail(info, "Bad path resolution.");
+        }
+        oc_fd_close(r.fd);
+    }
+
     oc_test(info, "path with non existing end inside root")
     {
         oc_io_resolve_result r = oc_io_resolve(arena, dirSlot->fd, OC_STR8("directory/foo/../test.txt"), OC_FILE_RESOLVE_RESTRICT);
