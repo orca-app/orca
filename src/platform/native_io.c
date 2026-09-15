@@ -136,6 +136,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
     oc_str8_list normElements = { 0 };
     oc_str8_list pathElements = oc_path_split(scratch.allocator, path);
     oc_str8_elt* elt = 0;
+    int parentPrefixCount = 0;
 
     while((elt = oc_typed_list_pop_front(&pathElements.list)) != 0)
     {
@@ -160,7 +161,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
                 //NOTE: here we need to recompute fd from path. We can't just openat ".." because the directory
                 // associated with fd could have been moved, and we could potentially escape the root
 
-                if(oc_typed_list_count(normElements.list))
+                if(oc_typed_list_count(normElements.list) - parentPrefixCount > 0)
                 {
                     oc_str8_list_pop_back(&normElements);
                     oc_str8 normPath = oc_path_join(scratch.allocator, normElements);
@@ -185,6 +186,7 @@ oc_io_resolve_result oc_io_resolve(oc_allocator* allocator, oc_file_desc rootFd,
                     oc_fd_close(fd);
                     fd = newFd;
                     oc_str8_list_push(scratch.allocator, &normElements, OC_STR8(".."));
+                    parentPrefixCount++;
                 }
             }
         }
