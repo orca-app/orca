@@ -638,6 +638,10 @@ oc_io_cmp oc_io_makedir(oc_io_req* req, oc_file_table* table)
                 {
                     cmp.error = subCmp.error;
                 }
+                else
+                {
+                    oc_file_close(subCmp.handle);
+                }
             }
         }
         else
