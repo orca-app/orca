@@ -22,6 +22,7 @@ struct oc_thread
     void* userPointer;
     oc_str8 name;
     char nameBuffer[OC_THREAD_NAME_MAX_SIZE];
+    _Atomic(bool) started;
 };
 
 static void* oc_thread_bootstrap(void* data)
@@ -31,7 +32,13 @@ static void* oc_thread_bootstrap(void* data)
     {
         pthread_setname_np(thread->nameBuffer);
     }
-    i32 exitCode = thread->start(thread->userPointer);
+    void* userPointer = thread->userPointer;
+    oc_thread_start_proc start = thread->start;
+
+    atomic_exchange(&thread->started, true);
+
+    i32 exitCode = start(userPointer);
+
     return ((void*)(ptrdiff_t)exitCode);
 }
 
@@ -120,6 +127,9 @@ int oc_thread_detach(oc_thread* thread)
     if(pthread_detach(thread->pthread))
     {
         return (-1);
+    }
+    while(atomic_load(&thread->started) == false)
+    {
     }
     free(thread);
     return (0);
