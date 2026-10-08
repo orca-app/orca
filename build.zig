@@ -1110,6 +1110,8 @@ pub fn build(b: *Build) !void {
     };
 
     const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, orca_platform_install_opts);
+    // make it public to consumers
+    b.installArtifact(orca_platform_lib);
 
     const orca_platform_layer = b.step("platform-layer", "Build orca platform layer library");
     orca_platform_layer.dependOn(&orca_platform_install.step);
@@ -1528,6 +1530,7 @@ pub fn build(b: *Build) !void {
     const orca_tool_local_path: []const u8 = b.pathJoin(&.{ b.install_path, orca_local_relative_path });
 
     b.getInstallStep().dependOn(build_orca);
+    b.getInstallStep().dependOn(&orca_platform_lib.step);
 
     /////////////////////////////////////////////////////////////////
     // samples
