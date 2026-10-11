@@ -184,9 +184,9 @@ pub fn build(b: *Build) !void {
             "-DOC_LOG_COMPILE_DEBUG",
         });
     }
-    const orca_platform_lib = b.addLibrary(.{
-        .linkage = .dynamic,
-        .name = "orca_platform",
+    const orca_platform_static = b.addLibrary(.{
+        .linkage = .static,
+        .name = "orca",
         .win32_manifest = b.path("src/app/win32_manifest.manifest"),
         .root_module = b.createModule(.{
             .target = target,
@@ -195,84 +195,84 @@ pub fn build(b: *Build) !void {
     });
 
     if (target.result.os.tag.isDarwin()) {
-        orca_platform_lib.addSystemFrameworkPath(macosFrameworkPath);
-        orca_platform_lib.addSystemIncludePath(macosIncludePath);
-        orca_platform_lib.addLibraryPath(macosLibPath);
+        orca_platform_static.addSystemFrameworkPath(macosFrameworkPath);
+        orca_platform_static.addSystemIncludePath(macosIncludePath);
+        orca_platform_static.addLibraryPath(macosLibPath);
     }
 
-    orca_platform_lib.install_name = "@executable_path/liborca_platform.dylib";
+    orca_platform_static.install_name = "@executable_path/liborca_platform.dylib";
 
-    orca_platform_lib.addIncludePath(b.path("src"));
-    orca_platform_lib.addIncludePath(b.path("src/ext"));
-    orca_platform_lib.addIncludePath(b.path("src/ext/angle/include"));
-    orca_platform_lib.addIncludePath(b.path("src/ext/dawn/include"));
-    orca_platform_lib.addLibraryPath(angle_include_path);
+    orca_platform_static.addIncludePath(b.path("src"));
+    orca_platform_static.addIncludePath(b.path("src/ext"));
+    orca_platform_static.addIncludePath(b.path("src/ext/angle/include"));
+    orca_platform_static.addIncludePath(b.path("src/ext/dawn/include"));
+    orca_platform_static.addLibraryPath(angle_include_path);
 
     var orca_platform_files: std.ArrayList([]const u8) = .empty;
     try orca_platform_files.append(b.allocator, "src/orca.c");
 
-    orca_platform_lib.addLibraryPath(angle_lib_path);
-    orca_platform_lib.addLibraryPath(dawn_lib_path);
+    orca_platform_static.addLibraryPath(angle_lib_path);
+    orca_platform_static.addLibraryPath(dawn_lib_path);
 
     if (target.result.os.tag == .windows) {
-        orca_platform_lib.linkSystemLibrary("user32");
-        orca_platform_lib.linkSystemLibrary("opengl32");
-        orca_platform_lib.linkSystemLibrary("gdi32");
-        orca_platform_lib.linkSystemLibrary("dxgi");
-        orca_platform_lib.linkSystemLibrary("dxguid");
-        orca_platform_lib.linkSystemLibrary("d3d11");
-        orca_platform_lib.linkSystemLibrary("dcomp");
-        orca_platform_lib.linkSystemLibrary("shcore");
-        orca_platform_lib.linkSystemLibrary("dwmapi");
-        orca_platform_lib.linkSystemLibrary("comctl32");
-        orca_platform_lib.linkSystemLibrary("ole32");
-        orca_platform_lib.linkSystemLibrary("shell32");
-        orca_platform_lib.linkSystemLibrary("shlwapi");
+        orca_platform_static.linkSystemLibrary("user32");
+        orca_platform_static.linkSystemLibrary("opengl32");
+        orca_platform_static.linkSystemLibrary("gdi32");
+        orca_platform_static.linkSystemLibrary("dxgi");
+        orca_platform_static.linkSystemLibrary("dxguid");
+        orca_platform_static.linkSystemLibrary("d3d11");
+        orca_platform_static.linkSystemLibrary("dcomp");
+        orca_platform_static.linkSystemLibrary("shcore");
+        orca_platform_static.linkSystemLibrary("dwmapi");
+        orca_platform_static.linkSystemLibrary("comctl32");
+        orca_platform_static.linkSystemLibrary("ole32");
+        orca_platform_static.linkSystemLibrary("shell32");
+        orca_platform_static.linkSystemLibrary("shlwapi");
 
         // TODO delay load these the graphics libs
-        // orca_platform_lib.linkSystemLibrary("delayimp");
-        orca_platform_lib.linkSystemLibrary("libEGL.dll");
-        orca_platform_lib.linkSystemLibrary("libGLESv2.dll");
-        orca_platform_lib.linkSystemLibrary("webgpu");
+        // orca_platform_static.linkSystemLibrary("delayimp");
+        orca_platform_static.linkSystemLibrary("libEGL.dll");
+        orca_platform_static.linkSystemLibrary("libGLESv2.dll");
+        orca_platform_static.linkSystemLibrary("webgpu");
     } else if (target.result.os.tag.isDarwin()) {
-        orca_platform_lib.linkFramework("Carbon");
-        orca_platform_lib.linkFramework("Cocoa");
-        orca_platform_lib.linkFramework("Metal");
-        orca_platform_lib.linkFramework("QuartzCore");
-        orca_platform_lib.linkFramework("UniformTypeIdentifiers");
+        orca_platform_static.linkFramework("Carbon");
+        orca_platform_static.linkFramework("Cocoa");
+        orca_platform_static.linkFramework("Metal");
+        orca_platform_static.linkFramework("QuartzCore");
+        orca_platform_static.linkFramework("UniformTypeIdentifiers");
 
-        orca_platform_lib.linkSystemLibrary2("EGL", .{ .weak = true });
-        orca_platform_lib.linkSystemLibrary2("GLESv2", .{ .weak = true });
-        orca_platform_lib.linkSystemLibrary2("webgpu", .{ .weak = true });
+        orca_platform_static.linkSystemLibrary2("EGL", .{ .weak = true });
+        orca_platform_static.linkSystemLibrary2("GLESv2", .{ .weak = true });
+        orca_platform_static.linkSystemLibrary2("webgpu", .{ .weak = true });
 
         try orca_platform_files.append(b.allocator, "src/orca.m");
     }
 
-    orca_platform_lib.addCSourceFiles(.{
+    orca_platform_static.addCSourceFiles(.{
         .files = orca_platform_files.items,
         .flags = orca_platform_compile_flags.items,
     });
 
-    orca_platform_lib.step.dependOn(&stage_angle_dawn_src.step);
-    orca_platform_lib.step.dependOn(&install_angle_libs.step);
-    orca_platform_lib.step.dependOn(&install_dawn_libs.step);
-    orca_platform_lib.step.dependOn(&update_wgpu_header.step);
+    orca_platform_static.step.dependOn(&stage_angle_dawn_src.step);
+    orca_platform_static.step.dependOn(&install_angle_libs.step);
+    orca_platform_static.step.dependOn(&install_dawn_libs.step);
+    orca_platform_static.step.dependOn(&update_wgpu_header.step);
 
-    const orca_platform_install_opts: Build.Step.InstallArtifact.Options = .{
-        .dest_dir = .{ .override = .bin },
-    };
+    b.installArtifact(orca_platform_static);
 
-    const orca_platform_install: *Build.Step.InstallArtifact = b.addInstallArtifact(orca_platform_lib, orca_platform_install_opts);
-    // make it public to consumers
-    b.installArtifact(orca_platform_lib);
-
-    const orca_platform_layer = b.step("platform-layer", "Build orca platform layer library");
-    orca_platform_layer.dependOn(&orca_platform_install.step);
+    const orca_platform_dynamic = b.addLibrary(.{
+        .linkage = .dynamic,
+        .name = "orca",
+        .win32_manifest = b.path("src/app/win32_manifest.manifest"),
+        .root_module = orca_platform_static.root_module,
+    });
+    b.installArtifact(orca_platform_dynamic);
 
     ///////////////////////////////////////////////////////////////
     // zig build - default install step builds and installs a dev build of orca
 
-    b.getInstallStep().dependOn(&orca_platform_lib.step);
+    b.getInstallStep().dependOn(&orca_platform_static.step);
+    b.getInstallStep().dependOn(&orca_platform_dynamic.step);
 
     /////////////////////////////////////////////////////////////////
     //TODO tests
