@@ -47,7 +47,6 @@ pub fn build(b: *Build) !void {
 
     /////////////////////////////////////////////////////////
     // angle build dependencies
-
     var angle_include_path: LazyPath = .{ .cwd_relative = "" };
     var angle_lib_path: LazyPath = .{ .cwd_relative = "" };
     if (b.option([]const u8, "angle-path", "Specify a local build of the Angle library.")) |user_path| {
@@ -186,7 +185,7 @@ pub fn build(b: *Build) !void {
     }
     const orca_platform_static = b.addLibrary(.{
         .linkage = .static,
-        .name = "orca",
+        .name = "orca_static",
         .win32_manifest = b.path("src/app/win32_manifest.manifest"),
         .root_module = b.createModule(.{
             .target = target,
@@ -262,7 +261,7 @@ pub fn build(b: *Build) !void {
 
     const orca_platform_dynamic = b.addLibrary(.{
         .linkage = .dynamic,
-        .name = "orca",
+        .name = "orca_dynamic",
         .win32_manifest = b.path("src/app/win32_manifest.manifest"),
         .root_module = orca_platform_static.root_module,
     });
