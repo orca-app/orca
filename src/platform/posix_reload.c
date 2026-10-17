@@ -33,7 +33,14 @@ int oc_reload_if_needed(oc_reload_info* info)
 
         for(int i = 0; i < OC_RELOAD_PROC_COUNT; i++)
         {
-            info->procs[i] = dlsym(info->module, info->symbolNames[i]);
+            if(info->symbolNames[i])
+            {
+                info->procs[i] = dlsym(info->module, info->symbolNames[i]);
+            }
+            else
+            {
+                info->procs[i] = 0;
+            }
         }
     }
     oc_scratch_end(scratch);
