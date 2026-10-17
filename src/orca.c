@@ -24,6 +24,7 @@
     #include "platform/posix_thread.c"
     #include "platform/unix_subprocess.c"
     #include "platform/osx_platform.c"
+    #include "platform/posix_reload.c"
 /*
 	#include"platform/unix_rng.c"
 	#include"platform/posix_socket.c"

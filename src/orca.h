@@ -27,6 +27,7 @@
 #if !defined(OC_PLATFORM_ORCA) || !(OC_PLATFORM_ORCA)
     #include "platform/platform_thread.h"
     #include "platform/subprocess.h"
+    #include "platform/reload.h"
 #endif
 
 #if defined(OC_NO_APP_LAYER)
