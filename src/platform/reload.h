@@ -28,6 +28,7 @@ typedef enum oc_reload_names
 typedef struct oc_reload_info
 {
     const char* symbolNames[5];
+    void* userData;
 
     union
     {
@@ -44,7 +45,6 @@ typedef struct oc_reload_info
     };
 
     oc_str8 path;
-
     void* module;
     f64 modTime;
 

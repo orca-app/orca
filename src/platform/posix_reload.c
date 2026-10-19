@@ -22,7 +22,11 @@ int oc_reload_if_needed(oc_reload_info* info)
     if(newModTime > info->modTime)
     {
         oc_log_info("reload!");
-        info->modTime = newModTime;
+
+        if(info->begin)
+        {
+            info->begin(info->userData);
+        }
 
         oc_str8 tmpPath = oc_str8_push_copy(scratch.allocator, OC_STR8("/tmp/libXXXXXX"));
         mkstemp(tmpPath.ptr);
@@ -42,6 +46,12 @@ int oc_reload_if_needed(oc_reload_info* info)
                 info->procs[i] = 0;
             }
         }
+
+        if(info->modTime != 0 && info->end)
+        {
+            info->end(info->userData);
+        }
+        info->modTime = newModTime;
     }
     oc_scratch_end(scratch);
     return 0;
