@@ -47,7 +47,11 @@ int oc_reload_if_needed(oc_reload_info* info)
             }
         }
 
-        if(info->modTime != 0 && info->end)
+        if(info->modTime == 0)
+        {
+            info->userData = info->init();
+        }
+        else if(info->end)
         {
             info->end(info->userData);
         }
