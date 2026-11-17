@@ -131,7 +131,10 @@ pub fn build(b: *Build) !void {
 
     // copy angle + dawn libs to output directory
     const install_angle_libs = b.addInstallDirectory(.{ .source_dir = angle_lib_path, .install_dir = .lib, .install_subdir = "" });
-    const install_dawn_libs = b.addInstallDirectory(.{ .source_dir = dawn_lib_path, .install_dir = .lib, .install_subdir = "" });
+
+    // copy dawn lib, also re-expose it as a named lazy path
+    const install_dawn_libs = b.addInstallLibFile(try dawn_lib_path.join(b.allocator, "libwebgpu.dylib"), "libwebgpu.dylib");
+    b.addNamedLazyPath("webgpu", install_dawn_libs.source);
 
     // wgpu shaders header
     const gen_header_exe: *Build.Step.Compile = b.addExecutable(.{
